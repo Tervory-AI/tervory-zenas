@@ -1,0 +1,42 @@
+# Zenas. Deploy this file as its own Coolify resource.
+# Build context is agents/ (the parent of this file), because the chassis lives there.
+# The only network is the external gateway. Coolify's own network for this resource
+# contains just this service, so it cannot see the main stack.
+# The server network already exists: docker network create tervory-gw-zenas
+
+services:
+  agent-zenas:
+    build:
+      context: ..
+      dockerfile: zenas/Dockerfile
+    restart: unless-stopped
+    mem_limit: 512m
+    cpus: 0.5
+    environment:
+      AGENT_NAME: zenas
+      DATABASE_URL: postgresql://agent_zenas:${AGENT_DB_PASSWORD_ZENAS}@postgres:5432/${POSTGRES_DB:-tervory}
+      TANK_URL: http://tank:8000
+      TANK_KEY: ${TANK_KEY_ZENAS:-}
+      HERMES_URL: http://hermes:8000
+      TANK_REGION: ${TANK_REGION:-us-east}
+      ZENAS_PII_KEY: ${ZENAS_PII_KEY:-}
+      DATA_DIR: /data
+    volumes:
+      - agent_zenas_data:/data
+    networks:
+      - gw
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    expose:
+      - "8000"
+
+volumes:
+  agent_zenas_data:
+
+networks:
+  gw:
+    external: true
+    name: tervory-gw-zenas
