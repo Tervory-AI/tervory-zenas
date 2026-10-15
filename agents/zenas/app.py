@@ -25,6 +25,7 @@ if _CHASSIS.is_dir() and str(_CHASSIS) not in sys.path:
 
 from agents.zenas.pool.api import register_routes as register_pool_routes  # noqa: E402
 from agents.zenas.pool.catalogue import CATALOGUE  # noqa: E402
+from agents.zenas.pool.region import RegionError, assert_box_region  # noqa: E402
 from agents.zenas.pool.store import PostgresStore  # noqa: E402
 from chassis.app import create_app  # noqa: E402
 from chassis.jobs import JobContext  # noqa: E402
@@ -85,7 +86,12 @@ async def ping(ctx: JobContext) -> dict:
 
 
 def _box_region() -> str:
-    return os.environ.get("TANK_REGION", "us-east")
+    """This room's region. Missing or unknown is refused. There is no us-east default."""
+    raw = os.environ.get("TANK_REGION", "").strip().lower()
+    try:
+        return assert_box_region(raw or None)
+    except RegionError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 def _store() -> PgStore:

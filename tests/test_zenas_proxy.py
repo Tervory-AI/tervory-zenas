@@ -109,6 +109,28 @@ def test_feed_payload_keeps_the_key_name_and_drops_the_value(monkeypatch: pytest
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("region", ["", " ", "eu", "us"])
+async def test_proxy_refuses_when_the_box_region_is_missing(
+    monkeypatch: pytest.MonkeyPatch, region: str
+) -> None:
+    if region == "":
+        monkeypatch.delenv("TANK_REGION", raising=False)
+    else:
+        monkeypatch.setenv("TANK_REGION", region)
+    monkeypatch.setenv("ZENAS_AGENT_URL", "http://agent-zenas:8000")
+    room = _Room(b"{}")
+    monkeypatch.setattr(main, "_http", room)
+    body = json.dumps(
+        {"tenant_id": "11111111-1111-1111-1111-111111111111", "home_region": "us-east"}
+    ).encode()
+    with pytest.raises(HTTPException) as caught:
+        await main.zenas_proxy("matters", _request("POST", "/v1/zenas/matters", body))
+    assert caught.value.status_code == 409
+    assert caught.value.detail == "TANK_REGION must be us-east or za"
+    assert room.calls == []
+
+
+@pytest.mark.asyncio
 async def test_proxy_refuses_the_other_home_and_does_not_call_the_room(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
