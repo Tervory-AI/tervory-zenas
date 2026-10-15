@@ -61,11 +61,32 @@ INSERT INTO agent_zenas.pii (id, matter_id, tenant_id, kind, ciphertext)
 VALUES ($1, $2, $3, $4, $5)
 """.strip()
 
+TENANT_HOME = """
+SELECT tenant_id, home_region
+FROM agent_zenas.tenants
+WHERE tenant_id = $1
+""".strip()
+
+INSERT_TENANT = """
+INSERT INTO agent_zenas.tenants (tenant_id, home_region)
+VALUES ($1, $2)
+ON CONFLICT (tenant_id) DO NOTHING
+""".strip()
+
+OPEN_DOCUMENTS = """
+SELECT id, matter_id, tenant_id, kind, version, body, sources, state
+FROM agent_zenas.documents
+WHERE tenant_id = $1 AND state IN ('draft', 'in_review')
+ORDER BY created_at DESC
+""".strip()
+
 READS = (
     MATTERS_FOR_TENANT,
     NEXT_VERSION,
     DOCUMENT_FOR_TENANT,
     CURRENT_CONSENT,
+    TENANT_HOME,
+    OPEN_DOCUMENTS,
 )
 
 
@@ -102,6 +123,34 @@ class MemoryStore:
         self.reviews: list[dict[str, Any]] = []
         self.consents: list[dict[str, Any]] = []
         self.pii: list[dict[str, Any]] = []
+        self.tenants: list[dict[str, Any]] = []
+
+    async def get_tenant(self, tenant_id: str) -> dict[str, Any] | None:
+        for row in self.tenants:
+            if row["tenant_id"] == str(tenant_id):
+                return dict(row)
+        return None
+
+    async def register_tenant(self, tenant_id: str, home_region: str) -> dict[str, Any]:
+        from agents.zenas.core.engine import normalize_home
+
+        home = normalize_home(home_region)
+        if home not in ("us-east", "za"):
+            return {"ok": False, "reason": "home region must be us-east or za"}
+        existing = await self.get_tenant(tenant_id)
+        if existing is not None:
+            if existing["home_region"] != home:
+                return {"ok": False, "reason": "home region is already set"}
+            return {"ok": True, "tenant_id": str(tenant_id), "home_region": home, "created": False}
+        self.tenants.append({"tenant_id": str(tenant_id), "home_region": home})
+        return {"ok": True, "tenant_id": str(tenant_id), "home_region": home, "created": True}
+
+    async def list_open_documents(self, tenant_id: str) -> list[dict[str, Any]]:
+        return [
+            dict(row)
+            for row in self.documents
+            if row["tenant_id"] == str(tenant_id) and row.get("state") in ("draft", "in_review")
+        ]
 
     async def add_matter(self, row: dict[str, Any]) -> dict[str, Any]:
         saved = dict(row)
@@ -165,6 +214,13 @@ class MemoryStore:
         saved["matter_id"] = str(saved["matter_id"])
         self.pii.append(saved)
         return saved
+
+    async def set_document_state(self, tenant_id: str, document_id: str, state: str) -> dict[str, Any] | None:
+        document = await self.get_document(tenant_id, document_id)
+        if document is None:
+            return None
+        document["state"] = state
+        return document
 
 
 class PgStore:
@@ -307,6 +363,52 @@ class PgStore:
         saved["tenant_id"] = str(row["tenant_id"])
         saved["matter_id"] = str(row["matter_id"])
         return saved
+
+    async def get_tenant(self, tenant_id: str) -> dict[str, Any] | None:
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow(TENANT_HOME, _as_uuid(tenant_id))
+        if row is None:
+            return None
+        return {"tenant_id": str(row["tenant_id"]), "home_region": str(row["home_region"])}
+
+    async def register_tenant(self, tenant_id: str, home_region: str) -> dict[str, Any]:
+        from agents.zenas.core.engine import normalize_home
+
+        home = normalize_home(home_region)
+        if home not in ("us-east", "za"):
+            return {"ok": False, "reason": "home region must be us-east or za"}
+        existing = await self.get_tenant(tenant_id)
+        if existing is not None:
+            if existing["home_region"] != home:
+                return {"ok": False, "reason": "home region is already set", "home_region": existing["home_region"]}
+            return {"ok": True, "tenant_id": str(tenant_id), "home_region": home, "created": False}
+        async with self.pool.acquire() as conn:
+            await conn.execute(INSERT_TENANT, _as_uuid(tenant_id), home)
+        return {"ok": True, "tenant_id": str(tenant_id), "home_region": home, "created": True}
+
+    async def list_open_documents(self, tenant_id: str) -> list[dict[str, Any]]:
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(OPEN_DOCUMENTS, _as_uuid(tenant_id))
+        found = []
+        for row in rows:
+            data = dict(row)
+            data["id"] = str(data["id"])
+            data["matter_id"] = str(data["matter_id"])
+            data["tenant_id"] = str(data["tenant_id"])
+            sources = data.get("sources")
+            if isinstance(sources, str):
+                data["sources"] = json.loads(sources)
+            found.append(data)
+        return found
+
+    async def set_document_state(self, tenant_id: str, document_id: str, state: str) -> dict[str, Any] | None:
+        sql = """
+        UPDATE agent_zenas.documents SET state = $3
+        WHERE tenant_id = $1 AND id = $2
+        """.strip()
+        async with self.pool.acquire() as conn:
+            await conn.execute(sql, _as_uuid(tenant_id), _as_uuid(document_id), state)
+        return await self.get_document(tenant_id, document_id)
 
 
 def _public_matter(row: Any) -> dict[str, Any]:

@@ -6,6 +6,7 @@ import hashlib
 import json
 from typing import Any
 
+from agents.zenas.core.engine import home_cross_check
 from agents.zenas.core.pii_detect import detect
 from agents.zenas.core.scope_rules import classify, ruled
 from agents.zenas.core.seal import open_seal, seal
@@ -59,6 +60,19 @@ def _law(value: str | None) -> str | None:
     if value in _JURISDICTIONS:
         return value
     return None
+
+
+async def _use_home(store: Any, *, tenant_id: str, home_region: str, box_region: str) -> tuple[str, dict[str, Any] | None]:
+    """Stored home region wins. The value on the request only confirms it."""
+    row = await store.get_tenant(str(tenant_id))
+    stored = None if row is None else str(row.get("home_region") or "")
+    problem = home_cross_check(stored or None, home_region)
+    if problem:
+        return "", _refuse(problem)
+    refusal = region_refusal(stored, box_region)
+    if refusal is not None:
+        return "", _refuse(refusal)
+    return stored, None
 
 
 def _refuse(reason: str, scope: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -137,9 +151,9 @@ async def record_consent(
     box_region: str,
     wording_version: str = CURRENT_WORDING_VERSION,
 ) -> dict[str, Any]:
-    refusal = region_refusal(home_region, box_region)
-    if refusal is not None:
-        return _refuse(refusal)
+    _home, refused = await _use_home(store, tenant_id=tenant_id, home_region=home_region, box_region=box_region)
+    if refused is not None:
+        return refused
     law = _law(jurisdiction)
     if law is None or not user_id or not wording or not ip:
         return _refuse("consent needs a user, wording, jurisdiction, and ip")
@@ -170,13 +184,13 @@ async def open_matter(
     parties: list[Any] | None = None,
     key: bytes | None = None,
 ) -> dict[str, Any]:
-    refusal = region_refusal(home_region, box_region)
-    if refusal is not None:
-        return _refuse(refusal)
+    stored, refused = await _use_home(store, tenant_id=tenant_id, home_region=home_region, box_region=box_region)
+    if refused is not None:
+        return refused
     law = _law(jurisdiction)
     if law is None or not title.strip() or not created_by:
         return _refuse("a matter needs a title, a creator, and a jurisdiction")
-    if normalize_home(home_region) == "za":
+    if stored == "za":
         current = await store.has_current_consent(str(tenant_id), user_id, CURRENT_WORDING_VERSION)
         if not current:
             return _refuse(CONSENT_MESSAGE)
@@ -228,9 +242,9 @@ async def upload_document(
     key: bytes | None = None,
     sources: list[Any] | None = None,
 ) -> dict[str, Any]:
-    refusal = region_refusal(home_region, box_region)
-    if refusal is not None:
-        return _refuse(refusal)
+    _home, refused = await _use_home(store, tenant_id=tenant_id, home_region=home_region, box_region=box_region)
+    if refused is not None:
+        return refused
     matter = await store.get_matter(str(tenant_id), str(matter_id))
     if matter is None:
         return _refuse("no such matter")

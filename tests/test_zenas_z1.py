@@ -193,6 +193,7 @@ async def test_in_scope_question_may_call_the_next_skill() -> None:
 async def test_za_home_tenant_is_refused_in_us_east_and_nothing_is_stored() -> None:
     tank = MockTank()
     store = MemoryStore()
+    await store.register_tenant(TENANT, "za")
     result = await open_matter(
         store,
         tank,
@@ -230,6 +231,7 @@ async def test_za_home_tenant_is_refused_in_us_east_and_nothing_is_stored() -> N
 async def test_za_tenant_needs_consent_on_the_za_box() -> None:
     tank = MockTank()
     store = MemoryStore()
+    await store.register_tenant(TENANT, "za")
     refused = await open_matter(
         store,
         tank,
@@ -279,6 +281,7 @@ async def test_za_tenant_needs_consent_on_the_za_box() -> None:
 async def test_us_tenant_may_ask_about_south_african_law() -> None:
     tank = MockTank()
     store = MemoryStore()
+    await store.register_tenant(TENANT, "us-east")
     opened = await open_matter(
         store,
         tank,
@@ -301,6 +304,7 @@ async def test_us_tenant_may_ask_about_south_african_law() -> None:
 async def test_upload_redacts_and_a_criminal_upload_stores_nothing() -> None:
     tank = MockTank()
     store = MemoryStore()
+    await store.register_tenant(TENANT, "us-east")
     opened = await open_matter(
         store,
         tank,
@@ -374,6 +378,7 @@ async def test_upload_redacts_and_a_criminal_upload_stores_nothing() -> None:
 async def test_other_tenant_cannot_read_the_matter() -> None:
     tank = MockTank()
     store = MemoryStore()
+    await store.register_tenant(TENANT, "us-east")
     opened = await open_matter(
         store,
         tank,
@@ -405,6 +410,7 @@ async def test_other_tenant_cannot_read_the_matter() -> None:
 async def test_review_is_scoped_to_the_tenant() -> None:
     tank = MockTank()
     store = MemoryStore()
+    await store.register_tenant(TENANT, "us-east")
     opened = await open_matter(
         store,
         tank,
