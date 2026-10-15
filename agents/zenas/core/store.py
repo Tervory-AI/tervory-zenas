@@ -80,6 +80,32 @@ WHERE tenant_id = $1 AND state IN ('draft', 'in_review')
 ORDER BY created_at DESC
 """.strip()
 
+INSERT_CLAUSE = """
+INSERT INTO agent_zenas.clauses
+    (id, region, jurisdiction, template, kind, text, fallback_positions, notes, approved_by, admission_no, status)
+VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9, $10, 'lawyer_approved')
+""".strip()
+
+CLAUSES_FOR_TEMPLATE = """
+SELECT id, region, jurisdiction, template, kind, text, fallback_positions, notes, approved_by, status
+FROM agent_zenas.clauses
+WHERE region = $1 AND template = $2 AND status = 'lawyer_approved'
+  AND (jurisdiction = $3 OR jurisdiction = 'both')
+ORDER BY created_at ASC
+""".strip()
+
+INSERT_PLAYBOOK = """
+INSERT INTO agent_zenas.playbooks
+    (id, region, tenant_id, name, template, positions)
+VALUES ($1, $2, $3, $4, $5, $6::jsonb)
+""".strip()
+
+PLAYBOOK_FOR_TENANT = """
+SELECT id, region, tenant_id, name, template, positions
+FROM agent_zenas.playbooks
+WHERE region = $1 AND tenant_id = $2 AND id = $3
+""".strip()
+
 READS = (
     MATTERS_FOR_TENANT,
     NEXT_VERSION,
@@ -124,6 +150,8 @@ class MemoryStore:
         self.consents: list[dict[str, Any]] = []
         self.pii: list[dict[str, Any]] = []
         self.tenants: list[dict[str, Any]] = []
+        self.clauses: list[dict[str, Any]] = []
+        self.playbooks: list[dict[str, Any]] = []
 
     async def get_tenant(self, tenant_id: str) -> dict[str, Any] | None:
         for row in self.tenants:
@@ -144,6 +172,42 @@ class MemoryStore:
             return {"ok": True, "tenant_id": str(tenant_id), "home_region": home, "created": False}
         self.tenants.append({"tenant_id": str(tenant_id), "home_region": home})
         return {"ok": True, "tenant_id": str(tenant_id), "home_region": home, "created": True}
+
+    async def add_clause(self, row: dict[str, Any]) -> dict[str, Any]:
+        saved = dict(row)
+        saved["id"] = str(saved.get("id") or _id())
+        saved["region"] = str(saved["region"])
+        saved["status"] = "lawyer_approved"
+        saved["fallback_positions"] = list(saved.get("fallback_positions") or [])
+        self.clauses.append(saved)
+        return saved
+
+    async def list_clauses(self, *, region: str, template: str, jurisdiction: str) -> list[dict[str, Any]]:
+        found = []
+        for row in self.clauses:
+            if row["region"] != region or row["template"] != template:
+                continue
+            if row["status"] != "lawyer_approved":
+                continue
+            if row["jurisdiction"] not in (jurisdiction, "both"):
+                continue
+            found.append(dict(row))
+        return found
+
+    async def add_playbook(self, row: dict[str, Any]) -> dict[str, Any]:
+        saved = dict(row)
+        saved["id"] = str(saved.get("id") or _id())
+        saved["region"] = str(saved["region"])
+        saved["tenant_id"] = str(saved["tenant_id"])
+        saved["positions"] = list(saved.get("positions") or [])
+        self.playbooks.append(saved)
+        return saved
+
+    async def get_playbook(self, *, region: str, tenant_id: str, playbook_id: str) -> dict[str, Any] | None:
+        for row in self.playbooks:
+            if row["region"] == region and row["tenant_id"] == str(tenant_id) and row["id"] == str(playbook_id):
+                return dict(row)
+        return None
 
     async def list_open_documents(self, tenant_id: str) -> list[dict[str, Any]]:
         return [
@@ -401,6 +465,72 @@ class PgStore:
             found.append(data)
         return found
 
+    async def add_clause(self, row: dict[str, Any]) -> dict[str, Any]:
+        clause_id = str(row.get("id") or _id())
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                INSERT_CLAUSE,
+                _as_uuid(clause_id),
+                row["region"],
+                row["jurisdiction"],
+                row["template"],
+                row["kind"],
+                row["text"],
+                json.dumps(list(row.get("fallback_positions") or [])),
+                row.get("notes") or "",
+                row["approved_by"],
+                row["admission_no"],
+            )
+        saved = dict(row)
+        saved["id"] = clause_id
+        saved["status"] = "lawyer_approved"
+        saved["fallback_positions"] = list(row.get("fallback_positions") or [])
+        return saved
+
+    async def list_clauses(self, *, region: str, template: str, jurisdiction: str) -> list[dict[str, Any]]:
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(CLAUSES_FOR_TEMPLATE, region, template, jurisdiction)
+        found = []
+        for row in rows:
+            data = dict(row)
+            data["id"] = str(data["id"])
+            positions = data.get("fallback_positions")
+            if isinstance(positions, str):
+                data["fallback_positions"] = json.loads(positions)
+            found.append(data)
+        return found
+
+    async def add_playbook(self, row: dict[str, Any]) -> dict[str, Any]:
+        playbook_id = str(row.get("id") or _id())
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                INSERT_PLAYBOOK,
+                _as_uuid(playbook_id),
+                row["region"],
+                _as_uuid(row["tenant_id"]),
+                row["name"],
+                row["template"],
+                json.dumps(list(row.get("positions") or [])),
+            )
+        saved = dict(row)
+        saved["id"] = playbook_id
+        saved["tenant_id"] = str(row["tenant_id"])
+        saved["positions"] = list(row.get("positions") or [])
+        return saved
+
+    async def get_playbook(self, *, region: str, tenant_id: str, playbook_id: str) -> dict[str, Any] | None:
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow(PLAYBOOK_FOR_TENANT, region, _as_uuid(tenant_id), _as_uuid(playbook_id))
+        if row is None:
+            return None
+        data = dict(row)
+        data["id"] = str(data["id"])
+        data["tenant_id"] = str(data["tenant_id"])
+        positions = data.get("positions")
+        if isinstance(positions, str):
+            data["positions"] = json.loads(positions)
+        return data
+
     async def set_document_state(self, tenant_id: str, document_id: str, state: str) -> dict[str, Any] | None:
         sql = """
         UPDATE agent_zenas.documents SET state = $3
@@ -409,6 +539,24 @@ class PgStore:
         async with self.pool.acquire() as conn:
             await conn.execute(sql, _as_uuid(tenant_id), _as_uuid(document_id), state)
         return await self.get_document(tenant_id, document_id)
+
+
+async def register_home(
+    store: Any,
+    *,
+    tenant_id: str,
+    home_region: str | None,
+    box_region: str,
+) -> dict[str, Any]:
+    """Record the home region once. A missing value is refused, never filled in."""
+    from agents.zenas.core.engine import region_refusal
+
+    if home_region is None or not str(home_region).strip():
+        return {"ok": False, "reason": "home region is required"}
+    refusal = region_refusal(str(home_region), box_region)
+    if refusal:
+        return {"ok": False, "reason": refusal}
+    return await store.register_tenant(str(tenant_id), str(home_region))
 
 
 def _public_matter(row: Any) -> dict[str, Any]:

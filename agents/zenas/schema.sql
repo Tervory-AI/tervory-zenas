@@ -200,3 +200,41 @@ CREATE TABLE IF NOT EXISTS agent_zenas.memory_notes (
 
 CREATE INDEX IF NOT EXISTS memory_notes_tenant_idx
     ON agent_zenas.memory_notes (region, tenant_id, created_at DESC);
+
+-- Panel-approved clause text for one region. Empty until a lawyer adds a row.
+-- region has no default: the box that holds the clause must name it.
+CREATE TABLE IF NOT EXISTS agent_zenas.clauses (
+    id                  uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    region              text NOT NULL,
+    jurisdiction        text NOT NULL,
+    template            text NOT NULL,
+    kind                text NOT NULL,
+    text                text NOT NULL,
+    fallback_positions  jsonb NOT NULL DEFAULT '[]'::jsonb,
+    notes               text NOT NULL DEFAULT '',
+    approved_by         text NOT NULL,
+    admission_no        text NOT NULL,
+    status              text NOT NULL DEFAULT 'lawyer_approved',
+    created_at          timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT clauses_region_chk CHECK (region IN ('us-east', 'za')),
+    CONSTRAINT clauses_jurisdiction_chk CHECK (jurisdiction IN ('us', 'za', 'both')),
+    CONSTRAINT clauses_status_chk CHECK (status = 'lawyer_approved')
+);
+
+CREATE INDEX IF NOT EXISTS clauses_lookup_idx
+    ON agent_zenas.clauses (region, template, jurisdiction, kind);
+
+-- A tenant's preferred positions. Another tenant's playbook is not readable here.
+CREATE TABLE IF NOT EXISTS agent_zenas.playbooks (
+    id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    region      text NOT NULL,
+    tenant_id   uuid NOT NULL,
+    name        text NOT NULL,
+    template    text NOT NULL,
+    positions   jsonb NOT NULL DEFAULT '[]'::jsonb,
+    created_at  timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT playbooks_region_chk CHECK (region IN ('us-east', 'za'))
+);
+
+CREATE INDEX IF NOT EXISTS playbooks_tenant_idx
+    ON agent_zenas.playbooks (region, tenant_id, template);

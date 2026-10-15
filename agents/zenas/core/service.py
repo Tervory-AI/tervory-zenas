@@ -7,6 +7,7 @@ cards, and memory are stored here only when this box is the tenant's home.
 
 from __future__ import annotations
 
+import base64
 import json
 from typing import Any
 
@@ -36,8 +37,11 @@ from agents.zenas.core.engine import (
     support_line,
     wording_keeps_law,
 )
+from agents.zenas.core.docx_redline import docx_bytes
+from agents.zenas.core.drafting import TEMPLATES, assemble_draft, select_prior
 from agents.zenas.core.matters import consider
-from agents.zenas.core.scope_rules import REFUSED, classify, ruled
+from agents.zenas.core.review import review_positions
+from agents.zenas.core.scope_rules import NOT_YET, REFUSED, classify, ruled
 
 _RULE_PROMPT = """Build a rule card from these passages only. Reply with JSON:
 {{"elements":[{{"id":"","test":"","citation":"","quote":""}}],"exceptions":[],"defences":[],"remedies":[],"decision_table":[]}}
@@ -1077,3 +1081,306 @@ async def ladder_metrics(
     pair_count = await ladder.count_pairs(region=box, tenant_id=tenant_id)
     summary = summarize(runs=runs, cards=visible_cards, worked_count=worked_count, pair_count=pair_count)
     return {"ok": True, **summary}
+
+
+def _draft_gate(text: str, jurisdiction: str | None, template: str) -> dict[str, Any]:
+    decision = classify(text or "", jurisdiction if jurisdiction in ("us", "za", "both") else None)
+    if decision.get("criminal") or decision.get("reason") == NOT_YET:
+        return {"stopped": True, "scope": decision}
+    if not decision.get("in_scope") and template not in TEMPLATES:
+        return {"stopped": True, "scope": decision}
+    return {"stopped": False, "scope": decision}
+
+
+async def add_approved_clause(
+    store: Any,
+    *,
+    tenant_id: str,
+    home_region: str,
+    box_region: str,
+    jurisdiction: str,
+    template: str,
+    kind: str,
+    text: str,
+    approved_by: str,
+    admission_no: str,
+    fallback_positions: list[str] | None = None,
+    notes: str = "",
+) -> dict[str, Any]:
+    """The library stays empty until a lawyer names the clause and an admission number."""
+    _home, refused = await _use_home(store, tenant_id=tenant_id, home_region=home_region, box_region=box_region)
+    if refused:
+        return refused
+    if template not in TEMPLATES:
+        return _refuse("no such template")
+    if kind not in TEMPLATES[template]:
+        return _refuse("that clause is not part of this template")
+    if jurisdiction not in ("us", "za", "both"):
+        return _refuse("jurisdiction must be us, za, or both")
+    if not str(approved_by or "").strip() or not str(admission_no or "").strip():
+        return _refuse("a clause needs the approving lawyer and admission number")
+    if not str(text or "").strip():
+        return _refuse("a clause needs text")
+    if pii_detect(text).get("matches"):
+        return _refuse(IDENTIFIER_REFUSED)
+    saved = await store.add_clause(
+        {
+            "region": _box(box_region),
+            "jurisdiction": jurisdiction,
+            "template": template,
+            "kind": kind,
+            "text": text,
+            "fallback_positions": list(fallback_positions or []),
+            "notes": notes,
+            "approved_by": approved_by.strip(),
+            "admission_no": admission_no.strip(),
+        }
+    )
+    return {"ok": True, "clause": saved}
+
+
+async def add_playbook(
+    store: Any,
+    *,
+    tenant_id: str,
+    home_region: str,
+    box_region: str,
+    name: str,
+    template: str,
+    positions: list[dict[str, Any]],
+) -> dict[str, Any]:
+    _home, refused = await _use_home(store, tenant_id=tenant_id, home_region=home_region, box_region=box_region)
+    if refused:
+        return refused
+    if template not in TEMPLATES:
+        return _refuse("no such template")
+    if not str(name or "").strip():
+        return _refuse("a playbook needs a name")
+    cleaned: list[dict[str, Any]] = []
+    for position in positions:
+        if not isinstance(position, dict):
+            continue
+        kind = str(position.get("kind") or "")
+        body = str(position.get("text") or "")
+        if not kind or not body:
+            continue
+        if pii_detect(body).get("matches"):
+            return _refuse(IDENTIFIER_REFUSED)
+        cleaned.append(
+            {
+                "kind": kind,
+                "text": body,
+                "stance": str(position.get("stance") or "must"),
+                "fallbacks": [str(item) for item in (position.get("fallbacks") or [])],
+            }
+        )
+    if not cleaned:
+        return _refuse("a playbook needs at least one position")
+    saved = await store.add_playbook(
+        {
+            "region": _box(box_region),
+            "tenant_id": tenant_id,
+            "name": name.strip(),
+            "template": template,
+            "positions": cleaned,
+        }
+    )
+    return {"ok": True, "playbook": saved}
+
+
+def _apply_revision(sentences: list[dict[str, Any]], proposal: str, differing: list[str]) -> None:
+    try:
+        parsed = parse_json_object(proposal)
+    except (ValueError, json.JSONDecodeError):
+        return
+    by_slot = {str(item["slot"]): item for item in sentences}
+    for item in parsed.get("sentences") or []:
+        if not isinstance(item, dict):
+            continue
+        slot = str(item.get("slot") or "")
+        if slot not in differing or slot not in by_slot:
+            continue
+        revised = str(item.get("text") or "").strip()
+        current = str(by_slot[slot].get("text") or "")
+        if not revised or not wording_keeps_law(current, revised, []):
+            continue
+        by_slot[slot]["text"] = revised
+        by_slot[slot]["library"] = False
+        by_slot[slot]["review"] = True
+
+
+async def draft_contract(
+    store: Any,
+    ladder: Any,
+    model: Any,
+    *,
+    tenant_id: str,
+    home_region: str,
+    box_region: str,
+    template: str,
+    jurisdiction: str,
+    terms: dict[str, Any] | None = None,
+    narrative: str = "",
+    matter_id: str | None = None,
+    provider: str = "luna",
+) -> dict[str, Any]:
+    _home, refused = await _use_home(store, tenant_id=tenant_id, home_region=home_region, box_region=box_region)
+    if refused:
+        return refused
+    if template not in TEMPLATES:
+        return _refuse("no such template")
+    gate_text = narrative or json.dumps(terms or {})
+    gate = _draft_gate(gate_text, jurisdiction, template)
+    if gate["stopped"]:
+        reason = str((gate.get("scope") or {}).get("reason") or "Not in scope.")
+        return _refuse(reason, scope=gate.get("scope"))
+    box = _box(box_region)
+    clauses = await store.list_clauses(region=box, template=template, jurisdiction=jurisdiction)
+    prior = None
+    if ladder is not None:
+        rows = await ladder.visible_worked(
+            region=box,
+            tenant_id=tenant_id,
+            sharing=sharing_mode(None),
+        )
+        prior = select_prior(rows, template, terms)
+    assembled = assemble_draft(template=template, clauses=clauses, terms=terms, prior=prior)
+    if not assembled.get("ok"):
+        return assembled
+    sentences = list(assembled["sentences"])
+    model_calls = 0
+    cost = 0.0
+    reused = bool(assembled.get("reused"))
+    differing = [] if reused else list(assembled.get("differing") or [])
+    if differing and model is not None:
+        prompt = (
+            "Revise only these slots. Use the facts. Do not add law or citations. "
+            'Reply with JSON {"sentences":[{"slot":"","text":""}]}.\n\n'
+            + json.dumps({"slots": differing, "facts": terms or {}, "sentences": sentences}, default=str)
+        )
+        adapter = ModelAdapter(model)
+        called = await _masked_call(
+            adapter, prompt, home_region=home_region, provider=provider, task_type="zenas.draft"
+        )
+        if not called["ok"]:
+            return called
+        _apply_revision(sentences, str(called["result"]["content"]), differing)
+        model_calls = 1
+        cost = float(called["result"]["cost_usd"])
+    if reused:
+        text = str(assembled["text"])
+        blocks = [[{"kind": "plain", "text": text}]]
+    else:
+        text = "\n\n".join(str(item["text"]) for item in sentences)
+        blocks = [
+            [{"kind": "ins" if item.get("review") else "plain", "text": str(item["text"])}]
+            for item in sentences
+        ]
+    document_id = None
+    if matter_id:
+        matter = await store.get_matter(str(tenant_id), str(matter_id))
+        if matter is None:
+            return _refuse("no such matter")
+        version = await store.next_version(str(tenant_id), str(matter_id), "contract")
+        document = await store.add_document(
+            {
+                "matter_id": str(matter_id),
+                "tenant_id": str(tenant_id),
+                "kind": "contract",
+                "version": version,
+                "body": text,
+                "sources": [
+                    {"slot": item["slot"], "clause_id": item.get("clause_id") or ""}
+                    for item in sentences
+                    if item.get("library")
+                ],
+                "state": "draft",
+            }
+        )
+        document_id = document["id"]
+    review_slots = [item["slot"] for item in sentences if item.get("review")]
+    library_slots = [item["slot"] for item in sentences if item.get("library") and not item.get("review")]
+    return {
+        "ok": True,
+        "template": template,
+        "text": text,
+        "sentences": sentences,
+        "library": library_slots,
+        "review": review_slots,
+        "reused": reused,
+        "cost_usd": cost,
+        "model_calls": model_calls,
+        "document_id": document_id,
+        "docx_base64": base64.b64encode(docx_bytes(blocks)).decode("ascii"),
+    }
+
+
+async def review_contract(
+    store: Any,
+    model: Any,
+    *,
+    tenant_id: str,
+    home_region: str,
+    box_region: str,
+    playbook_id: str,
+    text: str,
+    provider: str = "luna",
+) -> dict[str, Any]:
+    _home, refused = await _use_home(store, tenant_id=tenant_id, home_region=home_region, box_region=box_region)
+    if refused:
+        return refused
+    box = _box(box_region)
+    book = await store.get_playbook(region=box, tenant_id=str(tenant_id), playbook_id=str(playbook_id))
+    if book is None:
+        return _refuse("no such playbook")
+    gate = _draft_gate(text, None, str(book.get("template") or ""))
+    if gate["stopped"]:
+        reason = str((gate.get("scope") or {}).get("reason") or "Not in scope.")
+        return _refuse(reason, scope=gate.get("scope"))
+    reviewed = review_positions(text=text, positions=list(book.get("positions") or []))
+    findings = list(reviewed["findings"])
+    model_calls = 0
+    cost = 0.0
+    partials = [item for item in findings if item.get("partial")]
+    if partials and model is not None:
+        prompt = (
+            "Name the risk of this difference with one word: low, medium, or high. "
+            "Do not add law.\n\n"
+            + json.dumps({"contract": text, "positions": partials}, default=str)
+        )
+        adapter = ModelAdapter(model)
+        called = await _masked_call(
+            adapter, prompt, home_region=home_region, provider=provider, task_type="zenas.review"
+        )
+        if not called["ok"]:
+            return called
+        word = str(called["result"]["content"] or "").strip().lower().split()
+        model_calls = 1
+        cost = float(called["result"]["cost_usd"])
+        if word and word[0] in ("low", "medium", "high"):
+            for item in partials:
+                item["risk"] = word[0]
+    paragraphs: list[list[dict[str, str]]] = []
+    for item in findings:
+        if not item.get("deviation"):
+            continue
+        runs: list[dict[str, str]] = []
+        if item.get("delete"):
+            runs.append({"kind": "del", "text": str(item["delete"])})
+        if item.get("insert"):
+            runs.append({"kind": "ins", "text": str(item["insert"])})
+        if runs:
+            paragraphs.append(runs)
+    if not paragraphs:
+        paragraphs = [[{"kind": "plain", "text": text}]]
+    deviations = [item for item in findings if item.get("deviation")]
+    return {
+        "ok": True,
+        "findings": findings,
+        "deviations": len(deviations),
+        "inserts": [item["insert"] for item in deviations],
+        "deletes": [item["delete"] for item in deviations],
+        "cost_usd": cost,
+        "model_calls": model_calls,
+        "docx_base64": base64.b64encode(docx_bytes(paragraphs)).decode("ascii"),
+    }

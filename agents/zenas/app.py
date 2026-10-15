@@ -33,15 +33,17 @@ from agents.zenas.core.matters import (  # noqa: E402
     open_matter,
     record_consent,
     record_review,
-    region_refusal,
     upload_document,
 )
 from agents.zenas.core.seal import key_from_env  # noqa: E402
 from agents.zenas.core.service import (  # noqa: E402
+    add_approved_clause,
+    add_playbook,
     apply_law,
     approve_rule_card,
     build_rule_card,
     check_citations,
+    draft_contract,
     extract_case_facts,
     ladder_metrics,
     mark_stale,
@@ -50,10 +52,11 @@ from agents.zenas.core.service import (  # noqa: E402
     read_rule_card,
     release_matter,
     retrieve,
+    review_contract,
     review_queue,
     write_memo,
 )
-from agents.zenas.core.store import PgStore  # noqa: E402
+from agents.zenas.core.store import PgStore, register_home  # noqa: E402
 
 AGENT = os.environ.get("AGENT_NAME", "zenas")
 HEARTBEAT_TENANT = "00000000-0000-0000-0000-000000000001"
@@ -647,15 +650,135 @@ class TenantIn(BaseModel):
 
 @app.post("/tenants", status_code=201)
 async def post_tenant(body: TenantIn) -> dict[str, Any]:
-    """Record this tenant's home region on this box. The request cannot change it later."""
-    refusal = region_refusal(body.home_region, _box_region())
-    if refusal:
-        raise HTTPException(status_code=403, detail=refusal)
+    """Record this tenant's home region once. The body must name it. There is no default."""
     store = _store()
     await store.apply_schema()
-    result = await store.register_tenant(str(body.tenant_id), body.home_region)
-    if not result.get("ok"):
-        _fail(result)
+    result = await register_home(
+        store,
+        tenant_id=str(body.tenant_id),
+        home_region=body.home_region,
+        box_region=_box_region(),
+    )
+    _fail(result)
+    return result
+
+
+class ClauseIn(BaseModel):
+    tenant_id: UUID
+    home_region: str
+    jurisdiction: str
+    template: str
+    kind: str
+    text: str
+    approved_by: str
+    admission_no: str
+    fallback_positions: list[str] = Field(default_factory=list)
+    notes: str = ""
+
+
+@app.post("/clauses", status_code=201)
+async def post_clause(body: ClauseIn) -> dict[str, Any]:
+    store = _store()
+    await store.apply_schema()
+    result = await add_approved_clause(
+        store,
+        tenant_id=str(body.tenant_id),
+        home_region=body.home_region,
+        box_region=_box_region(),
+        jurisdiction=body.jurisdiction,
+        template=body.template,
+        kind=body.kind,
+        text=body.text,
+        approved_by=body.approved_by,
+        admission_no=body.admission_no,
+        fallback_positions=body.fallback_positions,
+        notes=body.notes,
+    )
+    _fail(result)
+    return result
+
+
+class PlaybookIn(BaseModel):
+    tenant_id: UUID
+    home_region: str
+    name: str
+    template: str
+    positions: list[dict[str, Any]] = Field(default_factory=list)
+
+
+@app.post("/playbooks", status_code=201)
+async def post_playbook(body: PlaybookIn) -> dict[str, Any]:
+    store = _store()
+    await store.apply_schema()
+    result = await add_playbook(
+        store,
+        tenant_id=str(body.tenant_id),
+        home_region=body.home_region,
+        box_region=_box_region(),
+        name=body.name,
+        template=body.template,
+        positions=body.positions,
+    )
+    _fail(result)
+    return result
+
+
+class DraftIn(BaseModel):
+    tenant_id: UUID
+    home_region: str
+    template: str
+    jurisdiction: str
+    terms: dict[str, Any] = Field(default_factory=dict)
+    narrative: str = ""
+    matter_id: UUID | None = None
+    provider: str = "luna"
+
+
+@app.post("/drafts", status_code=201)
+async def post_draft(body: DraftIn) -> dict[str, Any]:
+    store = _store()
+    await store.apply_schema()
+    result = await draft_contract(
+        store,
+        await _ready(),
+        _model(str(body.tenant_id)),
+        tenant_id=str(body.tenant_id),
+        home_region=body.home_region,
+        box_region=_box_region(),
+        template=body.template,
+        jurisdiction=body.jurisdiction,
+        terms=body.terms,
+        narrative=body.narrative,
+        matter_id=str(body.matter_id) if body.matter_id else None,
+        provider=body.provider,
+    )
+    _fail(result)
+    return result
+
+
+class ContractReviewIn(BaseModel):
+    tenant_id: UUID
+    home_region: str
+    playbook_id: UUID
+    text: str
+    provider: str = "luna"
+
+
+@app.post("/contract-reviews", status_code=200)
+async def post_contract_review(body: ContractReviewIn) -> dict[str, Any]:
+    store = _store()
+    await store.apply_schema()
+    result = await review_contract(
+        store,
+        _model(str(body.tenant_id)),
+        tenant_id=str(body.tenant_id),
+        home_region=body.home_region,
+        box_region=_box_region(),
+        playbook_id=str(body.playbook_id),
+        text=body.text,
+        provider=body.provider,
+    )
+    _fail(result)
     return result
 
 
