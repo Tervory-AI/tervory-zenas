@@ -1,0 +1,70 @@
+# Zenas room for the South Africa region. Deploy this file as its own Coolify
+# resource on the SA server (Base Directory /agents/zenas, Compose Location
+# /docker-compose.za.yml). Same room rules as docs/cursor/ROOMS.md: the only
+# network is the corridor tervory-gw-zenas, created by docker-compose.za.yml at
+# the repo root. The room gets its Tank key and its own database login only.
+# No model keys: those live only in the ZA Tank stack (litellm).
+
+services:
+  agent-zenas:
+    build:
+      context: ..
+      dockerfile: zenas/Dockerfile
+    restart: unless-stopped
+    mem_limit: 512m
+    cpus: 0.5
+    environment:
+      TANK_REGION: za
+      AGENT_NAME: zenas
+      DATABASE_URL: postgresql://agent_zenas:${AGENT_DB_PASSWORD_ZENAS}@postgres:5432/${POSTGRES_DB:-tervory}
+      TANK_URL: http://tank:8000
+      TANK_KEY: ${TANK_KEY:-}
+      HERMES_URL: http://hermes:8000
+      ZENAS_PII_KEY: ${ZENAS_PII_KEY:-}
+      ZENAS_MATTER_SHARING: ${ZENAS_MATTER_SHARING:-region}
+      DATA_DIR: /data
+    volumes:
+      - za_agent_data:/data
+    networks:
+      - gw
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    expose:
+      - "8000"
+
+  # One-shot SA pool load. Not started with the room.
+  # docker compose -f docker-compose.za.yml --profile load run --rm pool-loader
+  pool-loader:
+    build:
+      context: ..
+      dockerfile: zenas/pool/Dockerfile
+    restart: "no"
+    mem_limit: 2g
+    cpus: 0.25
+    profiles:
+      - load
+    environment:
+      TANK_REGION: za
+      DATABASE_URL: postgresql://agent_zenas:${AGENT_DB_PASSWORD_ZENAS}@postgres:5432/${POSTGRES_DB:-tervory}
+      LAWS_AFRICA_API_TOKEN: ${LAWS_AFRICA_API_TOKEN:-}
+      POOL_DISK_CAP_BYTES: ${POOL_DISK_CAP_BYTES:-}
+      SAFLII_MIN_INTERVAL: ${SAFLII_MIN_INTERVAL:-1}
+      POOL_LOAD: ${POOL_LOAD:-}
+      DATA_DIR: /data
+    volumes:
+      - za_agent_data:/data
+    networks:
+      - gw
+    entrypoint: ["nice", "-n", "19", "python", "-m", "agents.zenas.pool.bulk"]
+
+volumes:
+  # Local to the SA server. Never replicated to the United States.
+  za_agent_data:
+
+networks:
+  gw:
+    external: true
+    name: tervory-gw-zenas

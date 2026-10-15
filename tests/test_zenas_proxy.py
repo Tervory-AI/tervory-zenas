@@ -62,7 +62,7 @@ def test_upstream_is_only_the_local_room(monkeypatch: pytest.MonkeyPatch) -> Non
     monkeypatch.setenv("ZENAS_AGENT_URL", "http://agent-zenas:8000")
     assert main.zenas_upstream("matters") == "http://agent-zenas:8000/matters"
     assert main.zenas_upstream("matters/11111111-1111-1111-1111-111111111111/documents").endswith("/documents")
-    monkeypatch.setenv("ZENAS_AGENT_URL", "https://za-api.tervory.com")
+    monkeypatch.setenv("ZENAS_AGENT_URL", "https://za.tervory.com")
     with pytest.raises(HTTPException) as caught:
         main.zenas_upstream("matters")
     assert caught.value.status_code == 403
