@@ -9,8 +9,17 @@ from agents.zenas.pool.adapters.govinfo import FrapAdapter, FrcpAdapter, FreAdap
 from agents.zenas.pool.adapters.htsus import HtsusAdapter
 from agents.zenas.pool.adapters.states import DelawareAdapter, NewYorkAdapter, TexasAdapter
 from agents.zenas.pool.adapters.za_akn import laws_africa_adapters
+from agents.zenas.pool.adapters.za_cac import CacAdapter
+from agents.zenas.pool.adapters.za_comptrib import ComptribAdapter
+from agents.zenas.pool.adapters.za_concourt_oai import ConcourtAdapter
+from agents.zenas.pool.adapters.za_labour import LabourAppealAdapter, LabourCourtAdapter
+from agents.zenas.pool.adapters.za_landcourt import LandCourtAdapter
+from agents.zenas.pool.adapters.za_ocj_highcourt import OcjHighCourtAdapter
 from agents.zenas.pool.adapters.za_official import GazetteAdapter, MagistratesRulesAdapter, UniformRulesAdapter
 from agents.zenas.pool.adapters.za_saflii import SafliiAdapter
+from agents.zenas.pool.adapters.za_sars_taxcourt import SarsTaxCourtAdapter
+from agents.zenas.pool.adapters.za_sca_jdownloads import ScaAdapter
+from agents.zenas.pool.adapters.za_special_tribunal import SpecialTribunalAdapter
 from agents.zenas.pool.licence import FetchNotConfigured, LicenceError
 from agents.zenas.pool.model import LegalDocument, SourceSpec
 
@@ -34,6 +43,16 @@ _ADAPTERS = {
         GazetteAdapter(),
         UniformRulesAdapter(),
         MagistratesRulesAdapter(),
+        ConcourtAdapter(),
+        ScaAdapter(),
+        CacAdapter(),
+        ComptribAdapter(),
+        SarsTaxCourtAdapter(),
+        LandCourtAdapter(),
+        OcjHighCourtAdapter(),
+        LabourCourtAdapter(),
+        LabourAppealAdapter(),
+        SpecialTribunalAdapter(),
     )
 }
 

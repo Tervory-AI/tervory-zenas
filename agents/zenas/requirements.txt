@@ -2,3 +2,6 @@
 # eyecite is BSD, Free Law Project. Citation extraction for the pool graph.
 # CI installs the same pin from tank/requirements-dev.txt so the tests can import it.
 eyecite==2.7.8
+# pypdf is BSD. Official ZA judgments are PDFs. The adapter extracts text and
+# does not store the PDF bytes. CI installs the same pin from tank/requirements-dev.txt.
+pypdf==6.20.1

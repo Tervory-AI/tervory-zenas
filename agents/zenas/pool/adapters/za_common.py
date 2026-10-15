@@ -32,6 +32,18 @@ def html_headers() -> dict[str, str]:
     return {"Accept": "text/html", "User-Agent": _USER_AGENT}
 
 
+def json_headers() -> dict[str, str]:
+    return {"Accept": "application/json", "User-Agent": _USER_AGENT}
+
+
+def xml_headers() -> dict[str, str]:
+    return {"Accept": "text/xml, application/xml", "User-Agent": _USER_AGENT}
+
+
+def pdf_headers() -> dict[str, str]:
+    return {"Accept": "application/pdf, */*;q=0.1", "User-Agent": _USER_AGENT}
+
+
 def laws_africa_token() -> str:
     return os.environ.get("LAWS_AFRICA_API_TOKEN", "").strip()
 

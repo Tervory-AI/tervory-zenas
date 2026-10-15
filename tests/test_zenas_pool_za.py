@@ -22,18 +22,6 @@ MARKER = "marker-" + ("a" * 16)
 ROOT = Path(__file__).resolve().parents[1]
 ACT_XML = (ROOT / "agents/zenas/pool/fixtures/za/companies-act/act-71-s66.xml").read_bytes()
 
-INDEX = b"""
-<html><body>
-<a href="/za/cases/ZASCA/2019/45.html">older</a>
-<a href="/za/cases/ZASCA/2023/12.html">commercial</a>
-<a href="/za/cases/ZASCA/2023/99.html">criminal</a>
-<a href="/za/cases/ZASCA/2023/100.pdf">pdf</a>
-</body></html>
-"""
-CIVIL = (ROOT / "agents/zenas/pool/fixtures/za/saflii/2023-zasca-12.html").read_bytes()
-CRIMINAL = (ROOT / "agents/zenas/pool/fixtures/za/saflii/2023-zasca-99-criminal.html").read_bytes()
-OLDER = (ROOT / "agents/zenas/pool/fixtures/za/saflii/2019-3-sa-123.html").read_bytes()
-
 
 def _source(source_id: str):
     return next(item for item in CATALOGUE if item.source_id == source_id)
@@ -201,39 +189,22 @@ async def _laws_africa_missing():
     assert "LAWS_AFRICA_API_TOKEN is not set" in row["detail"]
 
 
-def test_saflii_live_pages_drop_criminal_and_resume(monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setenv("SAFLII_MIN_INTERVAL", "0")
-    monkeypatch.setenv("SAFLII_MAX_PAGES", "20")
-    asyncio.run(_saflii_live())
+def test_saflii_live_load_is_deferred():
+    asyncio.run(_saflii_deferred())
 
 
-async def _saflii_live():
-    judgment_calls: list[str] = []
+async def _saflii_deferred():
+    seen: list[str] = []
 
     async def get(url, headers):
-        assert MARKER not in url
-        if url.endswith("/recent.html"):
-            if "/ZASCA/" in url:
-                return INDEX
-            return b"<html></html>"
-        judgment_calls.append(url)
-        if url.endswith("/2023/99.html"):
-            return CRIMINAL
-        if url.endswith("/2023/12.html"):
-            return CIVIL
-        if url.endswith("/2019/45.html"):
-            return OLDER
+        seen.append(url)
         return b"<html></html>"
 
     store = MemoryStore()
-    first = await load_wave(store, region="za", only=[_source("saflii")], live=True, http_get=get, on=ON)
-    assert not any(url.endswith(".pdf") for url in judgment_calls)
-    assert any(url.endswith("/2023/12.html") for url in judgment_calls)
-    row = first["sources"][0]
-    assert row["documents"] == 2
-    assert "Dlamini" not in await store.all_text()
-    fetched = list(judgment_calls)
-    second = await load_wave(store, region="za", only=[_source("saflii")], live=True, http_get=get, on=ON)
-    assert judgment_calls == fetched
-    assert second["sources"][0]["documents"] == 2
-    assert "inserted 0" in second["sources"][0]["detail"]
+    report = await load_wave(store, region="za", only=[_source("saflii")], live=True, http_get=get, on=ON)
+    assert seen == []
+    row = report["sources"][0]
+    assert row["last_status"] == "not_configured"
+    assert row["documents"] == 0
+    assert "deferred" in row["detail"].lower()
+    assert await store.all_text() == ""

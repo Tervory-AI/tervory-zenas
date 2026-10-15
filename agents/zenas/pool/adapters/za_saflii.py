@@ -3,18 +3,26 @@
 Commercial and civil judgments are stored as published. Criminal matters are
 dropped and their text is never stored. SAFLII's usage policy is recorded on
 the catalogue row as information. It is not a switch.
+
+Live load is deferred pending founder authorisation. Official court and
+agency sites are loaded by the other ZA adapters. This module is unchanged
+apart from that deferral: snapshots still parse, and a live fetch does not run.
 """
 
 from __future__ import annotations
 
-import os
 import re
 from datetime import date
 from html.parser import HTMLParser
 
-from agents.zenas.pool.adapters.za_common import html_headers, pause, reject_credential_url
 from agents.zenas.pool.builddoc import build_document
+from agents.zenas.pool.licence import FetchNotConfigured
 from agents.zenas.pool.model import LegalDocument, Section, SourceSpec
+
+_LIVE_DEFERRED = (
+    "SAFLII live load is deferred pending founder authorisation. "
+    "Use the official court adapters instead."
+)
 
 # Court code, recent-decisions page, name used on the instrument.
 COURTS: tuple[tuple[str, str, str], ...] = (
@@ -55,14 +63,6 @@ _MONTHS = {
 _HREF = re.compile(r"""href=["']([^"']+)["']""", re.I)
 
 
-def _max_pages() -> int:
-    raw = os.environ.get("SAFLII_MAX_PAGES", "20").strip()
-    try:
-        return max(0, int(raw or "20"))
-    except ValueError:
-        return 20
-
-
 def judgment_links(page: bytes, court: str) -> list[str]:
     """Judgment HTML links for one court. PDFs are left out."""
     text = page.decode("utf-8", errors="replace")
@@ -85,15 +85,6 @@ def judgment_links(page: bytes, court: str) -> list[str]:
             seen.add(url)
             found.append(url)
     return found
-
-
-def _after(urls: list[str], resume: str) -> list[str]:
-    ordered = sorted(set(urls))
-    if not resume:
-        return ordered
-    if resume in ordered:
-        return ordered[ordered.index(resume) + 1 :]
-    return [url for url in ordered if url > resume]
 
 
 class _Page(HTMLParser):
@@ -212,27 +203,12 @@ class SafliiAdapter:
     source_id = "saflii"
 
     async def fetch(self, http_get) -> list[bytes]:
-        blobs, _cursor = await self.fetch_bulk(http_get, resume="")
-        return blobs
+        del http_get
+        raise FetchNotConfigured(_LIVE_DEFERRED)
 
     async def fetch_bulk(self, http_get, *, resume: str = "") -> tuple[list[bytes], str]:
-        headers = html_headers()
-        urls: list[str] = []
-        for code, index_url, _name in COURTS:
-            reject_credential_url(index_url)
-            page = await http_get(index_url, headers)
-            await pause("SAFLII_MIN_INTERVAL")
-            urls.extend(judgment_links(page, code))
-        pending = _after(urls, resume)
-        pending = pending[: _max_pages()]
-        blobs: list[bytes] = []
-        last = resume
-        for url in pending:
-            reject_credential_url(url)
-            blobs.append(await http_get(url, headers))
-            await pause("SAFLII_MIN_INTERVAL")
-            last = url
-        return blobs, last
+        del http_get, resume
+        raise FetchNotConfigured(_LIVE_DEFERRED)
 
     def parse(self, blob: bytes, source: SourceSpec) -> list[LegalDocument]:
         return parse_judgment(blob, source)

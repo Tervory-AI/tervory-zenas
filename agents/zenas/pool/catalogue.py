@@ -381,7 +381,9 @@ def _za_sources() -> tuple[SourceSpec, ...]:
             notes=(
                 "Page routes for the Supreme Court of Appeal, the Constitutional Court, "
                 "and the High Court divisions. Commercial and civil judgments are stored. "
-                "Criminal matters are dropped. No redaction step runs on a judgment."
+                "Criminal matters are dropped. No redaction step runs on a judgment. "
+                "Live load is deferred pending founder authorisation. Official court "
+                "sites are the sources to load."
             ),
             adapter="saflii",
         )
@@ -401,7 +403,12 @@ def _za_sources() -> tuple[SourceSpec, ...]:
             bulk_use="allowed",
             store_full_text=True,
             canonical_url="https://www.gov.za/documents/notices",
-            notes="HTML notices only. PDF copies are dropped.",
+            notes=(
+                "Keyless live load. HTML notices from the index and from "
+                "https://www.gov.za/rss.xml. PDF copies are dropped. "
+                "GOVZA_MAX_NOTICES bounds each wave (default 10). "
+                "GOVZA_MIN_INTERVAL is the pause between fetches (default 0; use 1 on the ZA box)."
+            ),
             adapter="govza-gazette",
         )
     )
@@ -419,8 +426,12 @@ def _za_sources() -> tuple[SourceSpec, ...]:
             terms_url="https://www.justice.gov.za/legislation/rules/rules.htm",
             bulk_use="allowed",
             store_full_text=True,
-            canonical_url="https://www.justice.gov.za/legislation/rules/rules.htm",
-            notes="High Court rules. The checked-in sample is Rule 6 when a snapshot is supplied.",
+            canonical_url="https://www.gov.za/sites/default/files/gcis_document/202510/53572rg11899gon6753.pdf",
+            notes=(
+                "Live file is Government Gazette 53572 (GoN R.6753), the Uniform Rules amendment on gov.za. "
+                "The consolidated PDF on justice.gov.za is not used: SAFLII is in that filename. "
+                "The checked-in sample is Rule 6 when a snapshot is supplied."
+            ),
             adapter="uniform-rules",
         )
     )
@@ -438,12 +449,151 @@ def _za_sources() -> tuple[SourceSpec, ...]:
             terms_url="https://www.justice.gov.za/legislation/rules/rules.htm",
             bulk_use="allowed",
             store_full_text=True,
-            canonical_url="https://www.justice.gov.za/legislation/rules/rules.htm",
-            notes="The checked-in sample is Rule 1 when a snapshot is supplied.",
+            canonical_url=(
+                "https://www.justice.gov.za/legislation/rules/"
+                "Rules-MagistrateCourts-GG33487-GNR740-20100823.pdf"
+            ),
+            notes=(
+                "Live file is Government Gazette 33487 on justice.gov.za. "
+                "Rows on the rules index whose filename points at SAFLII are skipped. "
+                "The checked-in sample is Rule 1 when a snapshot is supplied."
+            ),
             adapter="magistrates-rules",
         )
     )
+    rows.extend(_za_case_sources())
     return tuple(rows)
+
+
+def _case_row(
+    source_id: str,
+    name: str,
+    canonical_url: str,
+    notes: str,
+    *,
+    licence: str,
+) -> SourceSpec:
+    return SourceSpec(
+        source_id=source_id,
+        name=name,
+        region="za",
+        jurisdiction="za",
+        licence=licence,
+        terms=(
+            "Judgments are public records published by the court or agency that decided them. "
+            "These terms are recorded as information. Data use is the founder's decision. "
+            "Criminal matters are dropped. No key is required."
+        ),
+        terms_url=canonical_url,
+        bulk_use="allowed",
+        store_full_text=True,
+        canonical_url=canonical_url,
+        notes=notes,
+        adapter=source_id,
+    )
+
+
+def _za_case_sources() -> tuple[SourceSpec, ...]:
+    licence = "Public record. Judgment text published by the court or agency."
+    return (
+        _case_row(
+            "concourt",
+            "Constitutional Court judgments (DSpace)",
+            "https://collections.concourt.org.za/server/oai/request",
+            (
+                "Keyless. OAI-PMH set col_20.500.12144_1949 (Latest Judgments) plus the "
+                "item REST record. PDFs are fetched only from /server/api/core/bitstreams/{uuid}/content. "
+                "Discover, search, browse and admin paths are refused. "
+                "CONCOURT_MIN_INTERVAL defaults to 10 seconds. CONCOURT_MAX_ITEMS defaults to 5."
+            ),
+            licence=licence,
+        ),
+        _case_row(
+            "sca",
+            "Supreme Court of Appeal and Electoral Court judgments",
+            "https://www.supremecourtofappeal.org.za/index.php/judgements",
+            (
+                "Keyless. Year categories are read from the judgments index and from the Electoral "
+                "Court index on the same host. The PDF path is /component/jdownloads/send/{category}/{id}. "
+                "/download/ is not used. Pages step ?start= by 10. "
+                "SCA_MAX_YEARS defaults to 1, SCA_MAX_PAGES to 1, SCA_MAX_FILES to ZA_CASE_MAX_DOCS (8)."
+            ),
+            licence=licence,
+        ),
+        _case_row(
+            "cac",
+            "Competition Appeal Court judgments",
+            "https://www.cac.org.za/judgments/",
+            (
+                "Keyless PDFs listed on the judgments page. The comments RSS and the sitemap "
+                "index do not list those files. Rules and practice notes on the page are skipped."
+            ),
+            licence=licence,
+        ),
+        _case_row(
+            "comptrib",
+            "Competition Tribunal decided cases",
+            "https://www.comptrib.co.za/decided-cases",
+            (
+                "Keyless PDFs on the decided-cases page. Confidential versions are skipped. "
+                "A file marked non confidential is kept."
+            ),
+            licence=licence,
+        ),
+        _case_row(
+            "sars-taxcourt",
+            "SARS Tax Court judgments",
+            "https://www.sars.gov.za/legal-counsel/dispute-resolution-judgments/tax-court/",
+            (
+                "Keyless. The year index links to anonymised judgment PDFs. "
+                "SARS_MAX_YEARS defaults to 1 (the newest band)."
+            ),
+            licence="Public record. Anonymised Tax Court judgments published by SARS.",
+        ),
+        _case_row(
+            "landcourt",
+            "Land Court judgments",
+            "https://www.judiciary.org.za/landcourt/index.php/land-court-library/judgements/land-court-judgements",
+            "Keyless Phoca PDF listings. Court rolls on the same site are not collected.",
+            licence=licence,
+        ),
+        _case_row(
+            "ocj-highcourt",
+            "High Court judgments (Gauteng, Free State, Eastern Cape)",
+            "https://www.judiciary.org.za/index.php/courts/high-courts/gauteng-division-of-the-high-court/court-judgments",
+            (
+                "Keyless Phoca PDFs for Gauteng, the Free State, and the Eastern Cape "
+                "(courtjudgments, with no hyphen). Western Cape, KwaZulu-Natal, Mpumalanga, "
+                "North West, Limpopo and the Northern Cape are not requested from this site."
+            ),
+            licence=licence,
+        ),
+        _case_row(
+            "labour-court",
+            "Labour Court judgments",
+            "https://www.judiciary.org.za/index.php/courts/specialised-courts/labour-and-labour-appeal-court/court-judgments",
+            "Keyless. Year folders under judgements-labour-court, then Phoca PDFs. LABOUR_MAX_YEARS defaults to 1.",
+            licence=licence,
+        ),
+        _case_row(
+            "labour-appeal",
+            "Labour Appeal Court judgments",
+            "https://www.judiciary.org.za/index.php/courts/specialised-courts/labour-and-labour-appeal-court/court-judgments",
+            "Keyless. Year folders under judgements-labour-court-2, then Phoca PDFs.",
+            licence=licence,
+        ),
+        _case_row(
+            "special-tribunal",
+            "Special Tribunal judgments",
+            "https://www.justice.gov.za/tribunal/jdgm.html",
+            (
+                "Keyless. Historic PDFs on justice.gov.za/tribunal/jdgm.html, and newer matters on "
+                "https://www.siu.org.za/special-tribunal-judgements/ (each matter page links to one PDF). "
+                "Affidavits and schedules are skipped. Other SIU lists are not followed."
+            ),
+            licence=licence,
+        ),
+    )
 
 
 CATALOGUE = CATALOGUE + _za_sources()
