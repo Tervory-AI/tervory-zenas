@@ -7,6 +7,7 @@ which is the region boundary. They are not tenant rows.
 from __future__ import annotations
 
 import os
+import re
 from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Protocol
@@ -121,6 +122,14 @@ ON CONFLICT (source_id) DO UPDATE SET
 
 def schema_sql() -> str:
     return SCHEMA_PATH.read_text(encoding="utf-8")
+
+
+_CREATE_SCHEMA = re.compile(r"^\s*CREATE\s+SCHEMA\s+IF\s+NOT\s+EXISTS\s+([a-z_][a-z0-9_]*)\s*;?\s*$", re.IGNORECASE)
+
+
+def _created_schema(statement: str) -> str | None:
+    match = _CREATE_SCHEMA.match(statement)
+    return match.group(1) if match else None
 
 
 def schema_statements() -> list[str]:
@@ -505,8 +514,25 @@ class PostgresStore:
         self.home_region = home_region
 
     async def apply_schema(self) -> None:
+        """Apply the pool schema. An existing schema is not re-created.
+
+        The Zenas room runs as agent_zenas, which may not create schemas in the
+        database; agent-roles creates zenas_pool for it. Postgres checks that
+        right even for CREATE SCHEMA IF NOT EXISTS, so that statement is skipped
+        when the schema is already there.
+        """
         for statement in schema_statements():
+            name = _created_schema(statement)
+            if name and await self._schema_exists(name):
+                continue
             await self._conn.execute(statement)
+
+    async def _schema_exists(self, name: str) -> bool:
+        fetch = getattr(self._conn, "fetch", None)
+        if fetch is None:
+            return False
+        rows = await fetch("SELECT 1 FROM pg_namespace WHERE nspname = $1", name)
+        return bool(rows)
 
     async def record_source(self, source: SourceSpec) -> None:
         _guard_home(self.home_region, region=source.region)
