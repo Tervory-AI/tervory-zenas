@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<akomaNtoso xmlns="http://docs.oasis-open.org/legaldocml/ns/akn/3.0">
+  <act name="companies-act">
+    <meta>
+      <identification>
+        <FRBRWork>
+          <FRBRthis value="/akn/za/act/2008/71"/>
+          <FRBRdate date="2008-04-08" name="generation"/>
+        </FRBRWork>
+      </identification>
+    </meta>
+    <body>
+      <section id="sec_66">
+        <num>66</num>
+        <heading>Board, directors and prescribed officers</heading>
+        <subsection id="sec_66__subsec_1">
+          <num>(1)</num>
+          <content>
+            <p>The business and affairs of a company must be managed by or under the direction of its board.</p>
+          </content>
+        </subsection>
+      </section>
+    </body>
+  </act>
+</akomaNtoso>

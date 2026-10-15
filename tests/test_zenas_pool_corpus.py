@@ -120,10 +120,14 @@ def test_za_region_does_not_ingest_us_sources():
 async def _za():
     assert jurisdiction_for("za") == "za"
     assert jurisdiction_for("us-east") == "us"
-    assert sources_for_region("za") == []
+    za_sources = sources_for_region("za")
+    assert za_sources
+    assert all(source.region == "za" and source.jurisdiction == "za" for source in za_sources)
     store = MemoryStore()
     report = await run_nightly(store, region="za", snapshots=_snaps(), on=ON)
-    assert report["sources"] == []
+    assert report["sources"]
+    assert {row["source_id"] for row in report["sources"]} == {source.source_id for source in za_sources}
+    assert all(row["region"] == "za" for row in report["sources"])
     assert await store.version_count() == 0
 
 

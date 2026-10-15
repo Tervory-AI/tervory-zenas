@@ -27,6 +27,9 @@ _EXTRA = (
     re.compile(r"\bHTSUS\s+[0-9]+(?:\.[0-9]+)*", re.I),
     re.compile(r"\[\d{4}\]\s+ZA[A-Z]{2,6}\s+\d+", re.I),
     re.compile(r"\b\d{4}\s+\(\d+\)\s+SA\s+\d+\s+\([A-Za-z]{2,6}\)", re.I),
+    re.compile(r"\bAct\s+\d+\s+of\s+\d{4},\s+s\s+\d+[A-Za-z]*", re.I),
+    re.compile(r"\bUniform Rule\s+\d+[A-Za-z]?", re.I),
+    re.compile(r"\bMagistrates' Courts Rule\s+\d+[A-Za-z]?", re.I),
 )
 
 

@@ -5,6 +5,7 @@ Checked on 2026-10-13 from the publisher pages named in terms_url.
 
 from __future__ import annotations
 
+from agents.zenas.pool.adapters.za_akn import ACTS
 from agents.zenas.pool.model import SourceSpec
 
 _PD = "Public domain. U.S. government work, 17 U.S.C. § 105."
@@ -318,6 +319,134 @@ CATALOGUE: tuple[SourceSpec, ...] = (
         adapter="refused",
     ),
 )
+
+
+_LA_TERMS = (
+    "Laws.Africa offers a content API for published consolidated legislation. "
+    "Calls use an account token in the Authorization header. Their conditions "
+    "are at the terms URL. These terms are recorded as information. "
+    "Data use is the founder's decision."
+)
+_LA_URL = "https://developers.laws.africa/get-started/authentication"
+_SAFLII_TERMS = (
+    "SAFLII's usage policy says it gives free access so individual end-users can "
+    "read, print and copy for personal use, and that it does not provide a service "
+    "for other systems to collect documents for republication or for automated or "
+    "AI-related use. Judgments are public records supplied by the courts and are "
+    "stored as published. These terms are recorded as information. "
+    "Data use is the founder's decision. Criminal matters are dropped."
+)
+
+
+def _za_sources() -> tuple[SourceSpec, ...]:
+    rows: list[SourceSpec] = []
+    for source_id, title, frbr, _number, _year, regulatory in ACTS:
+        notes = (
+            "Consolidated text from the Laws.Africa content API. "
+            "LAWS_AFRICA_API_TOKEN is sent as Authorization: Bearer. "
+            "The value is never put in a URL. A live load is skipped until it is set."
+        )
+        if regulatory:
+            notes = "Regulatory compliance only. " + notes
+        rows.append(
+            SourceSpec(
+                source_id=source_id,
+                name=title,
+                region="za",
+                jurisdiction="za",
+                licence="Consolidated statute text published through the Laws.Africa content API.",
+                terms=_LA_TERMS,
+                terms_url=_LA_URL,
+                bulk_use="allowed",
+                store_full_text=True,
+                canonical_url=f"https://api.laws.africa/v3/{frbr}",
+                notes=notes,
+                adapter=source_id,
+                key_name="LAWS_AFRICA_API_TOKEN",
+                key_required=True,
+            )
+        )
+    rows.append(
+        SourceSpec(
+            source_id="saflii",
+            name="SAFLII judgments (SCA, Constitutional Court, High Court)",
+            region="za",
+            jurisdiction="za",
+            licence="Judgments are public records, stored as published.",
+            terms=_SAFLII_TERMS,
+            terms_url="https://www.saflii.org/content/terms.html",
+            bulk_use="unknown",
+            store_full_text=True,
+            canonical_url="https://www.saflii.org/za/cases/",
+            notes=(
+                "Page routes for the Supreme Court of Appeal, the Constitutional Court, "
+                "and the High Court divisions. Commercial and civil judgments are stored. "
+                "Criminal matters are dropped. No redaction step runs on a judgment."
+            ),
+            adapter="saflii",
+        )
+    )
+    rows.append(
+        SourceSpec(
+            source_id="govza-gazette",
+            name="Government Gazette notices",
+            region="za",
+            jurisdiction="za",
+            licence="Public record. Government notice text published on gov.za.",
+            terms=(
+                "New Acts and notices are published in the Government Gazette and on gov.za. "
+                "These terms are recorded as information. Data use is the founder's decision."
+            ),
+            terms_url="https://www.gov.za/documents/notices",
+            bulk_use="allowed",
+            store_full_text=True,
+            canonical_url="https://www.gov.za/documents/notices",
+            notes="HTML notices only. PDF copies are dropped.",
+            adapter="govza-gazette",
+        )
+    )
+    rows.append(
+        SourceSpec(
+            source_id="uniform-rules",
+            name="Uniform Rules of Court",
+            region="za",
+            jurisdiction="za",
+            licence="Public record. Rules regulating High Court proceedings.",
+            terms=(
+                "The Uniform Rules are published by the Rules Board and the Department of Justice. "
+                "These terms are recorded as information. Data use is the founder's decision."
+            ),
+            terms_url="https://www.justice.gov.za/legislation/rules/rules.htm",
+            bulk_use="allowed",
+            store_full_text=True,
+            canonical_url="https://www.justice.gov.za/legislation/rules/rules.htm",
+            notes="High Court rules. The checked-in sample is Rule 6 when a snapshot is supplied.",
+            adapter="uniform-rules",
+        )
+    )
+    rows.append(
+        SourceSpec(
+            source_id="magistrates-rules",
+            name="Magistrates' Courts Rules",
+            region="za",
+            jurisdiction="za",
+            licence="Public record. Rules regulating Magistrates' Courts proceedings.",
+            terms=(
+                "The Magistrates' Courts Rules are published by the Rules Board and the Department of Justice. "
+                "These terms are recorded as information. Data use is the founder's decision."
+            ),
+            terms_url="https://www.justice.gov.za/legislation/rules/rules.htm",
+            bulk_use="allowed",
+            store_full_text=True,
+            canonical_url="https://www.justice.gov.za/legislation/rules/rules.htm",
+            notes="The checked-in sample is Rule 1 when a snapshot is supplied.",
+            adapter="magistrates-rules",
+        )
+    )
+    return tuple(rows)
+
+
+CATALOGUE = CATALOGUE + _za_sources()
 
 
 def sources_for_region(region: str) -> list[SourceSpec]:
