@@ -1,12 +1,18 @@
 """CourtListener and Caselaw Access Project.
 
-Federal appellate commercial decisions only. Criminal matters are dropped
-and their text is never stored. Live bulk files are not downloaded here.
+Opinions from the federal appellate courts and the named state commercial
+courts. Criminal matters are dropped and their text is never stored.
+Judgments are stored as published. No redaction step runs on them.
+
+The REST token is read from COURTLISTENER_API_TOKEN and sent as a header.
+It is never placed in a URL. A live load is skipped until the token is set.
 """
 
 from __future__ import annotations
 
+import asyncio
 import json
+import os
 from datetime import date
 
 from agents.zenas.pool.builddoc import build_document
@@ -29,6 +35,13 @@ FEDERAL_APPELLATE = {
     "cadc",
     "cafc",
 }
+
+# Delaware Supreme and Chancery, NY Court of Appeals and Appellate Division,
+# Texas Supreme. District courts stay out.
+STATE_COMMERCIAL = {"del", "delch", "ny", "nyappdiv", "tex"}
+ALLOWED_COURTS = FEDERAL_APPELLATE | STATE_COMMERCIAL
+
+_API = "https://www.courtlistener.com/api/rest/v4/search/"
 
 _COMMERCIAL = (
     "insurance",
@@ -130,7 +143,7 @@ class _CaseAdapter:
                 self.skipped.append(f"criminal:{name}")
                 continue
             court = _court_id(row)
-            if court not in FEDERAL_APPELLATE:
+            if court not in ALLOWED_COURTS:
                 self.skipped.append(f"not-appellate:{court or name}")
                 continue
             if not is_commercial(row):
@@ -151,7 +164,7 @@ class _CaseAdapter:
                     source,
                     citation=citation,
                     title=name or citation,
-                    level="federal",
+                    level="federal" if court in FEDERAL_APPELLATE else "state",
                     kind="case",
                     body=court,
                     sections=_paragraphs(text),
@@ -167,11 +180,45 @@ class _CaseAdapter:
 
 class CourtListenerAdapter(_CaseAdapter):
     source_id = "courtlistener"
-    reason = (
-        "CourtListener bulk files are not in this wave. Set a snapshot. "
-        "Do not page the membership API for bulk copy. "
-        "COURTLISTENER_API_TOKEN is the name for a later reviewed fetch."
-    )
+    reason = "COURTLISTENER_API_TOKEN is not set"
+
+    async def fetch_bulk(self, http_get, *, resume: str = "") -> tuple[list[bytes], str]:
+        token = os.environ.get("COURTLISTENER_API_TOKEN", "").strip()
+        if not token:
+            raise FetchNotConfigured("COURTLISTENER_API_TOKEN is not set")
+        if resume and (token in resume or "token=" in resume.lower()):
+            raise FetchNotConfigured("refusing a URL that contains a credential")
+        headers = {
+            "Accept": "application/json",
+            "User-Agent": "TervoryZenasPool/0.1",
+            "Authorization": f"Token {token}",
+        }
+        courts = ",".join(sorted(ALLOWED_COURTS))
+        url = resume or f"{_API}?type=o&court={courts}"
+        if token in url or "token=" in url.lower():
+            raise FetchNotConfigured("refusing a URL that contains a credential")
+        delay = float(os.environ.get("COURTLISTENER_MIN_INTERVAL", "1") or "1")
+        page_cap = int(os.environ.get("COURTLISTENER_MAX_PAGES", "20") or "20")
+        blobs: list[bytes] = []
+        cursor = url
+        pages = 0
+        while cursor and pages < page_cap:
+            if delay > 0:
+                await asyncio.sleep(delay)
+            if token in cursor:
+                raise FetchNotConfigured("refusing a URL that contains a credential")
+            blob = await http_get(cursor, headers)
+            blobs.append(blob)
+            try:
+                payload = json.loads(blob.decode("utf-8"))
+            except json.JSONDecodeError:
+                break
+            nxt = payload.get("next") or ""
+            if nxt and token in str(nxt):
+                raise FetchNotConfigured("refusing a URL that contains a credential")
+            cursor = str(nxt) if nxt else ""
+            pages += 1
+        return blobs, cursor
 
 
 class CapAdapter(_CaseAdapter):

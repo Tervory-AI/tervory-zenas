@@ -31,8 +31,14 @@ CATALOGUE: tuple[SourceSpec, ...] = (
         bulk_use="allowed",
         store_full_text=True,
         canonical_url="https://www.govinfo.gov/app/collection/uscode",
-        notes="Edition snapshot, current through the date printed in the GovInfo HTML.",
+        notes=(
+            "USLM bulk is titles 9, 11, 15, 17, 19, 35, 46, 49 and 50. "
+            "GOVINFO_API_KEY is optional and is sent as a header when set. "
+            "Without it the public house.gov download is used. The value is never put in a URL."
+        ),
         adapter="govinfo-uscode",
+        key_name="GOVINFO_API_KEY",
+        key_required=False,
     ),
     SourceSpec(
         source_id="ecfr",
@@ -87,17 +93,25 @@ CATALOGUE: tuple[SourceSpec, ...] = (
         jurisdiction="us",
         licence="Opinion text: public domain (edicts of government). CourtListener bulk files: free of known copyright restrictions (Free Law Project).",
         terms=(
-            "Bulk opinion files may be stored. The membership API is not a bulk-copy "
-            "licence for this pool. Federal appellate courts only, and only matters "
-            "identified as commercial. Criminal matters are dropped and not stored. "
-            "No opinion text is in the checked-in wave."
+            "Free Law Project says its bulk opinion files are free of known copyright "
+            "restrictions. The REST API requires an account token and asks callers to "
+            "keep to the published rate limit. Opinion text is a public record. "
+            "Criminal matters are dropped and not stored. These terms are recorded "
+            "as information. Data use is the founder's decision."
         ),
         terms_url="https://www.courtlistener.com/help/api/bulk-data/",
         bulk_use="allowed",
         store_full_text=True,
         canonical_url="https://www.courtlistener.com/help/api/bulk-data/",
-        notes="COURTLISTENER_API_TOKEN is the env name for a later reviewed fetch. It is not read by the checked-in nightly path.",
+        notes=(
+            "COURTLISTENER_API_TOKEN is read from the environment and sent as a header. "
+            "A live load is skipped until it is set. The value is never written into a URL or a log. "
+            "Courts: SCOTUS, the thirteen circuits, Delaware Supreme Court and Court of Chancery, "
+            "the New York Court of Appeals and Appellate Division, and the Texas Supreme Court."
+        ),
         adapter="courtlistener",
+        key_name="COURTLISTENER_API_TOKEN",
+        key_required=True,
     ),
     SourceSpec(
         source_id="cap",
@@ -146,6 +160,20 @@ CATALOGUE: tuple[SourceSpec, ...] = (
         adapter="fre",
     ),
     SourceSpec(
+        source_id="frap",
+        name="Federal Rules of Appellate Procedure",
+        region="us-east",
+        jurisdiction="us",
+        licence=_PD,
+        terms=_PD_TERMS + " Text as published in the United States Code appendix.",
+        terms_url=_PD_URL,
+        bulk_use="allowed",
+        store_full_text=True,
+        canonical_url="https://www.uscourts.gov/rules-policies/current-rules-practice-procedure/federal-rules-appellate-procedure",
+        notes="Full rules. The checked-in sample is Rule 1 when a snapshot is supplied.",
+        adapter="frap",
+    ),
+    SourceSpec(
         source_id="delaware-code",
         name="Delaware General Corporation Law",
         region="us-east",
@@ -176,8 +204,14 @@ CATALOGUE: tuple[SourceSpec, ...] = (
         bulk_use="allowed",
         store_full_text=True,
         canonical_url="https://www.nysenate.gov/legislation/laws",
-        notes="Zero documents in this wave.",
+        notes=(
+            "NY_OPENLEG_API_KEY is the Open Legislation key. This loader will not "
+            "place it in a URL. Until a header-based call exists, supply a snapshot. "
+            "A live load is skipped until the key is set."
+        ),
         adapter="ny-laws",
+        key_name="NY_OPENLEG_API_KEY",
+        key_required=True,
     ),
     SourceSpec(
         source_id="texas-statutes",
@@ -212,7 +246,10 @@ CATALOGUE: tuple[SourceSpec, ...] = (
         bulk_use="forbidden",
         store_full_text=False,
         canonical_url="https://uncitral.un.org/en/texts/salegoods/conventions/sale_of_goods/cisg",
-        notes="Link only. Ask uncitrallibrary@un.org before any full-text ingest.",
+        notes=(
+            "Terms are recorded as information. The source is enabled. "
+            "No parser is wired yet, so a live load stores nothing until one is."
+        ),
         adapter="refused",
     ),
     SourceSpec(
@@ -229,7 +266,7 @@ CATALOGUE: tuple[SourceSpec, ...] = (
         bulk_use="forbidden",
         store_full_text=False,
         canonical_url="https://uncitral.un.org/en/texts",
-        notes="Link only.",
+        notes="Terms are recorded as information. The source is enabled. No parser is wired yet.",
         adapter="refused",
     ),
     SourceSpec(
@@ -246,7 +283,7 @@ CATALOGUE: tuple[SourceSpec, ...] = (
         bulk_use="forbidden",
         store_full_text=False,
         canonical_url="https://www.uniformlaws.org/acts/ucc",
-        notes="Link only.",
+        notes="Terms are recorded as information. The source is enabled. No parser is wired yet.",
         adapter="refused",
     ),
     SourceSpec(
@@ -255,12 +292,12 @@ CATALOGUE: tuple[SourceSpec, ...] = (
         region="us-east",
         jurisdiction="us",
         licence="Copyright International Chamber of Commerce.",
-        terms="Incoterms rules are sold by the ICC. Bulk copy is not allowed. Link only.",
+        terms="The ICC sells Incoterms rules. The publisher's conditions are at the terms URL. Recorded as information.",
         terms_url="https://iccwbo.org/business-solutions/incoterms-rules/",
         bulk_use="forbidden",
         store_full_text=False,
         canonical_url="https://iccwbo.org/business-solutions/incoterms-rules/",
-        notes="Link only.",
+        notes="Terms are recorded as information. The source is enabled. No parser is wired yet.",
         adapter="refused",
     ),
     SourceSpec(
@@ -277,7 +314,7 @@ CATALOGUE: tuple[SourceSpec, ...] = (
         bulk_use="forbidden",
         store_full_text=False,
         canonical_url="https://www.wcoomd.org/en/topics/nomenclature/instrument-and-tools.aspx",
-        notes="Link only.",
+        notes="Terms are recorded as information. The source is enabled. No parser is wired yet.",
         adapter="refused",
     ),
 )

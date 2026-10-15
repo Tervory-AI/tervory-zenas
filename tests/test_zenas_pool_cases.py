@@ -64,7 +64,7 @@ async def _cases():
     assert any(item.startswith("criminal:") for item in adapter.skipped)
     assert any(item.startswith("not-appellate:") for item in adapter.skipped)
 
-    store = MemoryStore()
+    store = MemoryStore(home_region="us-east")
     blob = json.dumps(_CASES).encode()
     await ingest_snapshot(store, source, [blob], on=date(2026, 10, 13))
     stored = await store.all_text()

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 
 from agents.zenas.pool.builddoc import build_document
 from agents.zenas.pool.htmlparse import parse_delaware_html
@@ -10,6 +11,10 @@ from agents.zenas.pool.licence import FetchNotConfigured
 from agents.zenas.pool.model import LegalDocument, Section, SourceSpec
 
 DELAWARE_WAVE = ("https://delcode.delaware.gov/title8/c001/sc01/index.html",)
+DELAWARE_BULK = (
+    "https://delcode.delaware.gov/title8/index.html",
+    "https://delcode.delaware.gov/title6/index.html",
+)
 
 
 class DelawareAdapter:
@@ -23,12 +28,21 @@ class DelawareAdapter:
             )
         return blobs
 
+    async def fetch_bulk(self, http_get, *, resume: str = "") -> tuple[list[bytes], str]:
+        del resume
+        blobs = []
+        headers = {"Accept": "text/html", "User-Agent": "TervoryZenasPool/0.1"}
+        for url in DELAWARE_BULK:
+            blobs.append(await http_get(url, headers))
+        return blobs, ""
+
     def parse(self, blob: bytes, source: SourceSpec) -> list[LegalDocument]:
         documents = []
+        title_no = "6" if b"title 6" in blob[:800].lower() else "8"
         for number, heading, sections in parse_delaware_html(blob):
             if not number or not sections:
                 continue
-            citation = f"8 Del. C. § {number}"
+            citation = f"{title_no} Del. C. § {number}"
             documents.append(
                 build_document(
                     source,
@@ -105,7 +119,16 @@ class NewYorkAdapter(_JsonStateAdapter):
     source_id = "ny-laws"
     citation_template = "N.Y. U.C.C. Law § {location}"
     body_name = "New York Legislature"
-    reason = "nysenate.gov returned HTTP 403. No enacted text was saved. Supply a snapshot from the Open Legislation API."
+    reason = "NY_OPENLEG_API_KEY is not set"
+
+    async def fetch_bulk(self, http_get, *, resume: str = "") -> tuple[list[bytes], str]:
+        del http_get, resume
+        token = os.environ.get("NY_OPENLEG_API_KEY", "").strip()
+        if not token:
+            raise FetchNotConfigured("NY_OPENLEG_API_KEY is not set")
+        # The Open Legislation API takes the key in the query string.
+        # This loader will not put a key in a URL. Use a snapshot.
+        raise FetchNotConfigured("NY_OPENLEG_API_KEY is set but this loader will not place it in a URL")
 
 
 class TexasAdapter(_JsonStateAdapter):

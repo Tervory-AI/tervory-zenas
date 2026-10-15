@@ -92,6 +92,14 @@ class SourceSpec:
     canonical_url: str
     notes: str
     adapter: str
+    # The founder turns a source off. Terms never do.
+    enabled: bool = True
+    # Environment variable name. Empty when the source has no key.
+    # The value is never stored on this object.
+    key_name: str = ""
+    # When true, a live load is skipped until key_name is set.
+    # A public source may still name an optional key and keep this false.
+    key_required: bool = False
 
 
 @dataclass(frozen=True)

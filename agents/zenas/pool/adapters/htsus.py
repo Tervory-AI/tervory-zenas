@@ -8,6 +8,7 @@ from agents.zenas.pool.builddoc import build_document
 from agents.zenas.pool.model import LegalDocument, Section, SourceSpec
 
 HTS_WAVE = ("https://hts.usitc.gov/reststop/search?keyword=8901",)
+HTS_BULK = "https://hts.usitc.gov/reststop/exportList?from=0101&to=9999&format=JSON&styles=false"
 
 
 def _line(source: SourceSpec, number: str, title: str, text: str) -> LegalDocument:
@@ -49,6 +50,14 @@ class HtsusAdapter:
                 await http_get(url, {"Accept": "application/json", "User-Agent": "TervoryZenasPool/0.1"})
             )
         return blobs
+
+    async def fetch_bulk(self, http_get, *, resume: str = "") -> tuple[list[bytes], str]:
+        del resume
+        blob = await http_get(
+            HTS_BULK,
+            {"Accept": "application/json", "User-Agent": "TervoryZenasPool/0.1"},
+        )
+        return [blob], ""
 
     def parse(self, blob: bytes, source: SourceSpec) -> list[LegalDocument]:
         payload = json.loads(blob.decode("utf-8"))

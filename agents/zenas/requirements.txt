@@ -1,0 +1,4 @@
+# Zenas pool loader (the pool-loader image). Names pinned. No secrets.
+# eyecite is BSD, Free Law Project. Citation extraction for the pool graph.
+# CI installs the same pin from tank/requirements-dev.txt so the tests can import it.
+eyecite==2.7.8

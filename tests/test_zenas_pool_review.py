@@ -49,7 +49,7 @@ def test_restored_wording_becomes_current_again():
 
 
 async def _restored():
-    store = MemoryStore()
+    store = MemoryStore(home_region="us-east")
     await store.record_source(_usc())
     first = _wording("alpha wording", date(2020, 1, 1))
     middle = _wording("beta wording", date(2022, 1, 1))
@@ -73,7 +73,7 @@ def test_late_earlier_version_is_born_closed():
 
 
 async def _late():
-    store = MemoryStore()
+    store = MemoryStore(home_region="us-east")
     await store.record_source(_usc())
     later = _wording("later wording", date(2024, 1, 1))
     earlier = _wording("earlier wording", date(2020, 1, 1))
@@ -107,7 +107,7 @@ def test_undated_sources_use_first_seen_as_floor():
 
 
 async def _undated():
-    store = MemoryStore()
+    store = MemoryStore(home_region="us-east")
     await run_nightly(store, region="us-east", snapshots=packaged_snapshots("us-east"), on=ON)
     before = ON.replace(day=ON.day - 1)
     delaware = await store.find_by_citation("8 Del. C. § 101(a)", jurisdiction="us", as_at=ON)
@@ -202,7 +202,7 @@ async def _postgres_txn():
         Chunk("c0", doc.version_id, doc.id, "us", "", "One", "one", doc.citation, "fixture 9", 0),
         Chunk("c1", doc.version_id, doc.id, "us", "", "Two", "two", doc.citation, "fixture 9", 1),
     ]
-    assert await PostgresStore(conn).upsert_version(doc, chunks, on=date(2024, 1, 1))
+    assert await PostgresStore(conn, home_region="us-east").upsert_version(doc, chunks, on=date(2024, 1, 1))
     begin = conn.log.index("begin")
     commit = conn.log.index("commit")
     writes = [i for i, name in enumerate(conn.log) if name in {"execute", "executemany"}]
@@ -262,7 +262,7 @@ def test_full_text_orders_by_rank_then_ordinal():
 
 async def _memory_rank():
     source = next(item for item in sources_for_region("us-east") if item.source_id == "frcp")
-    store = MemoryStore()
+    store = MemoryStore(home_region="us-east")
     await store.record_source(source)
     doc = build_document(
         source,
@@ -290,7 +290,7 @@ def test_refeeding_a_closed_version_does_not_duplicate():
 
 
 async def _refeed_closed():
-    store = MemoryStore()
+    store = MemoryStore(home_region="us-east")
     await store.record_source(_usc())
     later = _wording("later wording", date(2024, 1, 1))
     earlier = _wording("earlier wording", date(2020, 1, 1))
@@ -307,7 +307,7 @@ async def _refeed_closed():
     assert len(early_rows) == 1
     assert await store.version_count() == 2
 
-    cycle = MemoryStore()
+    cycle = MemoryStore(home_region="us-east")
     await cycle.record_source(_usc())
     for wording, start in (
         ("alpha wording", date(2020, 1, 1)),

@@ -33,6 +33,34 @@ services:
     expose:
       - "8000"
 
+  # One-shot US pool load. Not started with the room.
+  # docker compose --profile load run --rm pool-loader
+  # nice and a 2g cap keep Tank and the agents ahead of a bulk load.
+  pool-loader:
+    build:
+      context: ..
+      dockerfile: zenas/pool/Dockerfile
+    restart: "no"
+    mem_limit: 2g
+    cpus: 0.25
+    profiles:
+      - load
+    environment:
+      DATABASE_URL: postgresql://agent_zenas:${AGENT_DB_PASSWORD_ZENAS}@postgres:5432/${POSTGRES_DB:-tervory}
+      TANK_REGION: us-east
+      COURTLISTENER_API_TOKEN: ${COURTLISTENER_API_TOKEN:-}
+      GOVINFO_API_KEY: ${GOVINFO_API_KEY:-}
+      NY_OPENLEG_API_KEY: ${NY_OPENLEG_API_KEY:-}
+      POOL_DISK_CAP_BYTES: ${POOL_DISK_CAP_BYTES:-}
+      COURTLISTENER_MIN_INTERVAL: ${COURTLISTENER_MIN_INTERVAL:-1}
+      POOL_LOAD: ${POOL_LOAD:-}
+      DATA_DIR: /data
+    volumes:
+      - agent_zenas_data:/data
+    networks:
+      - gw
+    entrypoint: ["nice", "-n", "19", "python", "-m", "agents.zenas.pool.bulk"]
+
 volumes:
   agent_zenas_data:
 

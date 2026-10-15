@@ -5,12 +5,15 @@ import sys
 from datetime import date
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from agents.zenas.pool.catalogue import sources_for_region
 from agents.zenas.pool.config import jurisdiction_for
 from agents.zenas.pool.embed import NoOpEmbedder, NoOpVectorIndex
 from agents.zenas.pool.nightly import packaged_snapshots, run_nightly
+from agents.zenas.pool.region import RegionError
 from agents.zenas.pool.search import search_meaning
 from agents.zenas.pool.store import MemoryStore
 
@@ -29,6 +32,7 @@ EXPECTED = {
     "delaware-code": 1,
     "ny-laws": 0,
     "texas-statutes": 0,
+    "frap": 0,
     "uncitral-cisg": 0,
     "uncitral-model-law": 0,
     "ali-ucc-official": 0,
@@ -38,12 +42,7 @@ EXPECTED = {
 
 
 def _snaps():
-    snaps = packaged_snapshots("us-east")
-    snaps["uncitral-cisg"] = [b"FIXTURE-MUST-NOT-BE-STORED"]
-    snaps["ali-ucc-official"] = [b"OFFICIAL-UCC-MUST-NOT-BE-STORED"]
-    snaps["icc-incoterms"] = [b"INCOTERMS-MUST-NOT-BE-STORED"]
-    snaps["wco-hs-notes"] = [b"WCO-NOTES-MUST-NOT-BE-STORED"]
-    return snaps
+    return packaged_snapshots("us-east")
 
 
 def test_us_wave_counts_licences_and_search():
@@ -59,16 +58,18 @@ async def _us_wave():
         assert by_id[source_id]["documents"] == count
         assert by_id[source_id]["licence"]
         assert by_id[source_id]["jurisdiction"] == "us"
-    text = await store.all_text()
-    for banned in (
-        "FIXTURE-MUST-NOT-BE-STORED",
-        "OFFICIAL-UCC-MUST-NOT-BE-STORED",
-        "INCOTERMS-MUST-NOT-BE-STORED",
-        "WCO-NOTES-MUST-NOT-BE-STORED",
+    for source_id in (
+        "uncitral-cisg",
+        "uncitral-model-law",
+        "ali-ucc-official",
+        "icc-incoterms",
+        "wco-hs-notes",
     ):
-        assert banned not in text
-    assert by_id["uncitral-cisg"]["last_status"] == "skipped"
-    assert by_id["uncitral-cisg"]["link_only"] is True
+        assert by_id[source_id]["documents"] == 0
+        assert by_id[source_id]["last_status"] == "no_snapshot"
+        assert by_id[source_id]["link_only"] is False
+        assert by_id[source_id]["enabled"] is True
+        assert by_id[source_id]["key_set"] is True
 
     carmack = await store.find_by_citation("49 U.S.C. § 14706(a)(1)", jurisdiction="us", as_at=None)
     assert carmack and "bill of lading" in carmack[0].text.lower()
@@ -95,7 +96,8 @@ async def _us_wave():
 
     found = await store.search_text("bill of lading", jurisdiction="us", as_at=None)
     assert found
-    assert not await store.search_text("bill of lading", jurisdiction="za", as_at=None)
+    with pytest.raises(RegionError):
+        await store.search_text("bill of lading", jurisdiction="za", as_at=None)
 
     meaning = await search_meaning(
         store, NoOpEmbedder(), NoOpVectorIndex(), "carrier liability", jurisdiction="us"

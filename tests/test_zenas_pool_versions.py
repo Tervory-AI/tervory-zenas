@@ -31,7 +31,7 @@ def test_as_at_returns_the_wording_in_force_that_day():
 
 async def _as_at():
     source = next(item for item in sources_for_region("us-east") if item.source_id == "govinfo-uscode")
-    store = MemoryStore()
+    store = MemoryStore(home_region="us-east")
     await store.record_source(source)
 
     def version(text: str, start: date):

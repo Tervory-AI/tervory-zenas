@@ -112,3 +112,28 @@ CREATE TABLE IF NOT EXISTS zenas_pool.updates (
     documents        integer NOT NULL DEFAULT 0,
     detail           text NOT NULL DEFAULT ''
 );
+
+-- Founder switch and the env-var name. The key value is never a column.
+ALTER TABLE zenas_pool.sources ADD COLUMN IF NOT EXISTS enabled boolean NOT NULL DEFAULT true;
+ALTER TABLE zenas_pool.sources ADD COLUMN IF NOT EXISTS key_name text NOT NULL DEFAULT '';
+ALTER TABLE zenas_pool.sources ADD COLUMN IF NOT EXISTS key_required boolean NOT NULL DEFAULT false;
+
+-- Citation graph. to_document is empty until the cited instrument is in this region.
+CREATE TABLE IF NOT EXISTS zenas_pool.cites (
+    from_version     text NOT NULL,
+    citation_text    text NOT NULL,
+    to_document      text NOT NULL DEFAULT '',
+    resolved         boolean NOT NULL DEFAULT false,
+    PRIMARY KEY (from_version, citation_text)
+);
+
+CREATE INDEX IF NOT EXISTS cites_to_document
+    ON zenas_pool.cites (to_document);
+
+-- How far a resumable load got. A second run continues from cursor.
+CREATE TABLE IF NOT EXISTS zenas_pool.checkpoints (
+    source_id        text PRIMARY KEY,
+    cursor           text NOT NULL DEFAULT '',
+    bytes_stored     bigint NOT NULL DEFAULT 0,
+    updated_at       timestamptz NOT NULL DEFAULT now()
+);

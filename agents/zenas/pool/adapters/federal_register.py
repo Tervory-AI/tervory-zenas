@@ -22,6 +22,17 @@ def fr_url(document_number: str) -> str:
     return f"https://www.federalregister.gov/api/v1/documents/{document_number}.json"
 
 
+# Nightly changes for the launch parts. One page per CFR title.
+FR_TITLES = ("19", "15", "22", "31")
+
+
+def fr_title_url(title: str) -> str:
+    return (
+        "https://www.federalregister.gov/api/v1/documents.json"
+        f"?conditions[cfr][title]={title}&per_page=20&order=newest"
+    )
+
+
 class FederalRegisterAdapter:
     source_id = "federal-register"
 
@@ -35,6 +46,14 @@ class FederalRegisterAdapter:
                 )
             )
         return blobs
+
+    async def fetch_bulk(self, http_get, *, resume: str = "") -> tuple[list[bytes], str]:
+        del resume
+        blobs = []
+        headers = {"Accept": "application/json", "User-Agent": "TervoryZenasPool/0.1"}
+        for title in FR_TITLES:
+            blobs.append(await http_get(fr_title_url(title), headers))
+        return blobs, ""
 
     def parse(self, blob: bytes, source: SourceSpec) -> list[LegalDocument]:
         payload = json.loads(blob.decode("utf-8"))
