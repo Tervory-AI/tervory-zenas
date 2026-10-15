@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import os
 import sys
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 from uuid import UUID
@@ -22,7 +23,9 @@ _CHASSIS = _ROOT / "agents" / "_chassis"
 if _CHASSIS.is_dir() and str(_CHASSIS) not in sys.path:
     sys.path.insert(0, str(_CHASSIS))
 
+from agents.zenas.pool.api import register_routes as register_pool_routes  # noqa: E402
 from agents.zenas.pool.catalogue import CATALOGUE  # noqa: E402
+from agents.zenas.pool.store import PostgresStore  # noqa: E402
 from chassis.app import create_app  # noqa: E402
 from chassis.jobs import JobContext  # noqa: E402
 from fastapi import HTTPException  # noqa: E402
@@ -218,6 +221,25 @@ class ReviewIn(BaseModel):
 @app.get("/pool")
 async def pool_import() -> dict[str, Any]:
     return {"imported": True, "sources": len(CATALOGUE)}
+
+
+_pool_schema_ready = False
+
+
+@asynccontextmanager
+async def _pool_store():
+    """One pooled connection per request, bound to this box. Schema applied once."""
+    global _pool_schema_ready
+    async with app.state.pool.acquire() as conn:
+        store = PostgresStore(conn, home_region=_box_region())
+        if not _pool_schema_ready:
+            await store.apply_schema()
+            _pool_schema_ready = True
+        yield store
+
+
+# Feeds switchboard: pool status and "Load now" per source (Tank proxies /v1/zenas/pool/*).
+register_pool_routes(app, _pool_store, _box_region)
 
 
 @app.post("/consents", status_code=201)

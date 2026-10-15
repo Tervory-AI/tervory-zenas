@@ -6,6 +6,9 @@ refused. Key values are never written into a response.
 
 from __future__ import annotations
 
+from collections.abc import Callable
+from contextlib import AbstractAsyncContextManager
+
 from fastapi import FastAPI, HTTPException
 
 from agents.zenas.pool.bulk import load_wave
@@ -120,3 +123,50 @@ def create_app(
         return {"ok": True, "region": home, "source": row}
 
     return app
+
+
+def register_routes(
+    app: FastAPI,
+    open_store: Callable[[], AbstractAsyncContextManager[Store]],
+    region: Callable[[], str | None],
+    *,
+    live: bool = True,
+    http_get=None,
+    snapshots: dict[str, list[bytes]] | None = None,
+) -> None:
+    """Add /pool/status and /pool/sources/{id}/load to an existing app (the Zenas room).
+
+    `open_store` yields a store bound to this box for one request; `region` is
+    read per request, so a missing or unknown TANK_REGION answers 409.
+    """
+
+    @app.get("/pool/status")
+    async def get_pool_status() -> dict:
+        home = _http_region(region())
+        async with open_store() as store:
+            bind_store(store, home)
+            return await status_for_box(store, home)
+
+    @app.post("/pool/sources/{source_id}/load")
+    async def load_pool_source(source_id: str) -> dict:
+        home = _http_region(region())
+        source = _find(source_id)
+        if source is None:
+            raise HTTPException(status_code=404, detail="unknown source")
+        try:
+            assert_source_region(source, home)
+            async with open_store() as store:
+                bind_store(store, home)
+                await load_wave(
+                    store,
+                    region=home,
+                    only=[source],
+                    live=live,
+                    http_get=http_get,
+                    snapshots=snapshots,
+                )
+                report = await status_for_box(store, home)
+        except RegionError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        row = next(item for item in report["sources"] if item["source_id"] == source_id)
+        return {"ok": True, "region": home, "source": row}
