@@ -8,7 +8,7 @@ when the PDF has no neutral citation.
 from __future__ import annotations
 
 import re
-from urllib.parse import unquote
+from urllib.parse import quote, unquote
 
 from agents.zenas.pool.adapters.za_case_common import (
     absolute_url,
@@ -42,6 +42,9 @@ def decision_pdfs(page: bytes, base: str = "https://www.comptrib.co.za/") -> lis
     seen: set[str] = set()
     for href in _PDF.findall(text):
         url = absolute_url(base, href).split("#", 1)[0]
+        # The Tribunal links PDFs with raw spaces in the path; http.client
+        # rejects those, so percent-encode while keeping existing escapes.
+        url = quote(url, safe=":/?=&%#~+,;@!$'()*")
         if not _keep(unquote(url)):
             continue
         if url not in seen:
