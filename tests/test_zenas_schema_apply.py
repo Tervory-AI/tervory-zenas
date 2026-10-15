@@ -201,6 +201,36 @@ async def _assert_draft_library(conn) -> None:
     )
 
 
+async def _assert_material_type(conn) -> None:
+    """material_type has no default. Only the two named kinds are stored."""
+    asyncpg = pytest.importorskip("asyncpg")
+    meta = await conn.fetchrow(
+        """
+        SELECT is_nullable, column_default
+        FROM information_schema.columns
+        WHERE table_schema = 'agent_zenas'
+          AND table_name = 'worked_matters'
+          AND column_name = 'material_type'
+        """
+    )
+    assert meta is not None
+    assert meta["is_nullable"] == "YES"
+    assert meta["column_default"] is None
+    with pytest.raises(asyncpg.CheckViolationError):
+        await conn.execute(
+            """
+            INSERT INTO agent_zenas.worked_matters (region, source, jurisdiction, material_type)
+            VALUES ('us-east', 'case', 'us', 'secret')
+            """
+        )
+    await conn.execute(
+        """
+        INSERT INTO agent_zenas.worked_matters (region, source, jurisdiction, material_type)
+        VALUES ('us-east', 'case', 'us', 'public_record')
+        """
+    )
+
+
 def test_home_region_column_has_no_default() -> None:
     column = [
         line
@@ -245,11 +275,13 @@ async def test_zenas_schema_on_empty_twice_and_on_main_with_roles() -> None:
         assert int(sequences) == 0
         await _assert_tenant_home(empty)
         await _assert_draft_library(empty)
+        await _assert_material_type(empty)
         await _apply(empty, zenas)
         kept = await empty.fetchval("SELECT count(*) FROM agent_zenas.tenants")
         assert int(kept) == 2
         assert int(await empty.fetchval("SELECT count(*) FROM agent_zenas.clauses")) == 1
         assert int(await empty.fetchval("SELECT count(*) FROM agent_zenas.playbooks")) == 1
+        assert int(await empty.fetchval("SELECT count(*) FROM agent_zenas.worked_matters")) == 1
 
         main = await _fresh(admin, "zenas_schema_main")
         await _apply(main, _statements(TANK))
@@ -287,11 +319,13 @@ async def test_zenas_schema_on_empty_twice_and_on_main_with_roles() -> None:
         assert int(zenas_sequences) == 0
         await _assert_tenant_home(main)
         await _assert_draft_library(main)
+        await _assert_material_type(main)
         await _apply(main, zenas)
         kept_main = await main.fetchval("SELECT count(*) FROM agent_zenas.tenants")
         assert int(kept_main) == 2
         assert int(await main.fetchval("SELECT count(*) FROM agent_zenas.clauses")) == 1
         assert int(await main.fetchval("SELECT count(*) FROM agent_zenas.playbooks")) == 1
+        assert int(await main.fetchval("SELECT count(*) FROM agent_zenas.worked_matters")) == 1
     finally:
         if empty is not None:
             await empty.close()

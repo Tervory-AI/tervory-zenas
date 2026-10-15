@@ -353,6 +353,7 @@ class CaseFactsIn(BaseModel):
     pool_doc_id: str
     pool_version_id: str = ""
     citation: str = ""
+    source_id: str = ""
     judgment: str
     rule_card_ids: list[str] = Field(default_factory=list)
     as_at: str | None = None
@@ -527,6 +528,7 @@ async def post_case_facts(body: CaseFactsIn) -> dict[str, Any]:
         pool_doc_id=body.pool_doc_id,
         pool_version_id=body.pool_version_id,
         citation=body.citation,
+        source_id=body.source_id,
         judgment=body.judgment,
         rule_card_ids=body.rule_card_ids,
         as_at=body.as_at,

@@ -177,6 +177,7 @@ async def test_draft_uses_approved_clauses_and_marks_the_rest() -> None:
             "region": "us-east",
             "tenant_id": TENANT_A,
             "source": "released",
+            "material_type": "client_work",
             "jurisdiction": "us",
             "fact_pattern": {
                 "template": "nda",
@@ -218,6 +219,7 @@ async def test_draft_uses_approved_clauses_and_marks_the_rest() -> None:
             "region": "us-east",
             "tenant_id": TENANT_A,
             "source": "released",
+            "material_type": "client_work",
             "jurisdiction": "us",
             "fact_pattern": {
                 "template": "supply",

@@ -137,10 +137,12 @@ CREATE TABLE IF NOT EXISTS agent_zenas.worked_matters (
     pool_version_id     text,
     embedding           jsonb NOT NULL DEFAULT '[]'::jsonb,
     released_matter_id  uuid,
+    material_type       text,
     created_at          timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT worked_source_chk CHECK (source IN ('case', 'released')),
     CONSTRAINT worked_region_chk CHECK (region IN ('us-east', 'za')),
-    CONSTRAINT worked_jurisdiction_chk CHECK (jurisdiction IN ('us', 'za', 'both'))
+    CONSTRAINT worked_jurisdiction_chk CHECK (jurisdiction IN ('us', 'za', 'both')),
+    CONSTRAINT worked_material_type_chk CHECK (material_type IS NULL OR material_type IN ('public_record', 'client_work'))
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS worked_case_once_idx
@@ -238,3 +240,8 @@ CREATE TABLE IF NOT EXISTS agent_zenas.playbooks (
 
 CREATE INDEX IF NOT EXISTS playbooks_tenant_idx
     ON agent_zenas.playbooks (region, tenant_id, template);
+
+-- material_type is public_record or client_work. No default: unknown stays null and is not shared.
+ALTER TABLE agent_zenas.worked_matters ADD COLUMN IF NOT EXISTS material_type text;
+
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint c JOIN pg_namespace n ON n.oid = c.connamespace WHERE c.conname = 'worked_material_type_chk' AND n.nspname = 'agent_zenas') THEN ALTER TABLE agent_zenas.worked_matters ADD CONSTRAINT worked_material_type_chk CHECK (material_type IS NULL OR material_type IN ('public_record', 'client_work')); END IF; END $$;

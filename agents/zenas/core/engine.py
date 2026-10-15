@@ -570,8 +570,21 @@ def rank_worked(
     return ranked
 
 
-def sanitize_diff(diff: dict[str, Any], *, source: str, owner: str | None, tenant_id: str) -> dict[str, Any]:
-    public = source == "case" or str(owner or "") == str(tenant_id)
+def _open_worked(source: str, owner: str | None, tenant_id: str, material_type: str | None = None) -> bool:
+    if source == "case" or str(owner or "") == str(tenant_id):
+        return True
+    return str(material_type or "") == "client_work"
+
+
+def sanitize_diff(
+    diff: dict[str, Any],
+    *,
+    source: str,
+    owner: str | None,
+    tenant_id: str,
+    material_type: str | None = None,
+) -> dict[str, Any]:
+    public = _open_worked(source, owner, tenant_id, material_type)
     body = {"element_id": diff["element_id"], "same": diff["same"], "request": diff["request"]}
     if public:
         body["worked"] = diff.get("worked") or {}
@@ -582,21 +595,34 @@ def sanitize_match(ranked: dict[str, Any], *, tenant_id: str) -> dict[str, Any]:
     worked = ranked["worked"]
     owner = worked.get("tenant_id")
     source = str(worked.get("source") or "")
-    public = source == "case" or str(owner or "") == str(tenant_id)
+    material_type = str(worked.get("material_type") or "")
+    public = _open_worked(source, None if owner is None else str(owner), tenant_id, material_type)
     pattern = worked.get("fact_pattern") or {}
     visible_pattern: dict[str, Any]
     if public:
-        visible_pattern = {"features": pattern.get("features") or {}, "narrative": pattern.get("narrative") or ""}
+        visible_pattern = {
+            "features": pattern.get("features") or {},
+            "narrative": pattern.get("narrative") or "",
+            "body": pattern.get("body") or "",
+        }
     else:
         visible_pattern = {"features": {}}
     return {
         "worked_matter_id": worked.get("id"),
         "source": source,
+        "material_type": material_type,
         "rule_card_ids": list(worked.get("rule_card_ids") or []),
         "score": ranked["score"],
         "fact_pattern": visible_pattern,
+        "lawyer_edits": str(worked.get("lawyer_edits") or "") if public else "",
         "element_diff": [
-            sanitize_diff(diff, source=source, owner=None if owner is None else str(owner), tenant_id=tenant_id)
+            sanitize_diff(
+                diff,
+                source=source,
+                owner=None if owner is None else str(owner),
+                tenant_id=tenant_id,
+                material_type=material_type,
+            )
             for diff in ranked["diffs"]
         ],
     }

@@ -25,6 +25,20 @@ def _region(value: str) -> str:
     return normalize_box(value)
 
 
+def _row_is_visible(row: dict[str, Any], *, region: str, tenant_id: str, sharing: str) -> bool:
+    """Owner rows stay private. Public record is shared. Masked client work is shared in-region."""
+    if row.get("region") != region:
+        return False
+    source = str(row.get("source") or "")
+    owner = str(row.get("tenant_id") or "")
+    kind = str(row.get("material_type") or "")
+    if owner and owner == str(tenant_id):
+        return True
+    if source == "case" and kind == "public_record":
+        return True
+    return sharing == "region" and source == "released" and kind == "client_work"
+
+
 def _json(value: Any) -> Any:
     if isinstance(value, str):
         return json.loads(value)
@@ -160,28 +174,11 @@ class LadderMemory:
 
     async def visible_worked(self, *, region: str, tenant_id: str, sharing: str) -> list[dict[str, Any]]:
         box = _region(region)
-        visible = []
-        for row in self.worked:
-            if row["region"] != box:
-                continue
-            source = str(row.get("source") or "")
-            owner = str(row.get("tenant_id") or "")
-            if source == "case" or owner == str(tenant_id):
-                visible.append(row)
-                continue
-            if sharing == "region" and source == "released":
-                visible.append(row)
-        return visible
+        return [row for row in self.worked if _row_is_visible(row, region=box, tenant_id=tenant_id, sharing=sharing)]
 
     async def count_worked(self, *, region: str, tenant_id: str) -> int:
         box = _region(region)
-        total = 0
-        for row in self.worked:
-            if row["region"] != box:
-                continue
-            if row.get("source") == "case" or str(row.get("tenant_id") or "") == str(tenant_id):
-                total += 1
-        return total
+        return sum(1 for row in self.worked if _row_is_visible(row, region=box, tenant_id=tenant_id, sharing="tenant"))
 
     async def add_pair(self, row: dict[str, Any]) -> dict[str, Any]:
         saved = dict(row)
@@ -365,10 +362,10 @@ class PgLadder:
         INSERT INTO agent_zenas.worked_matters
             (id, region, tenant_id, source, jurisdiction, area, rule_card_ids, fact_pattern,
              element_findings, outcome, lawyer_edits, as_at, pool_doc_id, pool_version_id,
-             embedding, released_matter_id)
+             embedding, released_matter_id, material_type)
         VALUES
             ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, $9::jsonb, $10, $11, $12::date,
-             $13, $14, $15::jsonb, $16)
+             $13, $14, $15::jsonb, $16, $17)
         """.strip()
         async with self.pool.acquire() as conn:
             await conn.execute(
@@ -389,6 +386,7 @@ class PgLadder:
                 row.get("pool_version_id"),
                 json.dumps(embedding),
                 _as_uuid(row["released_matter_id"]) if row.get("released_matter_id") else None,
+                row.get("material_type"),
             )
         saved = dict(row)
         saved["id"] = worked_id
@@ -413,12 +411,20 @@ class PgLadder:
             sql = """
             SELECT * FROM agent_zenas.worked_matters
             WHERE region = $1
-              AND (source = 'case' OR tenant_id = $2 OR source = 'released')
+              AND (
+                tenant_id = $2
+                OR (source = 'case' AND material_type = 'public_record')
+                OR (source = 'released' AND material_type = 'client_work')
+              )
             """.strip()
         else:
             sql = """
             SELECT * FROM agent_zenas.worked_matters
-            WHERE region = $1 AND (source = 'case' OR tenant_id = $2)
+            WHERE region = $1
+              AND (
+                tenant_id = $2
+                OR (source = 'case' AND material_type = 'public_record')
+              )
             """.strip()
         args: tuple[Any, ...] = (_region(region), _as_uuid(tenant_id))
         async with self.pool.acquire() as conn:
@@ -428,7 +434,8 @@ class PgLadder:
     async def count_worked(self, *, region: str, tenant_id: str) -> int:
         sql = """
         SELECT count(*) FROM agent_zenas.worked_matters
-        WHERE region = $1 AND (source = 'case' OR tenant_id = $2)
+        WHERE region = $1
+          AND (tenant_id = $2 OR (source = 'case' AND material_type = 'public_record'))
         """.strip()
         async with self.pool.acquire() as conn:
             value = await conn.fetchval(sql, _region(region), _as_uuid(tenant_id))

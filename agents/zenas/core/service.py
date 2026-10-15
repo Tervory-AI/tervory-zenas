@@ -482,6 +482,7 @@ async def extract_case_facts(
     pool_doc_id: str,
     pool_version_id: str = "",
     citation: str = "",
+    source_id: str = "",
     judgment: str,
     rule_card_ids: list[str] | None = None,
     as_at: str | None = None,
@@ -491,6 +492,11 @@ async def extract_case_facts(
     _home, refused = await _use_home(ladder, tenant_id=tenant_id, home_region=home_region, box_region=box_region)
     if refused:
         return refused
+    from agents.zenas.core.release_mask import log_withheld, material_type_for_pool
+
+    if material_type_for_pool(source_id) != "public_record":
+        log_withheld("material type is unknown")
+        return {"ok": False, "shared": False, "reason": "material type is unknown"}
     kind = ruled(judgment)
     if kind == "criminal":
         return _refuse(REFUSED, scope=classify(judgment, jurisdiction if jurisdiction in ("us", "za", "both") else None))
@@ -501,26 +507,32 @@ async def extract_case_facts(
     existing = await ladder.worked_for_doc(region=box, pool_doc_id=pool_doc_id)
     if existing is not None:
         return {"ok": True, "worked_matter": _public_case(existing), "cached": True, "cost_usd": 0, "model_calls": 0}
-    adapter = ModelAdapter(model) if model is not None else None
+    if model is None:
+        return _refuse("no model is configured")
+    adapter = ModelAdapter(model)
     prompt = (
         "Read this judgment as published. Reply with JSON only: "
         '{"features":{},"narrative":"","element_findings":[{"element_id":"","finding":"met|not_met|unclear","reasoning":"","basis":[]}],"outcome":""}\n\n'
         + judgment
     )
-    called = await _masked_call(adapter, prompt, home_region=home_region, provider=provider, task_type="zenas.case_facts")
-    if not called["ok"]:
-        return called
+    result = await adapter.complete(
+        [{"role": "user", "content": prompt}],
+        task_type="zenas.case_facts",
+        provider=provider,
+    )
+    called = {"ok": True, "result": result}
     try:
         parsed = parse_case_facts(called["result"]["content"])
     except (ValueError, json.JSONDecodeError):
         return _refuse("the model did not return case facts")
     cost = float(called["result"]["cost_usd"])
-    published = judgment or parsed["narrative"]
+    published = judgment
     worked = await ladder.add_worked(
         {
             "region": box,
             "tenant_id": None,
             "source": "case",
+            "material_type": "public_record",
             "jurisdiction": jurisdiction,
             "area": "",
             "rule_card_ids": rule_card_ids or [],
@@ -573,6 +585,7 @@ def _public_case(row: dict[str, Any]) -> dict[str, Any]:
         "id": row.get("id"),
         "region": row.get("region"),
         "source": row.get("source"),
+        "material_type": row.get("material_type"),
         "jurisdiction": row.get("jurisdiction"),
         "rule_card_ids": row.get("rule_card_ids") or [],
         "fact_pattern": {"features": pattern.get("features") or {}, "narrative": pattern.get("narrative") or ""},
@@ -908,19 +921,50 @@ async def release_matter(
     if not review.get("ok"):
         return review
     await matters.set_document_state(tenant_id, document_id, "released")
+    from agents.zenas.core.release_mask import log_withheld, mask_share
+
+    document = await matters.get_document(str(tenant_id), str(document_id))
+    matter = await matters.get_matter(str(tenant_id), str(matter_id))
+    shared = mask_share(
+        matter=matter,
+        document=document,
+        parties=(matter or {}).get("parties"),
+        body=str((document or {}).get("body") or ""),
+        narrative=narrative,
+        features=features,
+        findings=element_findings,
+        lawyer_edits=lawyer_edits,
+        outcome=outcome,
+        memo=memo,
+    )
+    if not shared["ok"]:
+        log_withheld("masking failed")
+        return {
+            "ok": True,
+            "shared": False,
+            "reason": "masking failed",
+            "worked_matter_id": None,
+            "training_pair_id": None,
+            "review_id": review["review_id"],
+        }
     box = _box(box_region)
     worked = await ladder.add_worked(
         {
             "region": box,
             "tenant_id": tenant_id,
             "source": "released",
+            "material_type": "client_work",
             "jurisdiction": jurisdiction,
             "area": area,
             "rule_card_ids": rule_card_ids,
-            "fact_pattern": {"features": features, "narrative": narrative},
-            "element_findings": element_findings,
-            "outcome": outcome,
-            "lawyer_edits": lawyer_edits,
+            "fact_pattern": {
+                "features": shared["features"],
+                "narrative": shared["narrative"],
+                "body": shared["body"],
+            },
+            "element_findings": shared["findings"],
+            "outcome": shared["outcome"],
+            "lawyer_edits": shared["lawyer_edits"],
             "as_at": as_at,
             "released_matter_id": matter_id,
         }
@@ -931,15 +975,21 @@ async def release_matter(
             "tenant_id": tenant_id,
             "source": "released",
             "worked_id": worked["id"],
-            "request": narrative,
-            "findings": element_findings,
-            "outcome": outcome,
-            "memo": memo,
-            "lawyer_edits": lawyer_edits,
+            "request": shared["narrative"],
+            "findings": shared["findings"],
+            "outcome": shared["outcome"],
+            "memo": shared["memo"],
+            "lawyer_edits": shared["lawyer_edits"],
             "as_at": as_at,
         }
     )
-    return {"ok": True, "worked_matter_id": worked["id"], "training_pair_id": pair["id"], "review_id": review["review_id"]}
+    return {
+        "ok": True,
+        "shared": True,
+        "worked_matter_id": worked["id"],
+        "training_pair_id": pair["id"],
+        "review_id": review["review_id"],
+    }
 
 
 async def remember_for_tenant(
@@ -982,7 +1032,11 @@ def _tag_allows(tags: list[str], jurisdiction: str) -> bool:
 def _review_match(worked: dict[str, Any], tenant_id: str) -> dict[str, Any]:
     source = str(worked.get("source") or "")
     owner = worked.get("tenant_id")
-    public = source == "case" or str(owner or "") == str(tenant_id)
+    public = (
+        source == "case"
+        or str(owner or "") == str(tenant_id)
+        or str(worked.get("material_type") or "") == "client_work"
+    )
     findings: list[dict[str, str]] = []
     if public:
         for part in worked.get("element_findings") or []:
