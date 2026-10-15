@@ -1242,7 +1242,7 @@ def test_ladder_routes_are_registered() -> None:
 def test_policy_rows_are_additive() -> None:
     policy = (ROOT / "tank" / "schema.sql").read_text(encoding="utf-8")
     for task, model, scope in (
-        ("zenas.rule_card", "astra", "region"),
+        ("zenas.rule_card", "luna", "region"),
         ("zenas.case_facts", "luna", "region"),
         ("zenas.apply", "luna", "tenant"),
         ("zenas.compose", "luna", "tenant"),
