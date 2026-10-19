@@ -1,0 +1,542 @@
+{
+ "count": 512,
+ "next": "https://www.courtlistener.com/api/rest/v4/search/?court=ca2&cursor=cz0xMy4wNDQ3Nzgmcz04NDgwODM2JnQ9byZkPTIwMjYtMTAtMTkmcD0y&q=%22insurance+policy%22+breach&type=o",
+ "previous": null,
+ "results": [
+  {
+   "absolute_url": "/opinion/9355648/brettler-v-allianz-life-insurance-company-of-north-america/",
+   "attorney": "",
+   "caseName": "Brettler v. Allianz Life Insurance Company of North America",
+   "caseNameFull": "",
+   "citation": [
+    "57 F.4th 57"
+   ],
+   "citeCount": 5,
+   "cluster_id": 9355648,
+   "court": "Court of Appeals for the Second Circuit",
+   "court_citation_string": "2d Cir.",
+   "court_id": "ca2",
+   "court_jurisdiction": null,
+   "dateArgued": null,
+   "dateFiled": "2022-12-29",
+   "dateReargued": null,
+   "dateReargumentDenied": null,
+   "docketNumber": "19-87",
+   "docket_id": 66688094,
+   "judge": "",
+   "lexisCite": "",
+   "meta": {
+    "timestamp": "2025-11-17T21:51:45.619477Z",
+    "date_created": "2022-12-29T16:00:11.497517Z",
+    "score": {
+     "bm25": 17.183605
+    }
+   },
+   "neutralCite": "",
+   "non_participating_judge_ids": [],
+   "opinions": [
+    {
+     "author_id": null,
+     "cites": [
+      429391,
+      696266,
+      738504,
+      1266591,
+      1357803,
+      5300119,
+      5360526,
+      5422275,
+      5481850,
+      5783031,
+      5798163,
+      6078264,
+      6204071,
+      6929544,
+      8413975,
+      8414209
+     ],
+     "download_url": "http://www.ca2.uscourts.gov/decisions/isysquery/6fc7570c-6293-4c1f-8ede-c118d8edece5/1/doc/19-87_opn.pdf",
+     "id": 9351120,
+     "joined_by_ids": [],
+     "local_path": "pdf/2022/12/29/brettler_v._allianz_life_insurance_company_of_north_america.pdf",
+     "meta": {
+      "timestamp": "2025-11-17T21:51:45.636596Z",
+      "date_created": "2022-12-29T16:00:11.503252Z"
+     },
+     "ordering_key": null,
+     "per_curiam": false,
+     "sha1": "d4e5f90f8e27ff26c0b29f00697fcc676956eb58",
+     "snippet": "     No. 19-87\n     Brettler v. Allianz Life Insurance Company of North America\n 1\n 2                      UNITED STATES COURT OF APPEALS\n 3                          FOR THE SECOND CIRCUIT\n 4                            ____________________\n 5\n 6                                 August Term, 2019\n 7\n 8   (Argued: December 17, 2019                        Decided: December 29, 2022)\n 9\n10                                  Docket No. 19-87\n11\n12                                ____________________\n13\n1",
+     "type": "combined-opinion"
+    }
+   ],
+   "panel_ids": [],
+   "panel_names": [],
+   "posture": "",
+   "procedural_history": "",
+   "scdb_id": "",
+   "sibling_ids": [
+    9351120
+   ],
+   "source": "C",
+   "status": "Published",
+   "suitNature": "",
+   "syllabus": ""
+  },
+  {
+   "absolute_url": "/opinion/9468060/loomis-v-ace-american-insurance-company/",
+   "attorney": "",
+   "caseName": "Loomis v. ACE American Insurance Company",
+   "caseNameFull": "",
+   "citation": [
+    "91 F.4th 565"
+   ],
+   "citeCount": 13,
+   "cluster_id": 9468060,
+   "court": "Court of Appeals for the Second Circuit",
+   "court_citation_string": "2d Cir.",
+   "court_id": "ca2",
+   "court_jurisdiction": null,
+   "dateArgued": null,
+   "dateFiled": "2024-01-23",
+   "dateReargued": null,
+   "dateReargumentDenied": null,
+   "docketNumber": "22-863",
+   "docket_id": 68184288,
+   "judge": "",
+   "lexisCite": "",
+   "meta": {
+    "timestamp": "2025-11-17T21:55:43.147682Z",
+    "date_created": "2024-01-23T15:01:30.826897Z",
+    "score": {
+     "bm25": 16.392252
+    }
+   },
+   "neutralCite": "",
+   "non_participating_judge_ids": [],
+   "opinions": [
+    {
+     "author_id": null,
+     "cites": [
+      111719,
+      810675,
+      852066,
+      852514,
+      852581,
+      1997450,
+      1998542,
+      2031287,
+      2056151,
+      2157897,
+      2657188,
+      2724829,
+      4286089,
+      5489858,
+      7016369,
+      8412767,
+      8413348
+     ],
+     "download_url": "http://www.ca2.uscourts.gov/decisions/isysquery/191d6917-4041-494b-8c2a-37d671d5f5b2/1/doc/22-863_opn.pdf",
+     "id": 9925898,
+     "joined_by_ids": [],
+     "local_path": "pdf/2024/01/23/loomis_v._ace_american_insurance_company.pdf",
+     "meta": {
+      "timestamp": "2025-11-17T21:55:43.201616Z",
+      "date_created": "2024-01-23T15:01:30.830022Z"
+     },
+     "ordering_key": null,
+     "per_curiam": false,
+     "sha1": "bdfb3a198da6490de42f0fe2d2ffcf3f415a8d2b",
+     "snippet": "22-863(L)\nLoomis v. ACE American Insurance Company\n\n\n\n\n                                      In the\n                 United States Court of Appeals\n                           For the Second Circuit\n                                  ______________\n\n                                August Term, 2023\n\n            (Argued: September 22, 2023 Decided: January 23, 2024)\n\n                           Docket Nos. 22-863, 22-1037\n                                ______________\n\n                              ",
+     "type": "combined-opinion"
+    }
+   ],
+   "panel_ids": [],
+   "panel_names": [],
+   "posture": "",
+   "procedural_history": "",
+   "scdb_id": "",
+   "sibling_ids": [
+    9925898
+   ],
+   "source": "C",
+   "status": "Published",
+   "suitNature": "",
+   "syllabus": ""
+  },
+  {
+   "absolute_url": "/opinion/2959909/united-states-v-kaid-ahmed/",
+   "attorney": "Stephan J. Baczynski, Assistant United States Attorney, for Terrance P. Flynn, United States Attorney for the Western District of New York, Buffalo, N.Y., for Appellee., Herbert L. Greenman, Lipsitz, Green, Fahringer, Roll, Salisbury & Cambria LLP, Buffalo, N.Y., for Defendant-Appellant Aref Ahmed; Thomas Theophilos, Law Offices of John Pieri, Buffalo, N.Y., for Defendant-Appellant Rmzy Abdullah; Jeremy D. Schwartz, Eoannou, Lana & D’Amico, Buffalo, N.Y., for Defendant-Appellant Azzeaz Saleh; Jeremy Gutman (Maria G. Giordano, on the brief), New York, N.Y. for Defendant-Appellant Mohamed Abuhamra; Michael G. O’Rourke, Buffalo, N.Y., for Defendant-Appellant Nagib Aziz.",
+   "caseName": "United States v. Kaid (Ahmed)",
+   "caseNameFull": "UNITED STATES of America, Appellee, v. Mohamed KAID, Also Known as Jimmy, Also Known as Mohamed Qayed, Also Known as Mohamed Mosaid, Ali Kaid, Also Known as Abdo Hussein, Also Known as Abdul, Page Martin, Mohamed Abuhamra, Also Known as Mike, Ali Abuhamra, Also Known as Ali Mosed, Also Known as Ali Bailey, Abdo Alawi, Also Known as Sam 2, Also Known as Hamood, Saleh Abdullah, Also Known as Sam 1, Hamada Awedi, Also Known as Mike, Nader Hamdan, Also Known as Nick, Hussain Berro, Also Known as Sam, Harris Barnett, Also Known as Alex, Fadi Haydous, Also Known as Freddy, Mohamed Almozahmi, Also Known as Red Fanny, Richard Emke, Kirk Snyder, A.D. Bedell Company, Inc., Shoaib Kaaid Alhajaji, Also Known as High Street John, Ali Al-Fiasaly, Ahmed Nasir, Also Known as Shubwa, Ahmed Alshubili, Also Known as Little Shubwa, Menal Mikha, Sam Daniel, Nabil Abdullah, Mohamed Abdullah, Mohamed Odefa, Also Known as Ottifa, Nagib Aziz, Also Known as Nico, Khaled Aljeman, Also Known as Speedo, Ali Abuhamra Jr., Also Known as Ali Mosed, Also Known as Ali Bailey, Defendants, Aref Ahmed, Rmzy Abdullah, Azzeaz Saleh, Mohamed Abuhamra, Also Known as Mike, Nagib Aziz, Also Known as Nico, Defendants-Appellants",
+   "citation": [
+    "502 F.3d 43",
+    "2007 U.S. App. LEXIS 21818"
+   ],
+   "citeCount": 8,
+   "cluster_id": 2959909,
+   "court": "Court of Appeals for the Second Circuit",
+   "court_citation_string": "2d Cir.",
+   "court_id": "ca2",
+   "court_jurisdiction": null,
+   "dateArgued": null,
+   "dateFiled": "2007-09-12",
+   "dateReargued": null,
+   "dateReargumentDenied": null,
+   "docketNumber": "05-4470 -cr (L)",
+   "docket_id": 2817068,
+   "judge": "Calabresi, Raggi, Hall",
+   "lexisCite": "2007 U.S. App. LEXIS 21818",
+   "meta": {
+    "timestamp": "2024-06-21T16:16:12.702735Z",
+    "date_created": "2015-09-17T18:34:57.846440Z",
+    "score": {
+     "bm25": 2.3456922
+    }
+   },
+   "neutralCite": "",
+   "non_participating_judge_ids": [],
+   "opinions": [
+    {
+     "author_id": null,
+     "cites": [
+      419740,
+      430505,
+      541948,
+      590221,
+      798152
+     ],
+     "download_url": "http://www.ca2.uscourts.gov/decisions/isysquery/70c06abf-a796-48be-b317-fe5c1b958b7d/22/doc/05-4470-cr_opn.pdf",
+     "id": 2959909,
+     "joined_by_ids": [],
+     "local_path": "pdf/2007/09/12/united_states_v._kaid_ahmed.pdf",
+     "meta": {
+      "timestamp": "2025-10-25T01:22:25.514434Z",
+      "date_created": "2015-09-17T17:37:02.066426Z"
+     },
+     "ordering_key": null,
+     "per_curiam": false,
+     "sha1": "186b2ff463f2255152cae6b4ffe031ab1d7c5b75",
+     "snippet": "\n\n\n  PER CURIAM:\n \n\n  On this appeal, we are asked to consider whether a defense attorney’s purported twenty-minute absence from the courtroom during a testimonial phase of a criminal trial constitutes ineffective assistance of counsel.\n \n\n  Preliminary to addressing this question, we note that the alleged trial absence of Matthew Pynn, counsel for defendant Az-\n  ",
+     "type": "combined-opinion"
+    }
+   ],
+   "panel_ids": [],
+   "panel_names": [],
+   "posture": "",
+   "procedural_history": "",
+   "scdb_id": "",
+   "sibling_ids": [
+    2959909
+   ],
+   "source": "CU",
+   "status": "Published",
+   "suitNature": "",
+   "syllabus": ""
+  },
+  {
+   "absolute_url": "/opinion/5296755/united-states-v-diana-yates/",
+   "attorney": "",
+   "caseName": "United States v. Diana Yates",
+   "caseNameFull": "",
+   "citation": [
+    "16 F.4th 256"
+   ],
+   "citeCount": 18,
+   "cluster_id": 5296755,
+   "court": "Court of Appeals for the Ninth Circuit",
+   "court_citation_string": "9th Cir.",
+   "court_id": "ca9",
+   "court_jurisdiction": null,
+   "dateArgued": null,
+   "dateFiled": "2021-10-08",
+   "dateReargued": null,
+   "dateReargumentDenied": null,
+   "docketNumber": "18-30183",
+   "docket_id": 60937663,
+   "judge": "",
+   "lexisCite": "",
+   "meta": {
+    "timestamp": "2025-11-17T21:47:02.300783Z",
+    "date_created": "2021-11-11T21:00:57.009067Z",
+    "score": {
+     "bm25": 7.56538
+    }
+   },
+   "neutralCite": "",
+   "non_participating_judge_ids": [],
+   "opinions": [
+    {
+     "author_id": null,
+     "cites": [
+      407,
+      94110,
+      94586,
+      102084,
+      111964,
+      325427,
+      338707,
+      351032,
+      360400,
+      367286,
+      369320,
+      375339,
+      381443,
+      415376,
+      445110,
+      466493,
+      489922,
+      502729,
+      503427,
+      544697,
+      582655,
+      615264,
+      625721,
+      658614,
+      663714,
+      686749,
+      691099,
+      705221,
+      750653,
+      762827,
+      763793,
+      772639,
+      797948,
+      814980,
+      858127,
+      1194350,
+      1237205,
+      1563954,
+      1799439,
+      2671132,
+      2754537,
+      2801462,
+      2805965,
+      2818495,
+      3206860,
+      3217228,
+      4106441,
+      4155376,
+      4202155,
+      4240354,
+      4415330,
+      4532446,
+      4540686,
+      4549180,
+      4557268,
+      4651899,
+      4676819,
+      4690689,
+      6935030,
+      6967805,
+      8967575,
+      9226136,
+      9419862,
+      9421479,
+      9423348,
+      9429183,
+      9429702,
+      9431096,
+      9432281,
+      9432789,
+      9433818,
+      9434781,
+      9435812,
+      9437918,
+      9491348,
+      9494505,
+      9821884
+     ],
+     "download_url": "https://cdn.ca9.uscourts.gov/datastore/opinions/2021/10/08/18-30183.pdf",
+     "id": 5125317,
+     "joined_by_ids": [],
+     "local_path": "pdf/2021/10/08/united_states_v._diana_yates.pdf",
+     "meta": {
+      "timestamp": "2025-11-27T14:39:23.729052Z",
+      "date_created": "2021-11-11T21:00:57.014163Z"
+     },
+     "ordering_key": null,
+     "per_curiam": false,
+     "sha1": "1758780ab56ad5a6c44e5cb30d1f8eebbd2969d1",
+     "snippet": "                FOR PUBLICATION\n\n  UNITED STATES COURT OF APPEALS\n       FOR THE NINTH CIRCUIT\n\n\nUNITED STATES OF AMERICA,                No. 18-30183\n                 Plaintiff-Appellee,\n                                            D.C. No.\n                 v.                      3:15-cr-00238-\n                                              SI-2\nDIANA YATES,\n               Defendant-Appellant.\n\n\nUNITED STATES OF AMERICA,                No. 18-30184\n                 Plaintiff-Appellee,\n          ",
+     "type": "combined-opinion"
+    }
+   ],
+   "panel_ids": [],
+   "panel_names": [],
+   "posture": "",
+   "procedural_history": "",
+   "scdb_id": "",
+   "sibling_ids": [
+    5125317
+   ],
+   "source": "C",
+   "status": "Published",
+   "suitNature": "Criminal",
+   "syllabus": ""
+  },
+  {
+   "absolute_url": "/opinion/7316968/mcglone-v-contract-callers-inc/",
+   "attorney": "Penn Ueoka Dodson, Anderson Dodson, P.C., Donald David Conklin, III, Rishi Bhandari, Robert Allen Glunt, Mandel Bhandari LLP, New York, NY, for Plaintiffs. ¿, Ira Leonard Blank, Lawrence Wittels, The Enterprise Law Group LLC, St. Louis, MO, Lauren Katz Kluger, Reitler Kailas & Rosenblatt, L.L.C., New York, NY, for Defendants.",
+   "caseName": "McGlone v. Contract Callers Inc.",
+   "caseNameFull": "Michael MCGLONE, Hubert Brooks, Anthony Buffalino, Rocco Ceparano, Jesse Dimirco, Domenic Fanelli, Sal Fishetti, Joseph Frangiosa, Joseph Frische, Robert Gandolfo, Jesse Kay, Thomas Murphy, Brian Nicholas, Ariel Peniche, Robert Schantz, Rafael Soto, and Scott Vaaler v. CONTRACT CALLERS INC. and William \"Tim\" Wertz",
+   "citation": [
+    "146 F. Supp. 3d 582",
+    "2015 U.S. Dist. LEXIS 159855",
+    "2015 WL 7695145"
+   ],
+   "citeCount": 2,
+   "cluster_id": 7316968,
+   "court": "District Court, S.D. New York",
+   "court_citation_string": "S.D.N.Y.",
+   "court_id": "nysd",
+   "court_jurisdiction": null,
+   "dateArgued": null,
+   "dateFiled": "2015-11-29",
+   "dateReargued": null,
+   "dateReargumentDenied": null,
+   "docketNumber": "11 Civ. 3004 (JSR)",
+   "docket_id": 64305451,
+   "judge": "Rakoff",
+   "lexisCite": "2015 U.S. Dist. LEXIS 159855",
+   "meta": {
+    "timestamp": "2024-06-22T13:35:51.340043Z",
+    "date_created": "2022-07-25T04:39:03.296660Z",
+    "score": {
+     "bm25": 127.79801
+    }
+   },
+   "neutralCite": "",
+   "non_participating_judge_ids": [],
+   "opinions": [
+    {
+     "author_id": null,
+     "cites": [
+      110929,
+      811836,
+      1358350,
+      2117000,
+      2347980,
+      6968137
+     ],
+     "download_url": null,
+     "id": 7234876,
+     "joined_by_ids": [],
+     "local_path": null,
+     "meta": {
+      "timestamp": "2025-07-08T21:22:09.093815Z",
+      "date_created": "2022-07-25T04:39:03.301591Z"
+     },
+     "ordering_key": null,
+     "per_curiam": false,
+     "sha1": "",
+     "snippet": "\n\nMEMORANDUM ORDER\n\nJED S. RAKOFF, UNITED STATES DISTRICT JUDGE.\nOn June 22, 2015, following the conclusion of a trial in which the jury rendered judgment for plaintiffs Michael McGlone et al. on claims brought under the Fair, Labor, Standards Act (FLSA) and the New York Labor Law (NYLL), the Court entered final judgment, holding defendants Contract Callers Inc. and William “Tim” Wertz jointly and several",
+     "type": "lead-opinion"
+    }
+   ],
+   "panel_ids": [],
+   "panel_names": [],
+   "posture": "",
+   "procedural_history": "",
+   "scdb_id": "",
+   "sibling_ids": [
+    7234876
+   ],
+   "source": "U",
+   "status": "Published",
+   "suitNature": "",
+   "syllabus": ""
+  },
+  {
+   "absolute_url": "/opinion/6624809/gabbi-lemos-v-county-of-sonoma/",
+   "attorney": "",
+   "caseName": "Gabbi Lemos v. County of Sonoma",
+   "caseNameFull": "",
+   "citation": [
+    "40 F.4th 1002"
+   ],
+   "citeCount": 81,
+   "cluster_id": 6624809,
+   "court": "Court of Appeals for the Ninth Circuit",
+   "court_citation_string": "9th Cir.",
+   "court_id": "ca9",
+   "court_jurisdiction": null,
+   "dateArgued": null,
+   "dateFiled": "2022-07-19",
+   "dateReargued": null,
+   "dateReargumentDenied": null,
+   "docketNumber": "19-15222",
+   "docket_id": 63601907,
+   "judge": "",
+   "lexisCite": "",
+   "meta": {
+    "timestamp": "2025-11-17T21:50:19.662034Z",
+    "date_created": "2022-07-19T17:01:10.867222Z",
+    "score": {
+     "bm25": 29.589434
+    }
+   },
+   "neutralCite": "",
+   "non_participating_judge_ids": [],
+   "opinions": [
+    {
+     "author_id": null,
+     "cites": [
+      134747,
+      182133,
+      622632,
+      794492,
+      1365070,
+      1454462,
+      2134234,
+      2166121,
+      2274120,
+      2299739,
+      2431119,
+      2999892,
+      3168297,
+      4408667,
+      4434039,
+      4576104,
+      5125342,
+      5452253,
+      6106755,
+      6111632,
+      7002221,
+      9433019,
+      9433582,
+      9544710,
+      9786060,
+      9792473,
+      9817155
+     ],
+     "download_url": "https://cdn.ca9.uscourts.gov/datastore/opinions/2022/07/19/19-15222.pdf",
+     "id": 6501167,
+     "joined_by_ids": [],
+     "local_path": "pdf/2022/07/19/gabbi_lemos_v._county_of_sonoma.pdf",
+     "meta": {
+      "timestamp": "2025-11-27T23:51:39.492189Z",
+      "date_created": "2022-07-19T17:01:10.868304Z"
+     },
+     "ordering_key": null,
+     "per_curiam": false,
+     "sha1": "f9ceb7ce230813a7ef333d272d6eb7b6cc0d160a",
+     "snippet": "                 FOR PUBLICATION\n\n  UNITED STATES COURT OF APPEALS\n       FOR THE NINTH CIRCUIT\n\n\nGABBI LEMOS,                               No. 19-15222\n                  Plaintiff-Appellant,\n                                            D.C. No.\n                  v.                     4:15-cv-05188-\n                                              YGR\nCOUNTY OF SONOMA; STEVE\nFREITAS; MARCUS HOLTON,\n            Defendants-Appellees.           OPINION\n\n     Appeal from the United States District Cou",
+     "type": "combined-opinion"
+    }
+   ],
+   "panel_ids": [],
+   "panel_names": [],
+   "posture": "",
+   "procedural_history": "",
+   "scdb_id": "",
+   "sibling_ids": [
+    6501167
+   ],
+   "source": "C",
+   "status": "Published",
+   "suitNature": "Civil",
+   "syllabus": ""
+  }
+ ]
+}

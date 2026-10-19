@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import Counter
 from datetime import date
 
 from agents.zenas.pool.adapters import get_adapter
@@ -25,8 +26,13 @@ async def ingest_snapshot(
     embedder: Embedder | None = None,
     index: VectorIndex | None = None,
     region: str | None = None,
+    skips: Counter[str] | None = None,
 ) -> int:
     """Record the source, then store text. Returns instruments inserted.
+
+    A parsed document with no text is not stored. It is counted in ``skips``
+    under "no-text" and the load goes on. Rows an adapter drops while parsing
+    (its ``skipped`` list, "reason:name") are counted by reason too.
 
     A source from another region is refused before any row is written.
     PDFs and images inside a zip are dropped. Disabled sources record a
@@ -47,7 +53,15 @@ async def ingest_snapshot(
     index = index or NoOpVectorIndex()
     for blob in blobs:
         for payload in text_payloads(blob):
-            for document in adapter.parse(payload, source):
+            documents = adapter.parse(payload, source)
+            if skips is not None:
+                for item in getattr(adapter, "skipped", None) or []:
+                    skips[str(item).split(":", 1)[0]] += 1
+            for document in documents:
+                if not (document.text or "").strip():
+                    if skips is not None:
+                        skips["no-text"] += 1
+                    continue
                 document.licence = source.licence
                 document.known_from = document.known_from or on
                 document.version_id = version_id_for(
@@ -57,7 +71,10 @@ async def ingest_snapshot(
                     document.known_from,
                 )
                 chunks = chunk_document(document)
-                if await store.upsert_version(document, chunks, on=on):
+                if not await store.upsert_version(document, chunks, on=on):
+                    if skips is not None:
+                        skips["unchanged"] += 1
+                else:
                     inserted += 1
                     vectors = await embedder.embed([chunk.text for chunk in chunks])
                     if vectors:

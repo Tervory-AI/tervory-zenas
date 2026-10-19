@@ -48,6 +48,10 @@ def extract_citations(text: str) -> list[str]:
         seen.add(key)
         found.append(matched)
 
+    if not (text or "").strip():
+        # eyecite raises on empty input ("Both markup_text and plain_text are empty").
+        return found
+
     from eyecite import get_citations
 
     for cite in get_citations(text or ""):

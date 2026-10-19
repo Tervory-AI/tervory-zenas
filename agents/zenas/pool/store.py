@@ -619,9 +619,11 @@ class PostgresStore:
                 INSERT INTO zenas_pool.documents (
                     version_id, document_id, source_id, jurisdiction, level, body, kind,
                     citation, citation_key, title, doc_date, effective_from, effective_to,
-                    known_from, status, url, licence, text, content_hash, sections
+                    known_from, status, url, licence, text, content_hash, sections,
+                    docket_number, nature_of_suit
                 ) VALUES (
-                    $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20::jsonb
+                    $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20::jsonb,
+                    $21,$22
                 )
                 """,
                 doc.version_id,
@@ -644,6 +646,8 @@ class PostgresStore:
                 doc.text,
                 doc.content_hash,
                 json.dumps([section.to_dict() for section in doc.sections]),
+                doc.docket_number or "",
+                doc.nature_of_suit or "",
             )
             await self._conn.executemany(
                 """

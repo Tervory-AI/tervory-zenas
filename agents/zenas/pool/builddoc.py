@@ -22,6 +22,8 @@ def build_document(
     doc_date: date | None,
     effective_from: date | None,
     text: str = "",
+    docket_number: str = "",
+    nature_of_suit: str = "",
 ) -> LegalDocument:
     full = text.strip() or flatten_text(sections)
     digest = content_hash(full)
@@ -45,4 +47,6 @@ def build_document(
         source_id=source.source_id,
         version_id=version_id_for(doc_id, digest, effective_from),
         content_hash=digest,
+        docket_number=" ".join((docket_number or "").split()),
+        nature_of_suit=" ".join((nature_of_suit or "").split()),
     )

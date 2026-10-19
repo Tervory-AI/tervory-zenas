@@ -1,0 +1,40 @@
+{
+ "titles": [
+  {
+   "number": 15,
+   "name": "Commerce and Foreign Trade",
+   "latest_amended_on": "2026-09-24",
+   "latest_issue_date": "2026-09-24",
+   "up_to_date_as_of": "2026-10-15",
+   "reserved": false
+  },
+  {
+   "number": 19,
+   "name": "Customs Duties",
+   "latest_amended_on": "2026-08-26",
+   "latest_issue_date": "2026-08-26",
+   "up_to_date_as_of": "2026-10-15",
+   "reserved": false
+  },
+  {
+   "number": 22,
+   "name": "Foreign Relations",
+   "latest_amended_on": "2026-10-13",
+   "latest_issue_date": "2026-10-13",
+   "up_to_date_as_of": "2026-10-15",
+   "reserved": false
+  },
+  {
+   "number": 31,
+   "name": "Money and Finance: Treasury",
+   "latest_amended_on": "2026-10-15",
+   "latest_issue_date": "2026-10-15",
+   "up_to_date_as_of": "2026-10-15",
+   "reserved": false
+  }
+ ],
+ "meta": {
+  "date": "2026-10-15",
+  "import_in_progress": false
+ }
+}

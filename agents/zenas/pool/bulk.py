@@ -9,12 +9,14 @@ from __future__ import annotations
 import asyncio
 import os
 import shutil
+from collections import Counter
 from datetime import date, datetime, timezone
 
 from agents.zenas.pool.adapters import get_adapter
 from agents.zenas.pool.catalogue import sources_for_region
 from agents.zenas.pool.config import current_region
 from agents.zenas.pool.embed import Embedder, NoOpEmbedder, NoOpVectorIndex, VectorIndex
+from agents.zenas.pool.http import RateLimited
 from agents.zenas.pool.ingest import ingest_snapshot
 from agents.zenas.pool.licence import FetchNotConfigured, LicenceError, refusal_reason
 from agents.zenas.pool.model import SourceSpec
@@ -147,6 +149,7 @@ async def load_source(
             )
             return False
         inserted = 0
+        skips: Counter[str] = Counter()
         for index_no, blob in enumerate(blobs):
             if index_no < start:
                 continue
@@ -168,13 +171,14 @@ async def load_source(
                 embedder=embedder,
                 index=index,
                 region=region,
+                skips=skips,
             )
             await store.set_checkpoint(source.source_id, f"snap:{index_no + 1}", await store.stored_bytes())
         count = await store.instrument_count(source.source_id)
         await store.record_run(
             source.source_id,
             status="ok",
-            detail=f"inserted {inserted}",
+            detail=load_detail(inserted, skips),
             documents=count,
             when=when,
         )
@@ -198,6 +202,16 @@ async def load_source(
         if resume.startswith("snap:"):
             resume = ""
         blobs, next_cursor = await _live_blobs(adapter, http_get, resume)
+    except RateLimited as exc:
+        await store.record_source(source)
+        await store.record_run(
+            source.source_id,
+            status="rate_limited",
+            detail=f"{exc}; the next Load retries",
+            documents=await store.instrument_count(source.source_id),
+            when=when,
+        )
+        return False
     except (FetchNotConfigured, LicenceError) as exc:
         await store.record_source(source)
         await store.record_run(
@@ -209,6 +223,8 @@ async def load_source(
         )
         return False
 
+    note = _load_note(adapter)
+    skips: Counter[str] = Counter(note.get("skips") or {})
     inserted = 0
     for blob in blobs:
         if _over_cap(await store.stored_bytes(), len(blob), cap, data_dir):
@@ -229,19 +245,57 @@ async def load_source(
             embedder=embedder,
             index=index,
             region=region,
+            skips=skips,
         )
     if next_cursor:
         await store.set_checkpoint(source.source_id, next_cursor, await store.stored_bytes())
+    elif resume:
+        # The walk finished. The next Load starts from the first page.
+        await store.set_checkpoint(source.source_id, "", await store.stored_bytes())
     await store.record_source(source)
     count = await store.instrument_count(source.source_id)
+    status = "ok"
+    detail = load_detail(inserted, skips)
+    if note.get("status") == "rate_limited":
+        status = "rate_limited"
+        pages = int(note.get("pages") or 0)
+        detail = (
+            f"{note.get('message') or 'HTTP 429'}; kept {len(blobs)} page(s) "
+            f"({pages} complete), the next Load resumes; {detail}"
+        )
     await store.record_run(
         source.source_id,
-        status="ok",
-        detail=f"inserted {inserted}",
+        status=status,
+        detail=detail,
         documents=count,
         when=when,
     )
     return False
+
+
+def load_detail(inserted: int, skips: Counter[str] | dict[str, int]) -> str:
+    """'inserted N' plus skipped rows by reason. No URL, no key."""
+    detail = f"inserted {inserted}"
+    counted = {reason: int(n) for reason, n in dict(skips).items() if int(n) > 0}
+    unchanged = counted.pop("unchanged", 0)
+    if unchanged:
+        detail += f"; unchanged {unchanged}"
+    if counted:
+        order = ("criminal", "not-appellate", "not-commercial", "no-text")
+        names = [name for name in order if name in counted] + sorted(set(counted) - set(order))
+        detail += "; skipped " + ", ".join(f"{name} {counted[name]}" for name in names)
+    return detail
+
+
+def _load_note(adapter) -> dict:
+    note = getattr(adapter, "load_note", None)
+    if not callable(note):
+        return {}
+    try:
+        value = note()
+    except Exception:  # noqa: BLE001 — a note never fails a load
+        return {}
+    return value if isinstance(value, dict) else {}
 
 
 async def _live_blobs(adapter, http_get, resume: str) -> tuple[list[bytes], str]:

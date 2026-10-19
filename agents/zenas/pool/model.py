@@ -62,6 +62,10 @@ class LegalDocument:
     content_hash: str = ""
     # First day this text was seen. Separate from the official effective date.
     known_from: date | None = None
+    # Cases only. As the court record gives them, so convert's criminal check
+    # can read them without the text. Empty for every other kind.
+    docket_number: str = ""
+    nature_of_suit: str = ""
 
 
 @dataclass

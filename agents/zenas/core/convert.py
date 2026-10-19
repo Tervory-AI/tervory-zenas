@@ -31,7 +31,8 @@ _convert_running: set[str] = set()
 
 _LIST_SQL = """
 SELECT DISTINCT ON (document_id)
-       document_id, version_id, jurisdiction, citation, source_id, title
+       document_id, version_id, jurisdiction, citation, source_id, title,
+       docket_number, nature_of_suit
 FROM zenas_pool.documents
 WHERE kind = 'case'
   AND jurisdiction = $1
@@ -55,6 +56,26 @@ _PROMPT_HEAD = (
     '"holding":"","citations":[{"citation":"","quote":""}]}\n\n'
     "Citation: "
 )
+
+
+# A criminal docket: "1:20-cr-00123", "18-1234-cr", "No. 19-CR-55", "Crim. No. 4".
+_CRIMINAL_DOCKET = re.compile(r"(?i)(?:^|[^a-z])(?:cr|crim)(?:[^a-z]|$)|criminal")
+
+
+def criminal_record(docket_number: str, nature_of_suit: str) -> bool:
+    """True when the stored docket number or nature of suit marks a criminal matter."""
+    nature = (nature_of_suit or "").lower()
+    if "criminal" in nature:
+        return True
+    return bool(_CRIMINAL_DOCKET.search(docket_number or ""))
+
+
+def _row_text(row: Any, name: str) -> str:
+    try:
+        value = row[name]
+    except (KeyError, IndexError, TypeError):
+        return ""
+    return str(value or "")
 
 
 def convert_limit() -> int:
@@ -136,6 +157,8 @@ async def _list_cases(pool: Any, jurisdiction: str) -> list[dict[str, Any]]:
                     "citation": str(row["citation"] or ""),
                     "source_id": str(row["source_id"] or ""),
                     "title": str(row["title"] or ""),
+                    "docket_number": _row_text(row, "docket_number"),
+                    "nature_of_suit": _row_text(row, "nature_of_suit"),
                 }
             )
         return found
@@ -165,7 +188,7 @@ async def _list_cases(pool: Any, jurisdiction: str) -> list[dict[str, Any]]:
                 "citation": str(getattr(doc, "citation", "") or ""),
                 "source_id": str(getattr(doc, "source_id", "") or ""),
                 "title": str(getattr(doc, "title", "") or ""),
-                "docket": str(getattr(doc, "docket", "") or ""),
+                "docket_number": str(getattr(doc, "docket_number", "") or ""),
                 "nature_of_suit": str(getattr(doc, "nature_of_suit", "") or ""),
                 "doc": doc,
             }
@@ -247,29 +270,24 @@ def _statements(case: dict[str, Any], parsed: dict[str, Any]) -> list[dict[str, 
     return rows
 
 
-# CourtListener writes the docket type as its own token: "cr", or "1:21-cr-10".
-_CR_DOCKET = re.compile(r"(?:^|[^a-z0-9])cr(?:[^a-z0-9]|$)")
+# An SA criminal caption: "S v …", or the DPP / NPA as a party.
 _SA_CAPTION = re.compile(
     r"(?i)(?:^\s*s\s+v\s+\S|\bDPP\b|director of public prosecutions|\bNPA\b|national prosecuting authority)"
 )
 
 
-def _criminal_from_source(case: dict[str, Any]) -> bool:
-    """Refuse only a criminal marker the source itself recorded.
+def criminal_case(case: dict[str, Any]) -> bool:
+    """The one criminal check. It reads only what the source recorded.
 
-    A US case is refused for a CourtListener "cr" docket or a criminal nature
-    of suit. Those two fields are not columns on zenas_pool.documents, so a
-    stored US case has neither and is converted. A US caption is not read.
-    An SA case is refused when the stored title is an "S v …" caption or names
-    DPP or NPA. The judgment text is not read. An empty field is unknown.
+    A US case is refused when its stored docket_number is a criminal ("cr")
+    docket or its stored nature_of_suit is criminal; its caption is not read.
+    An SA case is refused when its stored title is an "S v …" caption or names
+    the DPP or NPA. The judgment text is never read. An empty field is
+    unknown, so a case with no type converts.
     """
     if str(case.get("jurisdiction") or "") == "za":
         return _SA_CAPTION.search(str(case.get("title") or "")) is not None
-    docket = str(case.get("docket") or "").lower()
-    nature = str(case.get("nature_of_suit") or "").lower()
-    if docket and _CR_DOCKET.search(docket):
-        return True
-    return bool(nature) and "criminal" in nature
+    return criminal_record(str(case.get("docket_number") or ""), str(case.get("nature_of_suit") or ""))
 
 
 def _cite_reason(statements: list[dict[str, str]], passages: list[dict[str, Any]]) -> str:
@@ -392,7 +410,7 @@ async def convert_cases(
                 ladder, region=box, pool_doc_id=case["document_id"], reason="material type is unknown"
             )
             continue
-        if _criminal_from_source(case):
+        if criminal_case(case):
             await _remember_failure(ladder, region=box, pool_doc_id=case["document_id"], reason="criminal law is refused")
             continue
         text = await _judgment(pool, case)

@@ -1,0 +1,86 @@
+{
+ "count": 11962,
+ "next": null,
+ "previous": null,
+ "results": [
+  {
+   "absolute_url": "/opinion/10626659/united-states-v-cooke/",
+   "attorney": "",
+   "caseName": "United States v. Cooke",
+   "caseNameFull": "",
+   "citation": [
+    "143 F.4th 164"
+   ],
+   "citeCount": 1,
+   "cluster_id": 10626659,
+   "court": "Court of Appeals for the Second Circuit",
+   "court_citation_string": "2d Cir.",
+   "court_id": "ca2",
+   "court_jurisdiction": null,
+   "dateArgued": null,
+   "dateFiled": "2025-07-10",
+   "dateReargued": null,
+   "dateReargumentDenied": null,
+   "docketNumber": "24-1967",
+   "docket_id": 70749359,
+   "judge": "",
+   "lexisCite": "",
+   "meta": {
+    "timestamp": "2025-11-17T21:46:51.862116Z",
+    "date_created": "2025-07-10T15:00:21.037260Z",
+    "score": {
+     "bm25": 52.913277
+    }
+   },
+   "neutralCite": "",
+   "non_participating_judge_ids": [],
+   "opinions": [
+    {
+     "author_id": null,
+     "cites": [
+      2649,
+      112854,
+      770256,
+      793751,
+      1233746,
+      1236610,
+      2778122,
+      4503950,
+      4518658,
+      4550541,
+      4565896,
+      9365887,
+      9387262,
+      9497881,
+      10495205
+     ],
+     "download_url": "http://www.ca2.uscourts.gov/decisions/isysquery/e61263fe-2d21-4c39-88fb-c33ae00e695d/3/doc/24-1967_opn.pdf",
+     "id": 11093247,
+     "joined_by_ids": [],
+     "local_path": "pdf/2025/07/10/united_states_v._cooke.pdf",
+     "meta": {
+      "timestamp": "2025-12-07T22:23:32.708137Z",
+      "date_created": "2025-07-10T15:00:21.038932Z"
+     },
+     "ordering_key": null,
+     "per_curiam": false,
+     "sha1": "1ed66738977f9e392ac58e7cc20fa186ae76f209",
+     "snippet": "24-1967\nUnited States v. Cooke\n\n\n\n                         United States Court of Appeals\n                            For the Second Circuit\n\n                                     August Term 2024\n\n                                    Argued: May 13, 2025\n                                    Decided: July 10, 2025\n\n                                         No. 24-1967\n\n\n\n                                 UNITED STATES OF AMERICA,\n\n                                          Appellee,\n\n                 ",
+     "type": "combined-opinion"
+    }
+   ],
+   "panel_ids": [],
+   "panel_names": [],
+   "posture": "",
+   "procedural_history": "",
+   "scdb_id": "",
+   "sibling_ids": [
+    11093247
+   ],
+   "source": "C",
+   "status": "Published",
+   "suitNature": "",
+   "syllabus": ""
+  }
+ ]
+}

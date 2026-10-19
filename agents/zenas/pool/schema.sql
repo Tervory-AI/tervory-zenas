@@ -43,11 +43,16 @@ CREATE TABLE IF NOT EXISTS zenas_pool.documents (
     text             text NOT NULL,
     content_hash     text NOT NULL,
     sections         jsonb NOT NULL DEFAULT '[]'::jsonb,
+    docket_number    text NOT NULL DEFAULT '',  -- cases: as the court record gives it
+    nature_of_suit   text NOT NULL DEFAULT '',  -- cases: as the court record gives it
     captured_at      timestamptz NOT NULL DEFAULT now()
 );
 
 -- A database that created this table before known_from existed still gains the column.
 ALTER TABLE zenas_pool.documents ADD COLUMN IF NOT EXISTS known_from date;
+-- Convert's criminal check reads these for a case. Older databases gain them here.
+ALTER TABLE zenas_pool.documents ADD COLUMN IF NOT EXISTS docket_number text NOT NULL DEFAULT '';
+ALTER TABLE zenas_pool.documents ADD COLUMN IF NOT EXISTS nature_of_suit text NOT NULL DEFAULT '';
 
 -- New name so a database that already created documents_hash
 -- (document_id, content_hash) still gains the wider key.

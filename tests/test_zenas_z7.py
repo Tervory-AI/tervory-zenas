@@ -125,9 +125,14 @@ def test_ecfr_bulk_requests_only_parts_the_structure_lists(monkeypatch: pytest.M
     monkeypatch.setattr(ecfr, "ECFR_TARGETS", (("15", range(730, 775)),))
     seen: list[str] = []
 
+    titles = (ROOT / "tests" / "fixtures" / "ecfr" / "titles.json").read_bytes()
+
     async def get(url: str, headers: dict) -> bytes:
         seen.append(url)
         assert headers["User-Agent"].startswith("TervoryZenasPool")
+        if url.endswith("/titles.json"):
+            assert headers["Accept"] == "application/json"
+            return titles
         if "/structure/" in url:
             assert headers["Accept"] == "application/json"
             return structure
@@ -137,7 +142,8 @@ def test_ecfr_bulk_requests_only_parts_the_structure_lists(monkeypatch: pytest.M
     blobs, cursor = asyncio.run(EcfrAdapter().fetch_bulk(get))
     assert cursor == ""
     assert len(blobs) == 3
-    assert any(url.endswith("/structure/2024-07-01/title-15.json") for url in seen)
+    # Each title is asked for at its own latest issue (saved titles.json, 19 Oct 2026).
+    assert any(url.endswith("/structure/2026-09-24/title-15.json") for url in seen)
     assert any("part=730" in url for url in seen)
     assert any("part=732" in url for url in seen)
     assert any("part=747" in url for url in seen)

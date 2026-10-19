@@ -57,7 +57,7 @@ class Doc:
         self.source_id = source_id
         self.version_id = f"v-{id}"
         self.title = id if title is None else title
-        self.docket = docket
+        self.docket_number = docket  # the stored pool column
         self.nature_of_suit = nature_of_suit
         self.text_reads = 0
 
