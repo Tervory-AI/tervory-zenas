@@ -59,6 +59,25 @@ def _court_outcome(raw: str) -> str:
     return text
 
 
+_ERROR_REASONS = frozenset({"no rule card", "criminal law is refused", "the ladder did not run"})
+
+
+def _error(case: dict[str, Any], reason: str) -> dict[str, Any]:
+    """The ladder did not produce a score. The reason is a fixed phrase."""
+    clean = reason if reason in _ERROR_REASONS else "the ladder did not run"
+    return {
+        "pool_doc_id": case.get("pool_doc_id"),
+        "area": str(case.get("area") or ""),
+        "jurisdiction": str(case.get("jurisdiction") or ""),
+        "outcome_hit": False,
+        "element_agreement": 0.0,
+        "citations_valid": False,
+        "cost_usd": 0.0,
+        "error": True,
+        "reason": clean,
+    }
+
+
 def _element_agreement(court: list[dict[str, Any]], ours: list[dict[str, Any]]) -> float:
     if not court:
         return 0.0
@@ -90,17 +109,8 @@ def _passages(card: dict[str, Any]) -> list[dict[str, Any]]:
 async def _one(ladder: Any, case: dict[str, Any], *, region: str) -> dict[str, Any]:
     given = _facts_only(case)
     scope = classify(given["facts"] or given["question"], box_jurisdiction(region))
-    if scope.get("criminal") or not scope.get("in_scope"):
-        return {
-            "pool_doc_id": case.get("pool_doc_id"),
-            "area": case.get("area") or "",
-            "jurisdiction": case.get("jurisdiction"),
-            "outcome_hit": False,
-            "element_agreement": 0.0,
-            "citations_valid": False,
-            "cost_usd": 0.0,
-            "refused": True,
-        }
+    if scope.get("criminal"):
+        return _error(case, "criminal law is refused")
     card = None
     for card_id in case.get("rule_card_ids") or []:
         loaded = await ladder.get_rule_card(str(card_id), region=region, tenant_id=_PLATFORM)
@@ -108,18 +118,16 @@ async def _one(ladder: Any, case: dict[str, Any], *, region: str) -> dict[str, A
             card = loaded
             break
     if card is None:
-        return {
-            "pool_doc_id": case.get("pool_doc_id"),
-            "area": case.get("area") or "",
-            "jurisdiction": case.get("jurisdiction"),
-            "outcome_hit": False,
-            "element_agreement": 0.0,
-            "citations_valid": False,
-            "cost_usd": 0.0,
-            "refused": False,
-        }
+        return _error(case, "no rule card")
     # Reuse reads visible_worked, which already drops holdout rows, so this case
     # cannot be matched against itself. The code table decides the elements.
+    try:
+        return await _score(card, case, given)
+    except Exception:
+        return _error(case, "the ladder did not run")
+
+
+async def _score(card: dict[str, Any], case: dict[str, Any], given: dict[str, Any]) -> dict[str, Any]:
     findings: list[dict[str, Any]] = []
     cost = 0.0
     for element in card.get("elements") or []:
@@ -170,13 +178,18 @@ async def _one(ladder: Any, case: dict[str, Any], *, region: str) -> dict[str, A
         "citations_valid": bool(checked.get("passed")),
         "cost_usd": cost,
         "memo_citations": memo.get("citations") or [],
-        "refused": False,
+        "error": False,
+        "reason": "",
     }
 
 
 def _group(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     buckets: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
+    errors: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for row in rows:
+        if row.get("error"):
+            errors[str(row.get("reason") or "the ladder did not run")].append(row)
+            continue
         buckets[(row["area"], row["jurisdiction"])].append(row)
     grouped = []
     for (area, jurisdiction), items in sorted(buckets.items()):
@@ -191,6 +204,23 @@ def _group(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "citations_valid": round(100.0 * sum(1 for item in items if item["citations_valid"]) / count, 2),
                 "cost_per_case": round(sum(item["cost_usd"] for item in items) / count, 6),
                 "case_ids": [str(item.get("pool_doc_id") or "") for item in items],
+                "error": False,
+                "reason": "",
+            }
+        )
+    for reason, items in sorted(errors.items()):
+        grouped.append(
+            {
+                "area": "",
+                "jurisdiction": str(items[0].get("jurisdiction") or ""),
+                "cases": len(items),
+                "outcome_agreement": 0,
+                "element_agreement": 0,
+                "citations_valid": 0,
+                "cost_per_case": 0,
+                "case_ids": [str(item.get("pool_doc_id") or "") for item in items],
+                "error": True,
+                "reason": reason,
             }
         )
     return grouped
@@ -226,6 +256,10 @@ async def run_selftest(ladder: Any, *, region: str) -> dict[str, Any]:
         )
         saved.append(row)
     for group in groups:
+        detail: dict[str, Any] = {"case_ids": group["case_ids"]}
+        if group.get("error"):
+            detail["error"] = True
+            detail["reason"] = group["reason"]
         row = await ladder.add_selftest(
             {
                 "region": box,
@@ -237,7 +271,7 @@ async def run_selftest(ladder: Any, *, region: str) -> dict[str, Any]:
                 "element_agreement": group["element_agreement"],
                 "citations_valid": group["citations_valid"],
                 "cost_per_case": group["cost_per_case"],
-                "detail": {"case_ids": group["case_ids"]},
+                "detail": detail,
             }
         )
         saved.append(row)
@@ -259,6 +293,10 @@ def _public_run(row: dict[str, Any]) -> dict[str, Any]:
     """
     detail = row.get("detail") or {}
     kind = str(row.get("kind") or "")
+    error = bool(detail.get("error"))
+    reason = str(detail.get("reason") or "") if error else ""
+    if error and reason not in _ERROR_REASONS:
+        reason = "the ladder did not run"
     published: dict[str, Any] = {
         "id": row.get("id"),
         "region": row.get("region"),
@@ -273,7 +311,11 @@ def _public_run(row: dict[str, Any]) -> dict[str, Any]:
         "case_ids": [str(item) for item in (detail.get("case_ids") or [])],
         "set": str(detail.get("set") or ""),
         "scored_by": "",
+        "error": error,
+        "reason": reason,
     }
+    if error:
+        published["label"] = "error"
     if kind == "legalbench":
         published["scored_by"] = "code baseline"
         published["label"] = "LegalBench code baseline"

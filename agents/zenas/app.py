@@ -49,7 +49,9 @@ from agents.zenas.core.service import (  # noqa: E402
     build_rule_card,
     check_citations,
     draft_contract,
+    BODY_TEXT_REFUSED,
     extract_case_facts,
+    judgment_from_pool_row,
     ladder_metrics,
     mark_stale,
     match_matters,
@@ -547,8 +549,34 @@ async def post_stale(body: StaleIn) -> dict[str, Any]:
     return result
 
 
+_POOL_CASE_SQL = """
+SELECT source_id, text, citation
+FROM zenas_pool.documents
+WHERE document_id = $1
+  AND kind = 'case'
+  AND effective_to IS NULL
+  AND status IS DISTINCT FROM 'superseded'
+ORDER BY version_id DESC
+LIMIT 1
+""".strip()
+
+
+async def _pool_case_row(pool_doc_id: str) -> dict[str, Any] | None:
+    """The pool's own row. The request body is not consulted."""
+    async with app.state.pool.acquire() as conn:
+        row = await conn.fetchrow(_POOL_CASE_SQL, pool_doc_id)
+    if row is None:
+        return None
+    return {"source_id": str(row["source_id"] or ""), "text": str(row["text"] or ""), "citation": str(row["citation"] or "")}
+
+
 @app.post("/cases/facts")
 async def post_case_facts(body: CaseFactsIn) -> dict[str, Any]:
+    loaded = judgment_from_pool_row(body.judgment, body.source_id, await _pool_case_row(body.pool_doc_id))
+    if not loaded.get("ok"):
+        if loaded.get("reason") == BODY_TEXT_REFUSED:
+            raise HTTPException(status_code=403, detail=BODY_TEXT_REFUSED)
+        _fail(loaded)
     result = await extract_case_facts(
         await _ready(),
         _model(str(body.tenant_id)),
@@ -558,9 +586,9 @@ async def post_case_facts(body: CaseFactsIn) -> dict[str, Any]:
         jurisdiction=body.jurisdiction,
         pool_doc_id=body.pool_doc_id,
         pool_version_id=body.pool_version_id,
-        citation=body.citation,
-        source_id=body.source_id,
-        judgment=body.judgment,
+        citation=str(loaded.get("citation") or ""),
+        source_id=str(loaded.get("source_id") or ""),
+        judgment=str(loaded.get("judgment") or ""),
         rule_card_ids=body.rule_card_ids,
         as_at=body.as_at,
         provider=body.provider,

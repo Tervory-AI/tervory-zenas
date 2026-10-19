@@ -244,6 +244,17 @@ class LadderMemory:
         box = _region(region)
         return sum(1 for row in self.failures if row["region"] == box)
 
+    async def convert_failure_reasons(self, *, region: str) -> list[dict[str, Any]]:
+        box = _region(region)
+        counts: dict[str, int] = {}
+        for row in self.failures:
+            if row["region"] != box:
+                continue
+            reason = str(row.get("reason") or "")
+            counts[reason] = counts.get(reason, 0) + 1
+        ordered = sorted(counts.items(), key=lambda item: (-item[1], item[0]))
+        return [{"reason": reason, "count": count} for reason, count in ordered]
+
     async def set_review(self, *, region: str, review: str) -> None:
         self.review_mode = "on" if review == "on" else "off"
 
@@ -576,6 +587,18 @@ class PgLadder:
         async with self.pool.acquire() as conn:
             value = await conn.fetchval(sql, _region(region))
         return int(value or 0)
+
+    async def convert_failure_reasons(self, *, region: str) -> list[dict[str, Any]]:
+        sql = """
+        SELECT reason, count(*) AS count
+        FROM agent_zenas.convert_failures
+        WHERE region = $1
+        GROUP BY reason
+        ORDER BY count(*) DESC, reason
+        """.strip()
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(sql, _region(region))
+        return [{"reason": str(row["reason"] or ""), "count": int(row["count"] or 0)} for row in rows]
 
     async def set_review(self, *, region: str, review: str) -> None:
         mode = "on" if review == "on" else "off"

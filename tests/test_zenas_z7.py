@@ -451,6 +451,39 @@ async def test_selftest_scores_and_regions_do_not_cross() -> None:
     assert facts["training_pair_id"] is None
 
 
+@pytest.mark.asyncio
+async def test_a_holdout_case_without_a_rule_card_is_an_error_not_a_zero_score() -> None:
+    assert is_holdout("id-1") is True
+    ladder = LadderMemory()
+    await ladder.add_worked(
+        {
+            "region": "us-east",
+            "tenant_id": None,
+            "source": "case",
+            "material_type": "public_record",
+            "jurisdiction": "us",
+            "area": "",
+            "rule_card_ids": [],
+            "fact_pattern": {
+                "features": {},
+                "facts": "The court stated the sale was complete.",
+                "question": "Was the sale complete?",
+            },
+            "element_findings": [],
+            "outcome": "met",
+            "pool_doc_id": "id-1",
+            "holdout": True,
+        }
+    )
+    result = await run_selftest(ladder, region="us-east")
+    hold = [run for run in result["runs"] if run["kind"] == "holdout" and run["cases"]]
+    assert len(hold) == 1
+    assert hold[0]["error"] is True
+    assert hold[0]["label"] == "error"
+    assert hold[0]["reason"] == "no rule card"
+    assert "The court stated" not in json.dumps(hold[0])
+
+
 def test_feeds_page_uses_the_region_link_and_strips_documents() -> None:
     node = shutil.which("node")
     if node is None:

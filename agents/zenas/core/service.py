@@ -475,6 +475,45 @@ async def read_rule_card(
     return {"ok": True, "rule_card": _public_card(card)}
 
 
+# Tank refuses a body that is not this wrapper plus the pool row. Keep the two equal.
+FACTS_PROMPT_PREFIX = (
+    "Read this judgment as published. Reply with JSON only: "
+    '{"features":{},"narrative":"","element_findings":[{"element_id":"","finding":"met|not_met|unclear","reasoning":"","basis":[]}],"outcome":""}\n\n'
+)
+# Same sentence as Tank's IDENTIFIER_REFUSAL. A body judgment is not a pool read.
+BODY_TEXT_REFUSED = "A personal identifier cannot be sent to a provider outside South Africa."
+
+
+def judgment_from_pool_row(
+    body_judgment: str,
+    body_source_id: str,
+    row: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Use the pool row. The body's judgment and source_id are not the source.
+
+    A judgment in the body that is not the stored text is refused. An empty
+    body uses the row. A missing court row does not fall back to the body.
+    """
+    del body_source_id
+    text = str((row or {}).get("text") or "")
+    source = str((row or {}).get("source_id") or "")
+    from agents.zenas.core.release_mask import material_type_for_pool
+
+    supplied = str(body_judgment or "").strip()
+    if material_type_for_pool(source) != "public_record" or not text.strip():
+        if supplied:
+            return {"ok": False, "reason": BODY_TEXT_REFUSED}
+        return {"ok": False, "shared": False, "reason": "material type is unknown"}
+    if supplied and supplied != text.strip():
+        return {"ok": False, "reason": BODY_TEXT_REFUSED}
+    return {
+        "ok": True,
+        "judgment": text,
+        "source_id": source,
+        "citation": str((row or {}).get("citation") or ""),
+    }
+
+
 async def extract_case_facts(
     ladder: Any,
     model: Any,
@@ -515,11 +554,7 @@ async def extract_case_facts(
     if model is None:
         return _refuse("no model is configured")
     adapter = ModelAdapter(model)
-    prompt = (
-        "Read this judgment as published. Reply with JSON only: "
-        '{"features":{},"narrative":"","element_findings":[{"element_id":"","finding":"met|not_met|unclear","reasoning":"","basis":[]}],"outcome":""}\n\n'
-        + judgment
-    )
+    prompt = FACTS_PROMPT_PREFIX + judgment
     result = await adapter.complete(
         [{"role": "user", "content": prompt}],
         task_type="zenas.case_facts",
