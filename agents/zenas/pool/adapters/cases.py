@@ -4,14 +4,20 @@ Opinions from the federal appellate courts and the named state commercial
 courts. Criminal matters are dropped and their text is never stored.
 Judgments are stored as published. No redaction step runs on them.
 
-The REST token is read from COURTLISTENER_API_TOKEN and sent as a header.
-It is never placed in a URL. A live load is skipped until the token is set.
+The quarterly bulk files need no key. COURTLISTENER_API_TOKEN is read for
+opinions filed after the snapshot date and sent as a header. It is never
+placed in a URL.
 
 The v4 search API returns snippets, not opinion text. A row that passes the
 criminal, court and commercial filters has its text fetched from the v4
-opinions endpoint, one request per COURTLISTENER_MIN_INTERVAL (default 1 s),
-with the same Authorization header. A 429 that outlasts the retries stops the
-walk: the pages already read are kept, the cursor is saved, and the run is
+opinions endpoint, one request per COURTLISTENER_MIN_INTERVAL (default 12 s),
+with the same Authorization header. The hour and day budgets
+(COURTLISTENER_HOURLY_MAX, default 45; COURTLISTENER_DAILY_MAX, default 100)
+count those API calls in zenas_pool.cl_api_calls over the last hour and the
+last 24 hours, including after a restart.
+Bulk file reads are not counted. When a budget is used up the walk stops
+before another request. A 429 that outlasts the retries also stops the walk:
+the pages already read are kept, the cursor is saved, and the run is
 recorded as rate_limited so the next Load resumes there.
 """
 
@@ -25,7 +31,7 @@ import re
 import urllib.error
 from collections import Counter
 from datetime import date
-from urllib.parse import urljoin
+from urllib.parse import parse_qsl, urlencode, urljoin, urlsplit, urlunsplit
 
 from agents.zenas.pool.builddoc import build_document
 from agents.zenas.pool.http import USER_AGENT, RateLimited
@@ -55,6 +61,16 @@ STATE_COMMERCIAL = {"del", "delch", "ny", "nyappdiv", "tex"}
 ALLOWED_COURTS = FEDERAL_APPELLATE | STATE_COMMERCIAL
 
 _API = "https://www.courtlistener.com/api/rest/v4/search/"
+
+
+def _filed_after(url: str, since: date) -> str:
+    """Ask only for opinions filed after a bulk snapshot date."""
+    parts = urlsplit(url)
+    query = parse_qsl(parts.query, keep_blank_values=True)
+    if any(key == "filed_after" for key, _value in query):
+        return url
+    query.append(("filed_after", since.isoformat()))
+    return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), parts.fragment))
 _OPINION_API = "https://www.courtlistener.com/api/rest/v4/opinions/"
 _OPINION_FIELDS = "id,plain_text,html_with_citations,html,xml_harvard"
 SKIP_REASONS = ("criminal", "not-appellate", "not-commercial", "no-text")
@@ -348,20 +364,90 @@ class CourtListenerAdapter(_CaseAdapter):
     def __init__(self) -> None:
         self.fetch_skips: Counter[str] = Counter()
         self.rate_limited = ""
+        self.budget_message = ""
         self.pages_read = 0
 
     def load_note(self) -> dict:
         """What the last fetch_bulk saw, for the run record. No URL, no key."""
+        if self.budget_message:
+            status = "budget"
+            message = self.budget_message
+        elif self.rate_limited:
+            status = "rate_limited"
+            message = self.rate_limited
+        else:
+            status = ""
+            message = ""
         return {
-            "status": "rate_limited" if self.rate_limited else "",
-            "message": self.rate_limited,
+            "status": status,
+            "message": message,
             "pages": self.pages_read,
             "skips": dict(self.fetch_skips),
         }
 
     async def fetch_bulk(self, http_get, *, resume: str = "") -> tuple[list[bytes], str]:
+        """Back catalogue from the bulk files when this is the live client.
+
+        A test double, and a saved API cursor, stay on the opinions API.
+        The live client is urllib_get: that streams the quarterly files and
+        does not send the API token.
+        """
+        from agents.zenas.pool.nightly import urllib_get
+
+        from agents.zenas.pool.adapters.courtlistener_bulk import split_cursor
+
+        bulk_resume, _api = split_cursor(resume)
+        if http_get is not urllib_get and not bulk_resume.startswith("cl-bulk:"):
+            return await self.fetch_updates(http_get, resume=resume)
+        from agents.zenas.pool.adapters.courtlistener_bulk import (
+            BulkState,
+            load_bulk,
+            parse_cursor,
+            progress_line,
+            split_cursor,
+        )
+
         self.fetch_skips = Counter()
         self.rate_limited = ""
+        self.budget_message = ""
+        self.pages_read = 0
+        parsed = parse_cursor(split_cursor(resume)[0])
+        state = getattr(self, "_bulk_state", None)
+        if not isinstance(state, BulkState) or parsed is None or state.day != parsed.day:
+            state = BulkState()
+        self._bulk_state = state
+        result = await load_bulk(http_get, resume=resume, state=state)
+        self.fetch_skips = Counter(result.skips)
+        if result.snapshot and result.rows_read:
+            self.fetch_skips[f"snapshot {result.snapshot}; file {result.file_label}; rows read"] = result.rows_read
+        self.progress_line = progress_line(
+            result.snapshot,
+            result.file_label,
+            result.rows_read,
+            result.cases_kept,
+            result.skips,
+        )
+        return result.blobs, result.cursor
+
+    async def fetch_updates(
+        self,
+        http_get,
+        *,
+        since: date | None = None,
+        resume: str = "",
+        budget=None,
+        clock=None,
+    ) -> tuple[list[bytes], str]:
+        """Opinions filed after a bulk snapshot. The token stays in the header."""
+        from agents.zenas.pool.adapters.courtlistener_bulk import (
+            api_block_reason,
+            api_min_interval,
+            open_api_budget,
+        )
+
+        self.fetch_skips = Counter()
+        self.rate_limited = ""
+        self.budget_message = ""
         self.pages_read = 0
         token = os.environ.get("COURTLISTENER_API_TOKEN", "").strip()
         if not token:
@@ -376,24 +462,55 @@ class CourtListenerAdapter(_CaseAdapter):
         }
         courts = ",".join(sorted(ALLOWED_COURTS))
         url = resume or f"{_API}?type=o&court={courts}"
+        if since is not None:
+            url = _filed_after(url, since)
         if token in url or "token=" in url.lower():
             raise FetchNotConfigured("refusing a URL that contains a credential")
-        delay = float(os.environ.get("COURTLISTENER_MIN_INTERVAL", "1") or "1")
+        delay = api_min_interval()
         page_cap = int(os.environ.get("COURTLISTENER_MAX_PAGES", "20") or "20")
         blobs: list[bytes] = []
         cursor = url
-        pages = 0
+        own_budget = budget is None
+        if budget is None:
+            budget = await open_api_budget()
+        if clock is None:
+            from datetime import datetime, timezone
+
+            def clock() -> datetime:
+                return datetime.now(timezone.utc)
 
         async def get(target: str) -> bytes:
             if token in target:
                 raise FetchNotConfigured("refusing a URL that contains a credential")
+            reason = await api_block_reason(budget, clock())
+            if reason:
+                raise _BudgetUsed(reason)
             if delay > 0:
                 await asyncio.sleep(delay)
+            await budget.record(clock())
             return await http_get(target, headers)
 
+        try:
+            return await self._walk_updates(get, blobs, cursor, page_cap, token)
+        finally:
+            if own_budget:
+                await budget.aclose()
+
+    async def _walk_updates(
+        self,
+        get,
+        blobs: list[bytes],
+        cursor: str,
+        page_cap: int,
+        token: str,
+    ) -> tuple[list[bytes], str]:
+        pages = 0
         while cursor and pages < page_cap:
             try:
                 blob = await get(cursor)
+            except _BudgetUsed as exc:
+                self.budget_message = exc.message
+                return blobs, cursor
             except RateLimited as exc:
                 # Keep what was read. The cursor still points at this page.
                 self.rate_limited = str(exc)
@@ -420,6 +537,10 @@ class CourtListenerAdapter(_CaseAdapter):
                 if not _opinion_text(row):
                     try:
                         text = await self._opinion_text(get, row)
+                    except _BudgetUsed as exc:
+                        self.budget_message = exc.message
+                        stopped = True
+                        break
                     except RateLimited as exc:
                         self.rate_limited = str(exc)
                         stopped = True
@@ -468,6 +589,14 @@ class CourtListenerAdapter(_CaseAdapter):
                 if text:
                     parts.append(text)
         return "\n\n".join(parts).strip()
+
+
+class _BudgetUsed(Exception):
+    """The hour or day budget is used up. No further API call is made."""
+
+    def __init__(self, message: str) -> None:
+        super().__init__(message)
+        self.message = message
 
 
 class CapAdapter(_CaseAdapter):

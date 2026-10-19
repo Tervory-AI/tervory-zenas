@@ -1,0 +1,2 @@
+-- CourtListener schema slice, 2026-09-30
+-- columns confirmed from the public schema dump

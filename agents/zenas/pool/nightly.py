@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+from collections import Counter
 from datetime import date, datetime, timezone
 from pathlib import Path
 
@@ -12,6 +13,7 @@ from agents.zenas.pool.adapters import get_adapter
 from agents.zenas.pool.catalogue import sources_for_region
 from agents.zenas.pool.config import current_region
 from agents.zenas.pool.embed import Embedder, NoOpEmbedder, NoOpVectorIndex, VectorIndex
+from agents.zenas.pool.http import RateLimited
 from agents.zenas.pool.ingest import ingest_snapshot
 from agents.zenas.pool.licence import FetchNotConfigured, LicenceError, refusal_reason
 from agents.zenas.pool.region import RegionError, assert_source_region, bind_store
@@ -103,6 +105,18 @@ async def _update_source(
     region: str,
 ) -> None:
     assert_source_region(source, region)
+    if snapshots is None and live and source.source_id == "courtlistener" and region == "us-east":
+        await courtlistener_night(
+            store,
+            source,
+            on=on,
+            when=when,
+            http_get=http_get,
+            embedder=embedder,
+            index=index,
+            region=region,
+        )
+        return
     reason = refusal_reason(source)
     if reason:
         await ingest_snapshot(store, source, [], on=on, region=region)
@@ -158,6 +172,163 @@ async def _update_source(
         status="ok",
         detail=f"inserted {inserted}",
         documents=count,
+        when=when,
+    )
+
+
+async def courtlistener_night(
+    store: Store,
+    source,
+    *,
+    on: date,
+    when: datetime,
+    http_get,
+    embedder: Embedder,
+    index: VectorIndex,
+    region: str,
+    budget=None,
+    clock=None,
+) -> None:
+    """Finish the bulk snapshot, then ask the API only for later opinions.
+
+    Boston only. The bulk files need no key. The token is a header on the
+    update requests. A 429 keeps the cursor. Rows already stored are skipped
+    by hash inside ingest.
+    """
+    from agents.zenas.pool.adapters.courtlistener_bulk import (
+        BulkState,
+        join_cursor,
+        load_bulk,
+        progress_line,
+        snapshot_day,
+        snapshot_is_done,
+        split_cursor,
+    )
+    from agents.zenas.pool.bulk import load_detail
+
+    if region != "us-east":
+        return
+    adapter = get_adapter(source)
+    resume = await store.get_checkpoint(source.source_id)
+    bulk_resume, api_resume = split_cursor(resume)
+    state = getattr(adapter, "_bulk_state", None)
+    parsed_day = snapshot_day(bulk_resume)
+    if not isinstance(state, BulkState) or not parsed_day or state.day != parsed_day:
+        state = BulkState()
+    adapter._bulk_state = state
+    skips: Counter[str] = Counter()
+    inserted = 0
+    line = ""
+    day = snapshot_day(bulk_resume)
+
+    if not snapshot_is_done(bulk_resume):
+        try:
+            result = await load_bulk(http_get, resume=resume, state=state)
+        except (FetchNotConfigured, LicenceError) as exc:
+            await store.record_source(source)
+            await store.record_run(
+                source.source_id,
+                status="not_configured",
+                detail=str(exc),
+                documents=await store.instrument_count(source.source_id),
+                when=when,
+            )
+            return
+        for blob in result.blobs:
+            inserted += await ingest_snapshot(
+                store,
+                source,
+                [blob],
+                on=on,
+                embedder=embedder,
+                index=index,
+                region=region,
+                skips=skips,
+            )
+        skips.update(result.skips)
+        line = progress_line(result.snapshot, result.file_label, result.rows_read, result.cases_kept, result.skips)
+        day = result.snapshot or day
+        if not snapshot_is_done(result.cursor):
+            await store.set_checkpoint(source.source_id, result.cursor, await store.stored_bytes())
+            await store.record_source(source)
+            await store.record_run(
+                source.source_id,
+                status="ok",
+                detail=line,
+                documents=await store.instrument_count(source.source_id),
+                when=when,
+            )
+            return
+        _bulk_done, api_resume = split_cursor(result.cursor)
+
+    since = date.fromisoformat(day) if day else None
+    done_cursor = f"cl-bulk:{day}:done" if day else ""
+    try:
+        blobs, api_cursor = await adapter.fetch_updates(
+            http_get,
+            since=since,
+            resume=api_resume,
+            budget=budget,
+            clock=clock,
+        )
+    except RateLimited as exc:
+        await store.set_checkpoint(source.source_id, join_cursor(done_cursor, api_resume), await store.stored_bytes())
+        await store.record_source(source)
+        await store.record_run(
+            source.source_id,
+            status="rate_limited",
+            detail=str(exc),
+            documents=await store.instrument_count(source.source_id),
+            when=when,
+        )
+        return
+    except (FetchNotConfigured, LicenceError) as exc:
+        await store.set_checkpoint(source.source_id, done_cursor, await store.stored_bytes())
+        await store.record_source(source)
+        detail = f"{line}; {exc}" if line else str(exc)
+        await store.record_run(
+            source.source_id,
+            status="ok" if line else "not_configured",
+            detail=detail,
+            documents=await store.instrument_count(source.source_id),
+            when=when,
+        )
+        return
+    for blob in blobs:
+        inserted += await ingest_snapshot(
+            store,
+            source,
+            [blob],
+            on=on,
+            embedder=embedder,
+            index=index,
+            region=region,
+            skips=skips,
+        )
+    note = adapter.load_note() if hasattr(adapter, "load_note") else {}
+    skips.update(note.get("skips") or {})
+    await store.set_checkpoint(
+        source.source_id,
+        join_cursor(done_cursor, api_cursor),
+        await store.stored_bytes(),
+    )
+    await store.record_source(source)
+    detail = load_detail(inserted, skips)
+    if line:
+        detail = f"{line}; {detail}"
+    status = "ok"
+    if note.get("status") == "budget":
+        status = "budget"
+        phrase = str(note.get("message") or "")
+        detail = f"{line}; {phrase}" if line else phrase
+    elif note.get("status") == "rate_limited":
+        status = "rate_limited"
+        detail = f"{note.get('message') or 'HTTP 429'}; the next Load resumes; {detail}"
+    await store.record_run(
+        source.source_id,
+        status=status,
+        detail=detail,
+        documents=await store.instrument_count(source.source_id),
         when=when,
     )
 

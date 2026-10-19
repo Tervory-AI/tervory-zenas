@@ -1,0 +1,68 @@
+id,date_created,date_modified,judges,date_filed,date_filed_is_approximate,slug,case_name_short,case_name,case_name_full,scdb_id,scdb_decision_direction,scdb_votes_majority,scdb_votes_minority,source,procedural_history,attorneys,nature_of_suit,posture,syllabus,headnotes,summary,disposition,history,other_dates,cross_reference,correction,citation_count,precedential_status,date_blocked,blocked,filepath_json_harvard,filepath_pdf_harvard,docket_id,arguments,headmatter
+2756371,2014-12-02 01:09:55.488737+00,2024-11-06 03:34:34.468929+00,"Jolly, Barksdale, Owen",2014-12-01,f,united-states-v-harold-callaway,,United States v. Harold Callaway,"UNITED STATES of America, Plaintiff-Appellee, v. Harold Bruce CALLAWAY, Defendant-Appellant",,,,,CU,,"Joseph H. Gay, Jr., Assistant U.S. Attorney, U.S. Attorney’s Office, San Antonio, TX, for Plaintiff-Appellee., Philip J. Lynch, San Antonio, TX, for Defendant-Appellant.",Direct Criminal,,,,,,,,,,0,Unpublished,,f,law.free.cap.f-appx.585/867.4303689.json,harvard_pdf/2756371.pdf,2610196,,"<parties data-order=""0"" data-type=""parties"" id=""b907-11"">
+    UNITED STATES of America, Plaintiff-Appellee, v. Harold Bruce CALLAWAY, Defendant-Appellant.
+   </parties><br><docketnumber data-order=""1"" data-type=""docketnumber"" id=""b907-14"">
+    No. 13-51169
+   </docketnumber><p data-order=""2"" data-type=""misc"" id=""AMl"">
+    Summary Calendar.
+   </p><br><court data-order=""3"" data-type=""court"" id=""b907-15"">
+    United States Court of Appeals, Fifth Circuit.
+   </court><br><decisiondate data-order=""4"" data-type=""decisiondate"" id=""b907-17"">
+    Dec. 1, 2014.
+   </decisiondate><br><attorneys data-order=""5"" data-type=""attorneys"" id=""b907-18"">
+    Joseph H. Gay, Jr., Assistant U.S. Attorney, U.S. Attorney’s Office, San Antonio, TX, for Plaintiff-Appellee.
+   </attorneys><br><attorneys data-order=""6"" data-type=""attorneys"" id=""b907-19"">
+    Philip J. Lynch, San Antonio, TX, for Defendant-Appellant.
+   </attorneys><br><judges data-order=""7"" data-type=""judges"" id=""b908-3"">
+<span citation-index=""1"" class=""star-pagination"" label=""868""> 
+     *868
+     </span>
+    Before JOLLY, BARKSDALE, and OWEN, Circuit Judges.
+   </judges>"
+2756657,2014-12-02 21:11:31.317705+00,2024-11-06 03:35:35.732217+00,"Noonan, Fernandez, Ikuta",2014-12-02,f,regional-care-services-corp-v-companion-life-insurance,,"Regional Care Services, Corp. v. Companion Life Insurance","REGIONAL CARE SERVICES, CORPORATION, an Arizona Corporation; Regional Care Services Corporation Health and Welfare Employee Benefit Plan, Plaintiffs-Appellees, v. COMPANION LIFE INSURANCE COMPANY, Defendant-Appellant",,,,,CU,,"Kory A. Langhofer, John Clifton West, Brownstein Hyatt Farber Schreck, LLP, Phoenix, AZ, for Plaintiffs-Appellees., M. Courtney Koger, Esquire, Kutak Rock LLP, Kansas City, MO, Philip A. Overcash, Esquire Natalie Anderson, Esquire, S. David Childers, Esquire, Kutak Rock LLP, Scottsdale, AZ, for Defendant-Appellant.",Civil,,,,,,,"Submitted Nov. 19, 2014.*",,,0,Unpublished,,f,law.free.cap.f-appx.586/297.4312856.json,harvard_pdf/2756657.pdf,2610493,,"<parties id=""b325-17"">
+    REGIONAL CARE SERVICES, CORPORATION, an Arizona corporation; Regional Care Services Corporation Health And Welfare Employee Benefit Plan, Plaintiffs-Appellees, v. COMPANION LIFE INSURANCE COMPANY, Defendant-Appellant.
+   </parties><br><docketnumber id=""b325-20"">
+    No. 12-16538.
+   </docketnumber><br><court id=""b325-21"">
+    United States Court of Appeals, Ninth Circuit.
+   </court><br><otherdate id=""b326-3"">
+<span citation-index=""1"" class=""star-pagination"" label=""298""> 
+     *298
+     </span>
+    Submitted Nov. 19, 2014.
+    <a class=""footnote"" href=""#fn*"" id=""fn*_ref"">
+     *
+    </a>
+</otherdate><br><decisiondate id=""b326-4"">
+    Filed Dec. 2, 2014.
+   </decisiondate><br><attorneys id=""b326-5"">
+    Kory A. Langhofer, John Clifton West, Brownstein Hyatt Farber Schreck, LLP, Phoenix, AZ, for Plaintiffs-Appellees.
+   </attorneys><br><attorneys id=""b326-6"">
+    M. Courtney Koger, Esquire, Kutak Rock LLP, Kansas City, MO, Philip A. Overcash, Esquire Natalie Anderson, Esquire, S. David Childers, Esquire, Kutak Rock LLP, Scottsdale, AZ, for Defendant-Appellant.
+   </attorneys><br><judges id=""b326-8"">
+    Before: NOONAN, FERNANDEZ and IKUTA, Circuit Judges.
+   </judges><div class=""footnotes""><div class=""footnote"" id=""fn*"" label=""*"">
+<a class=""footnote"" href=""#fn*_ref"">
+     *
+    </a>
+<p id=""b326-11"">
+     The panel unanimously finds this case suitable for decision without oral argument. Fed. R.App. P. 34(a)(2).
+    </p>
+</div></div>"
+5406423,,,,1916-10-15,,sheriff-v-tna-life-insurance,,Sheriff v. Ætna Life Insurance,,,,,,,,,,,,,,,,,,,,Published,,,,,61754815,,
+5846027,,,,2006-06-08,,people-v-walker,,People v. Walker,,,,,,,,,,,,,,,,,,,,Published,,,,,62203897,,
+175448,2014-12-21 11:09:51.647071+00,2024-11-05 21:08:08.05915+00,"Mayer, Lourie, Bryson",2010-09-16,f,robinson-quality-constructors-v-mchugh,McHugh,Robinson Quality Constructors v. McHugh,"ROBINSON QUALITY CONSTRUCTORS, Appellant, v. John McHUGH, Secretary of the Army, Appellee",,,,,CU,,"Domenique Kirchner, Department of Justice, Washington, DC, for Appellee., D. Lynn Whitt, Lake Saint Louis, MO, for Appellant.",,,,,,,,,,,0,Unpublished,2021-04-18,t,law.free.cap.f-appx.395/690.5883132.json,harvard_pdf/175448.pdf,953200,,"<parties id=""b716-5"">
+    ROBINSON QUALITY CONSTRUCTORS, Appellant, v. John McHUGH, Secretary of the Army, Appellee.
+   </parties><br><docketnumber id=""b716-9"">
+    No. 2010-1255.
+   </docketnumber><br><court id=""b716-10"">
+    United States Court of Appeals, Federal Circuit.
+   </court><br><decisiondate id=""b716-12"">
+    Sept. 16, 2010.
+   </decisiondate><br><attorneys id=""b716-14"">
+    Domenique Kirchner, Department of Justice, Washington, DC, for Appellee.
+   </attorneys><br><attorneys id=""b716-15"">
+    D. Lynn Whitt, Lake Saint Louis, MO, for Appellant.
+   </attorneys><br><judges id=""b716-16"">
+    Before MAYER, LOURIE, and BRYSON, Circuit Judges.
+   </judges>"

@@ -1,0 +1,8 @@
+id,pacer_court_id,pacer_has_rss_feed,pacer_rss_entry_types,date_last_pacer_contact,fjc_court_id,date_modified,in_use,has_opinion_scraper,has_oral_argument_scraper,position,citation_string,short_name,full_name,url,start_date,end_date,jurisdiction,notes,parent_court_id
+nyappdiv,,,,,,2014-08-08 19:52:34.517+00,t,t,f,366.965,N.Y. App. Div.,Appellate Division of the Supreme Court of New York,Appellate Division of the Supreme Court of the State of New York,http://www.courts.state.ny.us/courts/appellatedivisions.shtml‎,1896-01-01,,SA,Lawbox,
+scotus,,,,,,2014-10-31 01:59:15.952+00,t,t,t,1,SCOTUS,Supreme Court,Supreme Court of the United States,http://supremecourt.gov/,1789-09-24,,F,,
+ca5,5,f,,,5,2023-02-22 16:08:36.484112+00,t,t,t,105,5th Cir.,Fifth Circuit,Court of Appeals for the Fifth Circuit,http://www.ca5.uscourts.gov/,1891-03-03,,F,,
+ca9,9,f,,,9,2023-02-22 16:09:25.712512+00,t,t,t,109,9th Cir.,Ninth Circuit,Court of Appeals for the Ninth Circuit,http://www.ca9.uscourts.gov/,1891-03-03,,F,,
+delch,,,,,,2024-01-09 19:18:53.189128+00,t,t,f,353,Del. Ch.,Court of Chancery of Delaware,Court of Chancery of Delaware,http://courts.delaware.gov/chancery/,,,SA,Lawbox,
+ca2,2,t,"orders, opinions",,2,2023-02-22 15:58:28.729123+00,t,t,t,102,2d Cir.,Second Circuit,Court of Appeals for the Second Circuit,http://www.ca2.uscourts.gov/,1891-03-03,,F,,
+nysd,127,t,"adr,answer,appeal,appeal-cr,charge-cr,cmp,discov,discovery-cr,misc,misc-cr,misccs,mot2255,motion,notice,notice-cr,order,order-cr,respm,respm-cr,respoth,service,service-cr,transfer,transfer-cr,trial,trial-cr,waiver-cr,detention-cr,minutes,minutes-cr,plea",,08,2023-10-03 01:23:44.555933+00,t,f,f,245,S.D.N.Y.,S.D. New York,"District Court, S.D. New York",http://www.nysd.uscourts.gov/,,,FD,,usdistct

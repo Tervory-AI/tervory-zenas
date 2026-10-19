@@ -162,7 +162,7 @@ def test_opinion_text_is_fetched_with_the_header_and_counted(monkeypatch: pytest
     assert asyncio.run(store.get_checkpoint("courtlistener")) == ""
 
 
-def test_one_request_per_second_by_default(monkeypatch: pytest.MonkeyPatch):
+def test_twelve_seconds_between_api_calls_by_default(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("COURTLISTENER_API_TOKEN", MARKER)
     monkeypatch.delenv("COURTLISTENER_MIN_INTERVAL", raising=False)
     monkeypatch.setenv("COURTLISTENER_MAX_PAGES", "1")
@@ -175,7 +175,7 @@ def test_one_request_per_second_by_default(monkeypatch: pytest.MonkeyPatch):
     calls: list[tuple[str, dict]] = []
     asyncio.run(CourtListenerAdapter().fetch_bulk(_fake_courtlistener(calls)))
     assert len(calls) == 3  # one search page, two opinions
-    assert sleeps == [1.0, 1.0, 1.0]
+    assert sleeps == [12.0, 12.0, 12.0]
 
 
 def test_429_keeps_pages_saves_the_cursor_and_records_rate_limited(monkeypatch: pytest.MonkeyPatch):

@@ -105,14 +105,16 @@ CATALOGUE: tuple[SourceSpec, ...] = (
         store_full_text=True,
         canonical_url="https://www.courtlistener.com/help/api/bulk-data/",
         notes=(
-            "COURTLISTENER_API_TOKEN is read from the environment and sent as a header. "
-            "A live load is skipped until it is set. The value is never written into a URL or a log. "
+            "The back catalogue is the free quarterly bulk files. They need no key. "
+            "COURTLISTENER_API_TOKEN is read from the environment and sent as a header "
+            "only for opinions filed after the snapshot date. The value is never written "
+            "into a URL or a log. "
             "Courts: SCOTUS, the thirteen circuits, Delaware Supreme Court and Court of Chancery, "
             "the New York Court of Appeals and Appellate Division, and the Texas Supreme Court."
         ),
         adapter="courtlistener",
         key_name="COURTLISTENER_API_TOKEN",
-        key_required=True,
+        key_required=False,
     ),
     SourceSpec(
         source_id="cap",
