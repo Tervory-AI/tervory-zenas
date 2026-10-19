@@ -5,11 +5,13 @@ dropped and their text is never stored. SAFLII's usage policy is recorded on
 the catalogue row as information. It is not a switch.
 
 Live load reads each court's recent-decisions page and the judgment HTML
-it links. A challenge page is not stored as a judgment.
+it links, in Chromium via patchright. A challenge page is logged as an error
+and is not stored as a judgment.
 """
 
 from __future__ import annotations
 
+import logging
 import os
 import re
 from datetime import date
@@ -37,6 +39,7 @@ COURTS: tuple[tuple[str, str, str], ...] = (
 )
 
 _HOST = "https://www.saflii.org"
+log = logging.getLogger("zenas.pool.saflii")
 _NEUTRAL = re.compile(r"\[(\d{4})\]\s+(ZA[A-Z]{2,6})\s+(\d+)")
 _REPORT = re.compile(r"\b(\d{4})\s+\((\d+)\)\s+SA\s+(\d+)\s+\(([A-Za-z]{2,6})\)")
 _CRIMINAL_NAME = re.compile(r"^\s*s\s+v\s+\S", re.I)
@@ -212,6 +215,14 @@ class SafliiAdapter:
 
     async def fetch_bulk(self, http_get, *, resume: str = "") -> tuple[list[bytes], str]:
         del resume
+        if _default_http(http_get):
+            from agents.zenas.pool.http import PatchrightPages
+
+            async with PatchrightPages() as pages:
+                return await self._collect(pages.get)
+        return await self._collect(http_get)
+
+    async def _collect(self, get) -> tuple[list[bytes], str]:
         per_court = int(os.environ.get("SAFLII_MAX", "4") or "4")
         pause = float(os.environ.get("SAFLII_MIN_INTERVAL", "0") or "0")
         headers = _headers()
@@ -222,14 +233,16 @@ class SafliiAdapter:
                 import asyncio
 
                 await asyncio.sleep(pause)
-            page = await http_get(url, headers)
+            page = await get(url, headers)
             if _challenge(page):
                 challenges += 1
+                log.error("SAFLII returned a challenge page and it was not stored: %s", url)
                 continue
             for link in judgment_links(page, court)[:per_court]:
-                body = await http_get(link, headers)
+                body = await get(link, headers)
                 if _challenge(body):
                     challenges += 1
+                    log.error("SAFLII returned a challenge page and it was not stored: %s", link)
                     continue
                 blobs.append(body)
         if not blobs and challenges:
@@ -238,3 +251,11 @@ class SafliiAdapter:
 
     def parse(self, blob: bytes, source: SourceSpec) -> list[LegalDocument]:
         return parse_judgment(blob, source)
+
+
+def _default_http(http_get) -> bool:
+    """True when the pool passed its own client. A test double is used as given."""
+    from agents.zenas.pool.http import urllib_get as plain_get
+    from agents.zenas.pool.nightly import urllib_get as nightly_get
+
+    return http_get is plain_get or http_get is nightly_get

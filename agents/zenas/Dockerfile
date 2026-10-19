@@ -2,7 +2,12 @@ FROM python:3.12-slim
 WORKDIR /app
 COPY _chassis/requirements.txt .
 COPY zenas/requirements.txt ./zenas-requirements.txt
+# Chromium for patchright. The binaries sit outside the agent home so the
+# unprivileged process can launch them. SAFLII is the only caller.
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 RUN pip install --no-cache-dir -r requirements.txt -r zenas-requirements.txt "cryptography==50.0.2" \
+    && python -m patchright install --with-deps chromium \
+    && chmod -R a+rX /ms-playwright \
     && useradd --create-home --uid 1000 agent \
     && mkdir -p /data \
     && chown agent:agent /data

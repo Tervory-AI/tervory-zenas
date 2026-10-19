@@ -77,3 +77,52 @@ class _Retry(Exception):
         super().__init__(code)
         self.code = code
         self.body = body
+
+
+class PatchrightPages:
+    """One Chromium, via patchright, for a SAFLII load.
+
+    The package is imported when the browser opens, so a test that never
+    fetches does not need it installed. Chromium sends its own headers.
+    """
+
+    def __init__(self) -> None:
+        self._playwright = None
+        self._browser = None
+        self._context = None
+
+    async def __aenter__(self) -> PatchrightPages:
+        from patchright.async_api import async_playwright
+
+        self._playwright = await async_playwright().start()
+        # The room runs as an unprivileged user. Chromium's sandbox cannot
+        # start there, and /dev/shm in that container is too small for a page.
+        self._browser = await self._playwright.chromium.launch(
+            headless=True,
+            args=["--no-sandbox", "--disable-dev-shm-usage"],
+        )
+        self._context = await self._browser.new_context(locale="en-ZA")
+        return self
+
+    async def __aexit__(self, *_exc: object) -> None:
+        if self._browser is not None:
+            await self._browser.close()
+        if self._playwright is not None:
+            await self._playwright.stop()
+
+    async def get(self, url: str, headers: dict[str, str] | None = None) -> bytes:
+        """HTML of one page. A credential in the URL is refused before launch."""
+        del headers
+        _reject_credential_url(url)
+        if self._context is None:
+            raise FetchNotConfigured("patchright is not open")
+        page = await self._context.new_page()
+        try:
+            await page.goto(url, wait_until="domcontentloaded", timeout=60_000)
+            try:
+                await page.wait_for_load_state("networkidle", timeout=8_000)
+            except Exception:  # noqa: BLE001 — a page that never goes idle still has HTML
+                pass
+            return (await page.content()).encode("utf-8")
+        finally:
+            await page.close()

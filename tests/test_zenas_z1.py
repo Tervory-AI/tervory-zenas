@@ -511,7 +511,7 @@ def test_room_files_and_main_compose_add_the_corridor() -> None:
     assert "postgresql://agent_zenas:" in agent
     assert "TANK_KEY: ${TANK_KEY_ZENAS:-}" in agent
     assert "HERMES_URL: http://hermes:8000" in agent
-    assert "mem_limit: 512m" in agent
+    assert "mem_limit: 2g" in agent
     assert "POSTGRES_PASSWORD" not in agent
     assert "POSTGRES_USER" not in agent
     readme = (ROOT / "agents" / "README.md").read_text(encoding="utf-8")
