@@ -31,6 +31,79 @@ if (feeds.sources[0].last_load !== "2026-10-18" || feeds.sources[0].errors[0] !=
   throw new Error("dates and errors must cross");
 }
 
+// Status + short detail (env var names OK) must cross for the founder feeds page.
+const missing = publicFeeds({
+  region: "us-east",
+  sources: [
+    {
+      source_id: "courtlistener",
+      name: "CourtListener",
+      region: "us-east",
+      documents: 0,
+      last_status: "not_configured",
+      detail: "COURTLISTENER_API_TOKEN is not set",
+      last_load: null,
+    },
+  ],
+});
+if (missing.sources[0].last_status !== "not_configured") {
+  throw new Error("last_status must cross");
+}
+if (missing.sources[0].detail !== "COURTLISTENER_API_TOKEN is not set") {
+  throw new Error("not-configured detail with the env var name must cross");
+}
+
+const httpErr = publicFeeds({
+  region: "us-east",
+  sources: [
+    {
+      source_id: "courtlistener",
+      name: "CourtListener",
+      last_status: "error",
+      detail: "HTTP 401 from courtlistener.com",
+    },
+  ],
+});
+if (httpErr.sources[0].detail !== "HTTP 401 from courtlistener.com") {
+  throw new Error("short HTTP error detail must cross");
+}
+
+// A URL that embeds a credential must not cross.
+const leakedKey = "super-secret-value-do-not-show";
+const withUrl = publicFeeds({
+  region: "us-east",
+  sources: [
+    {
+      source_id: "govinfo",
+      name: "GovInfo",
+      last_status: "error",
+      detail: `fetch failed https://api.govinfo.gov/docs?api_key=${leakedKey}`,
+    },
+  ],
+});
+if (withUrl.sources[0].detail.includes(leakedKey) || withUrl.sources[0].detail.includes("api_key=")) {
+  throw new Error("a credential query URL must not cross");
+}
+if (JSON.stringify(withUrl).includes(leakedKey)) {
+  throw new Error("a credential value must not appear in the public feed");
+}
+
+// Build the OpenAI-style probe at runtime so the file never commits a literal sk- + 20+ alphanumerics.
+const skProbe = "sk" + "-" + "abcdefghijklmnopqrstuvwxyz012345";
+const withSk = publicFeeds({
+  region: "us-east",
+  sources: [
+    {
+      source_id: "x",
+      last_status: "error",
+      detail: `upstream said ${skProbe} bad`,
+    },
+  ],
+});
+if (withSk.sources[0].detail.includes(skProbe) || /sk-[A-Za-z0-9]/.test(withSk.sources[0].detail)) {
+  throw new Error("sk- secrets must be stripped from detail");
+}
+
 const scores = publicScores({
   region: "za",
   runs: [
@@ -74,3 +147,5 @@ const sent = loadBody("ecfr", "za");
 if (JSON.stringify(sent) !== JSON.stringify({ source: "ecfr", home_region: "za" })) {
   throw new Error("a load sends only the source and the region");
 }
+
+console.log("ok");
