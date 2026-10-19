@@ -45,6 +45,8 @@ def test_a_reviewer_opens_the_console_and_the_logos_stay_official() -> None:
     assert "admission_no" in access
     assert "/brand/zenas-on-dark.png" in console
     assert "/brand/tervory-logo-reversed.png" in console
+    assert 'account.trim() || "Your account"' in console
+    assert "Account name" not in console
     assert "sign-up" not in console
     assert "Case name v Case name" not in console
     assert "Case name v Case name" not in EXAMPLE.read_text(encoding="utf-8")
