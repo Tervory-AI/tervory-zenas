@@ -74,6 +74,7 @@ def test_upstream_is_only_the_local_room(monkeypatch: pytest.MonkeyPatch) -> Non
     assert main.zenas_upstream("tenants") == "http://agent-zenas:8000/tenants"
     assert main.zenas_upstream("selftest") == "http://agent-zenas:8000/selftest"
     assert main.zenas_upstream("review-switch") == "http://agent-zenas:8000/review-switch"
+    assert main.zenas_upstream("cases/convert") == "http://agent-zenas:8000/cases/convert"
     assert main.zenas_upstream("pool/sources/companies-act/load").endswith("/pool/sources/companies-act/load")
     with pytest.raises(HTTPException) as caught:
         main.zenas_upstream("self-test")
@@ -207,6 +208,8 @@ async def test_proxy_forwards_tenants_only_for_this_regions_home(monkeypatch: py
         ("POST", "selftest", b""),
         ("GET", "review-switch", b""),
         ("POST", "review-switch", b'{"home_region":"za","review":"off"}'),
+        ("GET", "cases/convert", b""),
+        ("POST", "cases/convert", b'{"home_region":"za"}'),
     ],
 )
 async def test_selftest_and_review_switch_reach_the_room(

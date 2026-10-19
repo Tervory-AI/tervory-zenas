@@ -206,6 +206,12 @@ async def _main() -> None:
         else:
             report = await run_nightly(store, live=True)
         try:
+            from agents.zenas.core.convert import run_scheduled as convert_scheduled
+
+            await convert_scheduled(conn, region=current_region())
+        except Exception:
+            pass
+        try:
             from agents.zenas.core.selftest import run_scheduled
 
             await run_scheduled(conn, region=current_region())

@@ -274,6 +274,49 @@ async def _assert_z7(conn) -> None:
     )
 
 
+async def _assert_z8(conn) -> None:
+    """convert_failures exists, stays one row per case, and survives a second apply."""
+    asyncpg = pytest.importorskip("asyncpg")
+    found = await conn.fetchval(
+        """
+        SELECT count(*) FROM information_schema.tables
+        WHERE table_schema = 'agent_zenas' AND table_name = 'convert_failures'
+        """
+    )
+    assert int(found) == 1
+    indexed = await conn.fetchval(
+        """
+        SELECT count(*) FROM pg_indexes
+        WHERE schemaname = 'agent_zenas' AND indexname = 'convert_failures_doc_idx'
+        """
+    )
+    assert int(indexed) == 1
+    await conn.execute(
+        """
+        INSERT INTO agent_zenas.convert_failures (region, pool_doc_id, reason)
+        VALUES ('us-east', 'case-1', 'quote is not in the judgment')
+        """
+    )
+    await conn.execute(
+        """
+        INSERT INTO agent_zenas.convert_failures (region, pool_doc_id, reason)
+        VALUES ('us-east', 'case-1', 'citation did not resolve')
+        ON CONFLICT (region, pool_doc_id) DO UPDATE SET reason = EXCLUDED.reason
+        """
+    )
+    reason = await conn.fetchval(
+        "SELECT reason FROM agent_zenas.convert_failures WHERE region = 'us-east' AND pool_doc_id = 'case-1'"
+    )
+    assert reason == "citation did not resolve"
+    with pytest.raises(asyncpg.CheckViolationError):
+        await conn.execute(
+            """
+            INSERT INTO agent_zenas.convert_failures (region, pool_doc_id, reason)
+            VALUES ('eu', 'case-2', 'quote is not in the judgment')
+            """
+        )
+
+
 def test_home_region_column_has_no_default() -> None:
     column = [
         line
@@ -320,11 +363,13 @@ async def test_zenas_schema_on_empty_twice_and_on_main_with_roles() -> None:
         await _assert_draft_library(empty)
         await _assert_material_type(empty)
         await _assert_z7(empty)
+        await _assert_z8(empty)
         await _apply(empty, zenas)
         kept = await empty.fetchval("SELECT count(*) FROM agent_zenas.tenants")
         assert int(kept) == 2
         assert int(await empty.fetchval("SELECT count(*) FROM agent_zenas.review_settings")) == 1
         assert int(await empty.fetchval("SELECT count(*) FROM agent_zenas.selftest_runs")) == 1
+        assert int(await empty.fetchval("SELECT count(*) FROM agent_zenas.convert_failures")) == 1
         assert int(await empty.fetchval("SELECT count(*) FROM agent_zenas.clauses")) == 1
         assert int(await empty.fetchval("SELECT count(*) FROM agent_zenas.playbooks")) == 1
         assert int(await empty.fetchval("SELECT count(*) FROM agent_zenas.worked_matters")) == 1
@@ -367,11 +412,13 @@ async def test_zenas_schema_on_empty_twice_and_on_main_with_roles() -> None:
         await _assert_draft_library(main)
         await _assert_material_type(main)
         await _assert_z7(main)
+        await _assert_z8(main)
         await _apply(main, zenas)
         kept_main = await main.fetchval("SELECT count(*) FROM agent_zenas.tenants")
         assert int(kept_main) == 2
         assert int(await main.fetchval("SELECT count(*) FROM agent_zenas.review_settings")) == 1
         assert int(await main.fetchval("SELECT count(*) FROM agent_zenas.selftest_runs")) == 1
+        assert int(await main.fetchval("SELECT count(*) FROM agent_zenas.convert_failures")) == 1
         assert int(await main.fetchval("SELECT count(*) FROM agent_zenas.clauses")) == 1
         assert int(await main.fetchval("SELECT count(*) FROM agent_zenas.playbooks")) == 1
         assert int(await main.fetchval("SELECT count(*) FROM agent_zenas.worked_matters")) == 1

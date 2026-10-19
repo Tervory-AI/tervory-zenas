@@ -14,9 +14,26 @@ from agents.zenas.core.pii_detect import mask_client_text, regex_party_names
 
 log = logging.getLogger("zenas.material")
 
-# Pool source ids whose documents are filed cases, judgments, gazettes, or law reports.
+# One list. The convert job and POST /cases/facts both use it.
 # A source that is not in this set is unknown. Unknown material is not shared.
-COURT_SOURCES = frozenset({"saflii", "courtlistener", "cap", "govza-gazette"})
+COURT_SOURCES = frozenset(
+    {
+        "courtlistener",
+        "cap",
+        "saflii",
+        "govza-gazette",
+        "concourt",
+        "sca",
+        "cac",
+        "comptrib",
+        "sars-taxcourt",
+        "landcourt",
+        "ocj-highcourt",
+        "labour-court",
+        "labour-appeal",
+        "special-tribunal",
+    }
+)
 
 UNKNOWN = "material type is unknown"
 MASK_FAILED = "masking failed"

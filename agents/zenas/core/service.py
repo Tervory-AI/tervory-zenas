@@ -498,7 +498,8 @@ async def extract_case_facts(
         return refused
     from agents.zenas.core.release_mask import log_withheld, material_type_for_pool
 
-    if material_type_for_pool(source_id) != "public_record":
+    material = material_type_for_pool(source_id)
+    if material != "public_record":
         log_withheld("material type is unknown")
         return {"ok": False, "shared": False, "reason": "material type is unknown"}
     kind = ruled(judgment)
@@ -537,7 +538,7 @@ async def extract_case_facts(
             "region": box,
             "tenant_id": None,
             "source": "case",
-            "material_type": "public_record",
+            "material_type": material,
             "jurisdiction": jurisdiction,
             "area": "",
             "rule_card_ids": rule_card_ids or [],

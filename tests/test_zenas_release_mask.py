@@ -14,6 +14,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from agents.zenas.core.ladder_store import LadderMemory  # noqa: E402
+from agents.zenas.core.release_mask import COURT_SOURCES  # noqa: E402
 from agents.zenas.core.service import extract_case_facts, release_matter  # noqa: E402
 from agents.zenas.core.store import MemoryStore  # noqa: E402
 
@@ -117,6 +118,30 @@ async def test_court_judgments_stay_byte_identical() -> None:
     found = [row for row in shared if row["id"] == us["worked_matter"]["id"]]
     assert len(found) == 1
     assert found[0]["fact_pattern"]["narrative"].encode("utf-8") == COURTLISTENER
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("source_id", sorted(COURT_SOURCES))
+async def test_facts_accepts_every_court_on_the_shared_list(source_id: str) -> None:
+    us = source_id in {"courtlistener", "cap"}
+    region = "us-east" if us else "za"
+    ladder = LadderMemory()
+    await ladder.register_tenant(TENANT_A, region)
+    result = await extract_case_facts(
+        ladder,
+        Model(),
+        tenant_id=TENANT_A,
+        home_region=region,
+        box_region=region,
+        jurisdiction="us" if us else "za",
+        pool_doc_id=f"court-{source_id}",
+        source_id=source_id,
+        citation="Fixture Carrier v. Fixture Shipper",
+        judgment="The court enforced the bill of lading as published.",
+    )
+    assert result["ok"] is True
+    assert result["worked_matter"]["material_type"] == "public_record"
+    assert result["worked_matter"]["fact_pattern"]["narrative"] == "The court enforced the bill of lading as published."
 
 
 @pytest.mark.asyncio

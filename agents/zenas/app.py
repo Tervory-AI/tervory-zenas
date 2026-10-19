@@ -61,6 +61,7 @@ from agents.zenas.core.service import (  # noqa: E402
     review_queue,
     write_memo,
 )
+from agents.zenas.core.convert import begin_convert, conversion_report, convert_cases, convert_running  # noqa: E402
 from agents.zenas.core.selftest import list_scores, run_selftest  # noqa: E402
 from agents.zenas.core.store import PgStore, register_home  # noqa: E402
 
@@ -893,6 +894,44 @@ async def post_review_switch(body: ReviewSwitchIn) -> dict[str, Any]:
         raise HTTPException(status_code=422, detail="review is on or off")
     await ladder.set_review(region=box, review=body.review)
     return {"ok": True, "region": box, "review": body.review}
+
+
+class ConvertIn(BaseModel):
+    home_region: str
+
+
+@app.get("/cases/convert")
+async def get_cases_convert(home_region: str) -> dict[str, Any]:
+    """Counts for this region: decided cases loaded, converted, held out, failed."""
+    box = _box_region()
+    if home_region != box:
+        raise HTTPException(status_code=403, detail="wrong region")
+    ladder = await _ready()
+    async with _pool_store() as pool:
+        report = await conversion_report(pool, ladder, region=box)
+    report["running"] = convert_running(box)
+    return report
+
+
+@app.post("/cases/convert")
+async def post_cases_convert(body: ConvertIn) -> dict[str, Any]:
+    """Start this region's conversion and return at once. The other region's cases are not read."""
+    box = _box_region()
+    if body.home_region != box:
+        raise HTTPException(status_code=403, detail="wrong region")
+
+    async def runner() -> None:
+        ladder = await _ready()
+        async with _pool_store() as pool:
+            await convert_cases(pool, ladder, _model(HEARTBEAT_TENANT), region=box)
+
+    started = await begin_convert(box, runner)
+    ladder = await _ready()
+    async with _pool_store() as pool:
+        report = await conversion_report(pool, ladder, region=box)
+    report["running"] = bool(started["running"])
+    report["status"] = started["status"]
+    return report
 
 
 @app.get("/selftest")
