@@ -34,6 +34,9 @@ _BODIES = {
 }
 
 # None means every part the structure endpoint lists for that title.
+# A numeric range is still limited to parts the structure endpoint lists.
+# The versioner returns 404 for a number that is not listed (reserved gaps
+# such as 15 CFR 731 and 31 CFR 502). Those gaps are not requested.
 ECFR_TARGETS: tuple[tuple[str, range | None], ...] = (
     ("19", None),
     ("15", range(730, 775)),
@@ -81,6 +84,29 @@ def _part_numbers(payload: dict) -> list[str]:
     return found
 
 
+def _part_in_range(identifier: str, parts: range | None) -> bool:
+    """True when a structure identifier sits inside the launch range.
+
+    Identifiers are part numbers ("730") or reserved spans ("102-199").
+    None keeps every part the structure endpoint listed.
+    """
+    if parts is None:
+        return True
+    piece = identifier.strip()
+    if "-" in piece:
+        left, right = piece.split("-", 1)
+        try:
+            start, end = int(left), int(right)
+        except ValueError:
+            return False
+        return start <= parts.stop - 1 and end >= parts.start
+    try:
+        number = int(piece)
+    except ValueError:
+        return False
+    return number in parts
+
+
 def display_citation(raw: str) -> str:
     match = re.search(r"(\d+)\s+CFR\s+([0-9]+\.[0-9]+)", raw, re.I)
     if not match:
@@ -104,14 +130,15 @@ class EcfrAdapter:
         blobs: list[bytes] = []
         seen_resume = resume == ""
         for title, parts in ECFR_TARGETS:
-            if parts is None:
-                structure = await http_get(
-                    ecfr_structure_url(on, title),
-                    _headers("application/json"),
-                )
-                numbers = _part_numbers(json.loads(structure.decode("utf-8")))
-            else:
-                numbers = [str(part) for part in parts]
+            structure = await http_get(
+                ecfr_structure_url(on, title),
+                _headers("application/json"),
+            )
+            numbers = [
+                number
+                for number in _part_numbers(json.loads(structure.decode("utf-8")))
+                if _part_in_range(number, parts)
+            ]
             for part in numbers:
                 marker = f"{title}:{part}"
                 if not seen_resume:

@@ -2,6 +2,10 @@
 
 The landing pages do not carry the articles. The ebooks do. Text is stored
 one article at a time. The PDF itself is not the record.
+
+The pool drops a PDF before parse, so a fetch that returns the ebook bytes
+stores nothing. Fetch extracts the article text and returns that. A saved
+PDF still parses.
 """
 
 from __future__ import annotations
@@ -88,10 +92,17 @@ class _EbookAdapter:
 
     async def fetch_bulk(self, http_get, *, resume: str = "") -> tuple[list[bytes], str]:
         del resume
-        return [await http_get(self.url, _headers())], ""
+        raw = await http_get(self.url, _headers())
+        text = ebook_text(raw)
+        if text:
+            return [text.encode("utf-8")], ""
+        return [raw], ""
 
     def parse(self, blob: bytes, source: SourceSpec) -> list[LegalDocument]:
-        text = ebook_text(blob)
+        if blob.startswith(b"%PDF"):
+            text = ebook_text(blob)
+        else:
+            text = blob.decode("utf-8", "replace").strip()
         if not text:
             return []
         return articles(text, source, prefix=self.prefix, url=self.url, body=self.body_name)

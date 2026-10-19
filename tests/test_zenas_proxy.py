@@ -72,7 +72,15 @@ def test_upstream_is_only_the_local_room(monkeypatch: pytest.MonkeyPatch) -> Non
     assert caught.value.status_code == 403
     monkeypatch.setenv("ZENAS_AGENT_URL", "http://agent-zenas:8000")
     assert main.zenas_upstream("tenants") == "http://agent-zenas:8000/tenants"
+    assert main.zenas_upstream("selftest") == "http://agent-zenas:8000/selftest"
+    assert main.zenas_upstream("review-switch") == "http://agent-zenas:8000/review-switch"
     assert main.zenas_upstream("pool/sources/companies-act/load").endswith("/pool/sources/companies-act/load")
+    with pytest.raises(HTTPException) as caught:
+        main.zenas_upstream("self-test")
+    assert caught.value.status_code == 404
+    with pytest.raises(HTTPException) as caught:
+        main.zenas_upstream("review_switch")
+    assert caught.value.status_code == 404
     with pytest.raises(HTTPException) as caught:
         main.zenas_upstream("../postgres")
     assert caught.value.status_code == 404
@@ -189,6 +197,28 @@ async def test_proxy_forwards_tenants_only_for_this_regions_home(monkeypatch: py
     assert caught.value.status_code == 403
     assert caught.value.detail == main.ZA_HOME_MESSAGE
     assert room.calls == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("method", "path", "body"),
+    [
+        ("GET", "selftest", b""),
+        ("POST", "selftest", b""),
+        ("GET", "review-switch", b""),
+        ("POST", "review-switch", b'{"home_region":"za","review":"off"}'),
+    ],
+)
+async def test_selftest_and_review_switch_reach_the_room(
+    monkeypatch: pytest.MonkeyPatch, method: str, path: str, body: bytes
+) -> None:
+    monkeypatch.setenv("TANK_REGION", "za")
+    monkeypatch.setenv("ZENAS_AGENT_URL", "http://agent-zenas:8000")
+    room = _Room(b'{"ok": true, "review": "off", "runs": []}')
+    monkeypatch.setattr(main, "_http", room)
+    response = await main.zenas_proxy(path, _request(method, f"/v1/zenas/{path}", body, b"home_region=za"))
+    assert response.status_code == 200
+    assert room.calls == [f"http://agent-zenas:8000/{path}"]
 
 
 @pytest.mark.asyncio

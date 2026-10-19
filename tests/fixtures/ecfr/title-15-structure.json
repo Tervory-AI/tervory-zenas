@@ -1,0 +1,41 @@
+{
+  "identifier": "15",
+  "type": "title",
+  "label": "Title 15—Commerce and Foreign Trade",
+  "children": [
+    {
+      "identifier": "C",
+      "type": "chapter",
+      "label": "Chapter C—National Institute of Standards and Technology",
+      "children": [
+        {
+          "identifier": "1",
+          "type": "part",
+          "label": "Part 1"
+        }
+      ]
+    },
+    {
+      "identifier": "VII",
+      "type": "subtitle",
+      "label": "Subtitle B—Regulations Relating to Commerce and Foreign Trade",
+      "children": [
+        {
+          "identifier": "730",
+          "type": "part",
+          "label": "Part 730—General Information"
+        },
+        {
+          "identifier": "732",
+          "type": "part",
+          "label": "Part 732—Steps for Using the EAR"
+        },
+        {
+          "identifier": "747",
+          "type": "part",
+          "label": "Part 747 [Reserved]"
+        }
+      ]
+    }
+  ]
+}
