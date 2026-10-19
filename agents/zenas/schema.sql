@@ -349,11 +349,11 @@ VALUES ('carmack', 'us', 'Carmack (49 USC 14706)', 'Public domain. U.S. governme
 ON CONFLICT (source_id) DO NOTHING;
 INSERT INTO agent_zenas.learning_sources
     (source_id, jurisdiction, source, licence, terms_status)
-VALUES ('uncitral-cisg', 'us', 'CISG (UNCITRAL publication)', 'United Nations / UNCITRAL copyright. The text is not stored.', 'not_cleared')
+VALUES ('uncitral-cisg', 'us', 'CISG (UNCITRAL publication)', 'United Nations / UNCITRAL. Official publication text is stored from the public ebook.', 'cleared')
 ON CONFLICT (source_id) DO NOTHING;
 INSERT INTO agent_zenas.learning_sources
     (source_id, jurisdiction, source, licence, terms_status)
-VALUES ('uncitral-model-law', 'us', 'UNCITRAL model laws', 'United Nations / UNCITRAL copyright. Model texts are not stored.', 'not_cleared')
+VALUES ('uncitral-model-law', 'us', 'UNCITRAL model laws', 'United Nations / UNCITRAL. Official publication text is stored from the public ebook.', 'cleared')
 ON CONFLICT (source_id) DO NOTHING;
 INSERT INTO agent_zenas.learning_sources
     (source_id, jurisdiction, source, licence, terms_status)
@@ -438,3 +438,34 @@ VALUES
     ('za', 19),
     ('za', 20)
 ON CONFLICT (jurisdiction, slot) DO NOTHING;
+
+-- Z7. Active is its own column: the status check already on a live database
+-- lists draft, lawyer_approved, and stale, and a check is not widened here.
+-- reviewed is false until a person signs. holdout cases are not reused.
+ALTER TABLE agent_zenas.documents ADD COLUMN IF NOT EXISTS reviewed boolean NOT NULL DEFAULT false;
+ALTER TABLE agent_zenas.rule_cards ADD COLUMN IF NOT EXISTS active boolean NOT NULL DEFAULT false;
+ALTER TABLE agent_zenas.worked_matters ADD COLUMN IF NOT EXISTS holdout boolean NOT NULL DEFAULT false;
+
+CREATE TABLE IF NOT EXISTS agent_zenas.review_settings (
+    region text PRIMARY KEY,
+    review text NOT NULL DEFAULT 'off',
+    CONSTRAINT review_settings_review_chk CHECK (review IN ('off', 'on')),
+    CONSTRAINT review_settings_region_chk CHECK (region IN ('us-east', 'za'))
+);
+
+CREATE TABLE IF NOT EXISTS agent_zenas.selftest_runs (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    region text NOT NULL,
+    kind text NOT NULL,
+    area text NOT NULL DEFAULT '',
+    jurisdiction text NOT NULL DEFAULT '',
+    cases integer NOT NULL DEFAULT 0,
+    outcome_agreement numeric(6,2) NOT NULL DEFAULT 0,
+    element_agreement numeric(6,2) NOT NULL DEFAULT 0,
+    citations_valid numeric(6,2) NOT NULL DEFAULT 0,
+    cost_per_case numeric(12,6) NOT NULL DEFAULT 0,
+    detail jsonb NOT NULL DEFAULT '{}'::jsonb,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT selftest_region_chk CHECK (region IN ('us-east', 'za')),
+    CONSTRAINT selftest_kind_chk CHECK (kind IN ('holdout', 'legalbench'))
+);

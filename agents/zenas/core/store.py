@@ -23,8 +23,8 @@ VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $8)
 
 INSERT_DOCUMENT = """
 INSERT INTO agent_zenas.documents
-    (id, matter_id, tenant_id, kind, version, body, sources, state)
-VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8)
+    (id, matter_id, tenant_id, kind, version, body, sources, state, reviewed)
+VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9)
 """.strip()
 
 NEXT_VERSION = """
@@ -234,6 +234,7 @@ class MemoryStore:
         saved["id"] = str(saved.get("id") or _id())
         saved["tenant_id"] = str(saved["tenant_id"])
         saved["matter_id"] = str(saved["matter_id"])
+        saved["reviewed"] = bool(saved.get("reviewed", False))
         self.documents.append(saved)
         return saved
 
@@ -346,11 +347,13 @@ class PgStore:
                 row["body"],
                 json.dumps(row.get("sources") or []),
                 row.get("state") or "draft",
+                bool(row.get("reviewed", False)),
             )
         saved = dict(row)
         saved["id"] = document_id
         saved["tenant_id"] = str(row["tenant_id"])
         saved["matter_id"] = str(row["matter_id"])
+        saved["reviewed"] = bool(row.get("reviewed", False))
         return saved
 
     async def next_version(self, tenant_id: str, matter_id: str, kind: str) -> int:

@@ -43,6 +43,7 @@ from agents.zenas.core.seal import key_from_env  # noqa: E402
 from agents.zenas.core.service import (  # noqa: E402
     add_approved_clause,
     add_playbook,
+    answer_question,
     apply_law,
     approve_rule_card,
     build_rule_card,
@@ -60,6 +61,7 @@ from agents.zenas.core.service import (  # noqa: E402
     review_queue,
     write_memo,
 )
+from agents.zenas.core.selftest import list_scores, run_selftest  # noqa: E402
 from agents.zenas.core.store import PgStore, register_home  # noqa: E402
 
 AGENT = os.environ.get("AGENT_NAME", "zenas")
@@ -792,6 +794,7 @@ class ContractReviewIn(BaseModel):
     playbook_id: UUID
     text: str
     provider: str = "luna"
+    matter_id: UUID | None = None
 
 
 @app.post("/contract-reviews", status_code=200)
@@ -807,6 +810,7 @@ async def post_contract_review(body: ContractReviewIn) -> dict[str, Any]:
         playbook_id=str(body.playbook_id),
         text=body.text,
         provider=body.provider,
+        matter_id=str(body.matter_id) if body.matter_id else None,
     )
     _fail(result)
     return result
@@ -824,6 +828,89 @@ async def get_review(tenant_id: UUID, home_region: str, jurisdiction: str = "") 
     )
     _fail(result)
     return result
+
+
+class AnswerIn(BaseModel):
+    tenant_id: UUID
+    home_region: str
+    jurisdiction: str
+    question: str
+    passages: list[dict[str, Any]] = Field(default_factory=list)
+    features: dict[str, Any] = Field(default_factory=dict)
+    matter_id: UUID | None = None
+    provider: str = "luna"
+
+
+@app.post("/answers", status_code=200)
+async def post_answer(body: AnswerIn) -> dict[str, Any]:
+    store = _store()
+    await store.apply_schema()
+    result = await answer_question(
+        store,
+        await _ready(),
+        _model(str(body.tenant_id)),
+        tenant_id=str(body.tenant_id),
+        home_region=body.home_region,
+        box_region=_box_region(),
+        jurisdiction=body.jurisdiction,
+        question=body.question,
+        passages=body.passages,
+        features=body.features,
+        matter_id=str(body.matter_id) if body.matter_id else None,
+        provider=body.provider,
+        tank=app.state.tank,
+    )
+    if result.get("reason") == "could not verify":
+        return result
+    _fail(result)
+    return result
+
+
+class ReviewSwitchIn(BaseModel):
+    home_region: str
+    review: str
+
+
+@app.get("/review-switch")
+async def get_review_switch(home_region: str) -> dict[str, Any]:
+    ladder = await _ready()
+    from agents.zenas.core.review_switch import review_required
+
+    box = _box_region()
+    if home_region != box:
+        raise HTTPException(status_code=403, detail="wrong region")
+    on = await review_required(ladder, region=box)
+    return {"ok": True, "region": box, "review": "on" if on else "off"}
+
+
+@app.post("/review-switch")
+async def post_review_switch(body: ReviewSwitchIn) -> dict[str, Any]:
+    ladder = await _ready()
+    box = _box_region()
+    if body.home_region != box:
+        raise HTTPException(status_code=403, detail="wrong region")
+    if body.review not in ("on", "off"):
+        raise HTTPException(status_code=422, detail="review is on or off")
+    await ladder.set_review(region=box, review=body.review)
+    return {"ok": True, "region": box, "review": body.review}
+
+
+@app.get("/selftest")
+async def get_selftest(home_region: str) -> dict[str, Any]:
+    ladder = await _ready()
+    box = _box_region()
+    if home_region != box:
+        raise HTTPException(status_code=403, detail="wrong region")
+    return await list_scores(ladder, region=box)
+
+
+@app.post("/selftest")
+async def post_selftest(home_region: str) -> dict[str, Any]:
+    ladder = await _ready()
+    box = _box_region()
+    if home_region != box:
+        raise HTTPException(status_code=403, detail="wrong region")
+    return await run_selftest(ladder, region=box)
 
 
 @app.get("/ladder/metrics")

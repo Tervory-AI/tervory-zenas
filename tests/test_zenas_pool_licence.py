@@ -28,8 +28,6 @@ def test_every_catalogue_source_has_terms():
 
 def test_terms_are_information_and_enabled_is_the_only_switch():
     recorded = {
-        "uncitral-cisg",
-        "uncitral-model-law",
         "ali-ucc-official",
         "icc-incoterms",
         "wco-hs-notes",

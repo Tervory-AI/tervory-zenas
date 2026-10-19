@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 import json
 import os
-import urllib.request
 from datetime import date, datetime, timezone
 from pathlib import Path
 
@@ -38,15 +37,9 @@ def packaged_snapshots(region: str) -> dict[str, list[bytes]]:
 
 async def urllib_get(url: str, headers: dict[str, str]) -> bytes:
     """Public government URLs only. Never put a key in the URL."""
-    if "api_key=" in url or "token=" in url.lower():
-        raise FetchNotConfigured("refusing a URL that contains a credential")
+    from agents.zenas.pool.http import urllib_get as _get
 
-    def _read() -> bytes:
-        request = urllib.request.Request(url, headers=headers)
-        with urllib.request.urlopen(request, timeout=60) as response:
-            return response.read()
-
-    return await asyncio.to_thread(_read)
+    return await _get(url, headers)
 
 
 async def run_nightly(
@@ -212,6 +205,12 @@ async def _main() -> None:
             )
         else:
             report = await run_nightly(store, live=True)
+        try:
+            from agents.zenas.core.selftest import run_scheduled
+
+            await run_scheduled(conn, region=current_region())
+        except Exception:
+            pass
     finally:
         await conn.close()
     print(json.dumps(report, indent=2, default=str))

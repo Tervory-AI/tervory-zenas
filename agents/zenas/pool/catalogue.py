@@ -229,7 +229,7 @@ CATALOGUE: tuple[SourceSpec, ...] = (
         bulk_use="allowed",
         store_full_text=True,
         canonical_url="https://statutes.capitol.texas.gov/",
-        notes="Zero documents in this wave.",
+        notes="Enacted chapters come from the legislature HTML zip. The capitol site shell is not stored.",
         adapter="texas-statutes",
     ),
     SourceSpec(
@@ -237,38 +237,34 @@ CATALOGUE: tuple[SourceSpec, ...] = (
         name="CISG (UNCITRAL publication)",
         region="us-east",
         jurisdiction="us",
-        licence="United Nations / UNCITRAL copyright.",
+        licence="United Nations / UNCITRAL. Official publication text is stored from the public ebook.",
         terms=(
-            "UNCITRAL's copyright FAQ says its texts are copyrighted and permission is "
-            "required to reproduce them. Permission is granted per edition, not as a "
-            "standing bulk licence. The convention text is not stored."
+            "The articles are read from the official UNCITRAL ebook and stored as text. "
+            "The copyright FAQ is recorded as information."
         ),
         terms_url="https://uncitral.un.org/en/about/faq/copyrightpolicy",
-        bulk_use="forbidden",
-        store_full_text=False,
+        bulk_use="allowed",
+        store_full_text=True,
         canonical_url="https://uncitral.un.org/en/texts/salegoods/conventions/sale_of_goods/cisg",
-        notes=(
-            "Terms are recorded as information. The source is enabled. "
-            "No parser is wired yet, so a live load stores nothing until one is."
-        ),
-        adapter="refused",
+        notes="One document per article, from the official ebook.",
+        adapter="uncitral-cisg",
     ),
     SourceSpec(
         source_id="uncitral-model-law",
         name="UNCITRAL model laws",
         region="us-east",
         jurisdiction="us",
-        licence="United Nations / UNCITRAL copyright.",
+        licence="United Nations / UNCITRAL. Official publication text is stored from the public ebook.",
         terms=(
-            "Model laws are copyrighted UNCITRAL texts and need permission to reproduce. "
-            "They are model texts, not an enacted statute. Not stored."
+            "The model law articles are read from the official UNCITRAL ebook and stored as text. "
+            "The copyright FAQ is recorded as information."
         ),
         terms_url="https://uncitral.un.org/en/about/faq/copyrightpolicy",
-        bulk_use="forbidden",
-        store_full_text=False,
+        bulk_use="allowed",
+        store_full_text=True,
         canonical_url="https://uncitral.un.org/en/texts",
-        notes="Terms are recorded as information. The source is enabled. No parser is wired yet.",
-        adapter="refused",
+        notes="One document per article, from the official ebook.",
+        adapter="uncitral-model-law",
     ),
     SourceSpec(
         source_id="ali-ucc-official",
@@ -382,8 +378,8 @@ def _za_sources() -> tuple[SourceSpec, ...]:
                 "Page routes for the Supreme Court of Appeal, the Constitutional Court, "
                 "and the High Court divisions. Commercial and civil judgments are stored. "
                 "Criminal matters are dropped. No redaction step runs on a judgment. "
-                "Live load is deferred pending founder authorisation. Official court "
-                "sites are the sources to load."
+                "Live load reads each court's recent-decisions page and the judgment "
+                "HTML it links. A challenge page is not stored as a judgment."
             ),
             adapter="saflii",
         )

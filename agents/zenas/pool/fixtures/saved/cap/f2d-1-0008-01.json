@@ -1,0 +1,89 @@
+{
+  "id": 1284330,
+  "name": "PATMORE v. UNITED STATES",
+  "name_abbreviation": "Patmore v. United States",
+  "decision_date": "1924-07-02",
+  "docket_number": "No. 3980",
+  "first_page": "8",
+  "last_page": "10",
+  "citations": [
+    {
+      "type": "official",
+      "cite": "1 F.2d 8"
+    }
+  ],
+  "court": {
+    "name_abbreviation": "6th Cir.",
+    "id": 8864,
+    "name": "United States Court of Appeals for the Sixth Circuit"
+  },
+  "jurisdiction": {
+    "id": 39,
+    "name_long": "United States",
+    "name": "U.S."
+  },
+  "cites_to": [
+    {
+      "cite": "139 N. E. 562",
+      "category": "reporters:state_regional",
+      "reporter": "N.E.",
+      "opinion_index": 0
+    },
+    {
+      "cite": "235 N. Y. 421",
+      "category": "reporters:state",
+      "reporter": "N.Y.",
+      "case_ids": [
+        1900070,
+        1226135
+      ],
+      "opinion_index": 0,
+      "case_paths": [
+        "/ny/235/0421-01",
+        "/ny-crim/40/0381-01"
+      ]
+    }
+  ],
+  "analysis": {
+    "cardinality": 639,
+    "char_count": 13059,
+    "ocr_confidence": 0.364,
+    "pagerank": {
+      "raw": 2.7830631632491627e-07,
+      "percentile": 0.8353245691158055
+    },
+    "sha256": "fd479eb6a2d185c769a39e8c241f8b8d27dea2693053d5506ca204c6d81b12c6",
+    "simhash": "1:c2c444851781a54b",
+    "word_count": 2215
+  },
+  "last_updated": "2024-02-27T17:41:42.957875+00:00",
+  "provenance": {
+    "date_added": "2019-08-29",
+    "source": "Harvard",
+    "batch": "2018"
+  },
+  "casebody": {
+    "judges": [
+      "Before DENISON, MACK, and DONAHUE, Circuit Judges."
+    ],
+    "parties": [
+      "PATMORE v. UNITED STATES."
+    ],
+    "opinions": [
+      {
+        "text": "PER CURIAM.\nPatmore was convicted of feloniously taking and carrying away personal property alleged to belong to the United States by virtue of seizures made under the National Prohibition Act (Comp. St. Ann. Supp. 1923, \u00a7 10138% et seq.). Error is assigned on the ground that the property taken did not belong to the United States within the meaning of section 46 of the Criminal Code (Comp. St. \u00a7 10213), under which the indictment was found.\nThe testimony shows that on March 4, 1922, two federal prohibition agents, accompanied by a deputy sheriff of Shelby county, Tenn., went to the home of Patmore\u2019s father in Shelby county, about 12 miles from Memphis. Apparently suspecting that a still was concealed in the basement of the house, the deputy sheriff went thence to a nearby justice of the peace, obtained a warrant to search the basement, found therein and seized a still and boiler, and delivered them to the federal agents. The latter, without a search warrant found and seized another still and boiler in a dugout 200 or 300 yards in front of and across the road from the house. A Ford sedan, with 100 pounds of sugar in it, apparently intended for use in the making of illicit liquor, was found and seized in a garage near the house. Everything not already in the possession of the federal agents was turned ov.er to them by the deputy sheriff, and all the property taken was placed by them on a hired Ford truck. The deputy sheriff was asked by the federal agents to deliver it at the federal prohibition office in Memphis. While the deputy sheriff was proceeding to Memphis in the Ford sedan, following closely behind the hired truck, he was held up by the plaintiff in error with a shotgun and all the property seized was taken away from him.\nThe question thus presented is whether any pg;rt of the property feloniously taken by the plaintiff in error \u201cbelonged\u201d to the United States within the meaning of section 46 of the Criminal Code. It is clear from the record that the property in the dugout was actually seized by and came into the possession of the federal agents as such, whatever may be said of the property in the basement taken under the state search warrant, or the automobile and sugar in the seizure of which the deputy sheriff, either in that capacity or as assistant to the federal agents, or both, participated. At least that part, of the property which the federal agents seized and personally placed on the truck was not put into the possession, but solely into the custody, of the deputy sheriff, for the purpose of transporting it to the federal bureau in town. Therefore whatever property or possessory rights in any of the property the federal government had acquired through the seizure by the federal agents would continue during the temporary custody thereof by the deputy sheriff.\nThe question then narrows itself down to whether or not property, after lawful seizure under the National Prohibition Act and while in the possession of the United States through its agents, is property belonging to the United States within the meaning of the statute in question. While in the light of the pertinent sections of the National Prohibition Act the United States clearly did acquire possession o\u00ed and certain rights in at least some o\u00ed this property, tlie majority of the court are o\u00ed the opinion that none of it in any true sense \u2018\u2022belonged\u201d to the United States. The liquor ancl property seized under section 25 is subject to such disposition as the court may make thereof. If they are found to have been unlawfully held, the liquor and property designed for the manufacture thereof are to be destroyed, unless the court otherwise directs. Under ll\u00edese and subsequent provisions of the National Prohibition Act, it appears that some adjudication subsequent to seizure is to be made before the property -becomes forfeited to the United States, so that, regardless of whether or not after such adjudication imposing the duty of destroying the property upon the government, the property may he regarded as belonging to the United States, it cannot be ho considered prior to snob adjudication. Property so seized no more belongs to the United States than property taken on execution or attachment by the sheriff belongs to the creditor. The government, like an attaching or execution creditor, has a substantial interest in tlie property seized, with the right so to have it dealt with that the government ultimately may become (\u2018\u00abtitled, under sections 2<i and 27, to the property or to the proceeds thereof, or to have it destroyed ; this interest and right fall far short, however, of the ownership implied in the phrase \u201cbelonging io the United (States.\u201d\nCongress undoubtedly has jurisdiction to punish an interference with the possession, or even the custody, by the United 'States, through its agents, of property, whether that property belongs to another or to itself, or, like liquor, subject to forfeiture, belongs in a sense to no one (see People v. Otis, 235 N. Y. 421, 139 N. E. 562); statutes for 'the protection of the mails and of the express while under government control so operate; so, too, section 65 of the Penal Code (Comp. St. \u00a7 10233). But both the text and the legislative history of section 46 indicate that it did not aim to protect government possession, but government property. This section was originally enacted on March 2, 1867. The Senate amendment, limiting the offense to a robbery or larceny from another \u201clawfully in the custody thereof,\u201d was stricken out in conference. Congressional Globe, 39th Cong. 2d Sess. pt. 2, pp. 1246, 1977. Therefore it suffices, but it is also essential, that the property \u201cbelongs\u201d to the United States; whether the custodian holds it lawfully for, or unlawfully, as by theft, from the government, is immaterial.\nReversed and remanded.\n\u201cWhoever shall rob another of any kind or description of personal property belonging to the United States, or shall feloniously take and carry away the same, shall be fined not more than five thousand dollars, or imprisoned not more than ten years, or both.\u201d\n\u201cTitle IL\n\u201cProhibition o\u00ed Intoxicating Beverages.\n\u201cSec. 25. It shall be unlawful to have or possess any liquor or property designed for the manufacture of liquor intended for use In violating this title or which has been so used, and no property rights shall exist in any such liquor or property. A search warrant may issue as provided in tille XI of public law numbered 2-1 of the Sixty-Fifth Congress, approved June '15, 1917, and such liquor, the containers thereof, and such property so seized shall be subject to such disposition as the court may make thereof. If it is found that such liquor or property was so unlawfully held or possessed, or had been so unlawfully used, the liquor, and all property designed for the unlawful manufacture of liquor, shall be destroyed, unless the court shall otherwise order. No search warrant shall issue to search any private dwelling occupied as such unless it is being used for the unlawful sale of intoxicating liquor, or unless it is in part used for some business purpose such as a store, shop, saloon, restaurant, hotel, or boarding house. The term \u2018private dwelling\u2019 shall be construed to include the room or rooms used and occupied not transiently but solely as a residence in an apartment house, hotel, or boarding house. The property seized on any such warrant shall not be taken from the officer seizing the same on siny writ of replevin or other like process.\n\u201cSee. 26. When the commissioner, Ills assistants, inspectors, or any officer of the law shall discover any person in the act of transporting in violation of the law, intoxicating liquors in any wagon, buggy, automobile, wafer or air craft, or oilier vehicle, it shall be his duty to seize any and ail intoxicating liquors found therein being transported contrary to law. Whenever intoxicating liquors transported or possessed illegally shall be seized by an officer he shall take possession of the vehicle and team or automobile, boat, air or water craft, or any other conveyance, and shall arrest any person in charge thereof. Huc-h officer shall at once proceed against the person arrested under the provisions of this title in any courc having competent jurisdiction; but the said vehicle or conveyance shall be returned to the owner upon execution by him of a good and valid bond, with sufficient sureties, in a sum double the value of the property, which said bond shall be approved bv said officer and shall be conditioned to return said property to the custody of said officer on the day of trial to abide \u00a1he judgment of ilie court. 'The court upon conviction of the person, so arrested shall order the liquor destroyed, and unless good cause to the contrary is shown by the owner, shall order a sale by public auction of the property seized, and the officer making the sale, after deducting the expenses of keeping the properly, the foe for the seizure, and the cost of the sale, shall pay all liens, according to their priorities, which are established, by intervention or otherwise at said hearing or in other proceeding brought for said purpose, as being bona fide and as having been created without the lienor having any notice that the carrying vehicle was being used or was to be used for illegal transportation of liquor, and shall pay the balance of tlie proceeds into the treasury of the United Hfat.es as miscellaneous receipts. All liens against property sold under the provisions of this section shall be transferred from the properly to the proceeds of tlie sale of the properly. If however, no one shall be found claiming the team, vehicle, water or air craft, or automobile, the taking of the same, with a description thereof, shall be advertised in some newspaper published in the city or county where taken or if there be no newspaper published in such city or county, in a newspaper having circulation in the county, once a week for two weeks and by handbills posted in three public places near the place of seizure, and if no claimant shall appear within ten days after the last publication of the advertisement, the property shall be sold and the proceeds after deducting the expenses and costs shall be paid into the treasury of the United States as miscellaneous receipts.\n\u201cHee. 27. In all eases in which intoxicating liquors maybe subject to be destroyed under the provisions of this act the court shall have jurisdiction upon the application of the United Htales attorney to order them delivered to any department or agency of the United States government for medicinal, mechanical, or scientific uses, or to order the same sold at private sale for such purposes to any person having- a permit to purchase liquor the proceeds to be covered into the treasury of the United States to. the credit of miscellaneous receipts, and all liquor heretofore seized in any suit or proceeding brought for violation of. law may likewise be so disposed of, if not claimed within sixty days from the \u2022 date this section .takes effect.\u201d\nComp. Sf. Ann. Hupp. 1923, \u00a7\u00a7 10138 {\u00bfm, 103 38\u2018/\u00bfnnn, 10138%n.\n\u201cSec. 65. Whoever shall forcibly assault, * ** * impede, or interfere with * * * any person authorized to make searches and seizures, * * * or shall rescue, * * * any property which has been seized by any person so authorized; * * * shall be fined not more than two thousand dollars, or imprisoned not more than one year, or both; and whoever shall use any deadly or dangerous weapon in resisting any person authorized to make searches or seizures, in the execution of his duty, with intent to commit a bodily injury upon him or to deter or prevent him from discharging his duty, shall be imprisoned not more than ten years.\u201d",
+        "type": "majority",
+        "author": "PER CURIAM."
+      }
+    ],
+    "attorneys": [
+      "D. B. Sweeney, of Memphis, Tenn., for plaintiff in error.",
+      "W. H. Fisher, Asst. U. S. Atty., of Memphis, Tenn. (S. E. Murray, U. S. Atty.,_ and A. A. Hornsby, Asst. U. S. Atty., both of Memphis, Tenn., on the brief), for the United States."
+    ],
+    "corrections": "",
+    "head_matter": "PATMORE v. UNITED STATES.\n(Circuit Court of Appeals, Sixth Circuit.\nJuly 2, 1924.)\nNo. 3980.\nLarceny <g=57 \u2014 Property seized by prohibition agents not property \u201cbelonging to the United States.\u201d\nProperty seized by prohibition agents as being used in the manufacture of liquor, in violation of Prohibition Act (Comp. St. Ann. Supp. 1923, \u00a7 10138% et seq.), and in their possession before it has been condemned and its disposition determined by the court, is not \u201cproperty belonging to the United States,\u201d within Criminal Code, \u00a7 46 (Comp. St. \u00a7 10213), making it an offense feloniously to take and carry away \u201cpersonal property belonging to the United States.\u201d\n[Ed. Note. \u2014 For other definitions, see Words and Phrases, First and Second Series, Belong\u2014 Belonging.]\nIn Error to the District Court o\u00a3 the United States for the Western District of Tennessee; J. W. Ross, Judge.\nCriminal prosecution by the United States against P. G. Patmore. Judgment of conviction and defendant brings error.\nReversed and remanded.\nD. B. Sweeney, of Memphis, Tenn., for plaintiff in error.\nW. H. Fisher, Asst. U. S. Atty., of Memphis, Tenn. (S. E. Murray, U. S. Atty.,_ and A. A. Hornsby, Asst. U. S. Atty., both of Memphis, Tenn., on the brief), for the United States.\nBefore DENISON, MACK, and DONAHUE, Circuit Judges."
+  },
+  "file_name": "0008-01",
+  "first_page_order": 30,
+  "last_page_order": 32
+}

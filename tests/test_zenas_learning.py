@@ -62,9 +62,7 @@ _PLAN_NAMES = (
     "UCC Articles 1, 2 and 9",
 )
 
-_NOT_CLEARED = frozenset(
-    {"uncitral-cisg", "uncitral-model-law", "local-rules", "ali-ucc-official"}
-)
+_NOT_CLEARED = frozenset({"local-rules", "ali-ucc-official"})
 
 
 def _create_body(sql: str, table: str) -> str:
@@ -154,7 +152,8 @@ def test_us_sources_match_the_plan_and_are_not_downloaded() -> None:
         download_corpus(local)
     model = next(row for row in rows if row.source_id == "uncitral-model-law")
     official = next(row for row in rows if row.source_id == "ali-ucc-official")
-    assert "not stored" in model.licence.lower()
+    assert model.terms_status == "cleared"
+    assert "ebook" in model.licence.lower()
     assert "not stored" in official.licence.lower()
     assert SOUTH_AFRICA_HOST is None
 

@@ -1,0 +1,278 @@
+{
+  "id": 1284783,
+  "name": "Petition of McLAUCHLAN. In re HERSEY",
+  "name_abbreviation": "In re McLauchlan",
+  "decision_date": "1924-07-18",
+  "docket_number": "No. 1701",
+  "first_page": "5",
+  "last_page": "7",
+  "citations": [
+    {
+      "type": "official",
+      "cite": "1 F.2d 5"
+    }
+  ],
+  "court": {
+    "name_abbreviation": "1st Cir.",
+    "id": 8809,
+    "name": "United States Court of Appeals for the First Circuit"
+  },
+  "jurisdiction": {
+    "id": 39,
+    "name_long": "United States",
+    "name": "U.S."
+  },
+  "cites_to": [
+    {
+      "cite": "13 Gray, 586",
+      "category": "reporters:state",
+      "reporter": "Gray",
+      "case_ids": [
+        2087765
+      ],
+      "pin_cites": [
+        {
+          "page": "590"
+        }
+      ],
+      "opinion_index": 0,
+      "case_paths": [
+        "/mass/79/0586-01"
+      ]
+    },
+    {
+      "cite": "119 N. E. 321",
+      "category": "reporters:state_regional",
+      "reporter": "N.E.",
+      "opinion_index": 0
+    },
+    {
+      "cite": "229 Mass. 594",
+      "category": "reporters:state",
+      "reporter": "Mass.",
+      "case_ids": [
+        3455613
+      ],
+      "pin_cites": [
+        {
+          "page": "597"
+        }
+      ],
+      "opinion_index": 0,
+      "case_paths": [
+        "/mass/229/0594-01"
+      ]
+    },
+    {
+      "cite": "69 Am. Dec. 69",
+      "category": "reporters:federal",
+      "reporter": "Am. Dec.",
+      "opinion_index": 0
+    },
+    {
+      "cite": "43 Me. 406",
+      "category": "reporters:state",
+      "reporter": "Me.",
+      "case_ids": [
+        667456
+      ],
+      "pin_cites": [
+        {
+          "page": "418"
+        }
+      ],
+      "opinion_index": 0,
+      "case_paths": [
+        "/me/43/0406-01"
+      ]
+    },
+    {
+      "cite": "62 C. C. A. 403",
+      "category": "reporters:federal",
+      "reporter": "C.C.A.",
+      "pin_cites": [
+        {
+          "page": "405"
+        }
+      ],
+      "opinion_index": 0
+    },
+    {
+      "cite": "127 Fed. 677",
+      "category": "reporters:federal",
+      "reporter": "F.",
+      "case_ids": [
+        3846733
+      ],
+      "pin_cites": [
+        {
+          "page": "679"
+        }
+      ],
+      "opinion_index": 0,
+      "case_paths": [
+        "/f/127/0677-01"
+      ]
+    },
+    {
+      "cite": "72 N. E. 951",
+      "category": "reporters:state_regional",
+      "reporter": "N.E.",
+      "opinion_index": 0
+    },
+    {
+      "cite": "187 Mass. 168",
+      "category": "reporters:state",
+      "reporter": "Mass.",
+      "case_ids": [
+        833834
+      ],
+      "opinion_index": 0,
+      "case_paths": [
+        "/mass/187/0168-01"
+      ]
+    },
+    {
+      "cite": "67 N. E. 250",
+      "category": "reporters:state_regional",
+      "reporter": "N.E.",
+      "opinion_index": 0
+    },
+    {
+      "cite": "183 Mass. 314",
+      "category": "reporters:state",
+      "reporter": "Mass.",
+      "case_ids": [
+        822483
+      ],
+      "opinion_index": 0,
+      "case_paths": [
+        "/mass/183/0314-01"
+      ]
+    },
+    {
+      "cite": "148 Mass. 181",
+      "category": "reporters:state",
+      "reporter": "Mass.",
+      "case_ids": [
+        776264
+      ],
+      "opinion_index": 0,
+      "case_paths": [
+        "/mass/148/0181-01"
+      ]
+    },
+    {
+      "cite": "161 Mass. 508",
+      "category": "reporters:state",
+      "reporter": "Mass.",
+      "case_ids": [
+        797103
+      ],
+      "opinion_index": 0,
+      "case_paths": [
+        "/mass/161/0508-01"
+      ]
+    },
+    {
+      "cite": "115 Mass. 438",
+      "category": "reporters:state",
+      "reporter": "Mass.",
+      "case_ids": [
+        718144
+      ],
+      "pin_cites": [
+        {
+          "page": "447"
+        }
+      ],
+      "opinion_index": 0,
+      "case_paths": [
+        "/mass/115/0438-01"
+      ]
+    },
+    {
+      "cite": "98 Mass. 158",
+      "category": "reporters:state",
+      "reporter": "Mass.",
+      "case_ids": [
+        710736
+      ],
+      "pin_cites": [
+        {
+          "page": "159"
+        }
+      ],
+      "opinion_index": 0,
+      "case_paths": [
+        "/mass/98/0158-01"
+      ]
+    },
+    {
+      "cite": "43 N. E. 106",
+      "category": "reporters:state_regional",
+      "reporter": "N.E.",
+      "opinion_index": 0
+    },
+    {
+      "cite": "165 Mass. 251",
+      "category": "reporters:state",
+      "reporter": "Mass.",
+      "case_ids": [
+        817545
+      ],
+      "opinion_index": 0,
+      "case_paths": [
+        "/mass/165/0251-01"
+      ]
+    },
+    {
+      "cite": "143 N. E. 321",
+      "category": "reporters:state_regional",
+      "reporter": "N.E.",
+      "opinion_index": 0
+    }
+  ],
+  "analysis": {
+    "cardinality": 531,
+    "char_count": 10469,
+    "ocr_confidence": 0.401,
+    "pagerank": {
+      "raw": 2.704919243514478e-07,
+      "percentile": 0.8288012158237796
+    },
+    "sha256": "c2b7ca948ee17dbd1d22f28b1d3e2fd164808239c016c11adbb91b34a432f2a8",
+    "simhash": "1:3be7f0ef9efa4df7",
+    "word_count": 1806
+  },
+  "last_updated": "2024-02-27T17:41:42.957875+00:00",
+  "provenance": {
+    "date_added": "2019-08-29",
+    "source": "Harvard",
+    "batch": "2018"
+  },
+  "casebody": {
+    "judges": [
+      "Before BINGHAM, JOHNSON, and AN \u25a0 DERSON, Circuit Judges."
+    ],
+    "parties": [
+      "Petition of McLAUCHLAN. In re HERSEY."
+    ],
+    "opinions": [
+      {
+        "text": "JOHNSON, Circuit Judge.\nThis is a petition to revise in matter of law the order of the District Court of the United States for the District of Massachusetts denying the claim of the petitioner as mortgagee under a mortgage given by the bankrupt to her.\nThe bankrupt conducted a hardware store at 459 Blue Hill avenue in the city of Boston in June, 1922, and some time during that month the referee found that he, with his wife and daughter, \u201cwent from Boston to Assinippi with the intention of shortly returning\u201d ; that his household goods were stored in a warehouse, and he took with him to Assinippi two beds and bedding and a little other furniture. Assinippi is a village in the town of Hanover in the state of Massachusetts. He further found that on July 1, 1922, bankrupt gave a mortgage to the petitioner of the stock and fixtures in his hardware store in Boston to secure a debt of $4,-300 which.he owed to the petitioner; that this mortgage was seasonably recorded upon the records of the city of Boston, but was never recorded on the records of the town of Hanover; that the bankrupt continued to carry on his hardware business in the city of Boston until after said mortgage was recorded, and at the time of its record had no intention of retiring from said business or filing a petition in bankruptcy; and that the amount for which the mortgage was given was actually owed by the bankrupt to the mortgagee.\nSection 1, c. 255, G. L. of Massachusetts, is in part as follows:\n\u201cSection 1, Mortgages of personal property shall, within fifteen days from the date written in the mortgage, be recorded on the records of the town where the mortgagor resides when the mortgage is made, and on the records of the town where he then principally transacts his business. * * *\n\u201cThe mortgage shall not be valid against a person other than the parties thereto until so recorded; and a record made subsequently to the time limited shall be void.\u201d\nThe validity of the mortgage is attacked because it was iiot recorded in the town of Hanover, as well as in the city of Boston.\nOn December 22, 1922, the bankrupt filed a petition in bankruptcy and was adjudged a bankrupt on the same day. In both the mortgage and petition in bankruptcy the bankrupt described himself as of Boston, in the county of Suffolk, state of Massachusetts.\nIn his certificate the referee reports .that in the petition the residence of the bankrupt is stated as Assinippi; but the copy of the petition in the record discloses that he is in error. The statement as to residence by the mortgagor in the mortgage is, however, immaterial, and at best furnishes but prima facie evidence as to residence whieh may be easily overturned.\nNo decision of the Supreme Court of Massachusetts has been cited by counsel upon either side in whieh the word \u201cresides,\u201d as used in this statute, has been construed.\nOur attention has been called by counsel to Alexander, Trustee, v. F. L. Smithe Mach. Co., 143 N. E. 321, opinion in which >vas handed down by the Supreme Judicial Court of Massachusetts on April 9, 1924, in whieh the court held that where the mortgagor had his principal place of business in Boston and his residence in Chelsea and the mortgage was recorded only- in Boston, it was invalid as against the trustee in bankruptcy of the mortgagor. But in that case there was no claim that the residence of the mortgagor was elsewhere than in Chelsea.\nWhether the mortgage was legally recorded or not depends upon the construction of the word \u201cresides,\u201d as used in the statute.\nIn Stoughton v. Cambridge, 165 Mass. 251, 43 N. E. 106, in which a pauper settlement was under consideration, the court said:\n\u201cThe word 'residence\u2019 is used in different senses. Generally, in the laws \u2022 relating to taxation, voting, and settlement, it means the same as domicile. Usually it means the same in the law of divorce (Shaw v. Shaw, 98 Mass. 158, 159), though with a well-recognized exception (Burlen v. Shannon, 115 Mass. 438, 447. Burtis v. Burtis, 161 Mass. 508). For the purpose of giving notice to an indorser, his place of residence implies less permanency of abode. Wachusett National Bank v. Fairbrother, 148 Mass. 181.\u201d\nConsidering that the purpose of the statute is to give notice to creditors of any mortgage upon personal property, we think that the word \u201cresides,\u201d as used in the statute, means to have a home; and this includes, not only physical presence in a place, but also the accompanying intent of choosing that plaee as a permanent residence. Phillips v. City of Boston, 183 Mass. 314, 67 N. E. 250; Barron v. Boston, 187 Mass. 168, 72 N. E. 951.\nA man may have several plaees of residence, but he can have but one permanent residence. He may have his permanent residence in the city, and he may have several residences in the country, to which he goes at different seasons of the year; but a mortgage given by him of his personal property must be recorded, under the statute, in the place where he has his permanent residence. It is there that creditors would look to ascertain if he had mortgaged any part of his personal property.\nNo better definition has been given of \u201cresidence\u201d than that given by Circuit Judge Jenkins in Re Carneau, 127 Fed. 677, 679, 62 C. C. A. 403, 405, where the court said:\n\u201cResidence has been defined io he a place where a person\u2019s habitation is fixed, without any present intention of removing therefrom. It is lost by leaving the plaee where one has acquired a permanent home and removing, to another plaee animo non revertendi, and is gained by remaining in such new place animo manendi. ' \u2019 \u2019 The term is an (hastie one, and difficult of precise definition. The sense in which it should be used is controlled by reference io the object. Its meaning is dependent upon the circumstances then surrounding the person, upon the character of the work to he performed, upon whether ho has a family or a home in another place, and largely upon his present intention.\u201d\nIn Inhabitants of Warren v. Inhabitants of Thomaston, 43 Me. 406, 418 (69 Am. Dec. 69), in construing the word \u201creside,\u201d the court said:\n\u201cWhen, however, a person voluntarily takes up his abode in a given plaee, with intention to remain permanently, or for an indefinite period of time, or, to speak more accurately, when a person takes np his abode in a given place, without any present intention to remove therefrom, such place of abode becomes his residence or home, and will continue to be his residence or home, notwithstanding temporary personal absences, until he shall depart with intention to abandon such home.\u201d\nTo effectuate the purpose of the statute the word \u201creside\u201d must be construed as meaning the mortgagor\u2019s permanent place of abode, and not the place where he may be temporarily living.\nUnfortunately we have not the benefit of all the testimony taken before the referee, which presumptively included the statements of the mortgagor; but we do have the statement of the referee that, when the mortgagor went from Boston to Assinippi, he went \u201cwith the intention of shortly returning.\u201d\nIn White v. Stowell, 229 Mass. 594, 597, 119 N. E. 321, the court said:\n\u201c\"\u2018A person cannot be said to lose his domicile or residence by leaving it with an uncertain, indefinite, half-formed purpose to take up his residence elsewhere. * v * Until his purpose to remain had become fixed, he could not he said to have abandoned his former residence.\u2019 Worcester v. Wilbraham, 13 Gray, 586, 590.\u201d\nAccepting this finding of the referee as sustained by the testimony taken before him, the mortgagor did not lose his residence in Boston by moving, with his wife and child, for a temporary purpose only, to Hanover. Boston being the plaee where the mortgagor had his principal place of business and also his residence, the record of the mortgage there was a legal compliance with the statute.\nIt is further contended that the mortgage is invalid because it does not contain the usual clause applicable to after-acquired property. The referee has found that the amount for which the mortgage was given was actually owed by the bankrupt to the mortgagee. While the mortgage would not cover- property acquired by the mortgagor after its date, yet it covered the stock in the mortgagor\u2019s store at the time it was given, as well as the fixtures described therein, and was a valid mortgage of so much of the bankrupt\u2019s stock as was then there and of the enumerated fixtures.\nThere is no presumption of fraud in giving such a mortgage, and none has been found by the referee.\nThe order of the District Court is reversed, and the order of the referee declaring-the mortgage valid is affirmed; petitioner to recover costs in this court.",
+        "type": "majority",
+        "author": "JOHNSON, Circuit Judge."
+      }
+    ],
+    "attorneys": [
+      "John G. Brackett, of Boston, Mass., for petitioner.",
+      "Joseph B. Jacobs, of Boston, Mass. (Jacobs & Jacobs, of Boston, Mass., on the brief), for respondent."
+    ],
+    "corrections": "",
+    "head_matter": "Petition of McLAUCHLAN. In re HERSEY.\n(Circuit Court of Appeals, First Circuit.\nJuly 18, 1924.)\nNo. 1701.\n1. Chattel mortgages <\u00a7=>87 \u2014 Place of recording; \u201cresides.\u201d\nIn (x. L. Mass. c. 255, \u00a7 1, requiring chat-tot mortgages to be recorded in the town where the mortgagor resides when the mortgage is made and also in the town where he then principally transacts his business, the word \u201cresides\u201d means the place of his permanent abode, and not the place where he may be temporarily living.\n| Ed. Note. \u2014 For other definitions, see Words and Phrases, First and Second Series, Reside.]\n2. Chattel mortgages <@=87 \u2014 Mortgage held properly recorded under law of Massaohusetis.\nA chattel mortgage made by a bankrupt, whose x>lae.e of business and permanent residence was in Boston, where the. mortgage was recorded, held not invalid, under the law of Massachusetts, because it was not also recorded in the town where bankrupt was living temporarily when it was made.\n3. Chattel mortgages <@=50 \u2014 Not invalid because of omission of after-acquired property clause.\nA chattel mortgage on a stock of merchandise given to secure a bona fide indebtedness is not invalid because it does not contain a clause covering after-acquired property, but is valid as to the goods in stock when it was made.\nPetition to Revise in Matter of Law Proceedings of the District Court of the United States for the District of Massachusetts.\nIn the matter of Isaac B. Hersey, bankrupt. On petition of Nellie McLauehlan to revise an order of the District Court.\nReversed, and order of referee affirmed.\nJohn G. Brackett, of Boston, Mass., for petitioner.\nJoseph B. Jacobs, of Boston, Mass. (Jacobs & Jacobs, of Boston, Mass., on the brief), for respondent.\nBefore BINGHAM, JOHNSON, and AN \u25a0 DERSON, Circuit Judges."
+  },
+  "file_name": "0005-01",
+  "first_page_order": 27,
+  "last_page_order": 29
+}

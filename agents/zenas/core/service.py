@@ -41,7 +41,9 @@ from agents.zenas.core.docx_redline import docx_bytes
 from agents.zenas.core.drafting import TEMPLATES, assemble_draft, select_prior
 from agents.zenas.core.matters import consider
 from agents.zenas.core.review import review_positions
+from agents.zenas.core.review_switch import card_servable, review_required
 from agents.zenas.core.scope_rules import NOT_YET, REFUSED, classify, ruled
+from agents.zenas.core.selftest import is_holdout
 
 _RULE_PROMPT = """Build a rule card from these passages only. Reply with JSON:
 {{"elements":[{{"id":"","test":"","citation":"","quote":""}}],"exceptions":[],"defences":[],"remedies":[],"decision_table":[]}}
@@ -165,7 +167,8 @@ def _public_card(card: dict[str, Any]) -> dict[str, Any]:
         "remedies": card.get("remedies") or [],
         "sources": card.get("sources") or [],
         "as_at": card.get("as_at"),
-        "status": card.get("status"),
+        "status": "active" if card.get("active") and card.get("status") == "draft" else card.get("status"),
+        "active": bool(card.get("active")),
         "approved_by": card.get("approved_by"),
         "model_used": card.get("model_used"),
         "cost_usd": float(card.get("cost_usd") or 0),
@@ -360,6 +363,7 @@ async def build_rule_card(
             "sources": built["sources"],
             "as_at": as_at,
             "status": "draft",
+            "active": bool(built["cite"]["passed"]) and not await review_required(ladder, region=box),
             "model_used": called["result"]["model"],
             "cost_usd": cost,
             "decision_table": built["decision_table"],
@@ -527,6 +531,7 @@ async def extract_case_facts(
         return _refuse("the model did not return case facts")
     cost = float(called["result"]["cost_usd"])
     published = judgment
+    held = is_holdout(pool_doc_id)
     worked = await ladder.add_worked(
         {
             "region": box,
@@ -536,15 +541,30 @@ async def extract_case_facts(
             "jurisdiction": jurisdiction,
             "area": "",
             "rule_card_ids": rule_card_ids or [],
-            "fact_pattern": {"features": parsed["features"], "narrative": published},
+            "fact_pattern": {
+                "features": parsed["features"],
+                "narrative": published,
+                "facts": str(parsed.get("narrative") or ""),
+            },
             "element_findings": parsed["element_findings"],
             "outcome": parsed["outcome"],
             "lawyer_edits": "",
             "as_at": as_at,
             "pool_doc_id": pool_doc_id,
             "pool_version_id": pool_version_id,
+            "holdout": held,
         }
     )
+    if held:
+        return {
+            "ok": True,
+            "worked_matter": _public_case(worked),
+            "training_pair_id": None,
+            "holdout": True,
+            "cached": False,
+            "cost_usd": cost,
+            "model_calls": 1,
+        }
     pair = await ladder.add_pair(
         {
             "region": box,
@@ -588,7 +608,12 @@ def _public_case(row: dict[str, Any]) -> dict[str, Any]:
         "material_type": row.get("material_type"),
         "jurisdiction": row.get("jurisdiction"),
         "rule_card_ids": row.get("rule_card_ids") or [],
-        "fact_pattern": {"features": pattern.get("features") or {}, "narrative": pattern.get("narrative") or ""},
+        "fact_pattern": {
+            "features": pattern.get("features") or {},
+            "narrative": pattern.get("narrative") or "",
+            "facts": pattern.get("facts") or "",
+        },
+        "holdout": bool(row.get("holdout")),
         "element_findings": row.get("element_findings") or [],
         "outcome": row.get("outcome") or "",
         "pool_doc_id": row.get("pool_doc_id"),
@@ -674,7 +699,7 @@ async def apply_law(
     card = await ladder.get_rule_card(card_id, region=_box(box_region), tenant_id=tenant_id)
     if card is None:
         return _refuse("no such rule card")
-    if card.get("status") != "lawyer_approved":
+    if not card_servable(card, review_on=await review_required(ladder, region=_box(box_region))):
         return _refuse("this rule card is not approved")
     ranked = await _ranked(
         ladder,
@@ -1348,7 +1373,8 @@ async def draft_contract(
                     for item in sentences
                     if item.get("library")
                 ],
-                "state": "draft",
+                "state": "released" if not await review_required(store, region=box) else "draft",
+                "reviewed": False,
             }
         )
         document_id = document["id"]
@@ -1379,6 +1405,7 @@ async def review_contract(
     playbook_id: str,
     text: str,
     provider: str = "luna",
+    matter_id: str | None = None,
 ) -> dict[str, Any]:
     _home, refused = await _use_home(store, tenant_id=tenant_id, home_region=home_region, box_region=box_region)
     if refused:
@@ -1428,6 +1455,29 @@ async def review_contract(
     if not paragraphs:
         paragraphs = [[{"kind": "plain", "text": text}]]
     deviations = [item for item in findings if item.get("deviation")]
+    document_id = None
+    reviewed = False
+    state = None
+    if matter_id:
+        matter = await store.get_matter(str(tenant_id), str(matter_id))
+        if matter is None:
+            return _refuse("no such matter")
+        review_on = await review_required(store, region=box)
+        state = "in_review" if review_on else "released"
+        version = await store.next_version(str(tenant_id), str(matter_id), "review")
+        document = await store.add_document(
+            {
+                "matter_id": str(matter_id),
+                "tenant_id": str(tenant_id),
+                "kind": "review",
+                "version": version,
+                "body": text,
+                "sources": [],
+                "state": state,
+                "reviewed": False,
+            }
+        )
+        document_id = document["id"]
     return {
         "ok": True,
         "findings": findings,
@@ -1436,5 +1486,123 @@ async def review_contract(
         "deletes": [item["delete"] for item in deviations],
         "cost_usd": cost,
         "model_calls": model_calls,
+        "document_id": document_id,
+        "state": state,
+        "reviewed": reviewed,
         "docx_base64": base64.b64encode(docx_bytes(paragraphs)).decode("ascii"),
+    }
+
+
+async def answer_question(
+    store: Any,
+    ladder: Any,
+    model: Any,
+    *,
+    tenant_id: str,
+    home_region: str,
+    box_region: str,
+    jurisdiction: str,
+    question: str,
+    passages: list[dict[str, Any]],
+    features: dict[str, Any] | None = None,
+    matter_id: str | None = None,
+    provider: str = "luna",
+    tank: Any = None,
+) -> dict[str, Any]:
+    """Full ladder for one question. A bad citation is never delivered.
+
+    With review off, a memo that passes cite-check is released to the matter
+    and marked reviewed false. With review on, it waits in the queue.
+    """
+    _home, refused = await _use_home(ladder, tenant_id=tenant_id, home_region=home_region, box_region=box_region)
+    if refused:
+        return refused
+    gate = await _gate(tank, tenant_id=tenant_id, text=question, jurisdiction=jurisdiction)
+    if gate["stopped"]:
+        reason = str((gate.get("scope") or {}).get("reason") or "Not in scope.")
+        return _refuse(reason, scope=gate.get("scope"), delivered=False)
+    prepared = prepare_prompt(question, home_region=home_region, provider=provider)
+    if not prepared["ok"]:
+        return _refuse(prepared["reason"] or IDENTIFIER_REFUSED, delivered=False)
+    built = await build_rule_card(
+        ladder,
+        tank,
+        model,
+        tenant_id=tenant_id,
+        home_region=home_region,
+        box_region=box_region,
+        jurisdiction=jurisdiction,
+        question=question,
+        passages=passages,
+        provider=provider,
+    )
+    if not built.get("ok"):
+        return {**built, "delivered": False}
+    if not built.get("reused") and not (built.get("cite") or {}).get("passed"):
+        return _refuse("could not verify", delivered=False, cite=built.get("cite"))
+    card = built["rule_card"]
+    review_on = await review_required(ladder, region=_box(box_region))
+    if not card_servable(
+        {"status": "lawyer_approved" if card.get("status") == "lawyer_approved" else "draft", "active": card.get("active")},
+        review_on=review_on,
+    ):
+        return _refuse("could not verify", delivered=False)
+    applied = await apply_law(
+        ladder,
+        None,
+        tenant_id=tenant_id,
+        home_region=home_region,
+        box_region=box_region,
+        card_id=str(card["id"]),
+        features=features or {},
+        question=question,
+        provider=provider,
+        tank=tank,
+    )
+    if not applied.get("ok"):
+        return {**applied, "delivered": False}
+    fresh = await ladder.get_rule_card(str(card["id"]), region=_box(box_region), tenant_id=tenant_id)
+    if fresh is None:
+        return _refuse("could not verify", delivered=False)
+    memo = compose_memo(fresh, applied["elements"])
+    statements = [
+        {"citation": element.get("citation"), "quote": element.get("quote")}
+        for element in fresh.get("elements") or []
+        if element.get("citation")
+    ]
+    checked = cite_check(statements, passages)
+    memo_cites = [str(item) for item in memo.get("citations") or []]
+    known = {str(item.get("citation") or "") for item in statements}
+    if not checked.get("passed") or any(item not in known for item in memo_cites):
+        return _refuse("could not verify", delivered=False, cite=checked)
+    state = "in_review" if review_on else "released"
+    document_id = None
+    if matter_id:
+        matter = await store.get_matter(str(tenant_id), str(matter_id))
+        if matter is None:
+            return _refuse("no such matter", delivered=False)
+        version = await store.next_version(str(tenant_id), str(matter_id), "memo")
+        document = await store.add_document(
+            {
+                "matter_id": str(matter_id),
+                "tenant_id": str(tenant_id),
+                "kind": "memo",
+                "version": version,
+                "body": memo["text"],
+                "sources": [{"citation": item} for item in memo_cites],
+                "state": state,
+                "reviewed": False,
+            }
+        )
+        document_id = document["id"]
+    return {
+        "ok": True,
+        "memo": memo,
+        "rule_card": _public_card(fresh),
+        "reviewed": False,
+        "state": state,
+        "delivered": document_id is not None and state == "released",
+        "human_step": review_on,
+        "document_id": document_id,
+        "cost_usd": float(built.get("cost_usd") or 0) + float(applied.get("cost_usd") or 0),
     }

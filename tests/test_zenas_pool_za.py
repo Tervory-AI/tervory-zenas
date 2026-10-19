@@ -189,22 +189,24 @@ async def _laws_africa_missing():
     assert "LAWS_AFRICA_API_TOKEN is not set" in row["detail"]
 
 
-def test_saflii_live_load_is_deferred():
-    asyncio.run(_saflii_deferred())
+def test_saflii_live_load_reads_the_court_pages():
+    asyncio.run(_saflii_live())
 
 
-async def _saflii_deferred():
+async def _saflii_live():
     seen: list[str] = []
 
     async def get(url, headers):
         seen.append(url)
+        assert headers["User-Agent"].startswith("TervoryZenasPool")
         return b"<html></html>"
 
     store = MemoryStore()
     report = await load_wave(store, region="za", only=[_source("saflii")], live=True, http_get=get, on=ON)
-    assert seen == []
+    assert seen
+    assert all("saflii.org" in url and url.endswith("recent.html") for url in seen)
     row = report["sources"][0]
-    assert row["last_status"] == "not_configured"
+    assert row["last_status"] == "ok"
     assert row["documents"] == 0
-    assert "deferred" in row["detail"].lower()
+    assert "deferred" not in row["detail"].lower()
     assert await store.all_text() == ""

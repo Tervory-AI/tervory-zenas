@@ -8,9 +8,11 @@ The key is a header, never part of the URL.
 from __future__ import annotations
 
 import os
+import re
 
 from agents.zenas.pool.builddoc import build_document
 from agents.zenas.pool.htmlparse import last_effective, parse_govinfo_html
+from agents.zenas.pool.http import USER_AGENT
 from agents.zenas.pool.licence import FetchNotConfigured
 from agents.zenas.pool.model import LegalDocument, Section, SourceSpec
 from agents.zenas.pool.uslm import is_uslm, parse_uslm
@@ -34,8 +36,59 @@ FRAP_WAVE = (
     "https://www.govinfo.gov/content/pkg/USCODE-2023-title28/html/"
     "USCODE-2023-title28-app-federalru-dup3-rule1.htm",
 )
+# Whole appendices. FRAP's dup3 file redirects to an error page; the title 28
+# appendix holds FRAP, then FRCP. FRAP is the text before FRCP Rule 1.
+FRCP_BULK = (
+    "https://www.govinfo.gov/content/pkg/USCODE-2023-title28/html/"
+    "USCODE-2023-title28-app-federalru-dup1.htm"
+)
+FRE_BULK = (
+    "https://www.govinfo.gov/content/pkg/USCODE-2023-title28/html/"
+    "USCODE-2023-title28-app-federalru-dup2.htm"
+)
+FRAP_BULK = (
+    "https://www.govinfo.gov/content/pkg/USCODE-2023-title28/html/USCODE-2023-title28-app.htm"
+)
+_FRCP_RULE1 = b"Rule 1. Scope and Purpose"
+_H3 = re.compile(br'(?i)<h3[^>]*class="[^"]*section-head[^"]*"')
 
-_HEADERS = {"Accept": "text/html", "User-Agent": "TervoryZenasPool/0.1"}
+
+def _headers() -> dict[str, str]:
+    return {"Accept": "text/html", "Accept-Encoding": "gzip", "User-Agent": USER_AGENT}
+
+
+_HEADERS = _headers()
+
+
+def before_frcp(blob: bytes) -> bytes:
+    """FRAP lives in the title 28 appendix before FRCP Rule 1's section heading."""
+    start = 0
+    needle = _FRCP_RULE1
+    while True:
+        index = blob.find(needle, start)
+        if index < 0:
+            return blob
+        window = blob[max(0, index - 180) : index]
+        if b"section-head" in window:
+            return blob[:index]
+        start = index + len(needle)
+
+
+def split_rule_html(blob: bytes) -> list[bytes]:
+    """One chunk per rule heading. A single-rule file stays one chunk.
+
+    The page head (edition comment, title) is repeated on each chunk so the
+    existing parser still sees the rule number and the effective date.
+    """
+    matches = list(_H3.finditer(blob))
+    if len(matches) <= 1:
+        return [blob]
+    head = blob[: matches[0].start()]
+    chunks: list[bytes] = []
+    for index, match in enumerate(matches):
+        end = matches[index + 1].start() if index + 1 < len(matches) else len(blob)
+        chunks.append(head + blob[match.start() : end])
+    return chunks
 
 
 async def _fetch_all(http_get, urls: tuple[str, ...]) -> list[bytes]:
@@ -72,7 +125,7 @@ def govinfo_uscode_url(title: int) -> str:
 
 
 def _govinfo_headers() -> dict[str, str]:
-    headers = {"Accept": "application/zip", "User-Agent": "TervoryZenasPool/0.1"}
+    headers = {"Accept": "application/zip", "Accept-Encoding": "gzip", "User-Agent": USER_AGENT}
     key = os.environ.get("GOVINFO_API_KEY", "").strip()
     if key:
         headers["X-Api-Key"] = key
@@ -144,11 +197,29 @@ class _RulesAdapter:
     source_id = ""
     citation_prefix = ""
     wave: tuple[str, ...] = ()
+    bulk_url = ""
+    cut_frcp = False
 
     async def fetch(self, http_get) -> list[bytes]:
         return await _fetch_all(http_get, self.wave)
 
+    async def fetch_bulk(self, http_get, *, resume: str = "") -> tuple[list[bytes], str]:
+        del resume
+        if not self.bulk_url:
+            return await self.fetch(http_get), ""
+        _reject_credential_url(self.bulk_url)
+        blob = await http_get(self.bulk_url, _headers())
+        if self.cut_frcp:
+            blob = before_frcp(blob)
+        return [blob], ""
+
     def parse(self, blob: bytes, source: SourceSpec) -> list[LegalDocument]:
+        documents: list[LegalDocument] = []
+        for chunk in split_rule_html(blob):
+            documents.extend(self._one(chunk, source))
+        return documents
+
+    def _one(self, blob: bytes, source: SourceSpec) -> list[LegalDocument]:
         parsed = parse_govinfo_html(blob)
         if not parsed.number:
             return []
@@ -179,15 +250,19 @@ class FrcpAdapter(_RulesAdapter):
     source_id = "frcp"
     citation_prefix = "Fed. R. Civ. P."
     wave = FRCP_WAVE
+    bulk_url = FRCP_BULK
 
 
 class FreAdapter(_RulesAdapter):
     source_id = "fre"
     citation_prefix = "Fed. R. Evid."
     wave = FRE_WAVE
+    bulk_url = FRE_BULK
 
 
 class FrapAdapter(_RulesAdapter):
     source_id = "frap"
     citation_prefix = "Fed. R. App. P."
     wave = FRAP_WAVE
+    bulk_url = FRAP_BULK
+    cut_frcp = True

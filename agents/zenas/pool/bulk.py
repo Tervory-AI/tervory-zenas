@@ -232,6 +232,7 @@ async def load_source(
         )
     if next_cursor:
         await store.set_checkpoint(source.source_id, next_cursor, await store.stored_bytes())
+    await store.record_source(source)
     count = await store.instrument_count(source.source_id)
     await store.record_run(
         source.source_id,

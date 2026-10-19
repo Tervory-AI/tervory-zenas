@@ -26,7 +26,12 @@ def _region(value: str) -> str:
 
 
 def _row_is_visible(row: dict[str, Any], *, region: str, tenant_id: str, sharing: str) -> bool:
-    """Owner rows stay private. Public record is shared. Masked client work is shared in-region."""
+    """Owner rows stay private. Public record is shared. Masked client work is shared in-region.
+
+    A held-out case is never reused, on this box or any other.
+    """
+    if row.get("holdout"):
+        return False
     if row.get("region") != region:
         return False
     source = str(row.get("source") or "")
@@ -37,6 +42,22 @@ def _row_is_visible(row: dict[str, Any], *, region: str, tenant_id: str, sharing
     if source == "case" and kind == "public_record":
         return True
     return sharing == "region" and source == "released" and kind == "client_work"
+
+
+def _card_servable(row: dict[str, Any], *, allow_active: bool) -> bool:
+    """A lawyer-approved card is always reusable. An active card is reusable only while review is off."""
+    status = str(row.get("status") or "")
+    if status == "stale":
+        return False
+    if status == "lawyer_approved":
+        return True
+    return bool(allow_active and row.get("active") and status == "draft")
+
+
+async def _review_on(ladder: Any, *, region: str) -> bool:
+    from agents.zenas.core.review_switch import review_required
+
+    return await review_required(ladder, region=region)
 
 
 def _json(value: Any) -> Any:
@@ -67,6 +88,8 @@ class LadderMemory:
         self.runs: list[dict[str, Any]] = []
         self.notes: list[dict[str, Any]] = []
         self.tenants: list[dict[str, Any]] = []
+        self.selftests: list[dict[str, Any]] = []
+        self.review_mode: str | None = None
 
     async def get_tenant(self, tenant_id: str) -> dict[str, Any] | None:
         for row in self.tenants:
@@ -95,6 +118,7 @@ class LadderMemory:
         saved["question_key"] = question_key(str(saved.get("question") or ""))
         saved["edit_count"] = int(saved.get("edit_count") or 0)
         saved["cost_usd"] = float(saved.get("cost_usd") or 0)
+        saved["active"] = bool(saved.get("active"))
         self.rule_cards.append(saved)
         return _public_card(saved)
 
@@ -118,8 +142,9 @@ class LadderMemory:
         tenant_id: str,
     ) -> dict[str, Any] | None:
         box = _region(region)
+        allow_active = not await _review_on(self, region=box)
         for row in self.rule_cards:
-            if row["region"] != box or row.get("status") != "lawyer_approved":
+            if row["region"] != box or not _card_servable(row, allow_active=allow_active):
                 continue
             if row.get("jurisdiction") != jurisdiction or row.get("question_key") != key:
                 continue
@@ -162,6 +187,7 @@ class LadderMemory:
         pattern = saved.get("fact_pattern") or {}
         if not saved.get("embedding"):
             saved["embedding"] = embed_text(str(pattern.get("narrative") or json.dumps(pattern.get("features") or {})))
+        saved["holdout"] = bool(saved.get("holdout"))
         self.worked.append(saved)
         return saved
 
@@ -179,6 +205,34 @@ class LadderMemory:
     async def count_worked(self, *, region: str, tenant_id: str) -> int:
         box = _region(region)
         return sum(1 for row in self.worked if _row_is_visible(row, region=box, tenant_id=tenant_id, sharing="tenant"))
+
+    async def holdout_cases(self, *, region: str, jurisdiction: str) -> list[dict[str, Any]]:
+        box = _region(region)
+        found = []
+        for row in self.worked:
+            if row.get("region") != box or row.get("jurisdiction") != jurisdiction:
+                continue
+            if row.get("source") == "case" and row.get("holdout"):
+                found.append(dict(row))
+        return found
+
+    async def set_review(self, *, region: str, review: str) -> None:
+        self.review_mode = "on" if review == "on" else "off"
+
+    async def get_review(self, *, region: str) -> str | None:
+        del region
+        return self.review_mode
+
+    async def add_selftest(self, row: dict[str, Any]) -> dict[str, Any]:
+        saved = dict(row)
+        saved["id"] = str(saved.get("id") or _id())
+        saved["region"] = _region(str(saved["region"]))
+        self.selftests.append(saved)
+        return saved
+
+    async def list_selftest(self, *, region: str) -> list[dict[str, Any]]:
+        box = _region(region)
+        return [dict(row) for row in self.selftests if row.get("region") == box]
 
     async def add_pair(self, row: dict[str, Any]) -> dict[str, Any]:
         saved = dict(row)
@@ -236,10 +290,10 @@ INSERT_CARD = """
 INSERT INTO agent_zenas.rule_cards
     (id, region, tenant_id, jurisdiction, question, question_key, elements, exceptions,
      defences, remedies, sources, as_at, status, approved_by, admission_no, model_used,
-     cost_usd, decision_table, edit_count)
+     cost_usd, decision_table, edit_count, active)
 VALUES
     ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, $9::jsonb, $10::jsonb, $11::jsonb,
-     $12::date, $13, $14, $15, $16, $17, $18::jsonb, $19)
+     $12::date, $13, $14, $15, $16, $17, $18::jsonb, $19, $20)
 """.strip()
 
 CARD_FOR_CALLER = """
@@ -253,6 +307,7 @@ class PgLadder:
 
     def __init__(self, pool: Any) -> None:
         self.pool = pool
+        self.review_mode: str | None = None
 
     async def add_rule_card(self, row: dict[str, Any]) -> dict[str, Any]:
         card_id = str(row.get("id") or _id())
@@ -280,6 +335,7 @@ class PgLadder:
                 float(row.get("cost_usd") or 0),
                 json.dumps(row.get("decision_table") or []),
                 int(row.get("edit_count") or 0),
+                bool(row.get("active")),
             )
         saved = dict(row)
         saved["id"] = card_id
@@ -303,16 +359,22 @@ class PgLadder:
         key: str,
         tenant_id: str,
     ) -> dict[str, Any] | None:
+        box = _region(region)
+        allow_active = not await _review_on(self, region=box)
         sql = """
         SELECT * FROM agent_zenas.rule_cards
         WHERE region = $1 AND jurisdiction = $2 AND question_key = $3
-          AND status = 'lawyer_approved'
+          AND status <> 'stale'
+          AND (
+            status = 'lawyer_approved'
+            OR ($5::boolean AND active IS TRUE AND status = 'draft')
+          )
           AND (tenant_id IS NULL OR tenant_id = $4)
         ORDER BY tenant_id NULLS FIRST
         LIMIT 1
         """.strip()
         async with self.pool.acquire() as conn:
-            row = await conn.fetchrow(sql, _region(region), jurisdiction, key, _as_uuid(tenant_id))
+            row = await conn.fetchrow(sql, box, jurisdiction, key, _as_uuid(tenant_id), allow_active)
         if row is None:
             return None
         return _public_card(dict(row))
@@ -362,10 +424,10 @@ class PgLadder:
         INSERT INTO agent_zenas.worked_matters
             (id, region, tenant_id, source, jurisdiction, area, rule_card_ids, fact_pattern,
              element_findings, outcome, lawyer_edits, as_at, pool_doc_id, pool_version_id,
-             embedding, released_matter_id, material_type)
+             embedding, released_matter_id, material_type, holdout)
         VALUES
             ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, $9::jsonb, $10, $11, $12::date,
-             $13, $14, $15::jsonb, $16, $17)
+             $13, $14, $15::jsonb, $16, $17, $18)
         """.strip()
         async with self.pool.acquire() as conn:
             await conn.execute(
@@ -387,6 +449,7 @@ class PgLadder:
                 json.dumps(embedding),
                 _as_uuid(row["released_matter_id"]) if row.get("released_matter_id") else None,
                 row.get("material_type"),
+                bool(row.get("holdout")),
             )
         saved = dict(row)
         saved["id"] = worked_id
@@ -411,6 +474,7 @@ class PgLadder:
             sql = """
             SELECT * FROM agent_zenas.worked_matters
             WHERE region = $1
+              AND COALESCE(holdout, false) = false
               AND (
                 tenant_id = $2
                 OR (source = 'case' AND material_type = 'public_record')
@@ -421,6 +485,7 @@ class PgLadder:
             sql = """
             SELECT * FROM agent_zenas.worked_matters
             WHERE region = $1
+              AND COALESCE(holdout, false) = false
               AND (
                 tenant_id = $2
                 OR (source = 'case' AND material_type = 'public_record')
@@ -435,11 +500,88 @@ class PgLadder:
         sql = """
         SELECT count(*) FROM agent_zenas.worked_matters
         WHERE region = $1
+          AND COALESCE(holdout, false) = false
           AND (tenant_id = $2 OR (source = 'case' AND material_type = 'public_record'))
         """.strip()
         async with self.pool.acquire() as conn:
             value = await conn.fetchval(sql, _region(region), _as_uuid(tenant_id))
         return int(value or 0)
+
+    async def holdout_cases(self, *, region: str, jurisdiction: str) -> list[dict[str, Any]]:
+        sql = """
+        SELECT * FROM agent_zenas.worked_matters
+        WHERE region = $1 AND jurisdiction = $2 AND source = 'case' AND holdout IS TRUE
+        """.strip()
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(sql, _region(region), jurisdiction)
+        return [_row_worked(dict(row)) for row in rows]
+
+    async def set_review(self, *, region: str, review: str) -> None:
+        mode = "on" if review == "on" else "off"
+        sql = """
+        INSERT INTO agent_zenas.review_settings (region, review)
+        VALUES ($1, $2)
+        ON CONFLICT (region) DO UPDATE SET review = EXCLUDED.review
+        """.strip()
+        async with self.pool.acquire() as conn:
+            await conn.execute(sql, _region(region), mode)
+        self.review_mode = mode
+
+    async def get_review(self, *, region: str) -> str | None:
+        sql = "SELECT review FROM agent_zenas.review_settings WHERE region = $1"
+        async with self.pool.acquire() as conn:
+            value = await conn.fetchval(sql, _region(region))
+        if value in ("on", "off"):
+            self.review_mode = str(value)
+            return str(value)
+        return None
+
+    async def add_selftest(self, row: dict[str, Any]) -> dict[str, Any]:
+        run_id = str(row.get("id") or _id())
+        sql = """
+        INSERT INTO agent_zenas.selftest_runs
+            (id, region, kind, area, jurisdiction, cases, outcome_agreement,
+             element_agreement, citations_valid, cost_per_case, detail)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb)
+        """.strip()
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                sql,
+                _as_uuid(run_id),
+                _region(str(row["region"])),
+                row["kind"],
+                row.get("area") or "",
+                row.get("jurisdiction") or "",
+                int(row.get("cases") or 0),
+                float(row.get("outcome_agreement") or 0),
+                float(row.get("element_agreement") or 0),
+                float(row.get("citations_valid") or 0),
+                float(row.get("cost_per_case") or 0),
+                json.dumps(row.get("detail") or {}),
+            )
+        saved = dict(row)
+        saved["id"] = run_id
+        return saved
+
+    async def list_selftest(self, *, region: str) -> list[dict[str, Any]]:
+        sql = """
+        SELECT id, region, kind, area, jurisdiction, cases, outcome_agreement,
+               element_agreement, citations_valid, cost_per_case, detail, created_at
+        FROM agent_zenas.selftest_runs
+        WHERE region = $1
+        ORDER BY created_at DESC
+        """.strip()
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(sql, _region(region))
+        found = []
+        for row in rows:
+            item = dict(row)
+            item["id"] = str(item["id"])
+            item["detail"] = _json(item.get("detail") or {})
+            for key in ("outcome_agreement", "element_agreement", "citations_valid", "cost_per_case"):
+                item[key] = float(item.get(key) or 0)
+            found.append(item)
+        return found
 
     async def add_pair(self, row: dict[str, Any]) -> dict[str, Any]:
         pair_id = str(row.get("id") or _id())

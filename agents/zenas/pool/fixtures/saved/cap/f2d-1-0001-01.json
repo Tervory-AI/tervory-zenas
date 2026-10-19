@@ -1,0 +1,276 @@
+{
+  "id": 1284702,
+  "name": "RAHILLY v. O'LAUGHLIN",
+  "name_abbreviation": "Rahilly v. O'Laughlin",
+  "decision_date": "1924-07-23",
+  "docket_number": "No. 6531",
+  "first_page": "1",
+  "last_page": "5",
+  "citations": [
+    {
+      "type": "official",
+      "cite": "1 F.2d 1"
+    }
+  ],
+  "court": {
+    "name_abbreviation": "8th Cir.",
+    "id": 8821,
+    "name": "United States Court of Appeals for the Eighth Circuit"
+  },
+  "jurisdiction": {
+    "id": 39,
+    "name_long": "United States",
+    "name": "U.S."
+  },
+  "cites_to": [
+    {
+      "cite": "112 U. S. 150",
+      "category": "reporters:federal",
+      "reporter": "U.S.",
+      "case_ids": [
+        3509043
+      ],
+      "weight": 3,
+      "pin_cites": [
+        {
+          "page": "163"
+        },
+        {
+          "page": "63"
+        }
+      ],
+      "opinion_index": 0,
+      "case_paths": [
+        "/us/112/0150-01"
+      ]
+    },
+    {
+      "cite": "8 Cranch, 71",
+      "category": "reporters:scotus_early",
+      "reporter": "Cranch,",
+      "pin_cites": [
+        {
+          "page": "72"
+        }
+      ],
+      "opinion_index": 0
+    },
+    {
+      "cite": "6 Pet. 86",
+      "category": "reporters:scotus_early",
+      "reporter": "Pet.",
+      "case_ids": [
+        1439690
+      ],
+      "weight": 2,
+      "pin_cites": [
+        {
+          "page": "93"
+        }
+      ],
+      "opinion_index": 0,
+      "case_paths": [
+        "/us/31/0086-01"
+      ]
+    },
+    {
+      "cite": "11 Wheat. 309",
+      "category": "reporters:scotus_early",
+      "reporter": "Wheat.",
+      "case_ids": [
+        1428674
+      ],
+      "weight": 4,
+      "opinion_index": 0,
+      "case_paths": [
+        "/us/24/0309-01"
+      ]
+    },
+    {
+      "cite": "3 L. Ed. 491",
+      "category": "reporters:federal",
+      "reporter": "L. Ed.",
+      "case_ids": [
+        531024,
+        530990
+      ],
+      "weight": 2,
+      "opinion_index": 0,
+      "case_paths": [
+        "/us/12/0047-01",
+        "/us/12/0046-01"
+      ]
+    },
+    {
+      "cite": "8 Cranch, 72",
+      "category": "reporters:scotus_early",
+      "reporter": "Cranch,",
+      "case_ids": [
+        531024
+      ],
+      "pin_cites": [
+        {
+          "page": "74"
+        }
+      ],
+      "opinion_index": 0,
+      "case_paths": [
+        "/us/12/0047-01"
+      ]
+    },
+    {
+      "cite": "122 U. S. 231",
+      "category": "reporters:federal",
+      "reporter": "U.S.",
+      "case_ids": [
+        3521282
+      ],
+      "weight": 6,
+      "opinion_index": 0,
+      "case_paths": [
+        "/us/122/0231-01"
+      ]
+    },
+    {
+      "cite": "1 Pet. 351",
+      "category": "reporters:scotus_early",
+      "reporter": "Pet.",
+      "case_ids": [
+        1432379
+      ],
+      "weight": 6,
+      "pin_cites": [
+        {
+          "page": "360"
+        },
+        {
+          "page": "362"
+        }
+      ],
+      "opinion_index": 0,
+      "case_paths": [
+        "/us/26/0351-01"
+      ]
+    },
+    {
+      "cite": "93 Fed. 890",
+      "category": "reporters:federal",
+      "reporter": "F.",
+      "case_ids": [
+        3836428
+      ],
+      "weight": 2,
+      "pin_cites": [
+        {
+          "page": "894"
+        }
+      ],
+      "opinion_index": 0,
+      "case_paths": [
+        "/f/93/0890-01"
+      ]
+    },
+    {
+      "cite": "289 Fed. 416",
+      "category": "reporters:federal",
+      "reporter": "F.",
+      "case_ids": [
+        5710115
+      ],
+      "opinion_index": 0,
+      "case_paths": [
+        "/f/289/0416-01"
+      ]
+    },
+    {
+      "cite": "270 Fed. 1",
+      "category": "reporters:federal",
+      "reporter": "F.",
+      "case_ids": [
+        6734327
+      ],
+      "opinion_index": 0,
+      "case_paths": [
+        "/f/270/0001-01"
+      ]
+    },
+    {
+      "cite": "120 C. C. A. 191",
+      "category": "reporters:federal",
+      "reporter": "C.C.A.",
+      "opinion_index": 0
+    },
+    {
+      "cite": "201 Fed. 893",
+      "category": "reporters:federal",
+      "reporter": "F.",
+      "case_ids": [
+        58587
+      ],
+      "opinion_index": 0,
+      "case_paths": [
+        "/f/201/0893-01"
+      ]
+    },
+    {
+      "cite": "76 C. C. A. 114",
+      "category": "reporters:federal",
+      "reporter": "C.C.A.",
+      "opinion_index": 0
+    },
+    {
+      "cite": "145 Fed. 144",
+      "category": "reporters:federal",
+      "reporter": "F.",
+      "case_ids": [
+        5729631
+      ],
+      "opinion_index": 0,
+      "case_paths": [
+        "/f/145/0144-01"
+      ]
+    }
+  ],
+  "analysis": {
+    "cardinality": 903,
+    "char_count": 21958,
+    "ocr_confidence": 0.417,
+    "pagerank": {
+      "raw": 1.462786119368156e-07,
+      "percentile": 0.657651855378441
+    },
+    "sha256": "f7150a6dcadf0b04e5a4e0b1836340e4cfae31ab8c67268720065ba21b2ea9f1",
+    "simhash": "1:feb756b5a07eac4d",
+    "word_count": 3907
+  },
+  "last_updated": "2024-02-27T17:41:42.957875+00:00",
+  "provenance": {
+    "date_added": "2019-08-29",
+    "source": "Harvard",
+    "batch": "2018"
+  },
+  "casebody": {
+    "judges": [
+      "Before KENYON, Circuit Judge, and SCOTT, District Judge."
+    ],
+    "parties": [
+      "RAHILLY v. O\u2019LAUGHLIN."
+    ],
+    "opinions": [
+      {
+        "text": "KENYON, Circuit Judge.\nPlaintiff in error brought action in the United States District Court of North Dakota, Southeastern Division, in December, 1922, against Michael O\u2019Laughlin, on 14 promissory notes given by said O\u2019Laughlin to him, dated September 30, 1896, in the sum of $1,000 each, and due one year after date. The defendant in said action, Michael O\u2019Langhlin, who since said trial is deceased, in defense to the same claimed that the statute of limitations had run, and that in any event the debt had been wiped out by a proceeding in bankruptcy in the year 1902, wherein defendant was granted a discharge from his debts. The parties to the action stipulated that a jury should be waived and the action tried by the court, the judge thereof to make findings of fact and conclusions of law. This was done, and the same was duly entered upon the records, the court finding that the cause of action upon the notes sued upon did not accrue within six years before suit, and that the notes were barred by the statute of limitations of the state of North Dakota; that the letters written by the defendant in error to the plaintiff in error in May and June, 1922, were too uncertain and indefinite as to the debt, amount and time of payment to raise the bar of the statute <5f limitations; that the indebtedness between the plaintiff in error and the defendant in error was discharged by the judgment in bankruptcy entered in the federal court on the 5th day of January, 1903; and upon the findings of fact and conclusions of law the court entered judgment in favor of the defendant in error.\nThe case is brought here for consideration upon certain assignments of error. It should be noted that no requests were made upon the part of plaintiff in error for findings of fact or of law, and no exceptions were taken to any of the court's findings of fact or conclusions of law. Under this condition of the record the only question open to review under the special findings in this case is whether the facts found sustain the judgment. United States Fidelity & Guaranty Co. v. Board of Com\u2019rs of Woodson County, Kansas, 145 Fed. 144, 76 C. C. A. 114; Seep v. Ferris-Haggarty Copper Mining Co. et al., 201 Fed. 893, 120 C. C. A. 191; United States v. Atchison, T. & S. F. Ry. Co. (C. C. A.) 270 Fed. 1; Pennok Oil Co. v. Roxana Petroleum Co. of Oklahoma (C. C. A.) 289 Fed. 416.\nWe are of the opinion that the findings of fact and the conclusions of law as to the statute of limitations are decisive of this case, and hence we pretermit discussion of the other questions. The notes signed were due in September, 1897. Except for a period of 3 years, defendant in error lived in North Dakota continuously during said time. This suit was commenced more than 25 years after the notes were due. Defendant in error lived in the state of North Dakota over 22 years after the notes were due, but no action was brought against him thereon, and during said time he had the benefit of the bankruptcy statute. The statute of limitation on such obligations in North Dakota is 6 years. Hence there is presented a suit commenced 19 years after the statute of limitations has run, or 16 years, if the time of absence from the state should be excluded. Clearly the action is barred, unless taken out of the statute by the two letters appearing in evidence, and, as the determination of the ease rests upon the construction of these two letters, we set them out .in full as follows:\n\u201cWilliston, N. Dak., May 13, 1922.\n\u201cMr. Patrick H. Rahilly, Lake City, Minn. \u2022 \u2014 Dear Sir: Tour letter received.' I remember the promise made you to pay some of my indebtedness. But the years that this country has gone through has left me poorer than when I came to it. However, I intend to pay some of this debt, as soon as I can get enough ahead to do so. But I cannot make any promise as to time now. But I will pay all I can without fail. I had no interest whatever in my brother\u2019s Frank\u2019s business here.\n\u201cTour truly, [Signed] M. O\u2019Laughlin.\u201d\n\u201cWilliston, N. Dak., June 11, 1922.\n\u201cP. H. Rahilly, Lake City, Minn. \u2014 Dear Sir: Tour letter received. I notice all you say in it. When I am able to do something on that old affair, it will be done voluntarily. . And I hope this time is not far off. I do not see where law will hurry this matter, as I will do all I can without it. \u00b0\n\u201cTours truly, [Signed] M. O\u2019Laughlin.\u201d\nAre these letters sufficient to remove the bar of the statute? The statute of North Dakota on this subject is as follows (section 7394, chapter 4, Code of Civil Procedure, contained in the Compiled Laws of North Dakota 1913, viz.) : \u201cNo acknowledgment or promise is sufficient evidence of a new or continuing contract, whereby to take the ease out of the operation of this chapter, unless the same is contained in some writing signed by the party to be charged thereby; but this section shall not alter the effect of any payment of principal or interest.\u201d This North Dakota statute, like the statutes of most of the states on this subject, is based upon the well-known English act (St. 9 Geo. IV, c. 14), known as Lord Tenterden\u2019s Act. These statutes are rather similar in all the states, and are generally to the effect that no new promise takes the ease out of the operation of the statute of limitations, unless that promise is in writing and signed by the party to be charged.\nIn Ruling- Case Law, section 247, the general doctrine on the subject of acknowledgment is stated: \u201cAnd it has been declared as a general rule, in respect to acknowledgments, that there must be one of these three things to take the case out of the statute: Either there must be an acknowledgment of the debt, from which a promise to pay is to be implied; or, secondly, there must be an unconditional promise to pay the debt; or, thirdly, there must be a conditional promise to pay the debt, and evidence that the condition has been performed.\u201d Section 248, Ruling Case Law, also suggests the following : \u201cIt is a general rule that a new promise to pay a debt or an unqualified acknowledgment of a debt from which a promise to pay may be implied will take a ease out of the statute, where it is not coupled with any refusal to pay or accompanied by any circumstances such as to repel the inference oi' to leave it in doubt whether the person intended to prolong the time of legal limitation, even though there is no express promise on the part of the debtors.\u201d\nFrom 1 Wood, Limitation of Actions, 229, \u00a7 77, we quote: \u201c.Lf a debtor annexes any qualification or condition to his acknowledgment or promise, it will not he operative to remove the statutory hat' without proof of its performance; and a contrary rule would nullify the principle upon which the doctrine relating to acknowledgments rests. It is not the acknowledgment of itself which revives the debt, hut the promise which the law raises from the acknowledgment; and, if that is conditional, it follows, as a matter of course, that the debt can only he revived subject to such conditions. The debtor, after the statute has run, is master of the situation. If the creditor expects to recover any portion of the debt, he must take it upon such terms as the debtor sees fit to dictate.\u201d It seems quite impossible to reconcile the many cases on this subject. Refined and natural distinctions arising upon individual circumstances make difficult at times the application of the proper principles and give rise to apparently innumerable differences of opinion.\nIn considering the subject, it should ever be remembered that statutes of limitation are not now considered by the courts generally as based upon the presumption of payment from lapse of time, but. are regarded as statutes of repose, for the peace, good order, and welfare of society. Therefore the mere acknowledgment of a debt is not sufficient, unless such acknowledgment is one from which a promise to pay is clearly inferable. Statutes of limitation are entitled to the same respect as other statutes. There is no reason why they should be Littered away. Bullion & Exchange Bank v. Hegler (C. C.) 93 Fed. 890, 894; Bell v. Morrison, 1 Pet. 351, 360, 7 L. Ed. 174; Shepherd v. Thompson, 122 U. S. 231, 7 Sup. Ct. 1229, 30 L. Ed. 1156.\nAs a matter of interest we refer to, and quote from, the decisions of the Supreme Court of the United States, in some of which that court has called attention to the abuses that arose from ancient holdings of courts that more acknowledgment of a debt was sufficient to toll the statute, and of the necessity of not fuiiher extending such doctrine. In the early case of Clementson v. Williams, 8 Cranch, 72, 74 (3 L. Ed. 491), Chief Justice Marshall said: \u201cThe statute of limitations was not enacted to protect persons from claims fictitious in their origin, but from ancient claims, whether well or ill founded, which may have been discharged, but the evidence of discharge may be lost. It is not then sufficient, to take the ease out of the act, that the claim should be proved or be acknowledged to have been originally just; the acknowledgment must go to the fact that it is still due.\u201d In Wetzell v. Bussard, 11 Wheat. 309, 6 L. Ed. 481, the court said that an acknowledgment which will revive the original cause of action must be unqualified and unconditional, and that the declarations there relied on could not he construed into a revival of the original cause of action.\nIn the very leading case of Bell v. Morrison, 1 Pet. 351, 362 (7 L. Ed. 174), the court entered into a somewhat extended discussion of the subject, saying': \u201cIf the bar is sought to bo removed by the proof of a new promise, that promise, as a new cause of action, ought to he proved in a clear and explicit manner, and be, in its terms, unequivocal and determinate; and if any conditions are annexed, they ought to be shown to be performed. If there be no express promise, but a promise is to be raised by implication of law, from the acknowledgment of the party, such acknowledgment ought to contain an unqualified and direct admission of a previous, subsisting debt, which the party is liable, and willing, to pay. If there be accompanying circumstances, which repel the presumption of a promise or intention to pay; if the expressions be equivocal, vague and indeterminate, leading to no certain conclusion, but at best to probable inferences, which may affect different minds in different ways; we think, they ought not to go to a jury as evidence of a new promise, to revive the cause of action. Any other course would open all the mischiefs against which the statute was intended to guard innocent persons, and expose them to the danger of being entrapped in careless conversations, and betrayed by perjuries. * * The acknowledgment of the party, then, does not constitute the sole ground of the new implied promise; but it requires other intrinsic aid, before it can possess legal certainty. !Slovr, if this be so, does it not let in the whole mischief intended to be guarded against by the statute ? Does it not enable the party to bring forward stale demands, after a lapse of time, when the proper evidence of the real state of the transaction cannot be produced? Does it not tend to encourage perjury, by removing the bar, upon slight acknowledgments of an indeterminate nature?\u201d\nIn Moore v. Bank of Columbia, 6 Pet. 86, 93, 8 L. Ed. 329, the question was as to certain language of the defendant being sufficient to prevent the statute of limitations from barring the action, and the court, reasserting the doctrines of Clementson v. Williams, 8 Cranch, 71, 72, 3 L. Ed. 491; Wetzell v. Bussard, 11 Wheat. 309, 6 L. Ed. 481, and Bell v. Morrison, 1 Pet. 351, 7 L. Ed. 174, all before referred to, says: \u201cThe principle clearly to be deduced from these cases is that, in addition to the admission of a present subsisting debt, there must be either an express promise to pay, or circumstances from which an implied promise may fairly be presumed\u201d \u2014 and refers to the enactment of Parliament of 9 Geo. IV, c. 14, as resultant from the great mischiefs \u201cwhich had resulted from admitting vague and loose declarations in a great measure to set aside and make void the statute of limitations.\u201d The court held that the facts and circumstances in evidence fell far short of taking the ease out of the statute of limitations; that there was no express promise to pay nor circumstances from which such promise might be implied; and, further, that the declarations were vague and indeterminate, leading only to probable inferences, and wound up by stating: \u201cThe whole declarations, taken together, do not amount either to an explicit promise to pay, made in terms unequivocal and determinate, or disclose circumstances from which an implied promise may fairly be presumed, one or the other of which this court has said is necessary to take the ease out of the statute.\u201d\nIn Ft. Scott v. Hickman, 112 U. S. 150, 163, 5 Sup. Ct. 56, 63 (28 L. Ed. 636) referring to the Kansas statute on this subject, the court said: \u201cAlthough an acknowledgment need not, under the Kansas statute, amount to a new promise, yet the rule is applicable that an acknowledgment cannot be regarded as an admission of indebtedness, where the accompanying circumstances are such as to repel that inference, or to leave it in doubt whether the party intended to prolong the time of legal limitations.\u201d\nIn Shepherd v. Thompson, 122 U. S. 231, 7 Sup. Ct. 1229, 30 L. Ed. 1156, the court enters into a thorough and extended discussion both of the English and American eases on the\" subject, and approves the principles laid down by the preceding American cases that there must be an express promise of the debtor to pay the debt, or else an express acknowledgment of the debt from which a promise to pay is clearly to be inferred, which the court points out is in line with the general holding of the English courts that the writings must contain an express promise to pay the debt or be \u201cin terms from which an unqualified promise to pay it is necessarily to be implied.\u201d Everett v. Robertson, 1 El. & El. 16, 19. The court refers to Philips v. Philips, 3 Hare, 281, 299, 300, where it is held that, \u201cif the debtor promises to pay the old debt when he is able, or by installments, or in two years, or out of a particular fund, the creditor can claim nothing more than the promise gives him.\u201d\nThe California statute on this subject is almost identical with that of North Dakota, and the question of a new promise thereunder was considered by Morrow, Circuit Judge, in Bullion & Exchange Bank v. Hegler, 93 Fed. 890. The court says., referring to Lord Tenterden\u2019s Act, that its purpose was not to establish a new rule with respect to the character of the acknowledgment or promise, but related only to the kind of evidence by which the acknowledgment or promise should be proven, saying: \u201cAnd it twas never understood by the English courts that this act established the proposition that a mere acknowledgment of a debt was sufficient to interrupt the running of the statute of limitation.\u201d The letters in that ease acknowledged that the defendant was indebted to plaintiff, but the court says it is not an acknowledgment from which a promise to pay the debt can be inferred; that it is not an unqualified acknowledgment because accompanied \u201cwith the condition that he cannot pay, or he does not see any chance to pay, unless he can turn some realty or other property into cash; and there is no evidence that this condition has been reached.\u201d\nA number of fundamental propositions are' amply sustained by these federal authorities, which can be applied as tests in the ease at bar. They may be summarized as follows: To sustain a new action on an old indebtedness barred by the statute of limitations there must be a new promise to pay or an acknowledgment from which a new promise is clearly implied. If conditions are annexed to an express promise, it must be shown that they have been performed. The promise to pay must be direct, clear, definite, explicit \u2014 not vague, equivocal, or uncertain. An acknowledgment of the debt to supply an inference of promise to pay must be distinct and unequivocal, as of a debt still subsisting as a personal obligation of the debtor and as One that lie intends to pay.\nTesting the case at bar by these principles, what is the result ? In the first letter from O\u2019Laughlin io Rahilly of May 13, 1922, there is an admission that O\u2019Laughlin had made thereto fore a promise to him to pay some of his indebtedness. The letter dees' not state just what indebtedness. It makes no promise to pay any particular indebtedness, but does say that the writer intends \u201cto pay some of this debt\u201d as soon as he can get enough ahead to do so, but that he will not make any promise as to time; that he will pay all he can without fail. These letters should be taken together, and the second letter of June 11, 1922, from O\u2019Laughlin to Rahilly, notifies him that, when he does pay something on the old affair, \u201cit will be done voluntarily,\u201d and that he hopes the time is not far off; that he will do all he can without the Interposition of the law; that law will not hurry the matter. There is in the two letters, fairly construed; a recognition of some kind of indebtedness from O\u2019Laughlin io Rahilly. That, however, ip not sufficient to set aside the statute and create a new cause ol' action. The extent of the promise is that he will pay al) he can without fail; but this must be taken in connection with the balance of the letter, which indicates that he intends only to pay \u201csome of the debt,\u201d and intends only to pay that \u201csome\u201d when he can get enough ahead to do so, and distinctly notifies Rahilly iliat he has no interest in his brother Frank\u2019s business \u2014 in other words, that it will not bo paid out of that.\nThe second letter tends to negative any implication of intent to pay any particular sum. He notifies plaintiff in error that he cannot he Torced by law. No particular willingness is shown to pay anythin\u00bb,'. Whatever is done is to be voluntary on his part: It is a notification, as expressed in the quotation from Wood on Limitation of Actions before referred to, that he \u201cis master of the situation.\u201d These letters, construed together, certainly do not contain any clear and distinct promise to pay the notes sued on. They refer to indebtedness, but do not specify the indebtedness, nor are they such acknowledgment of the particular indebtedness as to raise any implication that O\u2019Laughlin intended to pay those notes. Whatever the indebtedness was, the implication would be that he did not intend to pay all of it, because he expresses his intent as being to pay only \u201csome of this debt.\u201d If any of the expressions of either letter could be construed as a conditional promise, as plain!iff in error contends, and that 1he agreement is to pay when he gets \u201cenough ahead to do so,\u201d then it is incumbent to show that he had \u201cenough ahead to do so,\u201d and while some attempt is made to show that he received some part of his brother\u2019s estate, the record is insufficient to show that he had enough ahead when suit was brought to pay the debt in question. Jt would be a straining of language to hold that these letters were sufficient to show a new promise to pay, or such an acknowledgment as to imply such new promise, indeed, the letters taken together show that he did not intend to commit himself to any de finito promise to pay.\nThe conclusion of law ol\u2018 the court that these letters were too uncertain and indefinite as to debt, amount, and time of payment to set aside the bar of the statute of limitations was correct, and the judgment of the trial court is affirmed.",
+        "type": "majority",
+        "author": "KENYON, Circuit Judge."
+      }
+    ],
+    "attorneys": [
+      "John W. Willis, of St. Paul, Minn. (C. E. Leslie, of Hillsboro, N. D., on the brief), for plaintiff in error.",
+      "John Burke, of Fargo, N. D. (U. L. Bur-dick, of Fargo, N. D., on the brief), for defendant in error."
+    ],
+    "corrections": "",
+    "head_matter": "RAHILLY v. O\u2019LAUGHLIN.\n(Circuit Court of Appeals, Eighth Circuit.\nJuly 23, 1924.)\nNo. 6531.\n1. Appeal and error <@=>209(I) \u2014 When sufficiency of facts to support judgment only question reviewafoie.\nWhere an action at law is tried to the court by stipulation, special findings are made, and no requests for findings are made nor exceptions taken, the only question open to review is whether the facts found sustain the judgment.\n2. .Limitation of actions \u20ac=>149(1) \u2014 Conditional new promise revives the debt subject to condition.\nA qualified or conditional promise to pay a debt barred by limitation will revive the debt only subject to such qualification or condition.\n3. Limitation of actions \u20ac=>148(1) \u2014 Mere acknowledgment of debt not sufficient to remove bar of statute.\nThe acknowledgment of a debt is not sufficient to remove the bar of the statute of limitations, unless such acknowledgment is one from which a promise to pay is clearly infer-able.\n4. Limitation of actions \u20ac=>148(1) \u2014 Express or implied promise to pay required to revive debt.\nTo revive a debt barred by limitation, there must be an express promise of the debtor to pay the debt or else an express acknowledgment of the debt from which a promise to pay is clearly to be inferred.\n5. Limitation of actions \u20ac=>150(1) \u2014 Letters held insufficient to revive debt barred by limitation.\nLetters written by the maker of notes, which had been barred by limitation for many years, to the payee, in which he acknowledged an indebtedness not specified, and stated his intention to pay \u201csome\u201d of the debt voluntarily , as soon as he got enough ahead to do so. held insufficient to revive cause of action, at least when it was not shown that he had \u201cenough ahead.\u201d\nIn Error to the District Court of the United States Sor the District of North Dakota; Andrew Miller, Judge.\nAction at law by Patrick H. Rahilly against James O\u2019Laughlin, administrator of the estate of Michael O\u2019Laughlin, deceased. Judgment for defendant, and plaintiff brings error.\nAffirmed.\nJohn W. Willis, of St. Paul, Minn. (C. E. Leslie, of Hillsboro, N. D., on the brief), for plaintiff in error.\nJohn Burke, of Fargo, N. D. (U. L. Bur-dick, of Fargo, N. D., on the brief), for defendant in error.\nBefore KENYON, Circuit Judge, and SCOTT, District Judge."
+  },
+  "file_name": "0001-01",
+  "first_page_order": 23,
+  "last_page_order": 27
+}

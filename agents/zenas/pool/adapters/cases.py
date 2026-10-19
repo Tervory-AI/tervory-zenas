@@ -13,9 +13,12 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import re
 from datetime import date
+from urllib.parse import urljoin
 
 from agents.zenas.pool.builddoc import build_document
+from agents.zenas.pool.http import USER_AGENT
 from agents.zenas.pool.licence import FetchNotConfigured
 from agents.zenas.pool.model import LegalDocument, Section, SourceSpec
 
@@ -55,6 +58,34 @@ _COMMERCIAL = (
     "cargo",
     "negotiable",
     "commercial",
+    "promissory",
+    "sale of",
+    "corporation",
+    "shareholder",
+    "tariff",
+    "customs",
+    "ucc",
+    "lease",
+    "partnership",
+    "bill of lading",
+    "goods",
+)
+_CAP_LIST = "https://static.case.law/f2d/1/cases/"
+_JSON_HREF = re.compile(r"""href=["']([^"']+\.json)["']""", re.I)
+_CIRCUITS = (
+    ("first", "ca1"),
+    ("second", "ca2"),
+    ("third", "ca3"),
+    ("fourth", "ca4"),
+    ("fifth", "ca5"),
+    ("sixth", "ca6"),
+    ("seventh", "ca7"),
+    ("eighth", "ca8"),
+    ("ninth", "ca9"),
+    ("tenth", "ca10"),
+    ("eleventh", "ca11"),
+    ("district of columbia", "cadc"),
+    ("federal circuit", "cafc"),
 )
 
 
@@ -65,7 +96,10 @@ def is_criminal(row: dict) -> bool:
     ).lower()
     if row.get("criminal") is True:
         return True
-    return "criminal" in blob
+    if "criminal" in blob:
+        return True
+    name = str(row.get("case_name") or row.get("name") or "").lower()
+    return name.startswith("s v ") or "criminal" in name
 
 
 def is_commercial(row: dict) -> bool:
@@ -75,13 +109,46 @@ def is_commercial(row: dict) -> bool:
         str(row.get(key) or "")
         for key in ("nature_of_suit", "suit_nature", "case_type")
     ).lower()
-    return any(word in blob for word in _COMMERCIAL)
+    if any(word in blob for word in _COMMERCIAL):
+        return True
+    # A CAP opinion has no nature-of-suit field. Read the published text.
+    if blob.strip():
+        return False
+    text = (_opinion_text(row) + " " + str(row.get("name") or row.get("case_name") or "")).lower()
+    return any(word in text for word in _COMMERCIAL)
+
+
+def _cap_slug(name: str, abbr: str) -> str:
+    blob = f"{name} {abbr}".lower()
+    if "supreme court of the united states" in blob:
+        return "scotus"
+    if "circuit" in blob:
+        for word, slug in _CIRCUITS:
+            if word in blob:
+                return slug
+    if "delaware" in blob and "chancery" in blob:
+        return "delch"
+    if "delaware" in blob and "supreme" in blob:
+        return "del"
+    if "appellate division" in blob:
+        return "nyappdiv"
+    if "new york" in blob and "appeals" in blob:
+        return "ny"
+    if "texas" in blob and "supreme" in blob:
+        return "tex"
+    return ""
 
 
 def _court_id(row: dict) -> str:
     court = row.get("court") or row.get("court_id") or ""
     if isinstance(court, dict):
-        return str(court.get("slug") or court.get("id") or "").lower()
+        slug = str(court.get("slug") or "").lower()
+        if slug:
+            return slug
+        mapped = _cap_slug(str(court.get("name") or ""), str(court.get("name_abbreviation") or ""))
+        if mapped:
+            return mapped
+        return str(court.get("id") or "").lower()
     return str(court).lower()
 
 
@@ -106,8 +173,13 @@ def _opinion_text(row: dict) -> str:
     if plain:
         return plain
     body = row.get("casebody") or {}
-    data = body.get("data") if isinstance(body, dict) else None
-    opinions = (data or {}).get("opinions") if isinstance(data, dict) else None
+    opinions = None
+    if isinstance(body, dict):
+        data = body.get("data")
+        if isinstance(data, dict):
+            opinions = data.get("opinions")
+        if not opinions:
+            opinions = body.get("opinions")
     if opinions and isinstance(opinions, list):
         return "\n\n".join((item.get("text") or "").strip() for item in opinions if item.get("text")).strip()
     return ""
@@ -190,7 +262,8 @@ class CourtListenerAdapter(_CaseAdapter):
             raise FetchNotConfigured("refusing a URL that contains a credential")
         headers = {
             "Accept": "application/json",
-            "User-Agent": "TervoryZenasPool/0.1",
+            "Accept-Encoding": "gzip",
+            "User-Agent": USER_AGENT,
             "Authorization": f"Token {token}",
         }
         courts = ",".join(sorted(ALLOWED_COURTS))
@@ -224,6 +297,27 @@ class CourtListenerAdapter(_CaseAdapter):
 class CapAdapter(_CaseAdapter):
     source_id = "cap"
     reason = (
-        "Caselaw Access Project bulk data is unrestricted as of 2024-03-01, "
-        "but the multi-gigabyte dump is not in this repository. Supply a snapshot."
+        "Caselaw Access Project bulk data is unrestricted as of 2024-03-01. "
+        "Load now reads a small public volume from static.case.law."
     )
+
+    async def fetch(self, http_get) -> list[bytes]:
+        blobs, _cursor = await self.fetch_bulk(http_get)
+        return blobs
+
+    async def fetch_bulk(self, http_get, *, resume: str = "") -> tuple[list[bytes], str]:
+        del resume
+        cap = int(os.environ.get("CAP_MAX", "10") or "10")
+        headers = {"Accept": "text/html", "Accept-Encoding": "gzip", "User-Agent": USER_AGENT}
+        index = await http_get(_CAP_LIST, headers)
+        json_headers = {"Accept": "application/json", "Accept-Encoding": "gzip", "User-Agent": USER_AGENT}
+        blobs: list[bytes] = []
+        for match in _JSON_HREF.finditer(index.decode("utf-8", errors="replace")):
+            if len(blobs) >= cap:
+                break
+            href = match.group(1)
+            url = href if href.startswith("http") else urljoin(_CAP_LIST, href)
+            if "static.case.law" not in url:
+                continue
+            blobs.append(await http_get(url, json_headers))
+        return blobs, ""

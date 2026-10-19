@@ -14,6 +14,7 @@ from xml.etree import ElementTree as ET
 
 from agents.zenas.pool.builddoc import build_document
 from agents.zenas.pool.htmlparse import ecfr_sections
+from agents.zenas.pool.http import USER_AGENT
 from agents.zenas.pool.model import LegalDocument, Section, SourceSpec
 
 # Checked-in wave. The ranges in the plan (EAR 730–774, ITAR 120–130, OFAC 500s,
@@ -60,6 +61,11 @@ def _ecfr_date() -> str:
     return os.environ.get("ECFR_DATE", "2024-07-01").strip() or "2024-07-01"
 
 
+def _headers(accept: str) -> dict[str, str]:
+    """Accept matches the endpoint. Gzip is required by the versioner XML."""
+    return {"Accept": accept, "Accept-Encoding": "gzip", "User-Agent": USER_AGENT}
+
+
 def _part_numbers(payload: dict) -> list[str]:
     found: list[str] = []
 
@@ -89,21 +95,19 @@ class EcfrAdapter:
         blobs = []
         for on, title, part, section in ECFR_WAVE:
             url = ecfr_url(on, title, part, section)
-            blobs.append(
-                await http_get(url, {"Accept": "text/html", "User-Agent": "TervoryZenasPool/0.1"})
-            )
+            blobs.append(await http_get(url, _headers("text/html")))
         return blobs
 
     async def fetch_bulk(self, http_get, *, resume: str = "") -> tuple[list[bytes], str]:
         on = _ecfr_date()
-        headers = {"Accept": "application/xml", "User-Agent": "TervoryZenasPool/0.1"}
+        headers = _headers("application/xml")
         blobs: list[bytes] = []
         seen_resume = resume == ""
         for title, parts in ECFR_TARGETS:
             if parts is None:
                 structure = await http_get(
                     ecfr_structure_url(on, title),
-                    {"Accept": "application/json", "User-Agent": "TervoryZenasPool/0.1"},
+                    _headers("application/json"),
                 )
                 numbers = _part_numbers(json.loads(structure.decode("utf-8")))
             else:
@@ -170,6 +174,11 @@ def _parse_ecfr_xml(blob: bytes, source: SourceSpec) -> list[LegalDocument]:
                 title_no = str(current.attrib["N"])
                 break
             current = parents.get(current)
+        if not title_no:
+            meta = element.attrib.get("hierarchy_metadata") or ""
+            found = re.search(r"(\d+)\s+CFR", meta) or re.search(r"title-(\d+)", meta)
+            if found:
+                title_no = found.group(1)
         if not title_no:
             continue
         heading = ""
