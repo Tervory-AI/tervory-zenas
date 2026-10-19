@@ -17,17 +17,27 @@ import os
 import re
 from typing import Any
 
-from agents.zenas.core.engine import cite_check, keys_match, parse_json_object
+from agents.zenas.core.engine import (
+    CHEAP_CALL_USD,
+    cite_check,
+    fold_for_quote,
+    keys_match,
+    parse_json_object,
+    quote_in_source,
+)
 from agents.zenas.core.release_mask import material_type_for_pool
 from agents.zenas.core.selftest import box_jurisdiction, is_holdout
-from agents.zenas.core.service import ModelAdapter
 
 log = logging.getLogger("zenas.convert")
 
 _PLATFORM = "00000000-0000-0000-0000-000000000001"
 _DEFAULT_MAX = 200
+_EXCERPT = 1500
+_PASSAGE_WORDS = 4
 _convert_lock = asyncio.Lock()
 _convert_running: set[str] = set()
+# A long facts quote may be several verbatim passages joined with an ellipsis.
+_PASSAGE_JOIN = re.compile(r"\s+(?:\u2026|\.{3})\s+")
 
 _LIST_SQL = """
 SELECT DISTINCT ON (document_id)
@@ -105,6 +115,93 @@ def _fold(text: str) -> str:
     return " ".join((text or "").split())
 
 
+def fact_passages(facts: str) -> list[str]:
+    """One verbatim passage, or several joined with ' … '.
+
+    A join counts only when every piece is long enough to be a passage.
+    Shorter pieces stay one string, so a paraphrase split into words fails.
+    """
+    text = facts or ""
+    parts = [part.strip() for part in _PASSAGE_JOIN.split(text) if part.strip()]
+    if len(parts) <= 1:
+        return [text] if text.strip() else []
+    if any(len(fold_for_quote(part).split()) < _PASSAGE_WORDS for part in parts):
+        return [text]
+    return parts
+
+
+def answer_cut_off(finish_reason: str) -> bool:
+    """True when the model stopped because the answer budget ran out."""
+    token = re.sub(r"[^a-z0-9]", "", (finish_reason or "").lower())
+    if token in {"length", "maxtokens", "maxoutputtokens"}:
+        return True
+    return "maxtoken" in token
+
+
+def cutoff_label(finish_reason: str) -> str:
+    """'answer cut off' plus the finish reason the model reported."""
+    safe = re.sub(r"[^A-Za-z0-9_.:-]", "", (finish_reason or "").strip())[:40]
+    if not safe:
+        safe = "length"
+    return f"answer cut off ({safe})"
+
+
+def _public_excerpt(answer: str) -> str:
+    """The model's own answer, capped. Not the judgment, and not client text."""
+    return (answer or "")[:_EXCERPT]
+
+
+def _answer_view(result: Any) -> dict[str, Any]:
+    """Content plus the finish reason and token counts, when the call returned them."""
+    if isinstance(result, str):
+        return {
+            "content": result,
+            "cost_usd": CHEAP_CALL_USD,
+            "model": "",
+            "finish_reason": "",
+            "tokens_in": 0,
+            "tokens_out": 0,
+        }
+    if not isinstance(result, dict):
+        return {
+            "content": str(result or ""),
+            "cost_usd": CHEAP_CALL_USD,
+            "model": "",
+            "finish_reason": "",
+            "tokens_in": 0,
+            "tokens_out": 0,
+        }
+    cost = result.get("cost_usd")
+    if cost is None:
+        cost = CHEAP_CALL_USD
+    return {
+        "content": str(result.get("content") or ""),
+        "cost_usd": float(cost),
+        "model": str(result.get("model") or ""),
+        "finish_reason": str(result.get("finish_reason") or ""),
+        "tokens_in": int(result.get("tokens_in") or 0),
+        "tokens_out": int(result.get("tokens_out") or 0),
+    }
+
+
+async def _ask_model(model: Any, messages: list[dict[str, str]]) -> dict[str, Any]:
+    """Call the model and keep the finish reason and token counts.
+
+    The on-demand model object drops those fields. When it holds a Tank
+    client, ask Tank directly so the founder can see why a public case failed.
+    """
+    tank = getattr(model, "tank", None)
+    tenant_id = getattr(model, "tenant_id", None)
+    if tank is not None and tenant_id:
+        data = await tank.route(str(tenant_id), "zenas.case_facts", messages)
+        return _answer_view(data)
+    if hasattr(model, "complete"):
+        result = await model.complete(messages, task_type="zenas.case_facts", provider="luna")
+    else:
+        result = await model.model(messages, task_type="zenas.case_facts")
+    return _answer_view(result)
+
+
 def _empty(*, ok: bool, region: str, reason: str = "") -> dict[str, Any]:
     report: dict[str, Any] = {
         "ok": ok,
@@ -114,6 +211,7 @@ def _empty(*, ok: bool, region: str, reason: str = "") -> dict[str, Any]:
         "held_out": 0,
         "failed": 0,
         "failures": [],
+        "cases": [],
     }
     if reason:
         report["reason"] = reason
@@ -258,7 +356,7 @@ def parse_worked(raw: str) -> dict[str, Any]:
 
 def _statements(case: dict[str, Any], parsed: dict[str, Any]) -> list[dict[str, str]]:
     citation = str(case.get("citation") or "")
-    rows = [{"citation": citation, "quote": parsed["facts"]}]
+    rows = [{"citation": citation, "quote": part} for part in fact_passages(str(parsed.get("facts") or ""))]
     for item in parsed["citations"]:
         quote = _fold(item.get("quote") or "")
         if quote:
@@ -296,7 +394,7 @@ def _cite_reason(statements: list[dict[str, str]], passages: list[dict[str, Any]
         return "cite check failed"
     for statement in statements:
         citation = str(statement.get("citation") or "")
-        quote = _fold(str(statement.get("quote") or ""))
+        quote = str(statement.get("quote") or "")
         hits = [item for item in passages if keys_match(str(item.get("citation") or ""), citation)]
         if not hits:
             return "citation did not resolve"
@@ -304,15 +402,114 @@ def _cite_reason(statements: list[dict[str, str]], passages: list[dict[str, Any]
             str(item.get("status") or "") == "superseded" for item in hits
         ):
             return "citation is superseded"
-        if not quote or not any(quote in _fold(str(item.get("text") or "")) for item in hits):
+        if not any(quote_in_source(quote, str(item.get("text") or "")) for item in hits):
             return "quote is not in the judgment"
     return "cite check failed"
 
 
-async def _remember_failure(ladder: Any, *, region: str, pool_doc_id: str, reason: str) -> None:
+async def _store_failure_debug(
+    ladder: Any,
+    *,
+    region: str,
+    pool_doc_id: str,
+    answer: str,
+    finish_reason: str,
+    tokens_in: int,
+    tokens_out: int,
+) -> None:
+    """Store the model's answer for this public case. The judgment is not stored."""
+    excerpt = _public_excerpt(answer)
+    finish = (finish_reason or "")[:80]
+    incoming = int(tokens_in or 0)
+    outgoing = int(tokens_out or 0)
+    rows = getattr(ladder, "failures", None)
+    if isinstance(rows, list):
+        for row in rows:
+            if row.get("region") == region and row.get("pool_doc_id") == pool_doc_id:
+                row["answer_excerpt"] = excerpt
+                row["finish_reason"] = finish
+                row["tokens_in"] = incoming
+                row["tokens_out"] = outgoing
+        return
+    pool = getattr(ladder, "pool", None)
+    if pool is None:
+        return
+    sql = """
+    UPDATE agent_zenas.convert_failures
+    SET answer_excerpt = $3, finish_reason = $4, tokens_in = $5, tokens_out = $6
+    WHERE region = $1 AND pool_doc_id = $2
+    """.strip()
+    try:
+        async with pool.acquire() as conn:
+            await conn.execute(sql, region, pool_doc_id, excerpt, finish, incoming, outgoing)
+    except Exception:
+        log.warning("convert debug was not stored")
+
+
+async def _failure_details(ladder: Any, region: str) -> list[dict[str, Any]]:
+    """One row per failed public case. No judgment text and no client text."""
+    rows = getattr(ladder, "failures", None)
+    if isinstance(rows, list):
+        found = [row for row in rows if row.get("region") == region]
+    else:
+        pool = getattr(ladder, "pool", None)
+        if pool is None:
+            return []
+        sql = """
+        SELECT pool_doc_id, reason,
+               COALESCE(answer_excerpt, '') AS answer_excerpt,
+               COALESCE(finish_reason, '') AS finish_reason,
+               COALESCE(tokens_in, 0) AS tokens_in,
+               COALESCE(tokens_out, 0) AS tokens_out
+        FROM agent_zenas.convert_failures
+        WHERE region = $1
+        ORDER BY pool_doc_id
+        """.strip()
+        try:
+            async with pool.acquire() as conn:
+                fetched = await conn.fetch(sql, region)
+        except Exception:
+            log.warning("convert failures could not be read")
+            return []
+        found = [dict(row) for row in fetched]
+    details = []
+    for row in found:
+        details.append(
+            {
+                "id": str(row.get("pool_doc_id") or ""),
+                "reason": str(row.get("reason") or ""),
+                "answer": _public_excerpt(str(row.get("answer_excerpt") or "")),
+                "finish_reason": str(row.get("finish_reason") or ""),
+                "tokens_in": int(row.get("tokens_in") or 0),
+                "tokens_out": int(row.get("tokens_out") or 0),
+            }
+        )
+    return details
+
+
+async def _remember_failure(
+    ladder: Any,
+    *,
+    region: str,
+    pool_doc_id: str,
+    reason: str,
+    answer: str = "",
+    finish_reason: str = "",
+    tokens_in: int = 0,
+    tokens_out: int = 0,
+) -> None:
     clean = " ".join(reason.split())[:240]
     log.warning("case convert failed for %s: %s", pool_doc_id, clean)
     await ladder.record_convert_failure(region=region, pool_doc_id=pool_doc_id, reason=clean)
+    await _store_failure_debug(
+        ladder,
+        region=region,
+        pool_doc_id=pool_doc_id,
+        answer=answer,
+        finish_reason=finish_reason,
+        tokens_in=tokens_in,
+        tokens_out=tokens_out,
+    )
 
 
 def convert_running(region: str) -> bool:
@@ -353,7 +550,7 @@ async def begin_convert(region: str, runner: Any) -> dict[str, Any]:
 
 
 async def conversion_report(pool: Any, ladder: Any, *, region: str) -> dict[str, Any]:
-    """Counts only: decided cases loaded, converted, held out, failed."""
+    """Counts, plus the model's answer for each failed public case."""
     box = _box(region)
     if box is None or not _home_allows(pool, box):
         return _empty(ok=False, region=box or "", reason="wrong region")
@@ -362,6 +559,21 @@ async def conversion_report(pool: Any, ladder: Any, *, region: str) -> dict[str,
     tally = await ladder.case_tally(region=box, jurisdiction=jurisdiction)
     failed = await ladder.convert_failure_count(region=box)
     reasons = await ladder.convert_failure_reasons(region=box)
+    citations = {case["document_id"]: str(case.get("citation") or "") for case in decided}
+    cases = []
+    for row in await _failure_details(ladder, box):
+        cases.append(
+            {
+                "id": row["id"],
+                "citation": citations.get(row["id"], ""),
+                "reason": row["reason"],
+                "answer": row["answer"],
+                "finish_reason": row["finish_reason"],
+                "tokens_in": row["tokens_in"],
+                "tokens_out": row["tokens_out"],
+            }
+        )
+    cases.sort(key=lambda item: (item["citation"], item["id"]))
     return {
         "ok": True,
         "region": box,
@@ -370,6 +582,7 @@ async def conversion_report(pool: Any, ladder: Any, *, region: str) -> dict[str,
         "held_out": int(tally["held_out"]),
         "failed": int(failed),
         "failures": reasons,
+        "cases": cases,
     }
 
 
@@ -400,7 +613,6 @@ async def convert_cases(
         existing = await ladder.worked_for_doc(region=box, pool_doc_id=case["document_id"])
         if existing is None:
             pending.append(case)
-    adapter = ModelAdapter(model)
     for case in pending:
         if case["jurisdiction"] != jurisdiction:
             continue
@@ -419,19 +631,38 @@ async def convert_cases(
             continue
         prompt = _PROMPT_HEAD + case["citation"] + "\n\n" + text
         try:
-            called = await adapter.complete(
-                [{"role": "user", "content": prompt}],
-                task_type="zenas.case_facts",
-                provider="luna",
-            )
+            called = await _ask_model(model, [{"role": "user", "content": prompt}])
         except Exception:
             await _remember_failure(ladder, region=box, pool_doc_id=case["document_id"], reason="model call failed")
             continue
+        content = str(called.get("content") or "")
+        finish = str(called.get("finish_reason") or "")
+        tokens_in = int(called.get("tokens_in") or 0)
+        tokens_out = int(called.get("tokens_out") or 0)
+        if answer_cut_off(finish):
+            await _remember_failure(
+                ladder,
+                region=box,
+                pool_doc_id=case["document_id"],
+                reason=cutoff_label(finish),
+                answer=content,
+                finish_reason=finish,
+                tokens_in=tokens_in,
+                tokens_out=tokens_out,
+            )
+            continue
         try:
-            parsed = parse_worked(str(called.get("content") or ""))
+            parsed = parse_worked(content)
         except (ValueError, TypeError):
             await _remember_failure(
-                ladder, region=box, pool_doc_id=case["document_id"], reason="the model did not return case facts"
+                ladder,
+                region=box,
+                pool_doc_id=case["document_id"],
+                reason="the model did not return case facts",
+                answer=content,
+                finish_reason=finish,
+                tokens_in=tokens_in,
+                tokens_out=tokens_out,
             )
             continue
         passages = [
@@ -447,7 +678,14 @@ async def convert_cases(
         check = cite_check(statements, passages)
         if not check.get("passed"):
             await _remember_failure(
-                ladder, region=box, pool_doc_id=case["document_id"], reason=_cite_reason(statements, passages)
+                ladder,
+                region=box,
+                pool_doc_id=case["document_id"],
+                reason=_cite_reason(statements, passages),
+                answer=content,
+                finish_reason=finish,
+                tokens_in=tokens_in,
+                tokens_out=tokens_out,
             )
             continue
         held = is_holdout(case["document_id"])
@@ -578,6 +816,9 @@ def _night_model() -> tuple[Any, Any]:
                 "content": str(data.get("content") or ""),
                 "cost_usd": float(data.get("cost_usd") or 0),
                 "model": str(data.get("model") or ""),
+                "finish_reason": str(data.get("finish_reason") or ""),
+                "tokens_in": int(data.get("tokens_in") or 0),
+                "tokens_out": int(data.get("tokens_out") or 0),
             }
 
     return _Route(), http

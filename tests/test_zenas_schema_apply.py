@@ -291,6 +291,14 @@ async def _assert_z8(conn) -> None:
         """
     )
     assert int(indexed) == 1
+    columns = await conn.fetch(
+        """
+        SELECT column_name FROM information_schema.columns
+        WHERE table_schema = 'agent_zenas' AND table_name = 'convert_failures'
+        """
+    )
+    names = {row["column_name"] for row in columns}
+    assert {"answer_excerpt", "finish_reason", "tokens_in", "tokens_out"} <= names
     await conn.execute(
         """
         INSERT INTO agent_zenas.convert_failures (region, pool_doc_id, reason)

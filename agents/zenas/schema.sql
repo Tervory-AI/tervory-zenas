@@ -470,15 +470,26 @@ CREATE TABLE IF NOT EXISTS agent_zenas.selftest_runs (
     CONSTRAINT selftest_kind_chk CHECK (kind IN ('holdout', 'legalbench'))
 );
 
--- Z8. A cite-check failure is logged and retried the next night. No judgment text.
+-- Z8. A cite-check failure is logged and retried the next night.
+-- answer_excerpt is the model's own answer on a public judgment (at most
+-- 1,500 characters), for the founder debug view. Client text is never stored.
 CREATE TABLE IF NOT EXISTS agent_zenas.convert_failures (
-    id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    region       text NOT NULL,
-    pool_doc_id  text NOT NULL,
-    reason       text NOT NULL DEFAULT '',
-    created_at   timestamptz NOT NULL DEFAULT now(),
+    id             uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    region         text NOT NULL,
+    pool_doc_id    text NOT NULL,
+    reason         text NOT NULL DEFAULT '',
+    created_at     timestamptz NOT NULL DEFAULT now(),
+    answer_excerpt text NOT NULL DEFAULT '',
+    finish_reason  text NOT NULL DEFAULT '',
+    tokens_in      integer NOT NULL DEFAULT 0,
+    tokens_out     integer NOT NULL DEFAULT 0,
     CONSTRAINT convert_failures_region_chk CHECK (region IN ('us-east', 'za'))
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS convert_failures_doc_idx
     ON agent_zenas.convert_failures (region, pool_doc_id);
+
+ALTER TABLE agent_zenas.convert_failures ADD COLUMN IF NOT EXISTS answer_excerpt text NOT NULL DEFAULT '';
+ALTER TABLE agent_zenas.convert_failures ADD COLUMN IF NOT EXISTS finish_reason text NOT NULL DEFAULT '';
+ALTER TABLE agent_zenas.convert_failures ADD COLUMN IF NOT EXISTS tokens_in integer NOT NULL DEFAULT 0;
+ALTER TABLE agent_zenas.convert_failures ADD COLUMN IF NOT EXISTS tokens_out integer NOT NULL DEFAULT 0;

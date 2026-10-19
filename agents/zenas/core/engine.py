@@ -130,6 +130,73 @@ def _fold_space(text: str) -> str:
     return " ".join((text or "").split())
 
 
+# PDF extraction and a model's copy of it disagree on these characters.
+# Folding them does not change a word: a paraphrase still fails the quote check.
+_QUOTE_CHARS = str.maketrans(
+    {
+        "\u2018": "'",
+        "\u2019": "'",
+        "\u201a": "'",
+        "\u201b": "'",
+        "\u201c": " ",
+        "\u201d": " ",
+        "\u201e": " ",
+        "\u201f": " ",
+        "\u00ab": " ",
+        "\u00bb": " ",
+        '"': " ",
+        "\u2010": "-",
+        "\u2011": "-",
+        "\u2012": "-",
+        "\u2013": "-",
+        "\u2014": "-",
+        "\u2015": "-",
+        "\u2212": "-",
+        "\u00ad": None,
+        "\u00a0": " ",
+        "\u200b": None,
+        "\ufeff": None,
+        "\u00b9": None,
+        "\u00b2": None,
+        "\u00b3": None,
+        "\u2070": None,
+        "\u2071": None,
+        "\u2074": None,
+        "\u2075": None,
+        "\u2076": None,
+        "\u2077": None,
+        "\u2078": None,
+        "\u2079": None,
+        "\u2020": None,
+        "\u2021": None,
+    }
+)
+_HYPHEN_BREAK = re.compile(r"(?<=[A-Za-z])-\s+(?=[A-Za-z])")
+_HYPHEN_WORD = re.compile(r"(?<=[A-Za-z])-(?=[A-Za-z])")
+_PARA_NO = re.compile(r"\[\d{1,4}\]")
+_LINE_NO = re.compile(r"(?m)^\s*\d{1,4}\.\s+")
+_FOOT_STAR = re.compile(r"(?<=[A-Za-z])\*+")
+
+
+def fold_for_quote(text: str) -> str:
+    """Fold PDF noise so a verbatim quote can be found. Words stay words."""
+    raw = (text or "").translate(_QUOTE_CHARS)
+    raw = _PARA_NO.sub(" ", raw)
+    raw = _LINE_NO.sub(" ", raw)
+    raw = _FOOT_STAR.sub("", raw)
+    raw = _HYPHEN_BREAK.sub("", raw)
+    raw = _HYPHEN_WORD.sub("", raw)
+    return " ".join(raw.split())
+
+
+def quote_in_source(quote: str, source: str) -> bool:
+    """True when the quote is in the source after PDF folding. A paraphrase is not."""
+    folded = fold_for_quote(quote)
+    if not folded:
+        return False
+    return folded in fold_for_quote(source)
+
+
 def _detect_candidates() -> list[Path]:
     here = Path(__file__).resolve()
     found = [
@@ -343,11 +410,12 @@ def cite_check(statements: list[dict[str, Any]], passages: list[dict[str, Any]])
     results: list[dict[str, Any]] = []
     for statement in statements:
         citation = str(statement.get("citation") or "")
-        quote = _fold_space(str(statement.get("quote") or ""))
+        quote = str(statement.get("quote") or "")
+        folded = fold_for_quote(quote)
         hits = [item for item in passages if keys_match(str(item.get("citation") or ""), citation)]
         matched = None
         for hit in hits:
-            if quote and quote in _fold_space(str(hit.get("text") or "")):
+            if folded and quote_in_source(quote, str(hit.get("text") or "")):
                 if str(hit.get("status") or "") != "superseded":
                     matched = hit
                     break
@@ -355,7 +423,7 @@ def cite_check(statements: list[dict[str, Any]], passages: list[dict[str, Any]])
         superseded = bool(matched) and str(matched.get("status") or "") == "superseded"
         if matched is None:
             superseded = bool(hits) and all(str(hit.get("status") or "") == "superseded" for hit in hits)
-        quote_match = matched is not None and not superseded and bool(quote)
+        quote_match = matched is not None and not superseded and bool(folded)
         resolved = matched is not None and not superseded
         results.append(
             {
