@@ -412,6 +412,66 @@ def _za_sources() -> tuple[SourceSpec, ...]:
     )
     rows.append(
         SourceSpec(
+            source_id="govza-acts",
+            name="National Acts (gov.za)",
+            region="za",
+            jurisdiction="za",
+            licence="Public record. Act text as published in the Government Gazette on gov.za.",
+            terms=(
+                "Acts are published in the Government Gazette and on gov.za. "
+                "These terms are recorded as information. Data use is the founder's decision."
+            ),
+            terms_url="https://www.gov.za/documents/acts",
+            bulk_use="allowed",
+            store_full_text=True,
+            canonical_url="https://www.gov.za/documents/acts",
+            notes=(
+                "Keyless. Every national Act on the gov.za Acts index, the Act as passed and "
+                "every amendment Act, as the official PDF. One document per section. "
+                "Each section keeps its source URL, Act number and year, and Gazette number and date. "
+                "Status is as_passed, or as_amended_by: [the amending Act]. "
+                "No consolidated text is written. ZA box only; a US box does not fetch. "
+                "Weekly full index walk; other nights read the newest index page. "
+                "A PDF whose gazette row and content hash are unchanged is not downloaded again. "
+                "robots.txt is respected. A challenge page is logged and not stored. "
+                "Text is extracted with pypdf. "
+                "GOVZA_STATUTE_MIN_INTERVAL is the pause between requests (default 1; set 1 on the ZA box). "
+                "GOVZA_ACTS_MAX_PAGES (default 20) and GOVZA_ACTS_MAX_FILES (default 40) bound one wave. "
+                "GOVZA_STATUTE_WEEK_DAYS (default 7) is the full-walk interval. "
+                "The checkpoint resumes the next Load now."
+            ),
+            adapter="govza-acts",
+        )
+    )
+    rows.append(
+        SourceSpec(
+            source_id="govza-regulations",
+            name="Government Gazette regulations",
+            region="za",
+            jurisdiction="za",
+            licence="Public record. Regulations and rules as published in the Government Gazette.",
+            terms=(
+                "Regulations are published in the Government Gazette and on gov.za. "
+                "These terms are recorded as information. Data use is the founder's decision."
+            ),
+            terms_url="https://www.gov.za/documents/notices",
+            bulk_use="allowed",
+            store_full_text=True,
+            canonical_url="https://www.gov.za/documents/notices",
+            notes=(
+                "Keyless. Regulation and rules notices on the gov.za notices index "
+                "(a title that says regulation, or a Regulation Gazette row for rules). "
+                "Same section shape, amendment record, hash, robots.txt, and ZA-only rule as National Acts. "
+                "No consolidated regulations are written. "
+                "GOVZA_REG_MAX_PAGES (default 10) and GOVZA_REG_MAX_FILES (default 20) bound one wave. "
+                "GOVZA_STATUTE_MIN_INTERVAL (default 1) and GOVZA_STATUTE_WEEK_DAYS (default 7) are shared "
+                "with National Acts. The checkpoint resumes the next Load now."
+            ),
+            adapter="govza-regulations",
+        )
+    )
+    rows.append(
+        SourceSpec(
             source_id="uniform-rules",
             name="Uniform Rules of Court",
             region="za",
