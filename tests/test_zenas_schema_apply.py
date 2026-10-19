@@ -298,7 +298,14 @@ async def _assert_z8(conn) -> None:
         """
     )
     names = {row["column_name"] for row in columns}
-    assert {"answer_excerpt", "finish_reason", "tokens_in", "tokens_out"} <= names
+    assert {
+        "answer_excerpt",
+        "finish_reason",
+        "tokens_in",
+        "tokens_out",
+        "quote_part",
+        "quote_excerpt",
+    } <= names
     await conn.execute(
         """
         INSERT INTO agent_zenas.convert_failures (region, pool_doc_id, reason)

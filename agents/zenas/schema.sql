@@ -473,6 +473,8 @@ CREATE TABLE IF NOT EXISTS agent_zenas.selftest_runs (
 -- Z8. A cite-check failure is logged and retried the next night.
 -- answer_excerpt is the model's own answer on a public judgment (at most
 -- 1,500 characters), for the founder debug view. Client text is never stored.
+-- quote_part names which quote failed (facts, element N, citation N).
+-- quote_excerpt is the first 120 characters of that quote.
 CREATE TABLE IF NOT EXISTS agent_zenas.convert_failures (
     id             uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     region         text NOT NULL,
@@ -483,6 +485,8 @@ CREATE TABLE IF NOT EXISTS agent_zenas.convert_failures (
     finish_reason  text NOT NULL DEFAULT '',
     tokens_in      integer NOT NULL DEFAULT 0,
     tokens_out     integer NOT NULL DEFAULT 0,
+    quote_part     text NOT NULL DEFAULT '',
+    quote_excerpt  text NOT NULL DEFAULT '',
     CONSTRAINT convert_failures_region_chk CHECK (region IN ('us-east', 'za'))
 );
 
@@ -493,3 +497,5 @@ ALTER TABLE agent_zenas.convert_failures ADD COLUMN IF NOT EXISTS answer_excerpt
 ALTER TABLE agent_zenas.convert_failures ADD COLUMN IF NOT EXISTS finish_reason text NOT NULL DEFAULT '';
 ALTER TABLE agent_zenas.convert_failures ADD COLUMN IF NOT EXISTS tokens_in integer NOT NULL DEFAULT 0;
 ALTER TABLE agent_zenas.convert_failures ADD COLUMN IF NOT EXISTS tokens_out integer NOT NULL DEFAULT 0;
+ALTER TABLE agent_zenas.convert_failures ADD COLUMN IF NOT EXISTS quote_part text NOT NULL DEFAULT '';
+ALTER TABLE agent_zenas.convert_failures ADD COLUMN IF NOT EXISTS quote_excerpt text NOT NULL DEFAULT '';

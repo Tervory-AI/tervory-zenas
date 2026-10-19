@@ -126,6 +126,42 @@ def keys_match(left: str, right: str) -> bool:
     return a.startswith(b + " ") or b.startswith(a + " ")
 
 
+def _cite_plain(citation: str) -> str:
+    text = " ".join((citation or "").casefold().split())
+    return text.strip(" .")
+
+
+def same_case_citation(left: str, right: str) -> bool:
+    """True when both strings name the same case, including a docket form.
+
+    'CAC 212' is the same citation as 'CAC212' and 'CAC 212.'. A different
+    case is not. An empty string is not a citation.
+    """
+    a = _cite_plain(left)
+    b = _cite_plain(right)
+    if not a or not b:
+        return False
+    if a == b or keys_match(left, right):
+        return True
+    squeezed_a = re.sub(r"[^a-z0-9]", "", a)
+    squeezed_b = re.sub(r"[^a-z0-9]", "", b)
+    return bool(squeezed_a) and squeezed_a == squeezed_b
+
+
+def citation_hits(citation: str, passages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Passages this citation resolves to.
+
+    The case's own pool citation resolves to that row. A citation the answer
+    adds still has to match a passage.
+    """
+    found: list[dict[str, Any]] = []
+    for item in passages:
+        stored = str(item.get("citation") or "")
+        if keys_match(stored, citation) or same_case_citation(stored, citation):
+            found.append(item)
+    return found
+
+
 def _fold_space(text: str) -> str:
     return " ".join((text or "").split())
 
@@ -412,7 +448,7 @@ def cite_check(statements: list[dict[str, Any]], passages: list[dict[str, Any]])
         citation = str(statement.get("citation") or "")
         quote = str(statement.get("quote") or "")
         folded = fold_for_quote(quote)
-        hits = [item for item in passages if keys_match(str(item.get("citation") or ""), citation)]
+        hits = citation_hits(citation, passages)
         matched = None
         for hit in hits:
             if folded and quote_in_source(quote, str(hit.get("text") or "")):

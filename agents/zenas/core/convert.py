@@ -19,9 +19,9 @@ from typing import Any
 
 from agents.zenas.core.engine import (
     CHEAP_CALL_USD,
+    citation_hits,
     cite_check,
     fold_for_quote,
-    keys_match,
     parse_json_object,
     quote_in_source,
 )
@@ -33,11 +33,13 @@ log = logging.getLogger("zenas.convert")
 _PLATFORM = "00000000-0000-0000-0000-000000000001"
 _DEFAULT_MAX = 200
 _EXCERPT = 1500
+_QUOTE_BIT = 120
 _PASSAGE_WORDS = 4
 _convert_lock = asyncio.Lock()
 _convert_running: set[str] = set()
-# A long facts quote may be several verbatim passages joined with an ellipsis.
-_PASSAGE_JOIN = re.compile(r"\s+(?:\u2026|\.{3})\s+")
+# Models join verbatim passages with '...', '…', or '. . .', spaces or not.
+# Three or more dots are one joiner, so a sentence period plus '...' still splits.
+_PASSAGE_JOIN = re.compile(r"\s*(?:\u2026|\.{3,}|(?:\.\s+){2}\.)\s*")
 
 _LIST_SQL = """
 SELECT DISTINCT ON (document_id)
@@ -116,15 +118,17 @@ def _fold(text: str) -> str:
 
 
 def fact_passages(facts: str) -> list[str]:
-    """One verbatim passage, or several joined with ' … '.
+    """One verbatim passage, or several joined the way a model writes an ellipsis.
 
     A join counts only when every piece is long enough to be a passage.
     Shorter pieces stay one string, so a paraphrase split into words fails.
     """
     text = facts or ""
     parts = [part.strip() for part in _PASSAGE_JOIN.split(text) if part.strip()]
-    if len(parts) <= 1:
-        return [text] if text.strip() else []
+    if not parts:
+        return []
+    if len(parts) == 1:
+        return parts if _PASSAGE_JOIN.search(text) else [text]
     if any(len(fold_for_quote(part).split()) < _PASSAGE_WORDS for part in parts):
         return [text]
     return parts
@@ -356,15 +360,30 @@ def parse_worked(raw: str) -> dict[str, Any]:
 
 def _statements(case: dict[str, Any], parsed: dict[str, Any]) -> list[dict[str, str]]:
     citation = str(case.get("citation") or "")
-    rows = [{"citation": citation, "quote": part} for part in fact_passages(str(parsed.get("facts") or ""))]
-    for item in parsed["citations"]:
+    rows = [
+        {"citation": citation, "quote": part, "part": "facts"}
+        for part in fact_passages(str(parsed.get("facts") or ""))
+    ]
+    for index, item in enumerate(parsed["citations"], start=1):
         quote = _fold(item.get("quote") or "")
         if quote:
-            rows.append({"citation": item.get("citation") or citation, "quote": quote})
-    for element in parsed["elements"]:
+            rows.append(
+                {
+                    "citation": item.get("citation") or citation,
+                    "quote": quote,
+                    "part": f"citation {index}",
+                }
+            )
+    for index, element in enumerate(parsed["elements"], start=1):
         quote = _fold(element.get("quote") or "")
         if quote:
-            rows.append({"citation": element.get("citation") or citation, "quote": quote})
+            rows.append(
+                {
+                    "citation": element.get("citation") or citation,
+                    "quote": quote,
+                    "part": f"element {index}",
+                }
+            )
     return rows
 
 
@@ -372,6 +391,14 @@ def _statements(case: dict[str, Any], parsed: dict[str, Any]) -> list[dict[str, 
 _SA_CAPTION = re.compile(
     r"(?i)(?:^\s*s\s+v\s+\S|\bDPP\b|director of public prosecutions|\bNPA\b|national prosecuting authority)"
 )
+# A Competition Commission or Tribunal merger clearance, not the reasons.
+_MERGER_LETTER = re.compile(
+    r"merger clearance certificate|conditional merger approval|merger approval letter|"
+    r"approves the merger in terms of section\s+16",
+    re.I,
+)
+_COMPETITION_BODY = re.compile(r"competition (commission|tribunal)", re.I)
+_REASONS_TITLE = re.compile(r"\breasons\b|\bjudgment\b", re.I)
 
 
 def criminal_case(case: dict[str, Any]) -> bool:
@@ -388,23 +415,59 @@ def criminal_case(case: dict[str, Any]) -> bool:
     return criminal_record(str(case.get("docket_number") or ""), str(case.get("nature_of_suit") or ""))
 
 
-def _cite_reason(statements: list[dict[str, str]], passages: list[dict[str, Any]]) -> str:
-    """A short reason. The judgment text is not included."""
+def merger_approval_letter(case: dict[str, Any], text: str) -> bool:
+    """A Competition Commission or Tribunal merger clearance, not a judgment.
+
+    The Appeal Court and a reasons document stay in. The letter is skipped
+    before a model is called.
+    """
+    source = str(case.get("source_id") or "").lower()
+    if source == "cac":
+        return False
+    title = str(case.get("title") or "")
+    if _REASONS_TITLE.search(title):
+        return False
+    opening = ""
+    for line in (text or "").splitlines():
+        if line.strip():
+            opening = line.strip()
+            break
+    if re.match(r"(reasons|judgment)\b", opening, re.I):
+        return False
+    blob = "\n".join((title, str(case.get("citation") or ""), text or ""))
+    competition = source in {"comptrib", "compcom"} or _COMPETITION_BODY.search(blob) is not None
+    if not competition:
+        return False
+    return _MERGER_LETTER.search(blob) is not None
+
+
+def _quote_bit(quote: str) -> str:
+    """The first 120 characters of the quote that failed. Not the judgment."""
+    return (quote or "")[:_QUOTE_BIT]
+
+
+def _cite_failure(statements: list[dict[str, str]], passages: list[dict[str, Any]]) -> tuple[str, str, str]:
+    """Reason, which part failed, and the start of that quote.
+
+    The case's own citation resolves to its own row. Another citation the
+    answer adds still has to resolve. The judgment text is not returned.
+    """
     if not statements:
-        return "cite check failed"
+        return "cite check failed", "", ""
     for statement in statements:
         citation = str(statement.get("citation") or "")
         quote = str(statement.get("quote") or "")
-        hits = [item for item in passages if keys_match(str(item.get("citation") or ""), citation)]
+        part = str(statement.get("part") or "")
+        hits = citation_hits(citation, passages)
         if not hits:
-            return "citation did not resolve"
+            return "citation did not resolve", part, _quote_bit(quote)
         if any(str(item.get("status") or "") == "superseded" for item in hits) and all(
             str(item.get("status") or "") == "superseded" for item in hits
         ):
-            return "citation is superseded"
+            return "citation is superseded", part, _quote_bit(quote)
         if not any(quote_in_source(quote, str(item.get("text") or "")) for item in hits):
-            return "quote is not in the judgment"
-    return "cite check failed"
+            return "quote is not in the judgment", part, _quote_bit(quote)
+    return "cite check failed", "", ""
 
 
 async def _store_failure_debug(
@@ -416,32 +479,63 @@ async def _store_failure_debug(
     finish_reason: str,
     tokens_in: int,
     tokens_out: int,
+    quote_part: str = "",
+    quote_excerpt: str = "",
 ) -> None:
-    """Store the model's answer for this public case. The judgment is not stored."""
+    """Store this attempt only. The judgment is not stored."""
     excerpt = _public_excerpt(answer)
     finish = (finish_reason or "")[:80]
     incoming = int(tokens_in or 0)
     outgoing = int(tokens_out or 0)
+    part = " ".join((quote_part or "").split())[:40]
+    bit = (quote_excerpt or "")[:_QUOTE_BIT]
     rows = getattr(ladder, "failures", None)
     if isinstance(rows, list):
+        kept = False
+        fresh: list[dict[str, Any]] = []
         for row in rows:
             if row.get("region") == region and row.get("pool_doc_id") == pool_doc_id:
+                if kept:
+                    continue
                 row["answer_excerpt"] = excerpt
                 row["finish_reason"] = finish
                 row["tokens_in"] = incoming
                 row["tokens_out"] = outgoing
+                row["quote_part"] = part
+                row["quote_excerpt"] = bit
+                kept = True
+            fresh.append(row)
+        rows[:] = fresh
         return
     pool = getattr(ladder, "pool", None)
     if pool is None:
         return
-    sql = """
+    update_sql = """
     UPDATE agent_zenas.convert_failures
-    SET answer_excerpt = $3, finish_reason = $4, tokens_in = $5, tokens_out = $6
+    SET answer_excerpt = $3, finish_reason = $4, tokens_in = $5, tokens_out = $6,
+        quote_part = $7, quote_excerpt = $8
     WHERE region = $1 AND pool_doc_id = $2
+    """.strip()
+    # One row per case. An older attempt's reason and answer do not remain.
+    drop_sql = """
+    DELETE FROM agent_zenas.convert_failures AS older
+    WHERE older.region = $1 AND older.pool_doc_id = $2
+      AND EXISTS (
+        SELECT 1 FROM agent_zenas.convert_failures AS newer
+        WHERE newer.region = older.region
+          AND newer.pool_doc_id = older.pool_doc_id
+          AND (
+            newer.created_at > older.created_at
+            OR (newer.created_at = older.created_at AND newer.id > older.id)
+          )
+      )
     """.strip()
     try:
         async with pool.acquire() as conn:
-            await conn.execute(sql, region, pool_doc_id, excerpt, finish, incoming, outgoing)
+            await conn.execute(drop_sql, region, pool_doc_id)
+            await conn.execute(
+                update_sql, region, pool_doc_id, excerpt, finish, incoming, outgoing, part, bit
+            )
     except Exception:
         log.warning("convert debug was not stored")
 
@@ -456,14 +550,17 @@ async def _failure_details(ladder: Any, region: str) -> list[dict[str, Any]]:
         if pool is None:
             return []
         sql = """
-        SELECT pool_doc_id, reason,
+        SELECT DISTINCT ON (pool_doc_id)
+               pool_doc_id, reason,
                COALESCE(answer_excerpt, '') AS answer_excerpt,
                COALESCE(finish_reason, '') AS finish_reason,
                COALESCE(tokens_in, 0) AS tokens_in,
-               COALESCE(tokens_out, 0) AS tokens_out
+               COALESCE(tokens_out, 0) AS tokens_out,
+               COALESCE(quote_part, '') AS quote_part,
+               COALESCE(quote_excerpt, '') AS quote_excerpt
         FROM agent_zenas.convert_failures
         WHERE region = $1
-        ORDER BY pool_doc_id
+        ORDER BY pool_doc_id, created_at DESC, id DESC
         """.strip()
         try:
             async with pool.acquire() as conn:
@@ -482,6 +579,8 @@ async def _failure_details(ladder: Any, region: str) -> list[dict[str, Any]]:
                 "finish_reason": str(row.get("finish_reason") or ""),
                 "tokens_in": int(row.get("tokens_in") or 0),
                 "tokens_out": int(row.get("tokens_out") or 0),
+                "quote_part": str(row.get("quote_part") or ""),
+                "quote_excerpt": _quote_bit(str(row.get("quote_excerpt") or "")),
             }
         )
     return details
@@ -497,6 +596,8 @@ async def _remember_failure(
     finish_reason: str = "",
     tokens_in: int = 0,
     tokens_out: int = 0,
+    quote_part: str = "",
+    quote_excerpt: str = "",
 ) -> None:
     clean = " ".join(reason.split())[:240]
     log.warning("case convert failed for %s: %s", pool_doc_id, clean)
@@ -509,6 +610,8 @@ async def _remember_failure(
         finish_reason=finish_reason,
         tokens_in=tokens_in,
         tokens_out=tokens_out,
+        quote_part=quote_part,
+        quote_excerpt=quote_excerpt,
     )
 
 
@@ -571,6 +674,8 @@ async def conversion_report(pool: Any, ladder: Any, *, region: str) -> dict[str,
                 "finish_reason": row["finish_reason"],
                 "tokens_in": row["tokens_in"],
                 "tokens_out": row["tokens_out"],
+                "quote_part": row["quote_part"],
+                "quote_excerpt": row["quote_excerpt"],
             }
         )
     cases.sort(key=lambda item: (item["citation"], item["id"]))
@@ -626,6 +731,11 @@ async def convert_cases(
             await _remember_failure(ladder, region=box, pool_doc_id=case["document_id"], reason="criminal law is refused")
             continue
         text = await _judgment(pool, case)
+        if merger_approval_letter(case, text):
+            await _remember_failure(
+                ladder, region=box, pool_doc_id=case["document_id"], reason="not a judgment"
+            )
+            continue
         if not text.strip() or not case["citation"].strip():
             await _remember_failure(ladder, region=box, pool_doc_id=case["document_id"], reason="cite check failed")
             continue
@@ -677,15 +787,18 @@ async def convert_cases(
         statements = _statements(case, parsed)
         check = cite_check(statements, passages)
         if not check.get("passed"):
+            reason, part, bit = _cite_failure(statements, passages)
             await _remember_failure(
                 ladder,
                 region=box,
                 pool_doc_id=case["document_id"],
-                reason=_cite_reason(statements, passages),
+                reason=reason,
                 answer=content,
                 finish_reason=finish,
                 tokens_in=tokens_in,
                 tokens_out=tokens_out,
+                quote_part=part,
+                quote_excerpt=bit,
             )
             continue
         held = is_holdout(case["document_id"])
