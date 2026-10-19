@@ -480,7 +480,11 @@ def test_schema_is_additive_and_queries_are_tenant_scoped() -> None:
     assert "drop " not in lowered
     assert "rename " not in lowered
     for statement in schema_statements():
-        assert "IF NOT EXISTS" in statement.upper()
+        upper = statement.upper()
+        if upper.startswith("INSERT"):
+            assert "ON CONFLICT" in upper and "DO NOTHING" in upper
+        else:
+            assert "IF NOT EXISTS" in upper
     for sql in READS:
         assert "tenant_id" in sql
     assert "tenant_id" in MATTERS_FOR_TENANT

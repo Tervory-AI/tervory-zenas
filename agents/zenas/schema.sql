@@ -245,3 +245,196 @@ CREATE INDEX IF NOT EXISTS playbooks_tenant_idx
 ALTER TABLE agent_zenas.worked_matters ADD COLUMN IF NOT EXISTS material_type text;
 
 DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint c JOIN pg_namespace n ON n.oid = c.connamespace WHERE c.conname = 'worked_material_type_chk' AND n.nspname = 'agent_zenas') THEN ALTER TABLE agent_zenas.worked_matters ADD CONSTRAINT worked_material_type_chk CHECK (material_type IS NULL OR material_type IN ('public_record', 'client_work')); END IF; END $$;
+
+-- Learning register. A source row records jurisdiction, source, licence, terms status, and last update.
+-- No source text is stored here. not_cleared is not ingested. last_update stays empty until a later load.
+-- A golden-case row is an empty slot. correction is for a lawyer later. Questions are not invented here.
+-- Criminal matters are refused by the register and are not inserted here.
+
+CREATE TABLE IF NOT EXISTS agent_zenas.learning_sources (
+    source_id      text PRIMARY KEY,
+    jurisdiction   text NOT NULL,
+    source         text NOT NULL,
+    licence        text NOT NULL,
+    terms_status   text NOT NULL,
+    last_update    timestamptz,
+    CONSTRAINT learning_sources_jurisdiction_chk CHECK (jurisdiction IN ('us', 'za')),
+    CONSTRAINT learning_sources_terms_chk CHECK (terms_status IN ('cleared', 'not_cleared'))
+);
+
+ALTER TABLE agent_zenas.learning_sources ADD COLUMN IF NOT EXISTS jurisdiction text;
+ALTER TABLE agent_zenas.learning_sources ADD COLUMN IF NOT EXISTS source text;
+ALTER TABLE agent_zenas.learning_sources ADD COLUMN IF NOT EXISTS licence text;
+ALTER TABLE agent_zenas.learning_sources ADD COLUMN IF NOT EXISTS terms_status text;
+ALTER TABLE agent_zenas.learning_sources ADD COLUMN IF NOT EXISTS last_update timestamptz;
+
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint c JOIN pg_namespace n ON n.oid = c.connamespace WHERE c.conname = 'learning_sources_jurisdiction_chk' AND n.nspname = 'agent_zenas') THEN ALTER TABLE agent_zenas.learning_sources ADD CONSTRAINT learning_sources_jurisdiction_chk CHECK (jurisdiction IN ('us', 'za')); END IF; END $$;
+
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint c JOIN pg_namespace n ON n.oid = c.connamespace WHERE c.conname = 'learning_sources_terms_chk' AND n.nspname = 'agent_zenas') THEN ALTER TABLE agent_zenas.learning_sources ADD CONSTRAINT learning_sources_terms_chk CHECK (terms_status IN ('cleared', 'not_cleared')); END IF; END $$;
+
+CREATE INDEX IF NOT EXISTS learning_sources_jurisdiction_idx
+    ON agent_zenas.learning_sources (jurisdiction);
+
+CREATE TABLE IF NOT EXISTS agent_zenas.golden_cases (
+    id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    jurisdiction    text NOT NULL,
+    slot            integer NOT NULL,
+    question        text NOT NULL DEFAULT '',
+    answer          text NOT NULL DEFAULT '',
+    correction      text NOT NULL DEFAULT '',
+    corrected_by    text NOT NULL DEFAULT '',
+    admission_no    text NOT NULL DEFAULT '',
+    corrected_at    timestamptz,
+    CONSTRAINT golden_cases_jurisdiction_chk CHECK (jurisdiction IN ('us', 'za')),
+    CONSTRAINT golden_cases_slot_chk CHECK (slot >= 1 AND slot <= 20)
+);
+
+ALTER TABLE agent_zenas.golden_cases ADD COLUMN IF NOT EXISTS jurisdiction text;
+ALTER TABLE agent_zenas.golden_cases ADD COLUMN IF NOT EXISTS slot integer;
+ALTER TABLE agent_zenas.golden_cases ADD COLUMN IF NOT EXISTS question text;
+ALTER TABLE agent_zenas.golden_cases ADD COLUMN IF NOT EXISTS answer text;
+ALTER TABLE agent_zenas.golden_cases ADD COLUMN IF NOT EXISTS correction text;
+ALTER TABLE agent_zenas.golden_cases ADD COLUMN IF NOT EXISTS corrected_by text;
+ALTER TABLE agent_zenas.golden_cases ADD COLUMN IF NOT EXISTS admission_no text;
+ALTER TABLE agent_zenas.golden_cases ADD COLUMN IF NOT EXISTS corrected_at timestamptz;
+
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint c JOIN pg_namespace n ON n.oid = c.connamespace WHERE c.conname = 'golden_cases_jurisdiction_chk' AND n.nspname = 'agent_zenas') THEN ALTER TABLE agent_zenas.golden_cases ADD CONSTRAINT golden_cases_jurisdiction_chk CHECK (jurisdiction IN ('us', 'za')); END IF; END $$;
+
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint c JOIN pg_namespace n ON n.oid = c.connamespace WHERE c.conname = 'golden_cases_slot_chk' AND n.nspname = 'agent_zenas') THEN ALTER TABLE agent_zenas.golden_cases ADD CONSTRAINT golden_cases_slot_chk CHECK (slot >= 1 AND slot <= 20); END IF; END $$;
+
+CREATE UNIQUE INDEX IF NOT EXISTS golden_cases_slot_idx
+    ON agent_zenas.golden_cases (jurisdiction, slot);
+
+
+-- Seed. ON CONFLICT DO NOTHING so a later lawyer correction is kept.
+INSERT INTO agent_zenas.learning_sources
+    (source_id, jurisdiction, source, licence, terms_status)
+VALUES ('govinfo-uscode', 'us', 'United States Code (GovInfo)', 'Public domain. U.S. government work, 17 U.S.C. § 105.', 'cleared')
+ON CONFLICT (source_id) DO NOTHING;
+INSERT INTO agent_zenas.learning_sources
+    (source_id, jurisdiction, source, licence, terms_status)
+VALUES ('ecfr', 'us', 'Code of Federal Regulations (eCFR)', 'Public domain. U.S. government work, 17 U.S.C. § 105.', 'cleared')
+ON CONFLICT (source_id) DO NOTHING;
+INSERT INTO agent_zenas.learning_sources
+    (source_id, jurisdiction, source, licence, terms_status)
+VALUES ('federal-register', 'us', 'Federal Register', 'Public domain. U.S. government work, 17 U.S.C. § 105.', 'cleared')
+ON CONFLICT (source_id) DO NOTHING;
+INSERT INTO agent_zenas.learning_sources
+    (source_id, jurisdiction, source, licence, terms_status)
+VALUES ('cfr-19', 'us', '19 CFR (customs)', 'Public domain. U.S. government work, 17 U.S.C. § 105.', 'cleared')
+ON CONFLICT (source_id) DO NOTHING;
+INSERT INTO agent_zenas.learning_sources
+    (source_id, jurisdiction, source, licence, terms_status)
+VALUES ('usitc-htsus', 'us', 'Harmonized Tariff Schedule of the United States (USITC)', 'Public domain. U.S. government work, 17 U.S.C. § 105. Enacted schedule published by the U.S. International Trade Commission, 19 U.S.C. § 1202.', 'cleared')
+ON CONFLICT (source_id) DO NOTHING;
+INSERT INTO agent_zenas.learning_sources
+    (source_id, jurisdiction, source, licence, terms_status)
+VALUES ('ear-15-cfr', 'us', 'EAR (15 CFR 730-774)', 'Public domain. U.S. government work, 17 U.S.C. § 105.', 'cleared')
+ON CONFLICT (source_id) DO NOTHING;
+INSERT INTO agent_zenas.learning_sources
+    (source_id, jurisdiction, source, licence, terms_status)
+VALUES ('itar-22-cfr', 'us', 'ITAR (22 CFR 120-130)', 'Public domain. U.S. government work, 17 U.S.C. § 105.', 'cleared')
+ON CONFLICT (source_id) DO NOTHING;
+INSERT INTO agent_zenas.learning_sources
+    (source_id, jurisdiction, source, licence, terms_status)
+VALUES ('ofac-31-cfr', 'us', 'OFAC (31 CFR 500s)', 'Public domain. U.S. government work, 17 U.S.C. § 105.', 'cleared')
+ON CONFLICT (source_id) DO NOTHING;
+INSERT INTO agent_zenas.learning_sources
+    (source_id, jurisdiction, source, licence, terms_status)
+VALUES ('cogsa', 'us', 'COGSA (46 USC 30701 note)', 'Public domain. U.S. government work, 17 U.S.C. § 105.', 'cleared')
+ON CONFLICT (source_id) DO NOTHING;
+INSERT INTO agent_zenas.learning_sources
+    (source_id, jurisdiction, source, licence, terms_status)
+VALUES ('carmack', 'us', 'Carmack (49 USC 14706)', 'Public domain. U.S. government work, 17 U.S.C. § 105.', 'cleared')
+ON CONFLICT (source_id) DO NOTHING;
+INSERT INTO agent_zenas.learning_sources
+    (source_id, jurisdiction, source, licence, terms_status)
+VALUES ('uncitral-cisg', 'us', 'CISG (UNCITRAL publication)', 'United Nations / UNCITRAL copyright. The text is not stored.', 'not_cleared')
+ON CONFLICT (source_id) DO NOTHING;
+INSERT INTO agent_zenas.learning_sources
+    (source_id, jurisdiction, source, licence, terms_status)
+VALUES ('uncitral-model-law', 'us', 'UNCITRAL model laws', 'United Nations / UNCITRAL copyright. Model texts are not stored.', 'not_cleared')
+ON CONFLICT (source_id) DO NOTHING;
+INSERT INTO agent_zenas.learning_sources
+    (source_id, jurisdiction, source, licence, terms_status)
+VALUES ('courtlistener', 'us', 'CourtListener (Free Law Project)', 'Opinion text: public domain (edicts of government). CourtListener bulk files: free of known copyright restrictions (Free Law Project). Criminal matters are not stored.', 'cleared')
+ON CONFLICT (source_id) DO NOTHING;
+INSERT INTO agent_zenas.learning_sources
+    (source_id, jurisdiction, source, licence, terms_status)
+VALUES ('cap', 'us', 'Caselaw Access Project', 'Unrestricted as of 2024-03-01. Harvard ended the commercial-use limits on this digitization. Criminal matters are not stored.', 'cleared')
+ON CONFLICT (source_id) DO NOTHING;
+INSERT INTO agent_zenas.learning_sources
+    (source_id, jurisdiction, source, licence, terms_status)
+VALUES ('frcp', 'us', 'Federal Rules of Civil Procedure', 'Public domain. U.S. government work, 17 U.S.C. § 105.', 'cleared')
+ON CONFLICT (source_id) DO NOTHING;
+INSERT INTO agent_zenas.learning_sources
+    (source_id, jurisdiction, source, licence, terms_status)
+VALUES ('fre', 'us', 'Federal Rules of Evidence', 'Public domain. U.S. government work, 17 U.S.C. § 105.', 'cleared')
+ON CONFLICT (source_id) DO NOTHING;
+INSERT INTO agent_zenas.learning_sources
+    (source_id, jurisdiction, source, licence, terms_status)
+VALUES ('local-rules', 'us', 'Local rules of the districts the panel practises in', 'Unknown. The panel has not named the districts.', 'not_cleared')
+ON CONFLICT (source_id) DO NOTHING;
+INSERT INTO agent_zenas.learning_sources
+    (source_id, jurisdiction, source, licence, terms_status)
+VALUES ('delaware-code', 'us', 'Delaware General Corporation Law', 'Public domain. Enacted statute text is an edict of government. Publisher annotations and unofficial commentary are not stored.', 'cleared')
+ON CONFLICT (source_id) DO NOTHING;
+INSERT INTO agent_zenas.learning_sources
+    (source_id, jurisdiction, source, licence, terms_status)
+VALUES ('ny-laws', 'us', 'New York enacted commercial statutes', 'Public domain. Enacted statute text is an edict of government. Publisher annotations and unofficial commentary are not stored.', 'cleared')
+ON CONFLICT (source_id) DO NOTHING;
+INSERT INTO agent_zenas.learning_sources
+    (source_id, jurisdiction, source, licence, terms_status)
+VALUES ('texas-statutes', 'us', 'Texas enacted commercial statutes', 'Public domain. Enacted statute text is an edict of government. Publisher annotations and unofficial commentary are not stored.', 'cleared')
+ON CONFLICT (source_id) DO NOTHING;
+INSERT INTO agent_zenas.learning_sources
+    (source_id, jurisdiction, source, licence, terms_status)
+VALUES ('ucc-enacted', 'us', 'UCC Articles 1, 2 and 9 as enacted by Delaware, New York and Texas', 'Public domain. Enacted statute text is an edict of government. Publisher annotations and unofficial commentary are not stored. The official ALI text is a different source and is not stored.', 'cleared')
+ON CONFLICT (source_id) DO NOTHING;
+INSERT INTO agent_zenas.learning_sources
+    (source_id, jurisdiction, source, licence, terms_status)
+VALUES ('ali-ucc-official', 'us', 'UCC official text and comments', 'Copyright American Law Institute and Uniform Law Commission. The official text and comments are not stored.', 'not_cleared')
+ON CONFLICT (source_id) DO NOTHING;
+INSERT INTO agent_zenas.golden_cases (jurisdiction, slot)
+VALUES
+    ('us', 1),
+    ('us', 2),
+    ('us', 3),
+    ('us', 4),
+    ('us', 5),
+    ('us', 6),
+    ('us', 7),
+    ('us', 8),
+    ('us', 9),
+    ('us', 10),
+    ('us', 11),
+    ('us', 12),
+    ('us', 13),
+    ('us', 14),
+    ('us', 15),
+    ('us', 16),
+    ('us', 17),
+    ('us', 18),
+    ('us', 19),
+    ('us', 20),
+    ('za', 1),
+    ('za', 2),
+    ('za', 3),
+    ('za', 4),
+    ('za', 5),
+    ('za', 6),
+    ('za', 7),
+    ('za', 8),
+    ('za', 9),
+    ('za', 10),
+    ('za', 11),
+    ('za', 12),
+    ('za', 13),
+    ('za', 14),
+    ('za', 15),
+    ('za', 16),
+    ('za', 17),
+    ('za', 18),
+    ('za', 19),
+    ('za', 20)
+ON CONFLICT (jurisdiction, slot) DO NOTHING;
