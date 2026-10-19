@@ -386,8 +386,9 @@ def test_feeds_page_has_a_convert_button_per_region() -> None:
     assert "held out" in board
     assert "failed" in board
     assert 'setMessage(body.status)' in board
-    assert '"Started"' in board
-    assert '"Already running"' in board
+    assert 'body.status === "running" || body.status === "already running"' in board
+    assert 'last_status === "running"' in board
+    assert "Load now" in board
     assert "setInterval" in board
     assert "3000" in board
     assert "body.running" in board
@@ -396,7 +397,8 @@ def test_feeds_page_has_a_convert_button_per_region() -> None:
     assert "matter_id" not in route
     assert "tenant_id" not in route
     assert "JUDGMENT" not in route
-    assert 'root.status === "Started" || root.status === "Already running"' in public
+    assert 'value === "running" || value === "Started"' in public
+    assert 'value === "already running" || value === "Already running"' in public
     assert "await begin_convert" in post
     assert "return await convert_cases" not in post
     assert "return report" in post
@@ -422,16 +424,16 @@ async def test_convert_starts_in_the_background_and_a_second_press_is_already_ru
 
     try:
         first = await begin_convert("us-east", runner)
-        assert first == {"ok": True, "region": "us-east", "running": True, "status": "Started"}
+        assert first == {"ok": True, "region": "us-east", "running": True, "status": "running"}
         assert started.is_set() is False
         assert convert_running("us-east") is True
         await asyncio.wait_for(started.wait(), timeout=1)
         second = await begin_convert("us-east", runner)
-        assert second["status"] == "Already running"
+        assert second["status"] == "already running"
         assert second["running"] is True
         assert calls == 1
         other = await begin_convert("za", runner)
-        assert other["status"] == "Started"
+        assert other["status"] == "running"
         await asyncio.sleep(0)
         assert calls == 2
         release.set()
@@ -442,7 +444,7 @@ async def test_convert_starts_in_the_background_and_a_second_press_is_already_ru
         assert convert_running("us-east") is False
         assert convert_running("za") is False
         again = await begin_convert("us-east", runner)
-        assert again["status"] == "Started"
+        assert again["status"] == "running"
     finally:
         release.set()
         for _ in range(50):

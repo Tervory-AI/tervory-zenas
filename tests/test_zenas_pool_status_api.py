@@ -5,12 +5,13 @@ import json
 import sys
 from pathlib import Path
 
+import httpx
 import pytest
 from fastapi.testclient import TestClient
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from agents.zenas.pool.api import create_app
+from agents.zenas.pool.api import create_app, finish_loads
 from agents.zenas.pool.catalogue import sources_for_region
 from agents.zenas.pool.nightly import packaged_snapshots
 from agents.zenas.pool.region import RegionError
@@ -90,21 +91,22 @@ def test_status_key_set_is_false_until_the_variable_is_set(monkeypatch: pytest.M
     assert MARKER not in json.dumps(body)
 
 
-def test_load_one_za_source_from_a_snapshot():
-    client = _client("za", snapshots=packaged_snapshots("za"), live=False)
-    response = client.post("/pool/sources/companies-act/load")
-    assert response.status_code == 200
-    body = response.json()
-    assert body["ok"] is True
-    assert body["region"] == "za"
-    assert body["source"]["source_id"] == "companies-act"
-    assert body["source"]["documents"] == 1
-    assert body["source"]["last_status"] == "ok"
-    assert body["source"]["errors"] == []
-    assert body["source"]["key_name"] == "LAWS_AFRICA_API_TOKEN"
-    status = client.get("/pool/status").json()
+@pytest.mark.asyncio
+async def test_load_one_za_source_from_a_snapshot():
+    store = MemoryStore()
+    app = create_app(store, region="za", snapshots=packaged_snapshots("za"), live=False)
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://fixture") as client:
+        response = await client.post("/pool/sources/companies-act/load")
+        assert response.status_code == 200
+        assert response.json() == {"ok": True, "status": "running"}
+        await finish_loads()
+        status = (await client.get("/pool/status")).json()
+    assert status["region"] == "za"
     companies = next(row for row in status["sources"] if row["source_id"] == "companies-act")
     assert companies["documents"] == 1
+    assert companies["last_status"] == "ok"
+    assert companies["errors"] == []
+    assert companies["key_name"] == "LAWS_AFRICA_API_TOKEN"
     popia = next(row for row in status["sources"] if row["source_id"] == "popia")
     assert popia["documents"] == 0
 
@@ -150,7 +152,8 @@ def test_a_za_source_on_a_us_app_is_refused_with_no_fetch_and_no_write():
     assert "courtlistener" in {row["source_id"] for row in listed["sources"]}
 
 
-def test_missing_key_does_not_call_the_network(monkeypatch: pytest.MonkeyPatch):
+@pytest.mark.asyncio
+async def test_missing_key_does_not_call_the_network(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.delenv("LAWS_AFRICA_API_TOKEN", raising=False)
     seen: list[str] = []
 
@@ -158,14 +161,17 @@ def test_missing_key_does_not_call_the_network(monkeypatch: pytest.MonkeyPatch):
         seen.append(url)
         return b"<xml></xml>"
 
-    client = _client("za", http_get=get, live=True)
-    response = client.post("/pool/sources/lra/load")
-    assert response.status_code == 200
-    body = response.json()
-    assert body["ok"] is True
-    assert body["source"]["last_status"] == "not_configured"
-    assert body["source"]["key_set"] is False
-    assert body["source"]["documents"] == 0
+    app = create_app(MemoryStore(), region="za", http_get=get, live=True)
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://fixture") as client:
+        response = await client.post("/pool/sources/lra/load")
+        assert response.status_code == 200
+        assert response.json() == {"ok": True, "status": "running"}
+        await finish_loads()
+        status = (await client.get("/pool/status")).json()
+    row = next(item for item in status["sources"] if item["source_id"] == "lra")
+    assert row["last_status"] == "not_configured"
+    assert row["key_set"] is False
+    assert row["documents"] == 0
     assert seen == []
     assert MARKER not in response.text
 

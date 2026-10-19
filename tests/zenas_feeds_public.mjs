@@ -160,10 +160,14 @@ if (!erred.runs[0].error || erred.runs[0].label !== "error" || erred.runs[0].rea
 }
 
 const started = publicConvert({ region: "us-east", running: true, status: "Started", text: judgment });
-if (started.status !== "Started" || started.running !== true) throw new Error("Started must cross");
+if (started.status !== "running" || started.running !== true) throw new Error("Started must cross as running");
 if (JSON.stringify(started).includes(judgment)) throw new Error("a convert status included a judgment");
+const live = publicConvert({ status: "running", running: true });
+if (live.status !== "running") throw new Error("running must cross");
 const again = publicConvert({ status: "Already running", running: true });
-if (again.status !== "Already running") throw new Error("Already running must cross");
+if (again.status !== "already running") throw new Error("Already running must cross as already running");
+const current = publicConvert({ status: "already running", running: true });
+if (current.status !== "already running") throw new Error("already running must cross");
 const leaked = publicConvert({ status: judgment, running: "yes" });
 if (leaked.status !== "" || leaked.running !== false) throw new Error("only the two status words may cross");
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections import Counter
 from datetime import date
 
@@ -52,25 +53,20 @@ async def ingest_snapshot(
     embedder = embedder or NoOpEmbedder()
     index = index or NoOpVectorIndex()
     for blob in blobs:
-        for payload in text_payloads(blob):
-            documents = adapter.parse(payload, source)
+        # Unzipping and parsing are CPU work. They run off the event loop so
+        # /health and /pool/status keep answering during a load.
+        payloads = await asyncio.to_thread(text_payloads, blob)
+        for payload in payloads:
+            documents, skipped = await asyncio.to_thread(_parse_payload, adapter, payload, source)
             if skips is not None:
-                for item in getattr(adapter, "skipped", None) or []:
-                    skips[str(item).split(":", 1)[0]] += 1
+                for item in skipped:
+                    skips[item.split(":", 1)[0]] += 1
             for document in documents:
                 if not (document.text or "").strip():
                     if skips is not None:
                         skips["no-text"] += 1
                     continue
-                document.licence = source.licence
-                document.known_from = document.known_from or on
-                document.version_id = version_id_for(
-                    document.id,
-                    document.content_hash,
-                    document.effective_from,
-                    document.known_from,
-                )
-                chunks = chunk_document(document)
+                chunks, citations = await asyncio.to_thread(_prepare_document, document, source, on)
                 if not await store.upsert_version(document, chunks, on=on):
                     if skips is not None:
                         skips["unchanged"] += 1
@@ -79,16 +75,35 @@ async def ingest_snapshot(
                     vectors = await embedder.embed([chunk.text for chunk in chunks])
                     if vectors:
                         await index.upsert(document.jurisdiction, chunks, vectors, embedder.name)
-                await _attach_cites(store, document)
+                await _attach_cites(store, document, citations)
     return inserted
 
 
-async def _attach_cites(store: Store, document: LegalDocument) -> None:
-    texts = extract_citations(document.text)
-    if not texts:
+def _parse_payload(adapter, payload: bytes, source: SourceSpec) -> tuple[list[LegalDocument], list[str]]:
+    """Parse one payload. Called in a worker thread."""
+    documents = list(adapter.parse(payload, source))
+    skipped = [str(item) for item in (getattr(adapter, "skipped", None) or [])]
+    return documents, skipped
+
+
+def _prepare_document(document: LegalDocument, source: SourceSpec, on: date) -> tuple[list, list[str]]:
+    """Version, chunk, and cite. Called in a worker thread."""
+    document.licence = source.licence
+    document.known_from = document.known_from or on
+    document.version_id = version_id_for(
+        document.id,
+        document.content_hash,
+        document.effective_from,
+        document.known_from,
+    )
+    return chunk_document(document), extract_citations(document.text)
+
+
+async def _attach_cites(store: Store, document: LegalDocument, citations: list[str]) -> None:
+    if not citations:
         return
     rows: list[tuple[str, str, bool]] = []
-    for citation in texts:
+    for citation in citations:
         hits = await store.find_by_citation(
             citation,
             jurisdiction=document.jurisdiction,

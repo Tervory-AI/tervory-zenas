@@ -23,6 +23,7 @@ _CHASSIS = _ROOT / "agents" / "_chassis"
 if _CHASSIS.is_dir() and str(_CHASSIS) not in sys.path:
     sys.path.insert(0, str(_CHASSIS))
 
+from agents.zenas.pool.api import interrupt_abandoned_loads  # noqa: E402
 from agents.zenas.pool.api import register_routes as register_pool_routes  # noqa: E402
 from agents.zenas.pool.catalogue import CATALOGUE  # noqa: E402
 from agents.zenas.pool.region import RegionError, assert_box_region  # noqa: E402
@@ -251,6 +252,29 @@ async def _pool_store():
 
 # Feeds switchboard: pool status and "Load now" per source (Tank proxies /v1/zenas/pool/*).
 register_pool_routes(app, _pool_store, _box_region)
+
+_inner_lifespan = app.router.lifespan_context
+
+
+@asynccontextmanager
+async def _room_lifespan(application):
+    """After the chassis pool is up, a load still marked running was cut off."""
+    async with _inner_lifespan(application):
+        raw = os.environ.get("TANK_REGION", "").strip().lower()
+        try:
+            assert_box_region(raw or None)
+        except RegionError:
+            yield
+            return
+        try:
+            async with _pool_store() as store:
+                await interrupt_abandoned_loads(store)
+        except Exception as exc:
+            log.warning("could not mark interrupted loads: %s", type(exc).__name__)
+        yield
+
+
+app.router.lifespan_context = _room_lifespan
 
 
 @app.post("/consents", status_code=201)

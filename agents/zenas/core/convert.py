@@ -324,14 +324,14 @@ def convert_running(region: str) -> bool:
 async def begin_convert(region: str, runner: Any) -> dict[str, Any]:
     """Start runner in the background and return at once.
 
-    The status is Started, or Already running when this region is already going.
+    The status is running, or already running when this region is already going.
     """
     box = _box(region)
     if box is None:
         return {"ok": False, "region": "", "running": False, "status": ""}
     async with _convert_lock:
         if box in _convert_running:
-            return {"ok": True, "region": box, "running": True, "status": "Already running"}
+            return {"ok": True, "region": box, "running": True, "status": "already running"}
         _convert_running.add(box)
 
     async def _go() -> None:
@@ -349,7 +349,7 @@ async def begin_convert(region: str, runner: Any) -> dict[str, Any]:
         async with _convert_lock:
             _convert_running.discard(box)
         raise
-    return {"ok": True, "region": box, "running": True, "status": "Started"}
+    return {"ok": True, "region": box, "running": True, "status": "running"}
 
 
 async def conversion_report(pool: Any, ladder: Any, *, region: str) -> dict[str, Any]:
