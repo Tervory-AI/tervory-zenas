@@ -75,6 +75,17 @@ async def _use_home(store: Any, *, tenant_id: str, home_region: str, box_region:
     return stored, None
 
 
+def sign_off_identity(*, reviewer_kind: str | None, admission_no: str | None) -> tuple[str, str] | None:
+    """A reviewer needs an admission number. A founder may sign off without one."""
+    kind = (reviewer_kind or "reviewer").strip()
+    if kind not in ("reviewer", "founder"):
+        return None
+    number = (admission_no or "").strip()
+    if kind == "reviewer" and not number:
+        return None
+    return kind, number
+
+
 def _refuse(reason: str, scope: dict[str, Any] | None = None) -> dict[str, Any]:
     body: dict[str, Any] = {"ok": False, "reason": reason}
     if scope is not None:
@@ -304,10 +315,13 @@ async def record_review(
     admission_no: str,
     decision: str,
     changes: str = "",
+    reviewer_kind: str = "reviewer",
 ) -> dict[str, Any]:
     law = _law(jurisdiction)
-    if law is None or not reviewer or not admission_no or not decision:
+    identity = sign_off_identity(reviewer_kind=reviewer_kind, admission_no=admission_no)
+    if law is None or not reviewer or identity is None or not decision:
         return _refuse("a review needs a reviewer, admission number, jurisdiction, and decision")
+    kind, number = identity
     document = await store.get_document(str(tenant_id), str(document_id))
     if document is None:
         return _refuse("no such document")
@@ -317,12 +331,13 @@ async def record_review(
             "tenant_id": str(tenant_id),
             "reviewer": reviewer,
             "jurisdiction": law,
-            "admission_no": admission_no,
+            "admission_no": number,
             "decision": decision,
             "changes": changes,
+            "reviewer_kind": kind,
         }
     )
-    return {"ok": True, "review_id": row["id"]}
+    return {"ok": True, "review_id": row["id"], "reviewer_kind": kind}
 
 
 async def _store_pii(

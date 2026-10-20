@@ -70,6 +70,7 @@ class GoldenCase:
     correction: str = ""
     corrected_by: str = ""
     admission_no: str = ""
+    reviewer_kind: str = ""
     corrected_at: datetime | None = None
 
 
@@ -292,9 +293,10 @@ def apply_correction(
     *,
     corrected_by: str = "",
     admission_no: str = "",
+    reviewer_kind: str = "reviewer",
     corrected_at: datetime | None = None,
 ) -> GoldenCase:
-    """Record a lawyer's correction on one empty slot. The seed itself stays empty."""
+    """Record a correction on one empty slot. A reviewer needs an admission number. The seed itself stays empty."""
     if case.jurisdiction not in JURISDICTIONS:
         raise LearningError("jurisdiction must be us or za")
     if case.slot < 1 or case.slot > PANEL_QUESTIONS:
@@ -304,11 +306,18 @@ def apply_correction(
     _refuse_personal(case.question, case.answer, text, corrected_by, admission_no)
     if not text:
         raise LearningError("a correction is empty")
+    from agents.zenas.core.matters import sign_off_identity
+
+    identity = sign_off_identity(reviewer_kind=reviewer_kind, admission_no=admission_no)
+    if identity is None:
+        raise LearningError("a correction needs an admission number")
+    kind, number = identity
     return replace(
         case,
         correction=text,
         corrected_by=(corrected_by or "").strip(),
-        admission_no=(admission_no or "").strip(),
+        admission_no=number,
+        reviewer_kind=kind,
         corrected_at=corrected_at,
     )
 

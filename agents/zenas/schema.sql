@@ -61,6 +61,10 @@ CREATE TABLE IF NOT EXISTS agent_zenas.reviews (
 CREATE INDEX IF NOT EXISTS reviews_tenant_document_idx
     ON agent_zenas.reviews (tenant_id, document_id, ts DESC);
 
+ALTER TABLE agent_zenas.reviews ADD COLUMN IF NOT EXISTS reviewer_kind text;
+
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint c JOIN pg_namespace n ON n.oid = c.connamespace WHERE c.conname = 'reviews_reviewer_kind_chk' AND n.nspname = 'agent_zenas') THEN ALTER TABLE agent_zenas.reviews ADD CONSTRAINT reviews_reviewer_kind_chk CHECK (reviewer_kind IS NULL OR reviewer_kind IN ('reviewer', 'founder')); END IF; END $$;
+
 CREATE TABLE IF NOT EXISTS agent_zenas.consents (
     id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id        uuid NOT NULL,
@@ -119,6 +123,10 @@ CREATE TABLE IF NOT EXISTS agent_zenas.rule_cards (
 
 CREATE INDEX IF NOT EXISTS rule_cards_lookup_idx
     ON agent_zenas.rule_cards (region, jurisdiction, question_key, status);
+
+ALTER TABLE agent_zenas.rule_cards ADD COLUMN IF NOT EXISTS reviewer_kind text;
+
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint c JOIN pg_namespace n ON n.oid = c.connamespace WHERE c.conname = 'rule_cards_reviewer_kind_chk' AND n.nspname = 'agent_zenas') THEN ALTER TABLE agent_zenas.rule_cards ADD CONSTRAINT rule_cards_reviewer_kind_chk CHECK (reviewer_kind IS NULL OR reviewer_kind IN ('reviewer', 'founder')); END IF; END $$;
 
 CREATE TABLE IF NOT EXISTS agent_zenas.worked_matters (
     id                  uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -226,6 +234,10 @@ CREATE TABLE IF NOT EXISTS agent_zenas.clauses (
 CREATE INDEX IF NOT EXISTS clauses_lookup_idx
     ON agent_zenas.clauses (region, template, jurisdiction, kind);
 
+ALTER TABLE agent_zenas.clauses ADD COLUMN IF NOT EXISTS reviewer_kind text;
+
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint c JOIN pg_namespace n ON n.oid = c.connamespace WHERE c.conname = 'clauses_reviewer_kind_chk' AND n.nspname = 'agent_zenas') THEN ALTER TABLE agent_zenas.clauses ADD CONSTRAINT clauses_reviewer_kind_chk CHECK (reviewer_kind IS NULL OR reviewer_kind IN ('reviewer', 'founder')); END IF; END $$;
+
 -- A tenant's preferred positions. Another tenant's playbook is not readable here.
 CREATE TABLE IF NOT EXISTS agent_zenas.playbooks (
     id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -297,6 +309,9 @@ ALTER TABLE agent_zenas.golden_cases ADD COLUMN IF NOT EXISTS correction text;
 ALTER TABLE agent_zenas.golden_cases ADD COLUMN IF NOT EXISTS corrected_by text;
 ALTER TABLE agent_zenas.golden_cases ADD COLUMN IF NOT EXISTS admission_no text;
 ALTER TABLE agent_zenas.golden_cases ADD COLUMN IF NOT EXISTS corrected_at timestamptz;
+ALTER TABLE agent_zenas.golden_cases ADD COLUMN IF NOT EXISTS reviewer_kind text;
+
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint c JOIN pg_namespace n ON n.oid = c.connamespace WHERE c.conname = 'golden_cases_reviewer_kind_chk' AND n.nspname = 'agent_zenas') THEN ALTER TABLE agent_zenas.golden_cases ADD CONSTRAINT golden_cases_reviewer_kind_chk CHECK (reviewer_kind IS NULL OR reviewer_kind IN ('reviewer', 'founder')); END IF; END $$;
 
 DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint c JOIN pg_namespace n ON n.oid = c.connamespace WHERE c.conname = 'golden_cases_jurisdiction_chk' AND n.nspname = 'agent_zenas') THEN ALTER TABLE agent_zenas.golden_cases ADD CONSTRAINT golden_cases_jurisdiction_chk CHECK (jurisdiction IN ('us', 'za')); END IF; END $$;
 

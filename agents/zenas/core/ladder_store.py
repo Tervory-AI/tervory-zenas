@@ -443,7 +443,7 @@ class PgLadder:
     async def set_status(self, card_id: str, *, region: str, status: str, **fields: Any) -> dict[str, Any] | None:
         sets = ["status = $3"]
         args: list[Any] = [_region(region), _as_uuid(card_id), status]
-        for name in ("approved_by", "admission_no", "edit_count"):
+        for name in ("approved_by", "admission_no", "edit_count", "reviewer_kind"):
             if name in fields:
                 args.append(fields[name])
                 sets.append(f"{name} = ${len(args)}")

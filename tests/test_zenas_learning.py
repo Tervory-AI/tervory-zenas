@@ -216,8 +216,10 @@ def test_panel_slots_are_empty_and_criminal_matters_are_refused() -> None:
     with pytest.raises(PersonalRefused):
         apply_correction(case, "The number on file is 123-45-6789.")
     assert case.question == "" and case.answer == ""
-    updated = apply_correction(case, "Use the enacted wording.")
+    updated = apply_correction(case, "Use the enacted wording.", admission_no="12345")
     assert updated.correction == "Use the enacted wording."
+    assert updated.reviewer_kind == "reviewer"
+    assert updated.admission_no == "12345"
     assert updated.question == "" and updated.answer == ""
     assert all(row.correction == "" for row in panel_slots("us"))
     with pytest.raises(LearningError, match="empty"):

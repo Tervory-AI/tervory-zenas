@@ -40,8 +40,8 @@ WHERE tenant_id = $1 AND id = $2
 
 INSERT_REVIEW = """
 INSERT INTO agent_zenas.reviews
-    (id, document_id, tenant_id, reviewer, jurisdiction, admission_no, decision, changes)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    (id, document_id, tenant_id, reviewer, jurisdiction, admission_no, decision, changes, reviewer_kind)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 """.strip()
 
 INSERT_CONSENT = """
@@ -82,8 +82,8 @@ ORDER BY created_at DESC
 
 INSERT_CLAUSE = """
 INSERT INTO agent_zenas.clauses
-    (id, region, jurisdiction, template, kind, text, fallback_positions, notes, approved_by, admission_no, status)
-VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9, $10, 'lawyer_approved')
+    (id, region, jurisdiction, template, kind, text, fallback_positions, notes, approved_by, admission_no, reviewer_kind, status)
+VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9, $10, $11, 'lawyer_approved')
 """.strip()
 
 CLAUSES_FOR_TEMPLATE = """
@@ -287,6 +287,9 @@ class MemoryStore:
         document["state"] = state
         return document
 
+    async def apply_schema(self) -> None:
+        return None
+
 
 class PgStore:
     def __init__(self, pool: Any) -> None:
@@ -385,6 +388,7 @@ class PgStore:
                 row["admission_no"],
                 row["decision"],
                 row.get("changes") or "",
+                row.get("reviewer_kind") or "reviewer",
             )
         saved = dict(row)
         saved["id"] = review_id
@@ -483,6 +487,7 @@ class PgStore:
                 row.get("notes") or "",
                 row["approved_by"],
                 row["admission_no"],
+                row.get("reviewer_kind") or "reviewer",
             )
         saved = dict(row)
         saved["id"] = clause_id

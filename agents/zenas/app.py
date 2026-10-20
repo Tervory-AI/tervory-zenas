@@ -238,9 +238,10 @@ class ReviewIn(BaseModel):
     tenant_id: UUID
     reviewer: str
     jurisdiction: str
-    admission_no: str
+    admission_no: str = ""
     decision: str
     changes: str = ""
+    reviewer_kind: str = "reviewer"
 
 
 @app.get("/pool")
@@ -364,6 +365,7 @@ async def post_review(document_id: UUID, body: ReviewIn) -> dict[str, Any]:
         admission_no=body.admission_no,
         decision=body.decision,
         changes=body.changes,
+        reviewer_kind=body.reviewer_kind,
     )
     _fail(result)
     return result
@@ -404,10 +406,11 @@ class ApproveCardIn(BaseModel):
     tenant_id: UUID
     home_region: str
     reviewer: str
-    admission_no: str
+    admission_no: str = ""
     jurisdiction: str
     passages: list[Any] = Field(default_factory=list)
     changes: str = ""
+    reviewer_kind: str = "reviewer"
 
 
 class StaleIn(BaseModel):
@@ -467,7 +470,8 @@ class ReleaseIn(BaseModel):
     home_region: str
     document_id: UUID
     reviewer: str
-    admission_no: str
+    admission_no: str = ""
+    reviewer_kind: str = "reviewer"
     jurisdiction: str
     rule_card_ids: list[str] = Field(default_factory=list)
     features: dict[str, Any] = Field(default_factory=dict)
@@ -568,6 +572,7 @@ async def post_approve_card(card_id: UUID, body: ApproveCardIn) -> dict[str, Any
         jurisdiction=body.jurisdiction,
         passages=body.passages,
         changes=body.changes,
+        reviewer_kind=body.reviewer_kind,
     )
     _fail(result)
     return result
@@ -725,6 +730,7 @@ async def post_release(matter_id: UUID, body: ReleaseIn) -> dict[str, Any]:
         document_id=str(body.document_id),
         reviewer=body.reviewer,
         admission_no=body.admission_no,
+        reviewer_kind=body.reviewer_kind,
         jurisdiction=body.jurisdiction,
         rule_card_ids=body.rule_card_ids,
         features=body.features,
@@ -769,7 +775,8 @@ class ClauseIn(BaseModel):
     kind: str
     text: str
     approved_by: str
-    admission_no: str
+    admission_no: str = ""
+    reviewer_kind: str = "reviewer"
     fallback_positions: list[str] = Field(default_factory=list)
     notes: str = ""
 
@@ -789,6 +796,7 @@ async def post_clause(body: ClauseIn) -> dict[str, Any]:
         text=body.text,
         approved_by=body.approved_by,
         admission_no=body.admission_no,
+        reviewer_kind=body.reviewer_kind,
         fallback_positions=body.fallback_positions,
         notes=body.notes,
     )

@@ -169,6 +169,7 @@ def _public_card(card: dict[str, Any]) -> dict[str, Any]:
         "status": "active" if card.get("active") and card.get("status") == "draft" else card.get("status"),
         "active": bool(card.get("active")),
         "approved_by": card.get("approved_by"),
+        "reviewer_kind": card.get("reviewer_kind") or "",
         "model_used": card.get("model_used"),
         "cost_usd": float(card.get("cost_usd") or 0),
         "decision_table": card.get("decision_table") or [],
@@ -403,13 +404,18 @@ async def approve_rule_card(
     jurisdiction: str,
     passages: list[dict[str, Any]],
     changes: str = "",
+    reviewer_kind: str = "reviewer",
 ) -> dict[str, Any]:
     del jurisdiction
     _home, refused = await _use_home(ladder, tenant_id=tenant_id, home_region=home_region, box_region=box_region)
     if refused:
         return refused
-    if not reviewer or not admission_no:
+    from agents.zenas.core.matters import sign_off_identity
+
+    identity = sign_off_identity(reviewer_kind=reviewer_kind, admission_no=admission_no)
+    if not reviewer or identity is None:
         return _refuse("approval needs a reviewer and an admission number")
+    kind, number = identity
     card = await ladder.get_rule_card(card_id, region=_box(box_region), tenant_id=tenant_id)
     if card is None:
         return _refuse("no such rule card")
@@ -430,7 +436,8 @@ async def approve_rule_card(
         region=_box(box_region),
         status="lawyer_approved",
         approved_by=reviewer,
-        admission_no=admission_no,
+        admission_no=number,
+        reviewer_kind=kind,
         edit_count=edit_count,
     )
     return {"ok": True, "rule_card": _public_card(saved or card), "cite": checked}
@@ -959,6 +966,7 @@ async def release_matter(
     as_at: str | None = None,
     area: str = "",
     tank: Any = None,
+    reviewer_kind: str = "reviewer",
 ) -> dict[str, Any]:
     _home, refused = await _use_home(matters, tenant_id=tenant_id, home_region=home_region, box_region=box_region)
     if refused:
@@ -978,6 +986,7 @@ async def release_matter(
         admission_no=admission_no,
         decision="released",
         changes=lawyer_edits,
+        reviewer_kind=reviewer_kind,
     )
     if not review.get("ok"):
         return review
@@ -1221,8 +1230,9 @@ async def add_approved_clause(
     admission_no: str,
     fallback_positions: list[str] | None = None,
     notes: str = "",
+    reviewer_kind: str = "reviewer",
 ) -> dict[str, Any]:
-    """The library stays empty until a lawyer names the clause and an admission number."""
+    """The library stays empty until a lawyer names the clause. A founder may omit the admission number."""
     _home, refused = await _use_home(store, tenant_id=tenant_id, home_region=home_region, box_region=box_region)
     if refused:
         return refused
@@ -1232,8 +1242,12 @@ async def add_approved_clause(
         return _refuse("that clause is not part of this template")
     if jurisdiction not in ("us", "za", "both"):
         return _refuse("jurisdiction must be us, za, or both")
-    if not str(approved_by or "").strip() or not str(admission_no or "").strip():
+    from agents.zenas.core.matters import sign_off_identity
+
+    identity = sign_off_identity(reviewer_kind=reviewer_kind, admission_no=admission_no)
+    if not str(approved_by or "").strip() or identity is None:
         return _refuse("a clause needs the approving lawyer and admission number")
+    who, number = identity
     if not str(text or "").strip():
         return _refuse("a clause needs text")
     if pii_detect(text).get("matches"):
@@ -1248,7 +1262,8 @@ async def add_approved_clause(
             "fallback_positions": list(fallback_positions or []),
             "notes": notes,
             "approved_by": approved_by.strip(),
-            "admission_no": admission_no.strip(),
+            "admission_no": number,
+            "reviewer_kind": who,
         }
     )
     return {"ok": True, "clause": saved}
