@@ -99,9 +99,19 @@ _PROMPT_HEAD = (
     "Read this judgment as published. Copy the facts in the court's own words, "
     "as a continuous passage from the judgment. Name the question, the elements, "
     "and the holding. Cite only this case. Every quote must appear in the judgment "
-    "word for word. Reply with JSON only:\n"
+    "word for word. For each issue the court decided, give the question, the order "
+    "in the court's own words, and pointers to the reasoning. Do not shorten the "
+    "reasoning and do not put a length cap on it. Mark likely ratio only on the "
+    "exact words the decision rests on, and always label that marking likely. "
+    "Mark obiter only where the court's own words show it "
+    "(obiter, it is unnecessary to decide, I express no view). "
+    "Keep each minority or dissent separate, labelled, and do not merge it into "
+    "the majority. Reply with JSON only:\n"
     '{"facts":"","question":"","elements":[{"element_id":"","finding":"met|not_met|unclear","quote":""}],'
-    '"holding":"","citations":[{"citation":"","quote":""}]}\n\n'
+    '"holding":"","citations":[{"citation":"","quote":""}],'
+    '"issues":[{"question":"","reasoning_pointer":{"paragraphs":[]},"order":"",'
+    '"likely_ratio_pointer":{"paragraphs":[]},"obiter_pointer":{"paragraphs":[]},'
+    '"minority":[{"judge":"","pointer":{"paragraphs":[]}}]}]}\n\n'
     "Citation: "
 )
 
