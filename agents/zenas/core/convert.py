@@ -744,12 +744,16 @@ async def convert_cases(
     cap = convert_limit()
     cases = await _list_cases(pool, jurisdiction)
     pending: list[dict[str, Any]] = []
+    repaired = 0
     for case in cases:
         if len(pending) >= cap:
             break
         existing = await ladder.worked_for_doc(region=box, pool_doc_id=case["document_id"])
         if existing is None:
             pending.append(case)
+        elif not existing.get("rule_card_ids") and repaired < cap and not criminal_case(case):
+            await _link_converted_card(pool, ladder, model, existing, region=box)
+            repaired += 1
     for case in pending:
         if case["jurisdiction"] != jurisdiction:
             continue
@@ -880,6 +884,7 @@ async def convert_cases(
             }
         )
         await ladder.clear_convert_failure(region=box, pool_doc_id=case["document_id"])
+        await _link_converted_card(pool, ladder, model, worked, region=box)
         if not held:
             await ladder.add_pair(
                 {
@@ -907,6 +912,15 @@ async def convert_cases(
             }
         )
     return await conversion_report(pool, ladder, region=box)
+
+
+async def _link_converted_card(pool: Any, ladder: Any, model: Any, worked: dict[str, Any], *, region: str) -> None:
+    from agents.zenas.core.converted_cards import link_card
+
+    try:
+        await link_card(pool, ladder, model, worked, region=region)
+    except Exception:
+        log.warning("converted rule card could not be built", exc_info=True)
 
 
 async def run_scheduled(conn: Any, *, region: str) -> None:

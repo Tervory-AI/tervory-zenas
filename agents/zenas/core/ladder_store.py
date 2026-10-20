@@ -199,6 +199,18 @@ class LadderMemory:
                 return row
         return None
 
+    async def link_worked_card(self, *, region: str, worked_id: str, card_id: str, area: str) -> bool:
+        for row in self.worked:
+            if (
+                row["id"] == worked_id and row["region"] == _region(region)
+                and row.get("source") == "case" and row.get("material_type") == "public_record"
+                and row.get("tenant_id") is None
+            ):
+                row["rule_card_ids"] = [card_id]
+                row["area"] = area
+                return True
+        return False
+
     async def visible_worked(self, *, region: str, tenant_id: str, sharing: str) -> list[dict[str, Any]]:
         box = _region(region)
         return [row for row in self.worked if _row_is_visible(row, region=box, tenant_id=tenant_id, sharing=sharing)]
@@ -507,6 +519,18 @@ class PgLadder:
         if row is None:
             return None
         return _row_worked(dict(row))
+
+    async def link_worked_card(self, *, region: str, worked_id: str, card_id: str, area: str) -> bool:
+        async with self.pool.acquire() as conn:
+            result = await conn.execute(
+                """
+                UPDATE agent_zenas.worked_matters SET rule_card_ids = $3::jsonb, area = $4
+                WHERE region = $1 AND id = $2 AND tenant_id IS NULL
+                  AND source = 'case' AND material_type = 'public_record'
+                """,
+                _region(region), _as_uuid(worked_id), json.dumps([card_id]), area,
+            )
+        return result == "UPDATE 1"
 
     async def visible_worked(self, *, region: str, tenant_id: str, sharing: str) -> list[dict[str, Any]]:
         if sharing == "region":
