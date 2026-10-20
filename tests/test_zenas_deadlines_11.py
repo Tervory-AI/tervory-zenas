@@ -35,7 +35,7 @@ def _load(path: Path, name: str):
     return module
 
 
-compute = _load(CORE, "zenas_deadlines_11_core")
+compute = _load(COMPUTE, "zenas_deadlines_11_core")
 run_mod = _load(RUN, "zenas_deadlines_11_run")
 
 
@@ -43,8 +43,8 @@ def _rules(result: dict) -> list[str]:
     return [step["rule"] for step in result["steps"]]
 
 
-def test_the_box_and_the_skill_are_the_same_calculator() -> None:
-    assert CORE.read_bytes() == COMPUTE.read_bytes()
+def test_the_box_and_the_current_skill_are_the_same_calculator() -> None:
+    assert CORE.read_bytes() == (SKILL.parent / "1.2.0" / "compute.py").read_bytes()
 
 
 def test_us_fourteen_days_include_a_weekend_and_independence_day() -> None:

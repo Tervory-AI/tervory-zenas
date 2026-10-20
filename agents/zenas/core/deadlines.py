@@ -5,8 +5,8 @@ South Africa: Uniform Rules of Court. Court days, public holidays, and the
 16 December to 15 January exclusion only where that rule states it.
 Every step names the rule it applied.
 
-The Zenas box and zenas.deadlines 1.1.0 keep this file byte-identical:
-agents/zenas/core/deadlines.py and tank/skills/zenas.deadlines/1.1.0/compute.py.
+The Zenas box and zenas.deadlines 1.2.0 keep this file byte-identical:
+agents/zenas/core/deadlines.py and tank/skills/zenas.deadlines/1.2.0/compute.py.
 """
 
 from __future__ import annotations
@@ -150,7 +150,12 @@ def sa_public_holidays(year: int) -> set[date]:
     return set(sa_holiday_names(year))
 
 
-def _sa_name(day: date) -> str | None:
+def _sa_name(day: date, proclaimed: set[date] | None = None) -> str | None:
+    if proclaimed:
+        if day in proclaimed:
+            return "proclaimed public holiday"
+        if day.weekday() == 0 and day - timedelta(days=1) in proclaimed:
+            return "proclaimed public holiday, observed"
     return sa_holiday_names(day.year).get(day)
 
 
@@ -209,7 +214,7 @@ def _criminal(body: dict[str, Any]) -> bool:
 
 
 def _za_step(body: dict[str, Any]) -> tuple[int, str, bool] | None:
-    kind = str(body.get("kind") or body.get("step") or "").strip().lower()
+    kind = str(body.get("kind") or body.get("step") or "").strip().lower().replace(" ", "_")
     service = str(body.get("service") or "").strip().lower()
     if kind in _ZA_STEPS:
         return _ZA_STEPS[kind]
@@ -339,12 +344,20 @@ def _sa_days(
     *,
     dies_non: bool,
     length_rule: str,
+    trigger_field: str,
+    proclaimed: set[date],
 ) -> tuple[date, list[dict[str, str]]]:
     verb = "runs" if days == 1 else "run"
+    if trigger_field == "delivery_date":
+        start_text = f"The delivery date is not counted: {trigger.isoformat()}."
+    elif trigger_field == "service_date":
+        start_text = f"The sheriff's service date {trigger.isoformat()} is not counted."
+    else:
+        start_text = f"The trigger date {trigger.isoformat()} is not counted."
     steps = [
         _step(
             length_rule,
-            f"The day of the trigger {trigger.isoformat()} is not counted. {days} court {'day' if days == 1 else 'days'} {verb} after it.",
+            f"{start_text} {days} court {'day' if days == 1 else 'days'} {verb} after it.",
         )
     ]
     cursor = trigger
@@ -360,7 +373,7 @@ def _sa_days(
         if cursor.weekday() >= 5:
             weekends.append(cursor)
             continue
-        if _sa_name(cursor):
+        if _sa_name(cursor, proclaimed):
             holidays.append(cursor)
             continue
         counted.append(cursor)
@@ -369,7 +382,7 @@ def _sa_days(
     if weekends:
         court += f" Weekends skipped: {_listed(weekends)}."
     if holidays:
-        named = [f"{day.isoformat()} ({_sa_name(day)})" for day in holidays]
+        named = [f"{day.isoformat()} ({_sa_name(day, proclaimed)})" for day in holidays]
         court += f" Public holidays skipped: {_join(named)}."
     court += f" The last court day is {end.isoformat()}."
     steps.append(_step("Uniform Rule 1", court))
@@ -380,6 +393,11 @@ def _sa_days(
                 "A public holiday is not a court day. When a public holiday falls on a Sunday, the following Monday is also a public holiday.",
             )
         )
+    if proclaimed:
+        steps.append(_step(
+            "Public Holidays Act 36 of 1994",
+            "Proclaimed public holidays supplied: " + _join([day.isoformat() for day in sorted(proclaimed)]) + ". These are excluded as public holidays, including the following Monday when a proclaimed holiday falls on Sunday.",
+        ))
     if dies_non:
         if skipped_dies:
             detail = f"{skipped_dies} days in that stretch were not counted."
@@ -429,11 +447,33 @@ def compute(payload: dict[str, Any] | None) -> dict[str, Any]:
             "steps": steps,
         }
 
-    trigger = _parse_date(str(body.get("trigger") or ""))
-    if trigger is None:
-        return {"ok": False, "reason": "trigger must be a date"}
-
     named = _za_step(body) if jurisdiction == _ZA else None
+    trigger_field = "trigger"
+    proclaimed: set[date] = set()
+    if jurisdiction == _ZA:
+        kind = str(body.get("kind") or body.get("step") or "").strip().lower().replace(" ", "_")
+        if named and named[1] in ("Uniform Rule 22(1)", "Uniform Rule 26"):
+            trigger_field = "delivery_date"
+        elif named or kind == "after_service":
+            trigger_field = "service_date"
+        supplied = body.get("proclaimed_holidays", [])
+        if not isinstance(supplied, list):
+            return {"ok": False, "reason": "proclaimed_holidays must be a list of dates"}
+        for item in supplied:
+            parsed = _parse_date(item) if isinstance(item, str) and len(item) == 10 else None
+            if parsed is None:
+                return {"ok": False, "reason": "proclaimed_holidays must contain valid YYYY-MM-DD dates"}
+            proclaimed.add(parsed)
+    trigger = _parse_date(str(body.get(trigger_field) or ""))
+    if trigger is None:
+        if trigger_field == "service_date":
+            reason = "service_date from the sheriff's return of service is required"
+        elif trigger_field == "delivery_date":
+            reason = "delivery_date is required for a plea or notice of bar"
+        else:
+            reason = "trigger must be a date"
+        return {"ok": False, "reason": reason}
+
     if named is not None:
         count, length_rule, dies_non = named
     else:
@@ -463,10 +503,11 @@ def compute(payload: dict[str, Any] | None) -> dict[str, Any]:
             "unit": "days",
             "steps": steps,
         }
-    end, steps = _sa_days(trigger, count, dies_non=dies_non, length_rule=length_rule)
+    end, steps = _sa_days(trigger, count, dies_non=dies_non, length_rule=length_rule, trigger_field=trigger_field, proclaimed=proclaimed)
     return {
         "ok": True,
         "jurisdiction": _ZA,
+        trigger_field: trigger.isoformat(),
         "trigger": trigger.isoformat(),
         "deadline": end.isoformat(),
         "days": count,
