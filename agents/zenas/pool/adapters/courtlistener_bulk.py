@@ -16,17 +16,20 @@ import io
 import json
 import lzma
 import os
+import queue
 import re
 import sys
 import threading
 import time
 import urllib.parse
+import urllib.error
 import urllib.request
 import xml.etree.ElementTree as ET
 from collections import Counter
-from collections.abc import AsyncIterator, Iterator
+from collections.abc import AsyncIterator, Awaitable, Iterator
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
+from typing import TypeVar
 
 from agents.zenas.pool.adapters.cases import (
     ALLOWED_COURTS,
@@ -40,6 +43,7 @@ from agents.zenas.pool.licence import FetchNotConfigured
 BUCKET = "https://com-courtlistener-storage.s3-us-west-2.amazonaws.com/"
 LIST_NS = "{http://s3.amazonaws.com/doc/2006-03-01/}"
 SOURCE_ID = "courtlistener"
+OperationResult = TypeVar("OperationResult")
 FILE_ORDER = ("schema", "courts", "dockets", "clusters", "citations", "opinions")
 REQUIRED_KINDS = frozenset({"courts", "dockets", "clusters", "opinions", "schema"})
 _DATE = r"(\d{4}-\d{2}-\d{2})"
@@ -61,6 +65,14 @@ LIST_PREFIXES = (
     "bulk-data/schema-",
 )
 _READER_THREAD = "cl-bulk-reader"
+SOCKET_TIMEOUT = 60
+HEARTBEAT_SECONDS = 30
+STALL_SECONDS = 300
+
+
+class BulkStalled(TimeoutError):
+    def __init__(self, detail: str = "") -> None:
+        super().__init__(f"stalled; resumable on next Load{'; ' + detail if detail else ''}")
 
 
 def bulk_cap() -> int:
@@ -250,7 +262,7 @@ def _iter_http_rows(url: str, stop: threading.Event) -> Iterator[list[str]]:
         url,
         headers={"User-Agent": USER_AGENT, "Accept-Encoding": "identity"},
     )
-    response = urllib.request.urlopen(request, timeout=120)  # noqa: S310
+    response = urllib.request.urlopen(request, timeout=SOCKET_TIMEOUT)  # noqa: S310
     stream = _decompress(response, url)
     text = io.TextIOWrapper(stream, encoding="utf-8", newline="")
     try:
@@ -269,7 +281,7 @@ def _iter_http_lines(url: str, stop: threading.Event) -> Iterator[str]:
         url,
         headers={"User-Agent": USER_AGENT, "Accept-Encoding": "identity"},
     )
-    response = urllib.request.urlopen(request, timeout=120)  # noqa: S310
+    response = urllib.request.urlopen(request, timeout=SOCKET_TIMEOUT)  # noqa: S310
     stream = _decompress(response, url)
     text = io.TextIOWrapper(stream, encoding="utf-8", newline="")
     try:
@@ -282,19 +294,10 @@ def _iter_http_lines(url: str, stop: threading.Event) -> Iterator[str]:
         response.close()
 
 
-async def _try_put(queue: asyncio.Queue, item: object) -> bool:
-    try:
-        queue.put_nowait(item)
-    except asyncio.QueueFull:
-        return False
-    return True
-
-
 async def _aiter_thread(worker, stop: threading.Event) -> AsyncIterator[object]:
     """Pull rows off a thread so the room's event loop keeps answering."""
-    loop = asyncio.get_running_loop()
-    queue: asyncio.Queue = asyncio.Queue(maxsize=32)
-    done = object()
+    pending: queue.Queue = queue.Queue(maxsize=32)
+    finished = threading.Event()
     errors: list[BaseException] = []
 
     def run() -> None:
@@ -303,36 +306,43 @@ async def _aiter_thread(worker, stop: threading.Event) -> AsyncIterator[object]:
             for item in worker():
                 if stop.is_set():
                     break
-                placed = False
                 while not stop.is_set():
-                    future = asyncio.run_coroutine_threadsafe(_try_put(queue, item), loop)
                     try:
-                        placed = bool(future.result(timeout=2))
-                    except TimeoutError:
-                        continue
-                    if placed:
+                        pending.put(item, timeout=0.1)
                         break
-                    time.sleep(0.05)
-                if not placed:
-                    break
+                    except queue.Full:
+                        continue
         except Exception as exc:  # noqa: BLE001
             errors.append(exc)
         finally:
-            asyncio.run_coroutine_threadsafe(_try_put(queue, done), loop).result(timeout=30)
+            finished.set()
 
     thread = threading.Thread(target=run, name=_READER_THREAD, daemon=True)
     thread.start()
+    last_row = time.monotonic()
     try:
         while True:
-            item = await queue.get()
-            if item is done:
-                break
+            try:
+                item = pending.get_nowait()
+            except queue.Empty:
+                if finished.is_set():
+                    if pending.empty():
+                        break
+                    continue
+                if time.monotonic() - last_row >= STALL_SECONDS:
+                    raise BulkStalled()
+                await asyncio.sleep(0.01)
+                continue
             yield item
+            last_row = time.monotonic()
     finally:
         stop.set()
-        while thread.is_alive():
-            await asyncio.sleep(0.01)
+        await asyncio.to_thread(thread.join, SOCKET_TIMEOUT)
     if errors:
+        if isinstance(errors[0], TimeoutError) or (
+            isinstance(errors[0], urllib.error.URLError) and isinstance(errors[0].reason, TimeoutError)
+        ):
+            raise BulkStalled() from errors[0]
         raise errors[0]
 
 
@@ -441,6 +451,7 @@ class BulkResult:
     file_label: str
     rows_read: int
     cases_kept: int
+    detail: str = ""
 
 
 def _case_payload(docket: DocketKept, cluster: ClusterKept, text: str) -> dict:
@@ -483,31 +494,55 @@ class _Progress:
         self.rows_read = 0
         self.cases_kept = 0
         self.skips: Counter[str] = Counter()
-        self._since_flush = 0
+        self._noted_rows = 0
+        self.paused = 0
+        self.last_row = time.monotonic()
+        self.started = time.monotonic()
+        self.lock = asyncio.Lock()
 
     def line(self) -> str:
-        return progress_line(self.day, self.file or "starting", self.rows_read, self.cases_kept, self.skips)
+        rate = self.rows_read / max(time.monotonic() - self.started, 0.001)
+        return progress_line(self.day, self.file or "starting", self.rows_read, self.cases_kept, self.skips).replace(
+            "; cases kept", f"; {rate:.1f} rows/second; cases kept"
+        )
 
     async def note(self, force: bool = False) -> None:
-        self._since_flush += 1
-        if not force and self._since_flush < 5000:
+        if not force and self.rows_read - self._noted_rows < 10000:
             return
-        self._since_flush = 0
+        if not force:
+            self._noted_rows = self.rows_read
         conn = self.conn
         if conn is None:
             return
         try:
-            await conn.execute(
-                """
-                UPDATE zenas_pool.updates
-                SET detail = $1
-                WHERE source_id = $2 AND last_status = 'running'
-                """,
-                self.line(),
-                SOURCE_ID,
-            )
+            async with self.lock:
+                await self.non_row(asyncio.wait_for(conn.execute(
+                    """
+                    UPDATE zenas_pool.updates
+                    SET detail = $1
+                    WHERE source_id = $2 AND last_status = 'running'
+                    """,
+                    self.line(),
+                    SOURCE_ID,
+                ), timeout=10))
         except Exception:
             self.conn = None
+
+    async def non_row(self, operation: Awaitable[OperationResult]) -> OperationResult:
+        if not self.paused:
+            self._paused_since = time.monotonic()
+        self.paused += 1
+        try:
+            return await operation
+        finally:
+            self.paused -= 1
+            if not self.paused:
+                self.last_row += time.monotonic() - max(self.last_row, self._paused_since)
+
+    async def row(self) -> None:
+        self.rows_read += 1
+        self.last_row = time.monotonic()
+        await self.note()
 
 
 async def _open_db():
@@ -823,10 +858,27 @@ async def load_bulk(http_get, *, resume: str = "", state: BulkState | None = Non
         return BulkResult([], done.render(api), Counter(), snapshot.day, "done", 0, 0)
 
     conn = await _open_db()
-    progress = _Progress(conn, snapshot.day)
+    progress_conn = await _open_db()
+    progress = _Progress(progress_conn, snapshot.day)
+    starting_opinion_id = state.last_opinion_id
+    owner = asyncio.current_task()
+    stalled = False
+
+    async def heartbeat() -> None:
+        nonlocal stalled
+        while True:
+            await asyncio.sleep(HEARTBEAT_SECONDS)
+            if not progress.paused and time.monotonic() - progress.last_row >= STALL_SECONDS:
+                stalled = True
+                if owner is not None:
+                    owner.cancel()
+                return
+            await progress.note(force=True)
+
+    pulse = asyncio.create_task(heartbeat())
     try:
         if cursor and _past(cursor, "dockets") and not state.dockets:
-            await _load_ids(conn, state)
+            await progress.non_row(_load_ids(conn, state))
             if state.dockets:
                 # Court names are not in the id table. Re-read that small file
                 # so a docket-number citation still names the court.
@@ -863,7 +915,7 @@ async def load_bulk(http_get, *, resume: str = "", state: BulkState | None = Non
                 else:
                     state.files_done.add("opinions")
                     rendered = BulkCursor(snapshot.day, "done").render(api)
-                    await _mark_file(conn, snapshot.day, "opinions", snapshot.files["opinions"], "done", progress.rows_read, progress.cases_kept, state.last_opinion_id)
+                    await progress.non_row(_mark_file(conn, snapshot.day, "opinions", snapshot.files["opinions"], "done", progress.rows_read, progress.cases_kept, state.last_opinion_id))
                 return BulkResult(
                     blobs,
                     rendered,
@@ -872,11 +924,26 @@ async def load_bulk(http_get, *, resume: str = "", state: BulkState | None = Non
                     progress.file,
                     progress.rows_read,
                     progress.cases_kept,
+                    progress.line(),
                 )
             state.files_done.add(kind)
         rendered = BulkCursor(snapshot.day, "done").render(api)
-        return BulkResult([], rendered, progress.skips, snapshot.day, "done", progress.rows_read, progress.cases_kept)
+        return BulkResult([], rendered, progress.skips, snapshot.day, "done", progress.rows_read, progress.cases_kept, progress.line())
+    except asyncio.CancelledError:
+        state.last_opinion_id = starting_opinion_id
+        if stalled:
+            if owner is not None:
+                owner.uncancel()
+            raise BulkStalled(progress.line()) from None
+        raise
+    except TimeoutError:
+        state.last_opinion_id = starting_opinion_id
+        raise BulkStalled(progress.line()) from None
     finally:
+        pulse.cancel()
+        await asyncio.gather(pulse, return_exceptions=True)
+        if progress_conn is not None:
+            await progress_conn.close()
         if conn is not None:
             try:
                 await conn.close()
@@ -911,7 +978,7 @@ async def _read_schema(http_get, url: str, progress: _Progress) -> None:
 
     try:
         async for _line in _aiter_thread(worker, stop):
-            progress.rows_read += 1
+            await progress.row()
     finally:
         stop.set()
     await progress.note(force=True)
@@ -941,7 +1008,7 @@ async def _read_courts(http_get, url: str, state: BulkState, progress: _Progress
         if header is None:
             header = raw
             continue
-        progress.rows_read += 1
+        await progress.row()
         row = _mapping(header, raw)
         court_id = _cell(row, "id").lower()
         if court_id:
@@ -958,7 +1025,7 @@ async def _read_dockets(http_get, url: str, state: BulkState, progress: _Progres
         if header is None:
             header = raw
             continue
-        progress.rows_read += 1
+        await progress.row()
         row = _mapping(header, raw)
         reason = docket_skip(row)
         if reason:
@@ -993,12 +1060,12 @@ async def _read_dockets(http_get, url: str, state: BulkState, progress: _Progres
             )
         )
         if len(batch) >= 2000:
-            await _flush_ids(conn, batch)
+            await progress.non_row(_flush_ids(conn, batch))
             batch = []
             await progress.note()
     if batch:
-        await _flush_ids(conn, batch)
-    await _mark_file(conn, state.day, "dockets", url, "done", progress.rows_read, len(state.dockets), 0)
+        await progress.non_row(_flush_ids(conn, batch))
+    await progress.non_row(_mark_file(conn, state.day, "dockets", url, "done", progress.rows_read, len(state.dockets), 0))
     await progress.note(force=True)
 
 
@@ -1009,7 +1076,7 @@ async def _read_clusters(http_get, url: str, state: BulkState, progress: _Progre
         if header is None:
             header = raw
             continue
-        progress.rows_read += 1
+        await progress.row()
         row = _mapping(header, raw)
         docket_id = _int_id(_cell(row, "docket_id"))
         docket = state.dockets.get(docket_id)
@@ -1045,12 +1112,12 @@ async def _read_clusters(http_get, url: str, state: BulkState, progress: _Progre
             )
         )
         if len(batch) >= 2000:
-            await _flush_ids(conn, batch)
+            await progress.non_row(_flush_ids(conn, batch))
             batch = []
             await progress.note()
     if batch:
-        await _flush_ids(conn, batch)
-    await _mark_file(conn, state.day, "clusters", url, "done", progress.rows_read, len(state.clusters), 0)
+        await progress.non_row(_flush_ids(conn, batch))
+    await progress.non_row(_mark_file(conn, state.day, "clusters", url, "done", progress.rows_read, len(state.clusters), 0))
     await progress.note(force=True)
 
 
@@ -1061,7 +1128,7 @@ async def _read_citations(http_get, url: str, state: BulkState, progress: _Progr
         if header is None:
             header = raw
             continue
-        progress.rows_read += 1
+        await progress.row()
         row = _mapping(header, raw)
         cluster = state.clusters.get(_int_id(_cell(row, "cluster_id")))
         if cluster is None:
@@ -1099,10 +1166,10 @@ async def _read_citations(http_get, url: str, state: BulkState, progress: _Progr
                 )
             )
             if len(rows) >= 2000:
-                await _flush_ids(conn, rows)
+                await progress.non_row(_flush_ids(conn, rows))
                 rows = []
         if rows:
-            await _flush_ids(conn, rows)
+            await progress.non_row(_flush_ids(conn, rows))
     await progress.note(force=True)
 
 
@@ -1117,7 +1184,7 @@ async def _read_opinions(http_get, url: str, state: BulkState, progress: _Progre
         if header is None:
             header = raw
             continue
-        progress.rows_read += 1
+        await progress.row()
         row = _mapping(header, raw)
         opinion_id = _int_id(_cell(row, "id"))
         if opinion_id and opinion_id <= state.last_opinion_id:
@@ -1140,7 +1207,7 @@ async def _read_opinions(http_get, url: str, state: BulkState, progress: _Progre
             break
         if progress.rows_read % 5000 == 0:
             await progress.note()
-    blobs, kept = _emit(state, texts, progress.skips)
+    blobs, kept = await progress.non_row(asyncio.to_thread(_emit, state, texts, progress.skips))
     progress.cases_kept += kept
     await progress.note(force=True)
     return blobs, stopped

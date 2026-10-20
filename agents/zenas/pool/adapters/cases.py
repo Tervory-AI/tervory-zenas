@@ -420,7 +420,7 @@ class CourtListenerAdapter(_CaseAdapter):
         self.fetch_skips = Counter(result.skips)
         if result.snapshot and result.rows_read:
             self.fetch_skips[f"snapshot {result.snapshot}; file {result.file_label}; rows read"] = result.rows_read
-        self.progress_line = progress_line(
+        self.progress_line = result.detail or progress_line(
             result.snapshot,
             result.file_label,
             result.rows_read,

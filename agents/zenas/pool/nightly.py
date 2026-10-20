@@ -227,6 +227,7 @@ async def courtlistener_night(
     by hash inside ingest.
     """
     from agents.zenas.pool.adapters.courtlistener_bulk import (
+        BulkStalled,
         BulkState,
         join_cursor,
         load_bulk,
@@ -255,6 +256,13 @@ async def courtlistener_night(
     if not snapshot_is_done(bulk_resume):
         try:
             result = await load_bulk(http_get, resume=resume, state=state)
+        except BulkStalled as exc:
+            await store.record_source(source)
+            await store.record_run(
+                source.source_id, status="stalled", detail=str(exc),
+                documents=await store.instrument_count(source.source_id), when=when,
+            )
+            return
         except (FetchNotConfigured, LicenceError) as exc:
             await store.record_source(source)
             await store.record_run(
@@ -277,7 +285,7 @@ async def courtlistener_night(
                 skips=skips,
             )
         skips.update(result.skips)
-        line = progress_line(result.snapshot, result.file_label, result.rows_read, result.cases_kept, result.skips)
+        line = result.detail or progress_line(result.snapshot, result.file_label, result.rows_read, result.cases_kept, result.skips)
         day = result.snapshot or day
         if not snapshot_is_done(result.cursor):
             await store.set_checkpoint(source.source_id, result.cursor, await store.stored_bytes())
