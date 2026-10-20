@@ -52,6 +52,30 @@ def _references(facts: str, judgment: str) -> list[dict[str, Any]]:
     return references
 
 
+def _month(value: Any) -> str | None:
+    """Calendar month of a date or timestamp, as YYYY-MM."""
+    if value is None or isinstance(value, bool):
+        return None
+    text = value.isoformat() if hasattr(value, "isoformat") else str(value).strip()
+    if len(text) < 7 or text[4] != "-" or not (text[:4].isdigit() and text[5:7].isdigit()):
+        return None
+    if not 1 <= int(text[5:7]) <= 12:
+        return None
+    return text[:7]
+
+
+def _family(name: str, synthetic: bool) -> str:
+    return name.replace(":", "-synthetic:", 1) if synthetic else name
+
+
+def _first_month(row: dict[str, Any], keys: tuple[str, ...]) -> str | None:
+    for key in keys:
+        month = _month(row.get(key))
+        if month:
+            return month
+    return None
+
+
 def _object(value: Any) -> Any:
     return json.loads(value) if isinstance(value, str) else value
 
@@ -78,6 +102,9 @@ def case_candidate(row: dict[str, Any], region: str) -> dict[str, Any] | None:
     if not findings or not outcome:
         return None
     held = bool(row.get("holdout"))
+    month = _first_month(row, ("as_at", "created_at", "known_from", "doc_date"))
+    if month is None:
+        return None
     return _bounded({
         "skill_id": "zenas.case_facts",
         "input": {
@@ -90,6 +117,7 @@ def case_candidate(row: dict[str, Any], region: str) -> dict[str, Any] | None:
             "element_findings": findings, "outcome": outcome,
         },
         "label_source": f"{'held_out' if held else 'converted'}:{row['source_id']}:{row['pool_version_id']}",
+        "label_family": _family(f"converted:{row['source_id']}:{month}", row.get("synthetic") is True),
         "region": region,
         "public": True,
         "holdout": held,
@@ -106,6 +134,9 @@ def statute_candidate(row: dict[str, Any], region: str) -> dict[str, Any] | None
         or classify(str(row.get("title") or "") + " " + str(row["text"]), jurisdiction).get("criminal")
     ):
         return None
+    month = _first_month(row, ("known_from", "captured_at", "effective_from", "doc_date"))
+    if month is None:
+        return None
     passage = {
         "doc_id": str(row["document_id"]), "version_id": str(row["version_id"]),
         "citation": row["citation"], "heading": row.get("heading") or "", "text": row["text"],
@@ -117,6 +148,7 @@ def statute_candidate(row: dict[str, Any], region: str) -> dict[str, Any] | None
         "input": {"citation": row["citation"], "jurisdiction": jurisdiction, "corpus": [passage]},
         "expected": {"count": 1, "citations": [row["citation"]], "passages": [passage]},
         "label_source": f"statute_section:{row['source_id']}:{row['version_id']}:{row.get('path') or ''}",
+        "label_family": _family(f"statute_section:{row['source_id']}:{month}", row.get("synthetic") is True),
         "region": region,
         "public": True,
         "holdout": False,
@@ -140,7 +172,8 @@ async def candidates(pool: Any, *, region: str, limit: int = 200) -> list[dict[s
             while True:
                 rows = await conn.fetch(
             """
-            SELECT w.*, d.text, d.source_id, d.title, d.docket_number, d.nature_of_suit
+            SELECT w.*, d.text, d.source_id, d.title, d.docket_number, d.nature_of_suit,
+                   d.doc_date, d.known_from
             FROM agent_zenas.worked_matters w
             JOIN zenas_pool.documents d ON d.version_id = w.pool_version_id
               AND d.document_id = w.pool_doc_id AND d.jurisdiction = w.jurisdiction
@@ -163,7 +196,8 @@ async def candidates(pool: Any, *, region: str, limit: int = 200) -> list[dict[s
             while True:
                 rows = await conn.fetch(
             """
-            SELECT c.*, d.source_id, d.kind, d.title
+            SELECT c.*, d.source_id, d.kind, d.title,
+                   d.doc_date, d.effective_from, d.known_from, d.captured_at
             FROM zenas_pool.chunks c JOIN zenas_pool.documents d ON d.version_id = c.version_id
             WHERE c.jurisdiction = $1 AND d.jurisdiction = $1
               AND d.source_id = ANY($2::text[]) AND d.kind = 'statute'

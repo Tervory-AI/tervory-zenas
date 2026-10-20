@@ -26,7 +26,7 @@ def case(region="us-east", holdout=False):
         "text": "The buyer accepted delivery under the supply agreement.",
         "fact_pattern": {"facts": "The buyer accepted delivery under the supply agreement."},
         "element_findings": [{"element_id": "delivery", "finding": "met"}],
-        "outcome": "met", "holdout": holdout,
+        "outcome": "met", "holdout": holdout, "as_at": "2026-10-03",
     }
 
 
@@ -36,7 +36,7 @@ def section(region="us-east"):
         "source_id": "govza" if region == "za" else "govinfo-uscode",
         "kind": "statute", "text": "A civil agreement requires acceptance.",
         "citation": "Civil Act section 1", "document_id": "act", "version_id": "v1",
-        "path": "1",
+        "path": "1", "known_from": "2026-10-01",
     }
 
 
@@ -44,10 +44,12 @@ def section(region="us-east"):
 def test_public_cases_and_heldout_labels(region):
     for held in (True, False):
         result = case_candidate(case(region, held), region)
-        assert set(result) == {"skill_id", "input", "expected", "label_source", "region", "public", "holdout"}
+        assert set(result) == {"skill_id", "input", "expected", "label_source", "label_family", "region", "public", "holdout"}
         assert result["region"] == region
         assert result["public"] is True
         assert result["holdout"] is held
+        source = "saflii" if region == "za" else "courtlistener"
+        assert result["label_family"] == f"converted:{source}:2026-10"
         assert result["input"]["holdout"] is held
         assert result["label_source"].startswith("held_out:" if held else "converted:")
     assert case_candidate(case(region), "us-east" if region == "za" else "za") is None
@@ -68,6 +70,7 @@ def test_private_unknown_criminal_and_unverified_rows_are_excluded():
 def test_statute_label_matches_retrieval_and_unknown_sources_stay_out():
     row = section()
     result = statute_candidate(row, "us-east")
+    assert result["label_family"] == "statute_section:govinfo-uscode:2026-10"
     assert result["expected"]["passages"] == retrieve_passages(**result["input"])
     row["source_id"] = "client-upload"
     assert statute_candidate(row, "us-east") is None
