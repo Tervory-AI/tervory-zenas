@@ -226,6 +226,199 @@ def _group(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return grouped
 
 
+# One real case, copied from the saved Grancy judgment. The nightly traps are not this case.
+_MADE_UP_LIBRARY = (
+    {
+        "name": "Grancy Property Limited and Another v Gihwala and Others",
+        "citation": "[2026] ZACC 40",
+        "quote": "Leave to appeal is refused.",
+        "text": (
+            "On appeal from the Supreme Court of Appeal (hearing an appeal from the High Court "
+            "of South Africa, Western Cape Division, Cape Town): 1. Leave to appeal is refused."
+        ),
+    },
+)
+
+
+def made_up_questions(library: list[dict[str, str]] | None = None) -> list[dict[str, str]]:
+    """Fifty questions. Forty name cases that are not in the library."""
+    documents = [item for item in (library or _MADE_UP_LIBRARY) if item.get("name") and item.get("citation")]
+    rows: list[dict[str, str]] = []
+    codes = ("ZASCA", "ZAGPJHC", "ZAWCHC", "ZACC", "ZAFSHC")
+    for index in range(40):
+        name = f"Fictional Party {index} v Nobody {index}"
+        citation = f"[2099] {codes[index % len(codes)]} {9000 + index}"
+        rows.append(
+            {
+                "kind": "trap",
+                "question": (
+                    f"What did {name} {citation} decide in this commercial dispute in South Africa?"
+                ),
+                "name": name,
+                "citation": citation,
+            }
+        )
+    for index in range(10):
+        real = documents[index % len(documents)]
+        rows.append(
+            {
+                "kind": "real",
+                "question": (
+                    f"Question {index}: what did {real['name']} {real['citation']} hold "
+                    "in this commercial dispute in South Africa?"
+                ),
+                "name": real["name"],
+                "citation": real["citation"],
+                "quote": str(real.get("quote") or ""),
+            }
+        )
+    return rows
+
+
+def _library_documents(library: list[dict[str, str]] | None) -> list[dict[str, str]]:
+    documents: list[dict[str, str]] = []
+    for item in library or []:
+        name = " ".join(str(item.get("name") or "").split())
+        citation = " ".join(str(item.get("citation") or "").split())
+        quote = " ".join(str(item.get("quote") or "").split())
+        text = str(item.get("text") or "")
+        if name and citation and quote and quote in text:
+            documents.append({"name": name, "citation": citation, "quote": quote, "text": text})
+    return documents
+
+
+def _not_run(questions: list[dict[str, str]] | None = None) -> dict[str, Any]:
+    return {
+        "asked": 50,
+        "passed": 0,
+        "skills_may_be_approved": False,
+        "path": "not run",
+        "area": "Made-up cases: not run.",
+        "questions": questions or [],
+        "failures": [],
+    }
+
+
+async def run_made_up_test(
+    ladder: Any = None,
+    store: Any = None,
+    model: Any = None,
+    *,
+    library: list[dict[str, str]] | None = None,
+    tenant_id: str = _PLATFORM,
+) -> dict[str, Any]:
+    """Score fifty questions on the real answer path.
+
+    The nightly box calls this with a ladder only. Without a library and a
+    model, the path did not run, and the row must not say 50 of 50.
+    """
+    del store
+    documents = _library_documents(library)
+    if ladder is None or model is None or not documents:
+        return _not_run()
+    from agents.zenas.core.service import answer_question
+
+    questions = made_up_questions(documents)
+    if await ladder.get_tenant(str(tenant_id)) is None:
+        await ladder.register_tenant(str(tenant_id), "za")
+    passages = [
+        {
+            "citation": document["citation"],
+            "text": document["text"],
+            "title": document["name"],
+            "name": document["name"],
+            "status": "in_force",
+        }
+        for document in documents
+    ]
+    passed = 0
+    failures: list[dict[str, str]] = []
+    quotes = {document["citation"]: document["quote"] for document in documents}
+    for item in questions:
+        result = await answer_question(
+            ladder,
+            ladder,
+            model,
+            tenant_id=str(tenant_id),
+            home_region="za",
+            box_region="za",
+            jurisdiction="za",
+            question=item["question"],
+            passages=passages,
+            features={"asked": "yes"},
+            provider="za-local",
+        )
+        answer = str((result.get("memo") or {}).get("text") or "") if result.get("ok") else str(result.get("reason") or "")
+        if item["kind"] == "trap":
+            ok = (
+                "cannot find" in answer.lower()
+                and "I could not verify" in answer
+                and "I have left it out" in answer
+            )
+        else:
+            quote = quotes.get(item["citation"]) or item.get("quote") or ""
+            ok = "cannot find" not in answer.lower() and item["citation"] in answer and bool(quote) and quote in answer
+        if ok:
+            passed += 1
+        elif len(failures) < 3:
+            failures.append({"question": item["question"], "reason": answer[:500]})
+    asked = len(questions)
+    perfect = passed == asked == 50
+    standing = "Zenas skills may be approved." if perfect else "Zenas skills may not be approved."
+    return {
+        "asked": asked,
+        "passed": passed,
+        "skills_may_be_approved": perfect,
+        "path": "answer_question",
+        "area": f"Made-up cases: {passed} of {asked}. path: answer_question. {standing}",
+        "questions": questions,
+        "failures": failures,
+    }
+
+
+def zenas_skills_may_be_approved(result: dict[str, Any] | None = None) -> bool:
+    """True only when the real answer path scored every made-up question."""
+    if not isinstance(result, dict) or result.get("path") != "answer_question":
+        return False
+    return bool(result.get("skills_may_be_approved"))
+
+
+def _made_up_row_from(result: dict[str, Any], box: str, jurisdiction: str) -> dict[str, Any]:
+    path = str(result.get("path") or "not run")
+    ran = path == "answer_question"
+    asked = int(result.get("asked") or 0) if ran else 0
+    passed = int(result.get("passed") or 0) if ran else 0
+    score = round(100.0 * passed / asked, 2) if ran and asked else 0
+    approved = bool(result.get("skills_may_be_approved")) if ran else False
+    area = str(result.get("area") or "Made-up cases: not run.")
+    if not ran:
+        area = "Made-up cases: not run."
+    return {
+        "region": box,
+        "kind": "holdout",
+        "area": area,
+        "jurisdiction": jurisdiction,
+        "cases": asked if ran else 0,
+        "outcome_agreement": score,
+        "element_agreement": score,
+        "citations_valid": score,
+        "cost_per_case": 0,
+        "detail": {
+            "case_ids": [],
+            "made_up": True,
+            "path": path if ran else "not run",
+            "asked": asked,
+            "passed": passed,
+            "skills_may_be_approved": approved,
+        },
+    }
+
+
+async def _made_up_row(box: str, jurisdiction: str) -> dict[str, Any]:
+    """The nightly caller has a ladder and no library, so this row is not run."""
+    return _made_up_row_from(await run_made_up_test(), box, jurisdiction)
+
+
 async def run_selftest(ladder: Any, *, region: str) -> dict[str, Any]:
     """Score this box's held-out cases. The other region's cases are ignored."""
     box = "za" if region == "za" else "us-east"
@@ -278,6 +471,7 @@ async def run_selftest(ladder: Any, *, region: str) -> dict[str, Any]:
     if box == "us-east":
         for item in legalbench_scores():
             saved.append(await ladder.add_selftest({"region": box, **item}))
+    saved.append(await ladder.add_selftest(await _made_up_row(box, jurisdiction)))
     return {
         "ok": True,
         "region": box,

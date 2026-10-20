@@ -162,13 +162,15 @@ def test_bad_paragraph_pointers_fail(paragraphs, text):
         resolve_pointer({"paragraphs": paragraphs}, text)
 
 
-def test_anchor_span_is_bounded_in_original_characters():
+def test_anchor_span_keeps_the_whole_passage():
     first = "One two three four five six seven eight"
     last = "Nine ten eleven twelve thirteen fourteen fifteen sixteen"
     pointer = {"first": first, "last": last}
     for filler in (" middle" * 500, " " * 3001):
-        with pytest.raises(PointerError, match="pointer did not resolve"):
-            resolve_pointer(pointer, first + filler + " " + last)
+        text = first + filler + " " + last
+        got = resolve_pointer(pointer, text)
+        assert got == text
+        assert len(got) > 3000
     with pytest.raises(PointerError):
         resolve_pointer(pointer, "")
 

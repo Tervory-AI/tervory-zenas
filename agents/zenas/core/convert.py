@@ -26,7 +26,9 @@ from agents.zenas.core.engine import (
     quote_in_source,
 )
 from agents.zenas.core.release_mask import material_type_for_pool
-from agents.zenas.core.pointers import PointerError, judgment_text, resolve_answer
+from agents.zenas.core.pointers import PointerError, judgment_text, resolve_answer, resolve_pointer
+from agents.zenas.pool.adapters.za_case_common import court_identity
+from agents.zenas.pool.citations import cite_treatments
 from agents.zenas.core.selftest import box_jurisdiction, is_holdout
 
 log = logging.getLogger("zenas.convert")
@@ -63,6 +65,35 @@ SELECT text
 FROM zenas_pool.documents
 WHERE version_id = $1 AND jurisdiction = $2 AND kind = 'case'
 """.strip()
+
+# Court identity and citation treatment. The list query above does not read
+# these columns, so a database that has not applied them yet still lists cases.
+COURT_UPDATE_SQL = """
+UPDATE zenas_pool.documents
+SET court = $2,
+    division = $3,
+    seat = $4,
+    bench_size = $5,
+    judges = $6,
+    neutral_citation = $7,
+    report_citation = $8,
+    appeal = $9,
+    appeal_from = $10
+WHERE version_id = $1
+  AND jurisdiction = $11
+""".strip()
+
+CITE_TREATMENT_SQL = """
+UPDATE zenas_pool.cites
+SET treatment = $3,
+    evidence = $4,
+    paragraph = $5
+WHERE from_version = $1
+  AND citation_text = $2
+""".strip()
+
+_OBITER_MARKS = ("obiter", "it is unnecessary to decide", "i express no view")
+_DISSENT_MARKS = ("dissent", "i disagree", "minority")
 
 _PROMPT_HEAD = (
     "Read this judgment as published. Copy the facts in the court's own words, "
@@ -381,6 +412,7 @@ def parse_worked(raw: str, text: str | None = None) -> dict[str, Any]:
                 {"citation": str(item.get("citation") or ""), "quote": str(item.get("quote") or "")}
             )
     features = data.get("features") if isinstance(data.get("features"), dict) else {}
+    issues = _issues(data, text)
     if not facts or not holding:
         raise ValueError("the model did not return case facts")
     return {
@@ -390,6 +422,7 @@ def parse_worked(raw: str, text: str | None = None) -> dict[str, Any]:
         "holding": holding,
         "citations": citations,
         "features": features,
+        "issues": issues,
         "pointed": "facts_pointer" in data,
         "has_pointers": "facts_pointer" in data or any(
             isinstance(item, dict) and "quote_pointer" in item
@@ -397,6 +430,58 @@ def parse_worked(raw: str, text: str | None = None) -> dict[str, Any]:
             for item in (data.get(field) or [])
         ),
     }
+
+
+def _shows(words: str, marks: tuple[str, ...]) -> bool:
+    folded = " ".join((words or "").split()).lower()
+    return any(mark in folded for mark in marks)
+
+
+def _pointer_words(item: dict[str, Any], key: str, text: str) -> str:
+    if key not in item:
+        return ""
+    return resolve_pointer(item[key], text)
+
+
+def _issues(data: dict[str, Any], text: str | None) -> list[dict[str, Any]]:
+    """Per-issue reasoning. Pointers only. A model flag without the court's words is ignored."""
+    raw = data.get("issues")
+    if text is None or not isinstance(raw, list):
+        return []
+    issues: list[dict[str, Any]] = []
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        reasoning = _pointer_words(item, "reasoning_pointer", text)
+        ratio = _pointer_words(item, "likely_ratio_pointer", text)
+        obiter_words = _pointer_words(item, "obiter_pointer", text)
+        minority: list[dict[str, str]] = []
+        for dissent in item.get("minority") or []:
+            if not isinstance(dissent, dict):
+                continue
+            words = _pointer_words(dissent, "pointer", text)
+            if not _shows(words, _DISSENT_MARKS):
+                continue
+            minority.append(
+                {
+                    "judge": " ".join(str(dissent.get("judge") or "").split()),
+                    "words": words,
+                    "label": "dissent",
+                }
+            )
+        issues.append(
+            {
+                "question": _fold(str(item.get("question") or "")),
+                "reasoning": reasoning,
+                "order": _fold(str(item.get("order") or "")),
+                "likely_ratio": ratio,
+                "likely_ratio_label": "likely" if ratio else "",
+                "obiter": _shows(obiter_words, _OBITER_MARKS),
+                "obiter_words": obiter_words if _shows(obiter_words, _OBITER_MARKS) else "",
+                "minority": minority,
+            }
+        )
+    return issues
 
 
 def _statements(case: dict[str, Any], parsed: dict[str, Any]) -> list[dict[str, str]]:
@@ -425,6 +510,19 @@ def _statements(case: dict[str, Any], parsed: dict[str, Any]) -> list[dict[str, 
                     "part": f"element {index}",
                 }
             )
+    for index, issue in enumerate(parsed.get("issues") or [], start=1):
+        for part, quote in (
+            ("reasoning", issue.get("reasoning")),
+            ("likely ratio", issue.get("likely_ratio")),
+            ("obiter", issue.get("obiter_words")),
+        ):
+            words = str(quote or "").strip()
+            if words:
+                rows.append({"citation": citation, "quote": words, "part": f"issue {index} {part}"})
+        for dissent in issue.get("minority") or []:
+            words = str(dissent.get("words") or "").strip()
+            if words:
+                rows.append({"citation": citation, "quote": words, "part": f"issue {index} dissent"})
     return rows
 
 
@@ -732,6 +830,57 @@ async def conversion_report(pool: Any, ladder: Any, *, region: str) -> dict[str,
     }
 
 
+def _fact_pattern(parsed: dict[str, Any], citation: str) -> dict[str, Any]:
+    """The worked-matter pattern. Issues are added only when the model pointed at them."""
+    pattern: dict[str, Any] = {
+        "features": parsed["features"],
+        "narrative": parsed["facts"],
+        "facts": parsed["facts"],
+        "question": parsed["question"],
+        "citation": citation,
+    }
+    if parsed.get("issues"):
+        pattern["issues"] = parsed["issues"]
+    return pattern
+
+
+async def _store_court_and_treatment(pool: Any, case: dict[str, Any], text: str) -> None:
+    """Write court identity and citation treatment when this box has SQL.
+
+    Memory tests have no SQL connection. A missing column is a schema that
+    has not been applied; the error is left for that run to see.
+    """
+    if str(case.get("jurisdiction") or "") != "za":
+        return
+    conn = _sql_conn(pool)
+    if conn is None or not hasattr(conn, "execute"):
+        return
+    identity = court_identity(text)
+    await conn.execute(
+        COURT_UPDATE_SQL,
+        case["version_id"],
+        identity["court"],
+        identity["division"],
+        identity["seat"],
+        identity["bench_size"],
+        identity["judges"],
+        identity["neutral_citation"],
+        identity["report_citation"],
+        identity["appeal"],
+        identity["appeal_from"],
+        case["jurisdiction"],
+    )
+    for row in cite_treatments(text):
+        await conn.execute(
+            CITE_TREATMENT_SQL,
+            case["version_id"],
+            row["citation"],
+            row["treatment"],
+            row["evidence"],
+            row["paragraph"],
+        )
+
+
 async def convert_cases(
     pool: Any,
     ladder: Any,
@@ -784,6 +933,7 @@ async def convert_cases(
         if not text.strip() or not case["citation"].strip():
             await _remember_failure(ladder, region=box, pool_doc_id=case["document_id"], reason="cite check failed")
             continue
+        await _store_court_and_treatment(pool, case, text)
         prompt = _PROMPT_HEAD + case["citation"] + "\n\n" + text
         try:
             called = await _ask_model(model, [{"role": "user", "content": prompt}])
@@ -876,13 +1026,7 @@ async def convert_cases(
                 "jurisdiction": jurisdiction,
                 "area": "",
                 "rule_card_ids": [],
-                "fact_pattern": {
-                    "features": parsed["features"],
-                    "narrative": parsed["facts"],
-                    "facts": parsed["facts"],
-                    "question": parsed["question"],
-                    "citation": case["citation"],
-                },
+                "fact_pattern": _fact_pattern(parsed, case["citation"]),
                 "element_findings": [
                     {
                         "element_id": item["element_id"],

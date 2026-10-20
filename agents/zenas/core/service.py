@@ -42,7 +42,11 @@ from agents.zenas.core.matters import consider
 from agents.zenas.core.review import review_positions
 from agents.zenas.core.review_switch import card_servable, review_required
 from agents.zenas.core.scope_rules import NOT_YET, REFUSED, classify, ruled
+from agents.zenas.core.precedent import draft_label, drop_unverified_cases, rules_are_draft
 from agents.zenas.core.selftest import is_holdout
+
+# Whole passages, best first. A passage is never sliced to fit.
+_PASSAGE_BUDGET = 8000
 
 _RULE_PROMPT = """Build a rule card from these passages only. Reply with JSON:
 {{"elements":[{{"id":"","test":"","citation":"","quote":""}}],"exceptions":[],"defences":[],"remedies":[],"decision_table":[]}}
@@ -68,6 +72,29 @@ Keep every citation that is already there.
 
 {text}
 """
+
+
+def passages_for_model(passages: list[dict[str, Any]], *, budget: int = _PASSAGE_BUDGET) -> tuple[list[dict[str, Any]], int]:
+    """As many whole passages as fit, in the order given. The first is kept even when it is long."""
+    kept: list[dict[str, Any]] = []
+    for index, passage in enumerate(passages):
+        trial = kept + [passage]
+        if kept and len(json.dumps(trial)) > budget:
+            return kept, len(passages) - index
+        kept.append(passage)
+        if len(json.dumps(kept)) > budget:
+            return kept, len(passages) - index - 1
+    return kept, 0
+
+
+def rule_card_prompt(question: str, passages: list[dict[str, Any]]) -> str:
+    kept, left_out = passages_for_model(passages)
+    body = json.dumps(kept)
+    if left_out == 1:
+        body += "\n1 passage was left out. Each passage above is whole."
+    elif left_out:
+        body += f"\n{left_out} passages were left out. Each passage above is whole."
+    return _RULE_PROMPT.format(question=question, passages=body)
 
 
 def _refuse(reason: str, **extra: Any) -> dict[str, Any]:
@@ -332,7 +359,7 @@ async def build_rule_card(
         )
         return {"ok": True, "rule_card": _public_card(existing), "reused": True, "cost_usd": 0, "model_calls": 0}
     adapter = ModelAdapter(model) if model is not None else None
-    prompt = _RULE_PROMPT.format(question=question, passages=json.dumps(passages)[:8000])
+    prompt = rule_card_prompt(question, passages)
     called = await _masked_call(
         adapter,
         prompt,
@@ -1616,6 +1643,25 @@ async def answer_question(
     if fresh is None:
         return _refuse("could not verify", delivered=False)
     memo = compose_memo(fresh, applied["elements"])
+    known_names: list[str] = []
+    for item in passages:
+        for key in ("citation", "text", "title", "name"):
+            value = " ".join(str(item.get(key) or "").split())
+            if value:
+                known_names.append(value)
+    if isinstance(features, dict):
+        client_matter = " ".join(str(features.get("client_matter") or "").split())
+        if client_matter:
+            known_names.append(client_matter)
+    if matter_id:
+        matter_row = await store.get_matter(str(tenant_id), str(matter_id))
+        if matter_row is not None:
+            title = " ".join(str(matter_row.get("title") or "").split())
+            if title:
+                known_names.append(title)
+    memo["text"] = drop_unverified_cases(str(memo.get("text") or ""), known_names)
+    if str(jurisdiction or "") == "za" and rules_are_draft():
+        memo["text"] = f"{memo['text']}\n{draft_label()}".strip()
     statements = [
         {"citation": element.get("citation"), "quote": element.get("quote")}
         for element in fresh.get("elements") or []

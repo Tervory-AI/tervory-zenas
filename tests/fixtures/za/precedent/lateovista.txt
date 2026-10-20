@@ -1,0 +1,250 @@
+1 
+ 
+REPUBLIC OF SOUTH AFRICA 
+ 
+ 
+ 
+IN THE HIGH COURT OF SOUTH AFRICA 
+GAUTENG DIVISION, JOHANNESBURG 
+ 
+ 
+ Case Number: 2025-038460 
+ 
+ 
+ 
+In the matter between: 
+ 
+ 
+ 
+ 
+In the matter between: 
+ 
+LATEOVISTA (PTY) LIMITED Applicant 
+ 
+and 
+ 
+EKURHULENI METROPOLITAN MUNICIPALITY First respondent 
+ 
+TLOTLEGO PROPERTY GROUP Second respondent  
+ 
+ 
+ 
+JUDGMENT 
+H A VAN DER MERWE, AJ: 
+ 
+[1] This is an urgent application in which the applicant seeks an order compelling 
+the first respondent (the City) to restore the supply of electricity to an immovable 
+property of which it is the occupier (the property).  
+[2] The applicant occupies the property pursuant to a lease agreement it concluded 
+with the second respondent. Whether the lease agreement is still extant is in 
+(1) REPORTABLE: YES / NO 
+(2) OF INTEREST TO OTHER JUDGES: YES/NO 
+(3) REVISED: YES/NO 
+______________ _________________________ 
+DATE   SIGNATURE 
+8 April 2025
+2 
+ 
+dispute on the affidavits before me, but that is not an issue I am required to decide 
+(the applicant does not seek any order against the second respondent).  
+[3] The applicant comes to court because the supply of electricity to the property 
+was terminated by the City on 7 March 2025. The directors of the applicant were 
+made aware of this fact on 11 March 2025. Given that supply of electricity was 
+terminated on 7 March 2025 and given the unsurprising fact that the applicant’s 
+business will suffer harm if it does not have benefit of electricity, I am satisfied 
+that this matter is sufficiently urgent to warrant its enrolment in the urgent court.  
+[4] The applicant’s landlord, the second respondent has had difficulty in making 
+payment to the City for the supply of electricity that, through it, is supplied to the 
+applicant. According to the City’s answering affidavit, as at 2 February 2025, the 
+second respondent owes the City in excess of R5 million for supplied electricity. 
+The applicant’s version is that it has been making payment for its own 
+consumption of electricity to the second respondent, but, owing to its precarious 
+financial position, the second respondent has not made payment to the City. The 
+first respondent disputes the allegation that the applicant has been making 
+payment for its own consumption, in full at least.  
+[5] When the City terminated the supply of electricity on an earlier occasion, the 
+applicant brought an application similar to this one. That application came before 
+Manoim J. Manoim J dismissed the application (in a judgement dated 
+27 February 2023) on the basis that, on the facts before him, the supply was 
+effected via an illegal connection.  
+[6] It is alleged in the founding affidavit that Manoim J’s judgement prompted the 
+applicant to bring an ex parte application in the Germiston Magistrate’s Court. 
+Manoim J’s judgement is an unlikely catalyst for the application in the 
+Magistrate’s Court, in that those proceedings were only initiated in 2024. Be that 
+as it may, on 8 February 2024 an order was made in the ex parte application in 
+the following terms: 
+“1. [The City] and [the second respondent] are directed to show cause, if 
+any, on the 16th day of April 2024 at 09h00, or so soon thereafter as 
+3 
+ 
+counsel may be heard, why an order in the terms below should not be 
+made final; 
+2. [The City] is ordered to within 24 hours after service of this order on [the 
+City], reinstate and restore the electrical supply to the [property].” 
+[7] That resulted in the City reconnecting the supply of electricity to the property on 
+4 March 2023, according to the answering affidavit. The year is an obvious slip 
+of the pen and should be understood to be 2024. The rule nisi was extended, 
+eventually to 12 March 2025. 
+[8] On 12 March 2025, the termination of the supply of the electricity was made 
+known to Magistrate presiding over those proceedings. According to the founding 
+affidavit, the Magistrate “agreed [that the City] is indeed in contempt but that the 
+Court cannot deal with it in that manner and the parties are advised to go to the 
+appropriate forum.” Having been so advised, the applicant then issued this 
+application.  
+[9] The notion that the order of 9 February 2024 compels the City to reconnect the 
+supply of electricity underpins the applicant’s based on contempt of court.  
+[10] Is should at once be clear that the City cannot be in contempt of the order dated 
+8 February 2024. A rule nisi, in and of itself, does not have interim operation. To 
+enjoy interim operation, an order must make it so. All that the order of 
+8 February 2024 does, is to call on the City to advance reasons why an order for 
+the reconnection of electricity should not be made. The applicant’s case for 
+contempt of court therefore is not well-founded. It seems that the City initially 
+took it for granted that the order had interim operation, but the City’s initial 
+misconception of the effect of the order is not a source of rights for the applicant.   
+[11] The applicant’s other cause of action in this application is the mandament van 
+spolie. Whether the supply of electricity can be the subject matter of the 
+mandament depends on whether it is an incidence of the occupation of a 
+property. A useful analysis of the leading cases on this topic appears in 
+Basson J’s judgement in Wilrus Trading CC and Another v Dey Street Properties 
+(Pty) Ltd and Others (1750/2021) [2021] ZAGPPHC 42 (9 February 2021): 
+4 
+ 
+“(vi) It therefore seems, according to Makeshift, [Makeshift 1190 (Pty) Ltd v 
+Cilliers 2020 (5) SA 538 (WCC)] that the alleged right to electricity can 
+fall into one of the following three categories: 
+“[32] The authorities discussed in Masinda  [Eskom Holdings SOC 
+Limited v Masinda 2019 (5) SA 386 (SCA)] can be divided into 
+three categories: 
+(a) First, there are cases where the alleged right to a service 
+(typically water) takes the form of an alleged servitude or 
+alleged registered statutory right. ….. These are 
+uncontentious cases of quasi -possession enjoying 
+protection under the mandament. 
+(b) Second, there are the cases in which the alleged right to 
+electricity or other service has been held to be 'purely 
+personal in nature'. These cases, in which no servitude or 
+similar right was alleged, include Masinda itself as well 
+as Telkom SA Ltd v Xsinet (Pty) Ltd 2003 (5) SA 309 
+(SCA) and Zulu v Minister of Works, KwaZulu-Natal, and 
+Others  1992 (1) SA 181 (D). One may infer, from Leach 
+JA's disapproval of the case, that Eskom v Nikelo should 
+also be placed into this category. These cases do not 
+involve quasi-possession enjoying protection under the 
+mandament. 
+(c) Finally, there are cases such as Naidoo and Froman, 
+which do not appear to have been disapproved 
+in Masinda, where the alleged right to a supply of 
+electricity was an alleged personal contractual right but 
+where, nonetheless, the mandament's protection was 
+held to be available. 
+[33] The potentially difficult question is whether a case should be 
+placed into category (b) or (c)….” 
+(vii)  Cases falling into category (c), are those where the alleged right to 
+electricity is “an adjunct to, or part of, the alleged right to occupy the 
+property”. Category (c), would typically include those cases where the 
+landlord has a direct interest in the possession of the property itself. 
+Where the landlord cuts the electricity off, it would constitute not only an 
+5 
+ 
+interference with the alleged right to receive electricity, but would 
+simultaneously interfere with the tenants right to undisturbed possession 
+of the premises. The alleged right to electricity therefore forms part of 
+the “cluster of alleged rights making up the occupation to which he 
+claims to be entitled.”  
+(viii) The court in Makeshift points out that in cases that fall within category 
+(c), the true grievance is therefore not so much the despoliation of an 
+alleged right to electricity, but an act that materially and adversely 
+impacts on the tenant’s occupation:  
+“[34] In the cases falling into category (c), by contrast, the alleged right 
+to the service is an adjunct to, or part of, the alleged right to 
+occupy the property. The same person (typically a landlord) who 
+was allegedly obliged to allow the claimant to be in possession of 
+the property was the party who was allegedly obliged to supply, 
+or to allow a supply, of services such as electricity and water … 
+In such cases the landlord has a direct interest in the possession 
+of the property itself. The landlord's act in cutting off electricity and 
+water is an act which interferes not only in the claimant's alleged 
+right to receive those services but simultaneously interferes in the 
+claimant's alleged right against the landlord to be in undisturbed 
+possession of the premises with the amenities forming part of the 
+alleged right of occupation. The claimant's alleged right to receive 
+electricity and water is part of the cluster of alleged rights making 
+up the occupation to which he claims to be entitled. And in such 
+cases it may be difficult to avoid the conclusion that the landlord 
+who has intentionally cut off the electricity and water is trying to 
+eject the occupant without due legal process. In cases falling into 
+category (b), by contrast, the supplier does not and could not 
+have any such intention.”” (footnotes omitted) 
+[12] On the facts before me, this case falls into what is referred to on Basson J’s 
+judgement as category (c). The City is not at all concerned with the applicant’s 
+occupation of the property, whether it remains in occupation or vacates, or 
+whether it pays rent or not. As such, the mandament van spolie is not available 
+to the applicant.  
+6 
+ 
+[13] That leaves the applicant’s case for an interdict. The applicant has no contract 
+with the City. There is a contract for the supply of electricity between the second 
+respondent and the City, but as the applicant enjoys no rights in terms of that 
+contract, it does not have a right to assert against the City. An interdict  on 
+common law grounds is therefore not available to it.  
+[14] It remains to consider the applicant’s reliance on the judgment in Joseph and 
+others v City of Johannesburg and others 2010 (4) SA 55 (CC) (“Joseph”). In 
+Joseph it was found that a tenant, in a position similar to that of the applicant, is 
+entitled to procedural fairness, in terms of The Promotion of Administrative 
+Justice Act 3 of 2000 (PAJA). Procedural fairness in this context is a matter of 
+advance notice of the City’s intention to terminate the supply of electricity, so as 
+to allow the applicant an opportunity to either make representations on why the 
+supply should not be terminated, or by exploring with the City an arrangement by 
+which electricity could be supplied to it directly. It is however not so simple. 
+Procedural fairness is a matter of the circumstances of each particular case. At 
+the heart of procedural fairness lies not so much the formality of advance notice, 
+but the opportunity to meaningfully engage with the City in an attempt to dissuade 
+it from terminating the supply, or by convincing it to supply electricity to the 
+applicant directly. The requirement of advance notice serves as a necessary 
+adjunct to the right to make representations. The right to make representations 
+is where the substance lies. The applicant’s right to make representations to the 
+City, in my view, has been met, as there has been engagements between the 
+applicant and the City on the supply of electricity to the applicant, before the 
+supply was terminated on 7 March 2025. For instance, in the applicant’s 
+attorneys’ letter dated 9 April 2024, the installation of a separate meter for the 
+applicant’s own use of electricity was mooted, as well a settlement of the dispute 
+between the applicant and the City.  
+[15] To now require of the City to give notice to the applicant, and then to receive the 
+applicant’s representations once again, would serve nothing but empty 
+formalism. I am mindful of the applicant’s precarious position, in that it is 
+dependent on the second respondent making payment to the City for its own 
+consumption of electricity, but, the applicant chose the second respondent as its 
+7 
+ 
+landlord. The risk that the second respondent would not make payment to the 
+City and so imperil the applicant’s supply of electricity, is a risk inherent in the 
+applicant’s selection of the second respondent as its landlord. The City has a 
+constitutional obligation to supply electricity to everyone who happen to be within 
+its area of responsibility. The City did not choose the second respondent. The 
+applicant however did. When the second respondent failed to ensure that the 
+supply of the electricity to the leased premises remained uninterrupted, the 
+applicant had its contractual remedies against the second respondent, which 
+included, depending on the circumstances,  the termination of the lease 
+agreement it concluded with the second respondent, with or without a claim for 
+damages. In these circumstances, in fairness, it does not seem to me that the 
+applicant was entitled to advance notice before the supply was terminated on 
+7 March 2025.  
+[16] I make the following order: 
+(a) The application is enrolled as an urgent application; 
+(b) The application is dismissed;  
+(c) The applicant is liable for the first respondent’s costs. 
+ 
+ 
+___________________________ 
+          H A VAN DER MERWE 
+ACTING JUDGE OF THE HIGH COURT 
+  
+8 
+ 
+Heard on: 2 April 2025 
+Delivered on:  8 April 2025 
+ 
+For the applicant: Adv T Moloi instructed by Mokgosi K Attorneys 
+For the first respondent: Adv Mofokeng instructed by Galananzhele Sebela Inc 
+Attorneys 
+ 

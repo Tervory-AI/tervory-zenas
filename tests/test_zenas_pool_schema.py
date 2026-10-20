@@ -36,6 +36,25 @@ def test_schema_is_additive():
             assert banned not in folded
 
 
+def test_court_and_treatment_columns_are_additive():
+    text = Path(__file__).resolve().parents[1].joinpath("agents/zenas/pool/schema.sql").read_text(encoding="utf-8")
+    for column in (
+        "court",
+        "division",
+        "seat",
+        "bench_size",
+        "judges",
+        "neutral_citation",
+        "report_citation",
+        "appeal",
+        "appeal_from",
+    ):
+        assert f"ADD COLUMN IF NOT EXISTS {column} " in text
+    for column in ("treatment", "evidence", "paragraph"):
+        assert f"ADD COLUMN IF NOT EXISTS {column} " in text
+    assert "DEFAULT 'referred to'" in text
+
+
 def test_queries_are_scoped_by_jurisdiction():
     for sql in (CITATION_CHUNK_SQL, CITATION_DOCUMENT_SQL, TEXT_CHUNK_SQL):
         assert "jurisdiction = $1" in sql

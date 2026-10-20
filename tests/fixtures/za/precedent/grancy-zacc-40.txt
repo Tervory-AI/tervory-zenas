@@ -1,0 +1,2484 @@
+
+ 
+ 
+
+CONSTITUTIONAL COURT OF SOUTH AFRICA 
+
+ 
+
+ 
+
+ Case CCT 344/24 
+
+ 
+
+In the matter between: 
+
+ 
+
+ 
+
+GRANCY PROPERTY LIMITED First Applicant 
+
+ 
+
+MONTAGUE GOLDSMITH AG (IN LIQUIDATION) Second Applicant 
+
+ 
+
+and 
+
+ 
+
+DINES CHANDRA MANILAL GIHWALA First Respondent 
+
+ 
+
+LANCELOT LENONO MANALA Second Respondent 
+
+ 
+
+SEENA MARENA INVESTMENTS (PTY) LIMITED Third Respondent 
+
+ 
+
+DINES CHANDRA MANILAL GIHWALA N.O. Fourth Respondent 
+
+ 
+
+SHANTI GIHWALA N.O. Fifth Respondent 
+
+ 
+
+KANTIELAL JERAM PATEL N.O. Sixth Respondent 
+
+ 
+
+NARENDRA GIHWALA N.O. Seventh Respondent 
+
+ 
+
+KIRAN GIHWALA N.O. Eighth Respondent 
+
+ 
+
+ 
+
+ 
+
+Neutral citation: Grancy Property Limited and Another v Gihwala and Others 
+
+[2026] ZACC 40 
+
+ 
+
+Coram: Mlambo DCJ, Dambuza J, Kollapen J, Mhlantla J, Nuku AJ, 
+
+Opperman AJ, Rogers J, Savage J and Tshiqi J 
+
+ 
+
+ 
+
+Judgment: Mlambo DCJ (unanimous) 
+
+ 
+
+
+
+2 
+
+Heard on: 17 February 2026 
+
+ 
+
+Decided on: 9 October 2026 
+
+ 
+
+Summary: no-conflict rule — no-profit rule — disgorgement of profits 
+
+ 
+
+in duplum rule — development of common law — liquidated 
+
+claims — statement and debatement of accounts 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ORDER 
+
+ 
+
+ 
+
+ 
+
+On appeal from the Supreme Court of Appeal (hearing an appeal from the High Court 
+
+of South Africa, Western Cape Division, Cape Town): 
+
+1. Leave to appeal is refused. 
+
+2. The applicants are ordered to pay the first, second and fourth to eighth 
+
+respondents’ costs in this Court, including the costs of two counsel where 
+
+so employed. 
+
+ 
+
+ 
+
+ 
+
+JUDGMENT 
+
+ 
+
+ 
+
+ 
+
+ 
+
+MLAMBO DCJ (Dambuza J, Kollapen J, Mhlantla J, Nuku AJ, Opperman AJ, 
+
+Rogers J, Savage J and Tshiqi J concurring): 
+
+ 
+
+ 
+
+Introduction 
+
+[1] This is an application for leave to appeal against parts of a judgment and order 
+
+of the Supreme Court of Appeal1 (SCA).  That Court dismissed the applicants’ appeal 
+
+against the judgment and order of the High Court of South Africa, Western Cape 
+
+ 
+1 Grancy Property Ltd v Gihwala [2024] ZASCA 144; 2025 (2) SA 76 (SCA) (SCA judgment). 
+
+
+
+MLAMBO DCJ 
+
+3 
+
+Division, Cape Town (High Court).2  Although the High Court had granted the 
+
+applicants relief on a number of their claims, it dismissed their challenge to the 
+
+application of the in duplum rule3 to interest on claims quantified through a statement 
+
+and debatement process.  The High Court also dismissed the applicants’ claim for the 
+
+disgorgement of secret profits made by the first and second respondents, while acting 
+
+in a fiduciary capacity. 
+
+ 
+
+Parties 
+
+[2] The first applicant is Grancy Property Ltd (Grancy), a company incorporated in 
+
+the British Virgin Islands with its principal place of business in Liechtenstein.  Grancy 
+
+is an entity used for investment purposes by Mr Karim Mawji, a Kenyan national who 
+
+resides in the United Kingdom.  The second applicant is Montague Goldsmith AG, a 
+
+Swiss company (in liquidation) which acted on behalf of Grancy in respect of two black 
+
+economic empowerment (BEE) investments that are at the centre of this matter.  The 
+
+applicants are together referred to as “Grancy”. 
+
+ 
+
+[3] The first respondent is Mr Dines Chandra Manilal Gihwala, who, through the 
+
+Dines Gihwala Family Trust (DGFT), participated in the Scharrig and Spearhead 
+
+investments (discussed in more detail below).  The second respondent is Mr Lancelot 
+
+Lenono Manala, a businessman and an associate of Mr Gihwala, who participated in 
+
+the Spearhead investment.  The third respondent is Seena Marena Investments (Pty) Ltd 
+
+(SMI), a company in which the DGFT and Mr Manala held equal shares prior to 
+
+Grancy’s involvement.  The third respondent has not participated in the proceedings 
+
+before this Court.  The fourth to eighth respondents are the trustees of the DGFT.  The 
+
+first and fourth to eighth respondents will be referred to jointly as the “Gihwala 
+
+respondents”.  When referencing both Mr Manala and the Gihwala respondents, they 
+
+will be referred to jointly as the “respondents”. 
+
+ 
+2 Grancy Property Ltd v Gihwala, unreported judgment of the High Court, Western Cape Division, Cape Town, 
+
+Case Nos 15757/2007 and 10547/2008 (18 August 2021) (High Court judgment). 
+
+3 The in duplum rule provides that interest stops running when the unpaid interest equals the outstanding capital 
+
+amount (Standard Bank of South Africa Ltd v Oneanate Investments (Pty) Ltd (in liquidation) [1997] ZASCA 94; 
+
+[1998] 1 All SA 413 (SCA); 1998 (1) SA 811 (SCA) at 827H). 
+
+
+
+MLAMBO DCJ 
+
+4 
+
+ 
+
+Factual background 
+
+[4] The BEE investments at the centre of this matter are the Spearhead Property 
+
+Holdings Ltd investment (also referred to as the Spearhead investment) and the Scharrig 
+
+Mining investment.  The Spearhead investment came about in February 2005 when 
+
+Mr Gihwala (through the DGFT), Mr Manala and Grancy concluded the Spearhead 
+
+agreement to acquire Spearhead units.  The three parties agreed that for purposes of this 
+
+investment, they would utilise SMI as a corporate vehicle in which each held one third 
+
+of its shares.  Furthermore, SMI was to acquire 58% of the shares in Ngatana Property 
+
+Investments (Pty) Ltd (Ngatana), being the corporate vehicle that would hold the 
+
+3.5 million Spearhead units acquired through the BEE transaction.  Unless otherwise 
+
+agreed by the three parties, the investment by Ngatana would be restricted to an 
+
+investment in the 3.5 million Spearhead units.  Messrs Gihwala and Manala were 
+
+directors of SMI and also directors of Ngatana (as SMI’s nominees).  Messrs Gihwala 
+
+and Manala, as directors of Ngatana, later approved Ngatana’s investment, within the 
+
+context of the Spearhead agreement, in another investment, known as the Cape Gannet 
+
+investment (described more fully below). 
+
+ 
+
+[5] In October 2007, Cape Gannet Properties (Pty) Ltd (Cape Gannet), Redefine 
+
+Income Fund Ltd (Redefine) and “incoming unit holders”, of which Ngatana was one, 
+
+concluded a subscription agreement whereby Cape Gannet was to act as a nominee for 
+
+the incoming unit holders.  Ngatana, as one of the incoming unit holders, was to acquire 
+
+20 million units in Redefine.  This investment was approved by Mr Gihwala 
+
+(representing the DGFT) and Mr Manala as shareholders and directors of SMI, but more 
+
+importantly, in their capacity as shareholders and directors of Ngatana.  Because Grancy 
+
+was a shareholder in SMI, it stood to benefit or suffer proportionately with 
+
+Messrs Gihwala and Manala depending on whether the Cape Gannet investment made 
+
+a profit or a loss.  It is common cause that this investment was profitable and all involved 
+
+have benefitted proportionally to their interests and continue to benefit. 
+
+ 
+
+
+
+MLAMBO DCJ 
+
+5 
+
+[6] The other BEE investment involved Scharrig Mining Ltd (Scharrig).  
+
+Mr Gihwala, through DGFT, and Grancy entered into a joint venture agreement so that 
+
+they could participate equally in a BEE consortium to purchase shares in Scharrig.  
+
+Grancy’s complaint is that Mr Gihwala maintained that the DGFT only held 4% of the 
+
+shares in Scharrig, while not disclosing that the DGFT had, in actual fact, received a 
+
+total of 7.5% of the shares, which resulted in additional undisclosed profits.  Grancy 
+
+thus sought an accounting from Mr Gihwala and this gave rise to the litigation between 
+
+the parties. 
+
+ 
+
+Litigation history 
+
+High Court 
+
+[7] This application is the culmination of some 16 years of continuous litigation by 
+
+Grancy against Mr Gihwala, the DGFT and Mr Manala, to obtain an accounting from 
+
+them to show how its funds were utilised in the investments it participated in, and to 
+
+quantify its claims against them.  The claims forming part of this application arise from 
+
+the second stage of a two-stage accounting and debatement procedure envisaged in the 
+
+order of the SCA in Grancy Property Limited v Seena Marena Investments (Pty) Ltd4 
+
+(the debatement order). 
+
+ 
+
+[8] In relation to the Cape Gannet investment, Grancy’s case was that this 
+
+investment was concluded by Messrs Gihwala and Manala contrary to the Spearhead 
+
+agreement, as it was without Grancy’s consent.  Furthermore, it is alleged to have been 
+
+in breach of Messrs Gihwala and Manala’s fiduciary duties to Grancy.  Grancy alleged 
+
+that Messrs Gihwala and Manala were obliged to account for all profits made on the 
+
+Cape Gannet investment, not merely Grancy’s proportionate share of the profit as a 
+
+shareholder in SMI (which in fact it always received).  Grancy claimed that as the Cape 
+
+Gannet investment was without its consent, it was unauthorised, and therefore whatever 
+
+profits earned by Messrs Gihwala and Manala were secret profits and had to be 
+
+disgorged to its benefit. 
+
+ 
+4 Grancy Property Limited v Seena Marena Investments (Pty) Ltd [2014] ZASCA 50; [2014] 3 All SA 123 (SCA). 
+
+
+
+MLAMBO DCJ 
+
+6 
+
+ 
+
+[9] The High Court rejected this claim, holding that the central principle underlying 
+
+a claim for the disgorgement of secret profits is to ensure that a fiduciary’s interests do 
+
+not conflict with those of the principal.  It held that there was no conflict between 
+
+Grancy’s interests and those of Mr Manala and the Gihwala respondents.  Furthermore, 
+
+the Court relied on Grancy’s failure to object to or demand that Ngatana dispose of the 
+
+units acquired through the Cape Gannet investment, despite said investment being 
+
+public and the fact that Grancy had benefited from the investment and continues to 
+
+receive dividends.  The High Court held that, as Grancy was aware of the investment, 
+
+the profit could not be regarded as “secret”. 
+
+ 
+
+[10] Regarding the Scharrig investment, Grancy’s case was that the debts owed to it 
+
+in this investment, including those arising from the Spearhead investment, were all 
+
+subject to statement and debatement processes, and, as such, they were unliquidated.  
+
+Grancy argued that based on this, the in duplum rule did not apply to these debts. 
+
+ 
+
+[11] The High Court rejected this claim as well, holding that the debts in respect of 
+
+which Grancy had been granted judgment, being those arising from the Scharrig and 
+
+Spearhead investments, were all liquidated amounts, which precluded the Court from 
+
+applying section 2A(5) of the Prescribed Rate of Interest Act5 (PRI Act).  The 
+
+Spearhead-related investment in which Grancy had succeeded was in relation to an 
+
+investment known as the Strand investment.  While there was no need to consider the 
+
+question of arrear interest after deciding that the debts were liquidated amounts, the 
+
+Court held the view that, in any event, this was an instance of arrear interest to which 
+
+the in duplum cap applies.  The High Court further held that there were insufficient 
+
+grounds to depart from the long line of authorities and to permit the relaxation of the 
+
+in duplum rule, either generally or in relation to statement and debatement of account 
+
+ 
+5 55 of 1975.  Section 2A(5) of the PRI Act provides: 
+
+“Notwithstanding the provisions of this Act but subject to any other law or an agreement 
+
+between the parties, a court of law, or an arbitrator or an arbitration tribunal may make such 
+
+order as appears just in respect of the payment of interest on an unliquidated debt, the rate at 
+
+which interest shall accrue and the date from which interest shall run.” 
+
+
+
+MLAMBO DCJ 
+
+7 
+
+matters.  This, the High Court said, was irrespective of the extent to which the conduct 
+
+of the debtor may have warranted such a departure. 
+
+ 
+
+Supreme Court of Appeal 
+
+[12] The SCA confirmed the High Court’s finding that all of Grancy’s claims were 
+
+liquidated amounts as they were either quantified in the particulars of claim or capable 
+
+of prompt and speedy ascertainment.  It held, further, that the interest claimed was arrear 
+
+interest which is subject to the in duplum rule. 
+
+ 
+
+[13] The SCA then considered Grancy’s argument that, in the event that its claims 
+
+were found to be liquid, the Court should develop the common law to relax the 
+
+application of the in duplum rule with regard to claims that were the subject of statement 
+
+and debatement processes.  The SCA concluded that it was impermissible to introduce 
+
+this argument at the end of the trial.  It held that basic procedural fairness dictates that 
+
+a party is entitled to know what case it is confronted with before it presents its own case.  
+
+Further to this, it emphasised that litigants are obliged to raise constitutional arguments 
+
+in litigation at the earliest possible opportunity to ensure that jurisprudence under the 
+
+Constitution develops reliably and harmoniously. 
+
+ 
+
+[14] The SCA cautioned against appellate courts developing the common law as 
+
+courts of first and last instance, due to the risk of prejudice to respondents, which would 
+
+occur if the SCA were to entertain Grancy’s assertions.  The SCA further cautioned 
+
+against courts intruding into the realm of the Legislature when decisions of law reform 
+
+are to be made.  It concluded that, as the in duplum rule is a settled principle of 
+
+South African law, the development for which Grancy contended would have involved 
+
+complex law reform which is best left to Parliament. 
+
+ 
+
+[15] In any event, the SCA found that Grancy’s submissions regarding the 
+
+development of the common law relating to the in duplum rule did not withstand 
+
+scrutiny.  It opined that this case demonstrates that the development of this rule is 
+
+unnecessary, as a creditor can, as Grancy did, advance its claim even without adequate 
+
+
+
+MLAMBO DCJ 
+
+8 
+
+accounting.  The SCA pointed out that Grancy’s argument based on adequate 
+
+accounting was unsustainable, as demonstrated by its own action in initiating its claims 
+
+whilst the statement and debatement procedures were ongoing.  The SCA stated that the 
+
+argument presented by Grancy would allow creditors to bypass the consequences of the 
+
+in duplum rule by alleging that they do not have adequate accounting, even in 
+
+circumstances where they had the necessary information to pursue a claim. 
+
+ 
+
+[16] Coming to the disgorgement claim in respect of the Cape Gannet investment, the 
+
+SCA upheld the High Court’s dismissal of Grancy’s claim on the basis that the purpose 
+
+of a claim of this nature is to ensure that a fiduciary’s interests do not conflict with those 
+
+to whom the fiduciary owes duties of trust.  This finding included an analysis of the 
+
+application of, and distinction between, the “no-profit” and “no-conflict” rules.  The 
+
+SCA relied on Robinson6 in which Innes CJ described these rules as follows: 
+
+ 
+
+“Where one man stands to another in a position of confidence involving a duty to 
+
+protect the interests of that other, he is not allowed to make a secret profit at the other’s 
+
+expense or place himself in a position where his interests conflict with his duty.”7 
+
+ 
+
+[17] Further to the above, the SCA confirmed that the two rules extend to both actual 
+
+conflicts of interest and to cases in which there is a real, sensible possibility of conflict, 
+
+with only the free consent of the principal after full disclosure acting as a defence to a 
+
+fiduciary who breaches this trust.8  Furthermore, once the breach of a fiduciary duty is 
+
+established, the fact that the principal has suffered no loss or damage, or that the profit 
+
+was not made at its expense, is irrelevant.9 
+
+ 
+
+[18] The SCA found that there was no conflict of interest in the Cape Gannet 
+
+investment.  It concluded, specifically, that there was no conflict between Mr Manala 
+
+ 
+6 Robinson v Randfontein Estates Gold Mining Co Ltd 1921 AD 168 at 177. 
+
+7 Id. 
+
+8 Phillips v Fieldstone Africa (Pty) Ltd [2003] ZASCA 137; [2004] 1 All SA 150 (SCA); 2004 (3) SA 465 (SCA); 
+
+(2004) 25 ILJ 1005 (SCA) at paras 31-2. 
+
+9 Id. 
+
+
+
+MLAMBO DCJ 
+
+9 
+
+and the Gihwala respondents’ personal interests and those of Grancy, and therefore no 
+
+breach of a fiduciary duty had occurred.  It further stated that Messrs Gihwala and 
+
+Manala stood to either benefit or suffer from the fate of the Cape Gannet investment in 
+
+precisely the same way as Grancy, since all of them were shareholders (directly or 
+
+indirectly) in SMI.  Furthermore, it held, agreeing with the High Court’s findings, that 
+
+the investment was not secret; it was a public investment which Grancy had known 
+
+about for years, and from which it had benefited and continued to benefit.  It concluded 
+
+that Grancy had not objected to the investment or demanded that the units acquired 
+
+through the investment be disposed of.  Finally, it held that the fact that Grancy may 
+
+not have been informed of the investment, and did not consent to it, did not mean that 
+
+its interests diverged from those of Messrs Gihwala and Manala. 
+
+ 
+
+This Court 
+
+Grancy’s submissions 
+
+Jurisdiction 
+
+[19] Grancy submits that this matter engages this Court’s general jurisdiction.  First, 
+
+Grancy submits that the incorrect application and misinterpretation of the law applicable 
+
+to secret profits raises an arguable point of law of general public importance that this 
+
+Court ought to consider.  Second, Grancy submits that the characterisation of claims as 
+
+liquid or illiquid and the application of the in duplum rule in the context of the statement 
+
+and debatement of accounts also raises arguable points of law of general public 
+
+importance.  Grancy submits that it is in the interests of justice for this Court to consider 
+
+this matter.  While not explicitly referencing this Court’s constitutional jurisdiction, 
+
+Grancy submits that this Court’s jurisdiction is engaged as its right of access to courts 
+
+under section 34 of the Constitution is implicated by the application or suspension of 
+
+the in duplum rule.  Grancy submits that, in mischaracterising its claim and failing to 
+
+develop the common law, the SCA failed to promote, respect or give effect to Grancy’s 
+
+section 34 right and unlawfully limited it. 
+
+ 
+
+
+
+MLAMBO DCJ 
+
+10 
+
+[20] Concerning the characterisation of Grancy’s claim as liquid and the application 
+
+of the in duplum rule, Grancy avers that the SCA based its findings on at least three 
+
+fundamental errors.  It argues that: firstly, the SCA erred in finding that because an 
+
+amount can be quantified in the particulars of claim, the claim must be liquidated; 
+
+secondly, the SCA erred in finding that interest on an unliquidated debt is arrear interest 
+
+and in declining to exercise any discretion to invoke section 2A(5) of the PRI Act; and 
+
+thirdly, the SCA misconstrued the requirements to be met if a party in the position of 
+
+Grancy requests a judicial development of the common law.  Grancy submits that these 
+
+issues raise arguable points of law of general public importance.  Further, it submits that 
+
+the issues extend beyond the interests of the parties in this matter and that the test 
+
+adopted by the SCA regarding its submissions to develop the common law is of great 
+
+public interest. 
+
+ 
+
+[21] In sum, Grancy submits that the issues raised are essentially concerned with the 
+
+law, being the scope of the in duplum rule and the development of the common law.  
+
+These points are averred to be arguable in that Grancy’s appeal has prospects of success.  
+
+Further, as mentioned above, it is submitted that the determination of the issues 
+
+transcends the narrow interests of the parties. 
+
+ 
+
+[22] Regarding the claim for disgorgement of secret profits, in its written 
+
+submissions, Grancy contends that the SCA misapplied the law.  It argues that the SCA 
+
+either misconstrued the existing law or created new law.  Grancy submits that the SCA 
+
+mischaracterised the law in finding that there was no conflict between the parties 
+
+because their interests were aligned.  In both the founding affidavit and written 
+
+submissions, Grancy averred that the SCA applied the incorrect legal standard. 
+
+ 
+
+Leave to appeal 
+
+The in duplum argument 
+
+[23] Grancy disputes the application of the in duplum rule to the Scharrig investment.  
+
+Central to its argument is that its claim is for an unliquidated amount, which entitles it 
+
+
+
+MLAMBO DCJ 
+
+11 
+
+to pre-judgment interest, permitting the total interest to exceed the in duplum limitation.  
+
+Grancy contends that the in duplum rule only applies to arrear interest10 and, as the 
+
+amount claimed is pre-judgment mora (delay) interest, it is not classified as arrear 
+
+interest and is subject to the application of section 2A(5) of the PRI Act.  Grancy 
+
+submits, further, that by nature of the accounting process, the debt owed as a result of 
+
+the investment is not liquidated. 
+
+ 
+
+[24] Based on its averments set out above, Grancy submits that the interest on the 
+
+pre-judgment sums awarded in respect of the Spearhead investment (the Strand 
+
+investment) should likewise not be subject to an in duplum cap, as it was also subject to 
+
+a statement and debatement of account process. 
+
+ 
+
+[25] Grancy, at the request of this Court, filed a post-hearing note to clarify which 
+
+claims it submits are not subject to the in duplum rule.  The note is useful in its 
+
+specification of which claims Grancy submits were subject to a statement and 
+
+debatement of account. 
+
+ 
+
+[26] Grancy further submits that where a court is dealing with an unliquidated debt, 
+
+the court has the discretion to fix any interest regime that is just in terms of 
+
+section 2A(5) of the PRI Act, even if the in duplum rule would ordinarily apply.  It avers 
+
+that section 2A(5) was created to cure the injustice that would arise by letting someone 
+
+profit from their own unlawful conduct and where there has been a delay in obtaining 
+
+an account which impaired Grancy’s ability to bring a claim.  Grancy alleges that this 
+
+aligns with the conduct of the Gihwala respondents.  It submits that, despite the findings 
+
+of the High Court and the SCA, its claim was not capable of prompt ascertainment, as 
+
+the extent of the claim took years of litigation to uncover. 
+
+ 
+
+[27] Grancy further argues, on this score, that a debtor should not benefit from 
+
+in duplum protection in statement and debatement of account proceedings until the 
+
+ 
+10 Drake Flemmer and Orsmond Inc v Gajjar N.O. [2017] ZASCA 169; [2018] 1 All SA 344 (SCA); 2018 (3) SA 
+
+353 (SCA) at para 84. 
+
+
+
+MLAMBO DCJ 
+
+12 
+
+debtor delivers a full and proper account of the debt.  A statement and debatement of 
+
+account is not a process which inherently deals with liquidated debts.  Furthermore, a 
+
+statement and debatement of account is a remedy drawn from English law, not 
+
+Roman-Dutch law, whereas the in duplum rule is a product of Roman-Dutch law.  
+
+Therefore, sums claimed thereunder are not subject to the in duplum rule as a matter of 
+
+law. 
+
+ 
+
+[28] To the extent that certain sums ordered pursuant to a statement and debatement 
+
+process are found to be debts subject to the in duplum rule, Grancy contends that there 
+
+is an obligation on this Court to develop the common law.  It maintains that there is no 
+
+complexity or adverse consequences that would arise if the Court were to develop the 
+
+common law regarding interest, as it did in Paulsen,11 because Parliament could still 
+
+change the law after this Court’s order.  Grancy argues, further, that the only additional 
+
+interest exposure to debtors would be occasioned by a debtor failing or refusing to 
+
+render an account when required to do so. 
+
+ 
+
+[29] In Grancy’s view, the development would be simple and narrow in that, in 
+
+matters where a debtor owes a duty to account, interest for the period before an adequate 
+
+and accurate account is rendered is not subject to any in duplum limitation.  Should a 
+
+creditor abuse this regime by refusing to accept an adequate and accurate account in the 
+
+hope of artificially growing its interest claim, then a court would have the discretion to 
+
+award interest reflective of such an abuse of process.  Furthermore, so the argument 
+
+goes, there is little risk of prejudice to debtors as it is the debtor who would “control the 
+
+clock” by accounting timeously and properly. 
+
+ 
+
+The disgorgement argument 
+
+[30] Regarding its disgorgement claim, Grancy argues that the SCA erred in holding 
+
+that a central principle underlying a claim for disgorgement of secret profits is to ensure 
+
+ 
+11 Paulsen v Slipknot Investments 777 (Pty) Ltd [2015] ZACC 5; 2015 (3) SA 479 (CC); 2015 (5) BCLR 509 
+
+(CC). 
+
+
+
+MLAMBO DCJ 
+
+13 
+
+that a fiduciary’s interests do not conflict with those of the principal.  Grancy avers, 
+
+further, that the SCA incorrectly placed reliance on the fact that the investment turned 
+
+out to be profitable and that Grancy benefitted and continues to benefit from the 
+
+investment.  Grancy submits that what is relevant is that the investment was 
+
+unauthorised and placed Grancy at risk.  It argues that the fact that the investment 
+
+happened to be successful is not determinative of its lawfulness. 
+
+ 
+
+[31] Further to the above, Grancy claims that the SCA failed to apply the correct test 
+
+in determining whether there was a breach of the no-conflict rule or no-profit rule, as 
+
+set out in Symington12 and Phillips.13  Grancy points out that the test, espoused in these 
+
+judgments, is to the effect that any profit made by the fiduciary through the breach of 
+
+their fiduciary duty must be paid to the principal and it is only the free consent of the 
+
+principal, after full disclosure, that will suffice as a defence to a breach of this nature.  
+
+Furthermore, whether damages are suffered is irrelevant to the inquiry.14 
+
+ 
+
+[32] Based on this statement of the law, Grancy submits that, on a proper application 
+
+of the principles, the SCA should have found that any profits Messrs Gihwala and 
+
+Manala made through the Cape Gannet investment stood to be disgorged for its benefit.  
+
+Grancy pointedly argues, in its founding affidavit in this Court, that the key question is 
+
+the proper remit of the no-conflict rule, which it avers has been misconstrued, misstated 
+
+and then misapplied by the SCA.  Whilst it appears in some parts of Grancy’s pleadings 
+
+and written submissions that it also places reliance on the no-profit rule, it makes the 
+
+forthright contention that the profits earned by Messrs Gihwala and Manala stand to be 
+
+disgorged to it on the basis that they acted without its authority to make the investment 
+
+and that this contravened the no-conflict rule.  Grancy argues that it is the unauthorised 
+
+nature of the transaction that results in the fiduciaries acting in conflict with Grancy’s 
+
+interests as principal. 
+
+ 
+12 Symington v Pretoria-Oos Privaat Hospitaal Bedryfs (Pty) Ltd [2005] ZASCA 47; [2005] 4 All SA 403 (SCA); 
+
+2005 (5) SA 550 (SCA) at para 24. 
+
+13 Phillips above n 8 at para 31. 
+
+14 Symington above n 12. 
+
+
+
+MLAMBO DCJ 
+
+14 
+
+ 
+
+The respondents’ submissions 
+
+Jurisdiction 
+
+[33] The respondents submit that neither this Court’s constitutional nor general 
+
+jurisdiction is engaged.  They aver that the issues raised focus on the application of 
+
+settled legal principles.  Mr Manala also argues that the issues raised by Grancy do not 
+
+transcend the interests of the parties and that Grancy has failed to demonstrate that the 
+
+issues are of any importance beyond the commercial interests of the parties.  The 
+
+Gihwala respondents point out that Grancy grounds its case in a misapplication of law, 
+
+which does not fall within this Court’s jurisdiction.  Citing this Court’s judgments in 
+
+Mankayi15 and Jiba,16 they claim that this Court has made it clear that an alleged 
+
+misapplication of the law or of a settled legal principle by a lower court is not a matter 
+
+that falls within this Court’s constitutional or general jurisdiction. 
+
+ 
+
+Leave to appeal 
+
+[34] The Gihwala respondents submit that if this Court were to find that it has 
+
+jurisdiction, it should nevertheless refuse leave to appeal because it is not in the interests 
+
+of justice to grant leave to appeal.  This is based on the Gihwala respondents’ 
+
+submission that there are little, if any, prospects of success. 
+
+ 
+
+The in duplum argument 
+
+[35] Regarding the submissions on interest and the applicability of the in duplum rule, 
+
+the Gihwala respondents aver that Grancy’s claims are liquidated.  They draw this 
+
+Court’s attention to the quantification of the claims in the particulars of claim in the 
+
+High Court, with the calculations of the claims being a matter of simple arithmetic.  The 
+
+Gihwala respondents submit that Grancy has misconstrued the SCA’s finding.  They 
+
+submit that the SCA’s finding that the amounts were liquid was based on Grancy having 
+
+ 
+15 Mankayi v AngloGold Ashanti Ltd [2011] ZACC 3; 2011 (3) SA 237 (CC); 2011 (5) BCLR 453 (CC); [2011] 
+
+6 BLLR 527 (CC); (2011) 32 ILJ 545 (CC) at para 12. 
+
+16 General Council of the Bar of South Africa v Jiba [2019] ZACC 23; 2019 (8) BCLR 919 (CC) at paras 58-9. 
+
+
+
+MLAMBO DCJ 
+
+15 
+
+pleaded quantified amounts in its particulars of claim or on those amounts being capable 
+
+of prompt and speedy ascertainment.  They emphasise that Grancy has been unable to 
+
+point to any authority to support the proposition that the in duplum rule does not apply 
+
+to proceedings involving statement and debatement of account claims.  The Gihwala 
+
+respondents submit that Grancy is incorrect in its understanding that interest on 
+
+unliquidated debts is not arrear interest.  They submit that whether the debt is liquidated 
+
+or unliquidated, the in duplum rule applies. 
+
+ 
+
+[36] Regarding Grancy’s alternative argument for the development of the 
+
+common law, the respondents submit that this issue was not pleaded in the High Court 
+
+and not properly pleaded before the SCA.  They submit further that Grancy’s arguments 
+
+about why the common law should be developed are unsound.  They aver that the 
+
+development contended for by Grancy would enable a creditor to exclude itself from 
+
+the application of the in duplum rule by contending that it requires an adequate 
+
+accounting in circumstances where it has the necessary information to pursue a claim 
+
+but elects not to do so.  They accuse Grancy of doing this.  The Gihwala respondents 
+
+further argue that creditors might be incentivised to dispute the adequacy of the 
+
+accounting for as long as possible to the detriment of debtors.  They argue that the 
+
+complex reform that such a development would require in order to balance the interests 
+
+of both creditors and debtors should rightfully be left in the hands of the Legislature. 
+
+ 
+
+The disgorgement argument 
+
+[37] With reference to the claim for secret profits on the Cape Gannet investment, the 
+
+Gihwala respondents submit that the jurisprudence to which the High Court and the 
+
+SCA had regard is clear: “a claim for a secret profit arises where the fiduciary’s duty in 
+
+acquiring the profit amounts to a conflict of interest between their own interests and 
+
+those to whom they owe duties of trust”.  Therefore, as the Gihwala respondents and 
+
+Mr Manala did not make a secret profit at Grancy’s expense or act in a manner where 
+
+their interests conflicted with Grancy’s, a claim for the disgorgement of profits is not 
+
+available to Grancy.  The Gihwala respondents further submit that Grancy’s argument 
+
+ignores the fact that there is, and was, nothing secret about the Cape Gannet investment.  
+
+
+
+MLAMBO DCJ 
+
+16 
+
+They say it has, for many years, been known to Grancy, which had neither objected to 
+
+the investment nor requested that Ngatana dispose of the units acquired through this 
+
+investment.  On the contrary, the Gihwala respondents argue that Grancy has benefitted 
+
+from the investment. 
+
+ 
+
+Analysis 
+
+Jurisdiction 
+
+[38] It is trite that jurisdiction is determined on the pleadings.17  Section 167(3)(b)(i) 
+
+and (ii) of the Constitution grants this Court jurisdiction over constitutional matters and 
+
+any other matter that raises an arguable point of law of general public importance which 
+
+ought to be considered by this Court.  Section 167(3)(c) of the Constitution empowers 
+
+this Court to make a final decision whether a matter falls within its jurisdiction. 
+
+ 
+
+[39] Disputes considered to be constitutional matters include the following: a dispute 
+
+over the interpretation, protection or enforcement of the Constitution;18 the question 
+
+whether the interpretation of any legislation promotes the spirit, purport and objects of 
+
+the Bill of Rights;19 a need to interpret legislation or develop the common law to align 
+
+with the spirit, purport and objects of the Bill of Rights;20 a review of public power;21 
+
+the consideration of constitutionally envisaged legislation;22 and consideration of fair 
+
+procedure or the powers of courts.23  This is not an exhaustive list. 
+
+ 
+17 Id at paras 38-9, referencing Gcaba v Minister for Safety and Security [2009] ZACC 26; [2009] 12 BLLR 1145 
+
+(CC); (2009) 30 ILJ 2623 (CC); 2010 (1) BCLR 35 (CC); 2010 (1) SA 238 (CC) (Gcaba) at para 75. 
+
+18 Section 167(7) of the Constitution.  See also S v Boesak [2000] ZACC 25; 2001 (1) BCLR 36 (CC); 2001 (1) 
+
+SA 912 (CC) (Boesak) at para 14. 
+
+19 Carmichele v Minister of Safety and Security [2001] ZACC 22; 2001 (4) SA 938 (CC); 2001 (10) BCLR 995 
+
+(CC); 2002 (1) SACR 79 (CC) at para 4 and K v Minister of Safety and Security [2005] ZACC 8; 2005 (6) SA 
+
+419 (CC); 2005 (9) BCLR 835 (CC) at para 18. 
+
+20 Section 39(2) of the Constitution. 
+
+21 Steenkamp N.O. v Provincial Tender Board, Eastern Cape [2006] ZACC 16; 2007 (3) SA 121 (CC); 2007 (3) 
+
+BCLR 300 (CC) at para 20. 
+
+22 National Union of Metalworkers of SA v Lufil Packaging (Isithebe) (A Division of Bidvest Paperplus (Pty) Ltd) 
+
+[2020] ZACC 7; 2020 (6) BCLR 725 (CC); [2020] 7 BLLR 645 (CC); (2020) 41 ILJ 1846 (CC) at para 27. 
+
+23 South African Human Rights Commission v Standard Bank of South Africa Ltd [2022] ZACC 43; 2023 (3) SA 
+
+36 (CC); 2023 (3) BCLR 296 (CC) at paras 1 and 23; Department of Transport v Tasima (Pty) Ltd [2016] ZACC 
+
+
+
+MLAMBO DCJ 
+
+17 
+
+ 
+
+[40] Furthermore, section 167(3)(b)(ii) empowers this Court to decide any other 
+
+matter if it raises an arguable point of law of general public importance which ought to 
+
+be considered by this Court.  Fulfilling the criterion of being an arguable point of law 
+
+requires that the matter before this Court cannot be a purely factual dispute.24  For the 
+
+point of law to be considered arguable, it must entail some degree of merit in the 
+
+argument, meaning it must have some measure of plausibility.25  Some factors that 
+
+contribute to a point of law being considered arguable include that the SCA has 
+
+expressed itself on the matter by a narrow majority; different divisions of the 
+
+High Court have expressed divergent views; there is no authoritative pronouncement 
+
+on the issue; the matter is a new and difficult question of law; or the answer to the 
+
+question in issue is not readily discernible.26  To be considered a matter of general public 
+
+importance, it must transcend the narrow interests of the litigants and implicate the 
+
+interests of a significant part of the general public.27  In determining whether the point 
+
+ought to be considered, this Court must find that to do so would be in the interests of 
+
+justice.28 
+
+ 
+
+[41] Grancy’s application, on the one hand, is directed at the SCA’s order that its 
+
+claim arising from the Scharrig investment is liquidated.  Grancy, in the alternative, 
+
+applies for leave to appeal the dismissal of its case that the common law be developed 
+
+to limit the application of the in duplum rule.  On the other hand, Grancy applies for 
+
+leave to appeal the SCA’s dismissal of its disgorgement claim arising, specifically, from 
+
+the Cape Gannet investment.  It must be clear from the pleadings that a constitutional 
+
+issue or an arguable point of law of general public importance is being raised.  
+
+ 
+39; 2017 (1) BCLR 1 (CC); 2017 (2) SA 622 (CC) at para 62; and Airports Company South Africa v Big Five 
+
+Duty Free (Pty) Ltd [2018] ZACC 33; 2019 (2) BCLR 165 (CC); 2019 (5) SA 1 (CC) at para 10. 
+
+24 Jiba above n 16 at para 58. 
+
+25 Paulsen above n 11 at para 21. 
+
+26 Id at para 23. 
+
+27 Id at para 26. 
+
+28 Id at para 30 with reference to Boesak above n 18 at paras 11-12. 
+
+
+
+MLAMBO DCJ 
+
+18 
+
+Therefore, it behoves us to consider Grancy’s pleadings to determine whether this 
+
+Court’s jurisdiction is engaged on either issue. 
+
+ 
+
+The Spearhead (Cape Gannet) investment 
+
+[42] In its founding affidavit, Grancy requests this Court “to correct the SCA’s 
+
+misapplication of the law pertaining to secret profits”.  Grancy bolsters this claim by 
+
+referring to the SCA’s statement that there was no misalignment of interests between 
+
+the fiduciaries (Messrs Gihwala and Manala) and the principal (Grancy). 
+
+ 
+
+[43] Grancy further contends that the SCA erred in “misconstruing and reshaping 
+
+(potentially inadvertently) the law regarding secret profits (in the context of an 
+
+unauthorised investment in the Spearhead investment)”.  In its pleadings, Grancy 
+
+vacillates between arguing that the SCA misapplied the law, which would not engage 
+
+our jurisdiction, and that it misinterpreted the law, which could trigger our jurisdiction.  
+
+These wavering lines of argument continued in Grancy’s oral submissions, putting this 
+
+Court in the undesirable position of deciphering what Grancy’s argument actually is. 
+
+ 
+
+[44] It is therefore necessary to consider the treatment of this part of Grancy’s case 
+
+by the SCA, to ascertain whether it misapplied settled principles of law or misstated the 
+
+law.  To aid in this evaluative exercise, this Court must elucidate the scope of the 
+
+relevant legal principles relating to the no-conflict and the no-profit rules, and how these 
+
+principles were applied by the SCA. 
+
+ 
+
+[45] The no-conflict and no-profit rules involve two distinct strands of fiduciary 
+
+duties.29  The existence of the fiduciary duties involved in the two rules was confirmed 
+
+by this Court in NUMSA.30  There, this Court defined the scope of these rules as follows: 
+
+ 
+
+ 
+29 MMA Architects CC v Mpahlwa [2011] ZAWCHC 259 (MMA Architects) at para 14 citing Ultraframe (UK) 
+
+Ltd v Fielding [2005] EWHC 1638 (Ch) (Ultraframe (UK)). 
+
+30 NUMSA obo Nganezi v Dunlop Mixing and Technical Services (Pty) Ltd [2019] ZACC 25; 2019 (5) SA 354 
+
+(CC); 2019 (8) BCLR 966 (CC) at para 55. 
+
+
+
+MLAMBO DCJ 
+
+19 
+
+“The two core fiduciary duties are the no-conflict duty to avoid all potential conflict of 
+
+interest situations and the no-profit duty which prohibits fiduciaries from obtaining any 
+
+unauthorised profit for themselves that has not been properly disclosed or consented to 
+
+by the beneficiary.”31 
+
+ 
+
+[46] Importantly, this Court recognised that a breach of fiduciary duties gives rise to 
+
+two distinctive remedies: the principal’s claim for rescission and for the fiduciary’s 
+
+disgorgement of profits, coupled with the corresponding strict liability to account.32  
+
+Disgorgement is a remedy which requires a fiduciary to surrender any profits made from 
+
+illegal or unethical or unauthorised conduct.  It moves beyond simply compensating the 
+
+principal but entails stripping away all benefits gained from the misconduct so as to 
+
+ensure that the wrongdoers do not profit from their actions and, thereby, also acts as a 
+
+deterrent.  These remedies are granted to the principal after proving on a balance of 
+
+probabilities that the “fiduciary made a profit in circumstances where there was a 
+
+conflict of interests or by virtue of the fiduciary position”.33  Although the two duties 
+
+are distinct, they are also interlinked. 
+
+ 
+
+[47] A frequently cited authority on these duties is Robinson.  There, these duties are 
+
+described in the following terms: 
+
+ 
+
+“Where one man stands to another in a position of confidence involving a duty to 
+
+protect the interests of that other, he is not allowed to make a secret profit at the other’s 
+
+expense or place himself in a position where his interests conflict with his duty.  The 
+
+principle underlies an extensive field of legal relationship. . . .  It prevents an agent 
+
+from properly entering into any transaction which would cause his interests and his 
+
+duty to clash.  If employed to buy, he cannot sell his own property; if employed to sell, 
+
+he cannot buy his own property; nor can he make any profit from his agency save the 
+
+agreed remuneration; all such profits belong not to him, but to his principal.  There is 
+
+only one way by which such transactions can be validated, and that is by the free 
+
+ 
+31 Id. 
+
+32 Id. 
+
+33 Id. 
+
+
+
+MLAMBO DCJ 
+
+20 
+
+consent of the principal following upon full disclosure by the agent.”34  (Emphasis 
+
+added.) 
+
+ 
+
+[48] Distilled to its bare essentials, the no-conflict rule can be described as prohibiting 
+
+fiduciaries from putting themselves in a position where their personal interests may 
+
+conflict with those of the principal.35  The primary remedy for breach of the no-conflict 
+
+rule is to disgorge the profits made by the fiduciary, irrespective of whether the principal 
+
+suffered any loss.36  This remedy serves a prophylactic function: to deter the fiduciary 
+
+from breaching duties owed to the principal.37 
+
+ 
+
+[49] The content and scope of the no-profit rule is described in MMA Architects, 
+
+relying on Ultraframe (UK), as “requir[ing] a director to account for any profit that he 
+
+makes from his position unless there has been consent”.38  A more apt description of 
+
+the rule is that a director may not make “an unauthorised profit” from his fiduciary 
+
+position.39 
+
+ 
+
+[50] A fuller exposition of the no-profit rule has recently been provided by the United 
+
+Kingdom Supreme Court in Rukhadze40 which expressed the view that— 
+
+ 
+
+“the fiduciary duty to account for profits is a rule governing the conduct of fiduciaries 
+
+which exists in its own right.  It is a duty or obligation imposed by equity on all 
+
+fiduciaries, as an inherent aspect of their undertaking of single-minded loyalty to their 
+
+principals.  It is not just a discretionary equitable remedy for the breach of some other 
+
+duty, such as the conflict rule, nor is it necessarily triggered by some other breach, 
+
+although it very often is.  A fiduciary may come to generate a profit out of his role as 
+
+such without committing any breach of trust.  It may be an authorised use of the trust 
+
+ 
+34 Robinson above n 6 at 177-8. 
+
+35 Cassim “The saga of Grancy Property v Gihwala: The no-conflict and no-profit rules and the fiduciary” (2025) 
+
+58 De Jure Law Journal 92 at 94. 
+
+36 Id at 97. 
+
+37 Id. 
+
+38 MMA Architects above n 29 at para 14. 
+
+39 Id and Ultraframe (UK) above n 29 at 1322.  See also NUMSA above n 30. 
+
+40 Rukhadze v Recovery Partners GP Ltd [2025] UKSC 10. 
+
+
+
+MLAMBO DCJ 
+
+21 
+
+property, or of his fiduciary powers.  But he must then account for that profit if it has 
+
+been made from or out of his fiduciary position, not keep it for himself.  The wrong 
+
+which may lead to a court order for an account of profits is, in such a case, no more or 
+
+less than the failure to account itself, by a fiduciary who wishes to keep the profit for 
+
+himself.”41 
+
+ 
+
+[51] The SCA relied on Phillips when stating that “a claim for a secret profit arises 
+
+where the fiduciary’s duty in acquiring the profit amounts to a conflict of interest 
+
+between their own interests and those to whom they owe duties of trust”.42  Phillips was 
+
+decided based on the no-conflict rule.43  The employee was found to have “succumbed 
+
+to a potential conflict of interest between his duty and his self-interest” and 
+
+consequently he had to disgorge the profits that he made.44 
+
+ 
+
+[52] There is no doubt that the SCA applied the no-conflict rule.  This is apparent in 
+
+its application of the law to the facts of this case.  It did not misconstrue or reshape the 
+
+law.  Disgorgement of profits under the no-conflict rule arises when a conflict of interest 
+
+is proven between the fiduciary’s personal interests and those of the principal.  It is 
+
+therefore evident that the SCA correctly stated the law.  Thus, the claim by Grancy that 
+
+the SCA misstated the law or reshaped the law is unsustainable. 
+
+ 
+
+[53] The SCA stated that Grancy contended that “‘conflict of interest’ is inherent in 
+
+the fact that Grancy was not informed of the investment and the investment was not 
+
+authorised”.45  The SCA construed these facts not to give rise to a conflict of interest.46  
+
+It concluded that there was no divergence of interests between those of Grancy and the 
+
+personal interests of Mr Manala and the DGFT.47  In its founding affidavit in this Court, 
+
+ 
+41 Id at para 20. 
+
+42 SCA judgment above n 1 at para 203. 
+
+43 Phillips above n 8 at paras 37-9. 
+
+44 Id at para 39. 
+
+45 SCA judgment above n 1 at para 206. 
+
+46 Id. 
+
+47 Id. 
+
+
+
+MLAMBO DCJ 
+
+22 
+
+Grancy stated that “[t]he key question is the proper remit of the no-conflict of interest 
+
+rule”.  Its submissions, as contradictory as they are at times, disclose that this was the 
+
+ambit of the case that was before the SCA.  In this context, it cannot be held that the 
+
+SCA applied an incorrect legal standard.  Furthermore, the SCA’s finding that the 
+
+interests of Grancy and Messrs Gihwala and Manala were aligned is not a statement of 
+
+law, but a factual finding.  Finally, an argument that the SCA conflated the no-conflict 
+
+rule with the no-profit rule cannot be sustained, as explained above. 
+
+ 
+
+[54] The SCA did not consider whether the no-profit rule was applicable to the Cape 
+
+Gannet investment, as it did in the Strand investment.  In respect of that claim, Grancy 
+
+made out a case based on the no-profit rule and was successful.  In that instance, the 
+
+SCA found that the respondents had secretly invested Grancy’s funds and kept the 
+
+profits generated rather than account to Grancy.  That is not what happened in the Cape 
+
+Gannet investment.  Grancy’s interests were intertwined with those of the respondents 
+
+in Ngatana, which undertook the Cape Gannet investment.  Grancy was aware that 
+
+Messrs Gihwala and Manala were also investors like it in SMI and Ngatana.  This Court 
+
+in Spilhaus48 stated that “[o]nce a claim has been selected and advanced in pleadings 
+
+before a competent court, that court is under a duty to adjudicate the claim”.49  The 
+
+claim advanced by Grancy was that the SCA incorrectly applied the law on secret profits 
+
+and misinterpreted the relevant principles in this case.  Grancy did not aver that the SCA 
+
+failed to consider the no-profit rule in the context of this investment.  The absence of 
+
+this claim in the founding affidavit is fatal to any attempt by Grancy to assert it in this 
+
+Court.50  Therefore, I conclude that the jurisdiction of this Court is not engaged 
+
+regarding the disgorgement claim. 
+
+ 
+
+ 
+48 Spilhaus Property Holdings (Pty) Ltd v Mobile Telephone Networks (Pty) Ltd [2019] ZACC 16; 2019 (4) SA 
+
+406 (CC); 2019 (6) BCLR 772 (CC). 
+
+49 Id at para 38. 
+
+50 See Jiba above n 16 at para 38. 
+
+
+
+MLAMBO DCJ 
+
+23 
+
+The Scharrig investment 
+
+[55] Grancy has presented two primary arguments in respect of how the dispute 
+
+surrounding the Scharrig investment engages this Court’s jurisdiction.  The first is that 
+
+the SCA committed a fundamental error of law in mischaracterising the nature of its 
+
+claims as liquid, which results in the exclusion of any interest arising from those claims 
+
+from the ambit of section 2A(5) of the PRI Act.  It argues, further, that the SCA, after 
+
+wrongly concluding that the claims were liquid, incorrectly held that interest which 
+
+accrues on an unliquidated debt will ordinarily be arrear interest.  In the second 
+
+argument, which is in the alternative, Grancy argued that, to the extent that its claims 
+
+are for liquidated amounts and subject to the in duplum rule, the SCA failed to develop 
+
+the common law regarding the application of the in duplum rule in the context of claims 
+
+involved in statement and debatement of account proceedings.  It says that the SCA’s 
+
+mischaracterisation of its claims and failure to develop the common law resulted in a 
+
+failure to promote, respect or give effect to Grancy’s section 34 right as a creditor, and 
+
+unlawfully limited this right. 
+
+ 
+
+The characterisation of the claim 
+
+[56] In considering these submissions, it is important to mention that Grancy’s 
+
+submissions evince a number of inconsistencies.  In this regard, Grancy initially 
+
+submitted that the SCA made an “error of law” in mischaracterising the nature of its 
+
+claims as liquidated when, in its view, they are plainly unliquidated.  Grancy then 
+
+averred that the SCA made an “erroneous application of the law”, in that its claim was 
+
+for an unliquidated debt as shown by the oral and expert evidence, which indicated that 
+
+the quantification of the debt depended “on a number of unknown factors and required 
+
+determination by [the] [c]ourt”.  Finally, Grancy averred that the SCA “erred in 
+
+misconstruing the notion of a claim for an unliquidated amount, and thus erroneously 
+
+denied Grancy the benefit of section 2A(5)”. 
+
+ 
+
+[57] During argument, counsel for Grancy was directed to the founding affidavit and 
+
+confronted with the characterisation of this claim as an erroneous application of the law 
+
+
+
+MLAMBO DCJ 
+
+24 
+
+or the misapplication thereof, and not the adoption of an incorrect legal standard.  
+
+Counsel for Grancy initially pointed out that, in other parts of its founding affidavit, the 
+
+correct case was made.  Eventually counsel conceded this point, however not without 
+
+reiterating that Grancy “[does] say today that the incorrect legal standard was applied”.  
+
+It must be repeated that this Court has in a number of matters pointed out that 
+
+jurisdiction is established on the pleadings, not in argument.51 
+
+ 
+
+[58] In Villa Crop52 this Court distinguished a misapplication of the law from an error 
+
+of law.  With regard to the former, this Court held that a misapplication of law ordinarily 
+
+occurs when a legal standard that is correctly stated and adopted is then applied to the 
+
+facts so as to arrive at a conclusion that cannot be sustained.53  With regard to the latter, 
+
+the adoption of an incorrect legal standard to decide a matter is considered an error of 
+
+law.54  This Court explained that in the latter situation “[i]t is not a misapplication of 
+
+law because the decision does not proceed from a correct legal premise to an incorrect 
+
+conclusion as a result of a failure properly to apply the law to the relevant facts”.55 
+
+ 
+
+[59] In this matter, the SCA, like the High Court, in finding that the claims were 
+
+“capable of prompt and speedy ascertainment”,56 appreciated the correct legal standard 
+
+to apply in establishing whether a debt is liquidated or unliquidated.  It has been said 
+
+that whether a debt is capable of speedy ascertainment is a decision that is left to the 
+
+discretion of the trier of fact in each particular case, having regard to the facts before 
+
+the court.57  This means that whether a debt is capable of prompt and speedy 
+
+ascertainment is inherently a factual inquiry. 
+
+ 
+51 Gcaba above n 17 at para 75, referencing Chirwa v Transnet Ltd [2007] ZACC 23; [2008] 2 BLLR 97; 2008 
+
+(3) BCLR 251; 2008 (4) SA 367 (CC); (2008) 29 ILJ 73 at para 169, and Paulsen above n 11 at para 14. 
+
+52 Villa Crop Protection (Pty) Ltd v Bayer Intellectual Property GmbH [2022] ZACC 42; 2023 (4) BCLR 461 
+
+(CC); 2024 (1) SA 331 (CC). 
+
+53 Id at para 64. 
+
+54 Id at para 65. 
+
+55 Id. 
+
+56 SCA judgment above n 1 at para 222. 
+
+57 Fatti’s Engineering Co (Pty) Ltd v Vendick Spares (Pty) Ltd 1962 1 SA 736 (T) at 738F. 
+
+
+
+MLAMBO DCJ 
+
+25 
+
+ 
+
+[60] In my view, Grancy cannot avoid the inevitable conclusion that the 
+
+determination of whether a debt is liquidated or unliquidated is essentially a fact-bound 
+
+inquiry,58 and both the High Court and the SCA arrived at their findings after 
+
+conducting such an inquiry.  This Court’s reluctance to interfere with factual findings 
+
+made by lower courts was made clear in Mankayi59 and Jiba.60  This analysis clearly 
+
+shows that Grancy’s submission that the SCA misconstrued its claims as liquidated is 
+
+unsustainable, and does not meet the required threshold for engaging the jurisdiction of 
+
+this Court. 
+
+ 
+
+Development of the common law 
+
+[61] Grancy argued, in the alternative, that this Court’s jurisdiction is engaged as, in 
+
+matters involving statement and debatement of accounts, the common law must be 
+
+developed to restrict the application of the in duplum rule.  It is so that in cases involving 
+
+the development of the common law, this Court’s constitutional jurisdiction is 
+
+engaged.61  In so far as this Court’s general jurisdiction is concerned, it may be engaged, 
+
+but this is dependent on whether the interests of justice favour considering the question 
+
+of law: if it is not in the interests of justice to do so, the legal point is not one that “ought 
+
+to be considered by [this] Court”.62  Only when a positive finding is made, borne out of 
+
+the exercise of our discretion, that the interests of justice favour entertaining the legal 
+
+question, will general jurisdiction be engaged.63 
+
+ 
+58 Id; Neves Builders & Decorators v De La Cour 1985 (1) SA 540 (C); [1985] 3 All SA 296 (C) at 544G-545C; 
+
+Rospa Trading 289 CC v Maluti-A-Phofung Local Municipality [2021] ZAFSHC 241 at para 21; Engen Petroleum 
+
+Ltd v Jai Hind EMCC t/a Emmarentia Convenience Centre [2024] ZAGPJHC 1098 at paras 46 and 50-64; and 
+
+Habib Overseas Bank Ltd v Crestar Printers and Publishers (Pty) Ltd [2024] ZAGPJHC 1113 at para 73.  See 
+
+also Blakes Maphanga Inc v Outsurance Co Ltd [2010] ZASCA 19; [2010] 3 All SA 383 (SCA); 2010 (4) SA 
+
+232 (SCA) at para 18, where it was said that “[t]he question whether a debt may be capable of speedy 
+
+ascertainment is ‘a matter left for determination to the individual discretion of the Judge’”. 
+
+59 Mankayi above n 15. 
+
+60 Jiba above n 16. 
+
+61 Paulsen above n 11 at para 62; Mighty Solutions t/a Orlando Service Station v Engen Petroleum Ltd [2015] 
+
+ZACC 34; 2016 (1) BCLR 28 (CC); 2016 (1) SA 621 (CC) (Mighty Solutions) at para 20. 
+
+62 Paulsen id at paras 29-30. 
+
+63 Id. 
+
+
+
+MLAMBO DCJ 
+
+26 
+
+ 
+
+Whether the interests of justice require this Court to 
+
+consider developing the common law 
+
+[62] This Court must, therefore, consider whether it is in the interests of justice to 
+
+develop the common law regarding the application of the in duplum rule in claims 
+
+arising from the statement and debatement of account process.  The “interests of justice” 
+
+standard is elucidated in Paulsen, where this Court clarified that its extended 
+
+jurisdiction will only be engaged if, having determined that there is an arguable point 
+
+of law of general public importance, the Court finds that it is in the interests of justice 
+
+to entertain the legal question.64  Even where a matter raises a constitutional issue, “[a] 
+
+litigant is not entitled, as of right, to insist that their matter be heard by this Court on the 
+
+basis of jurisdiction only, absent the interests of justice”.65 
+
+ 
+
+[63] Whether the interests of justice favour entertaining a matter – either for purposes 
+
+of leave to appeal if it is a constitutional matter or for purposes of general jurisdiction 
+
+if it is not a constitutional matter – requires the balancing of several factors, including 
+
+but not limited to: (a) prospects of success;66 (b) the importance and complexity of the 
+
+issues raised;67 and (c) the position of the parties in society.68  Prospects of success are 
+
+an important aspect in considering the interests of justice, and Grancy must show that 
+
+there are reasonable prospects that this Court will materially alter the decision of the 
+
+SCA or reverse it.69 
+
+ 
+
+ 
+64 Id. 
+
+65 Economic Freedom Fighters v Gordhan; Public Protector v Gordhan [2020] ZACC 10; 2020 (6) SA 325 (CC); 
+
+2020 (8) BCLR 916 (CC) at para 46. 
+
+66 Boesak above n 18 at para 12. 
+
+67 Mkontwana v Nelson Mandela Metropolitan Municipality [2004] ZACC 9; 2005 (1) SA 530 (CC); 2005 (2) 
+
+BCLR 150 (CC) (Mkontwana) at para 11 and Merifon (Pty) Ltd v Greater Letaba Municipality [2022] ZACC 25; 
+
+2022 (9) BCLR 1090 (CC) (Merifon) at para 36. 
+
+68 AB v Pridwin Preparatory School [2020] ZACC 12; 2020 (5) SA 327 (CC); 2020 (9) BCLR 1029 (CC) at para 
+
+116 and Merifon id. 
+
+69 Boesak above n 18 at para 12. 
+
+
+
+MLAMBO DCJ 
+
+27 
+
+[64] Even if Grancy can show that there are reasonable prospects of success, the 
+
+importance and complexity of an issue militates against this Court being a court of first 
+
+and final instance to pronounce on it.70  The general rule is that the more important and 
+
+complex the issues are, the more this Court should frown upon considering the issues 
+
+without having the benefit of the views of lower courts.  This finds relevance in this 
+
+case as the lower courts held that Grancy had not made out a case for the development 
+
+of the common law, and they did not even attempt to develop it, holding that Grancy 
+
+seeks a complex development of the law, which is best left to the Legislature. 
+
+ 
+
+[65] The High Court concluded that there were insufficient grounds to depart from 
+
+the long line of authorities and relax the in duplum rule.  With regard to Grancy’s 
+
+suggestion of the implementation of a bifurcated approach, the High Court held that 
+
+there is no authority for this novel approach.  The SCA was more emphatic in declaring 
+
+that the in duplum rule is a settled legal principle that has been carefully and deliberately 
+
+developed by the Legislature.  Further to this, the SCA stated that it is for the Legislature 
+
+to undertake any further complex law reform.  In agreement with the High Court, the 
+
+SCA determined that there is no authority cited by Grancy for the bifurcated interest 
+
+regime that it proposed. 
+
+ 
+
+[66] I proceed to address the following: (i) that the development of the common law 
+
+was not pleaded in the High Court; (ii) that Grancy’s proposed development is 
+
+untenable and; (iii) the judgment of the High Court in Da Cruz,71 that was brought to 
+
+this Court’s attention by counsel for Grancy during oral argument, which may have a 
+
+bearing on this case. 
+
+ 
+
+ 
+70 Mkontwana above n 67 at para 11. 
+
+71 Da Cruz v Bernardo 2022 (2) SA 185 (GJ). 
+
+
+
+MLAMBO DCJ 
+
+28 
+
+The development of the common law was not pleaded in the 
+
+High Court 
+
+[67] Although argument was heard in the High Court and the SCA, the development 
+
+of the common law was not pleaded.  Grancy, relying on this Court’s remarks in 
+
+Mighty Solutions72 citing the minority judgment in Everfresh,73 argues that this Court 
+
+may develop the common law as a court of first and final instance, provided that it is 
+
+not unfair or prejudicial to determine the issue based on the pleaded and established 
+
+facts.74  Grancy submits that there is no prejudice or unfairness in determining the issue 
+
+based on the papers and arguments before this Court. 
+
+ 
+
+[68] The reasons advanced by Grancy to support its argument that it would not be 
+
+prejudicial to develop the common law are that: (i) the Gihwala respondents were “well 
+
+aware” of the case they had to meet and delivered comprehensive rebuttal arguments; 
+
+(ii) the fact that the development of the common law was not pleaded is not fatal, and 
+
+in the context of this matter a finding that it is fatal would be placing form over 
+
+substance; (iii) there was no reason for the particulars of claim to include the 
+
+development of the common law as that is a matter of legal argument – the right time 
+
+to ventilate legal arguments in support of the relief sought was in the heads of argument; 
+
+and (iv) importantly, the Gihwala respondents were afforded a full opportunity to 
+
+engage with the common law development sought and the reasons therefore, and they 
+
+filed detailed submissions and presented oral arguments in both lower courts. 
+
+ 
+
+[69] Unsurprisingly, the Gihwala respondents advance a completely opposite view.  
+
+They emphasise the point that the development of the common law ought to have been 
+
+pleaded before the High Court.  In making this point, the Gihwala respondents refer to 
+
+this Court’s judgment in Fick,75 where Jafta J said that: 
+
+ 
+72 Mighty Solutions above n 61 at para 42, citing Yacoob J’s minority judgment in Everfresh Market Virginia (Pty) 
+
+Ltd v Shoprite Checkers (Pty) Ltd [2011] ZACC 30; 2012 (1) SA 256 (CC); 2012 (3) BCLR 219 (CC). 
+
+73 Everfresh id at para 27. 
+
+74 Mighty Solutions above n 61 at para 43, citing Everfresh id. 
+
+75 Government of the Republic of Zimbabwe v Fick [2013] ZACC 22; 2013 (5) SA 325 (CC); 2013 (10) BCLR 
+
+1103 (CC). 
+
+
+
+MLAMBO DCJ 
+
+29 
+
+ 
+
+“[T]he jurisprudence of this Court illustrates that the Supreme Court of Appeal has the 
+
+expertise and that it and the high courts are best placed when it comes to the 
+
+development of the common law.  This is demonstrated by the following principles: 
+
+First, the development of the common law must be pleaded or requested at the earliest 
+
+possible stage; ordinarily where the development has not occurred in the 
+
+Supreme Court of Appeal and the high court, this [C]ourt remits the case to those 
+
+courts; except in special circumstances, this [C]ourt refuses to develop the common 
+
+law as a court of first and last instance; the views of the other courts on the 
+
+development of the common law are highly valued by this [C]ourt; this [C]ourt defers 
+
+to the Supreme Court of Appeal and the high court to determine whether the common 
+
+law needs to be developed to meet the objects of section 39(2) of the Constitution and 
+
+if so, the form that development should take.”76  (Emphasis added.) 
+
+ 
+
+[70] In Everfresh, which is referred to in Fick, this Court stated that, in the ordinary 
+
+course, where a party seeks to invoke the court’s power to develop the common law in 
+
+line with section 39(2) of the Constitution, that case must be pleaded “in the court of 
+
+first instance in order to warn the other party of the case it will have to meet and the 
+
+relief sought against it”.77  Another reason why a party should plead their case in the 
+
+court of first instance is to afford the High Court and the SCA “the opportunity to help 
+
+shape the common law . . . in line with the normative grid of the Constitution”.78 
+
+ 
+
+[71] It goes without saying that, in the absence of pleading the development of the 
+
+common law in the High Court, the respondents were not forewarned of the case they 
+
+had to meet.  They were confronted with that case during argument.  Further, the 
+
+High Court declined to develop the common law and so did not shape the development 
+
+in any way.  What remains to be determined are two questions: the first is whether there 
+
+are any special circumstances justifying this Court developing the common law as a 
+
+court of first and last instance; and the second is whether, notwithstanding the failure to 
+
+ 
+76 Id at para 104 and the cases cited therein. 
+
+77 Everfresh above n 72 at para 52. 
+
+78 Id. 
+
+
+
+MLAMBO DCJ 
+
+30 
+
+plead the development of the common law, there would be no prejudice in this Court 
+
+determining the issue as a court of first and last instance. 
+
+ 
+
+[72] It must be mentioned that Mighty Solutions, which Grancy relies on for arguing 
+
+the latter, recognises that (i) the majority in Everfresh held that what was important was 
+
+establishing special circumstances that would justify this Court being a court of first 
+
+and last instance in developing the common law;79 and (ii) it was the minority in 
+
+Everfresh that held that, notwithstanding the failure to plead the development of the 
+
+common law, the question is whether it would be unfair and prejudicial for this Court 
+
+to determine the issue as a court of first and last instance.80  This Court is not bound by 
+
+the minority judgment.  That said, I must point out that although the majority in 
+
+Everfresh found the crucial question to be whether special circumstances had been 
+
+established, the majority did consider the issues of unfairness and prejudice. 
+
+ 
+
+[73] It is important to heed the Gihwala respondents’ submission that Grancy’s failure 
+
+to plead the development of the common law has the consequence that the factual 
+
+matters that would be relevant to its development (including, for example, the reasons 
+
+for the delays in Grancy’s various claims and the length of each such period), were not 
+
+canvassed in evidence.  Grancy argues that this is a matter of legal argument. 
+
+ 
+
+[74] In Everfresh, the majority declined to develop the common law as a court of first 
+
+and last instance, inter alia, on the following bases: 
+
+ 
+
+“Everfresh has to establish special circumstances that would justify this Court being a 
+
+court of first and last instance in a matter that implicates the development of the 
+
+common law of contract.  It has not done so. . . .  If we were to accept Everfresh’s 
+
+invitation to adapt the common law, Shoprite would be obviously prejudiced.  It would 
+
+be confronted with a change of front at a very late stage in the proceedings.  If these 
+
+matters were raised in good time, Shoprite would have had the opportunity to meet 
+
+them head on by perhaps tendering evidence or advancing new arguments or adapting 
+
+ 
+79 Mighty Solutions above n 61 at para 40. 
+
+80 Id at para 42. 
+
+
+
+MLAMBO DCJ 
+
+31 
+
+its contentions. . . .  Everfresh has not advanced any reason at all for its omission to 
+
+plead its case fully and earlier than in this Court and for its ever-changing defences to 
+
+the eviction claim.  This is a commercial dispute of considerable monetary value in 
+
+which the parties were legally represented before and during litigation in all the courts 
+
+including this one.  Everfresh has not suggested that it lacked proper legal 
+
+representation or that it was poorly advised or indeed that it suffered from any form of 
+
+vulnerability springing from an unequal bargaining position.  Moreover, Everfresh has 
+
+not pleaded any dire consequences, commercial or otherwise, that might ensue if the 
+
+lease were not renewed.”81 
+
+ 
+
+[75] As stated above, the Gihwala respondents take issue with the fact that the 
+
+development was not pleaded and thus factual matters relevant to its development were 
+
+not canvassed in evidence. 
+
+ 
+
+[76] I am not persuaded by Grancy’s submissions for this Court to develop the 
+
+common law as a court of first and last instance.  Primarily, this is because the 
+
+development was not pleaded.  This is fundamental.  Grancy has provided no cogent 
+
+reason why it failed to plead the development of the common law in the High Court.  
+
+The attempt to explain this failure by suggesting that this is a matter of legal argument 
+
+and that the right time to ventilate legal arguments in support of the relief sought was 
+
+in the heads of argument, is misconceived.  Case law is clear that “the development of 
+
+the common law must be pleaded or requested at the earliest possible stage”.82  The 
+
+proper pleading of the development of the common law was important in the present 
+
+case not only in relation to the question whether there was a need to develop the 
+
+common law at all but also in relation to the precise formulation of proposed 
+
+development. 
+
+ 
+
+[77] Further, as in Everfresh, this is a commercial dispute of considerable monetary 
+
+value.  The parties were at all times legally represented, including in all various 
+
+litigation processes in the years predating this current matter. 
+
+ 
+81 Everfresh above n 72 at paras 64-6. 
+
+82 Fick above n 75 at para 104. 
+
+
+
+MLAMBO DCJ 
+
+32 
+
+ 
+
+[78] For the reasons stated above, it is my view that the development of the common 
+
+law by this Court as a court of first and last instance would be prejudicial to the 
+
+respondents and no cogent reason has been provided for the failure to plead the 
+
+development of the common law.  Furthermore, there are no special circumstances that 
+
+would justify this Court developing the common law as a court of first and last instance 
+
+and this means that it is not in the interests of justice to do so. 
+
+ 
+
+Grancy’s grounds advanced for the development of the 
+
+common law 
+
+[79] Even if this Court were to entertain the development of the common law 
+
+argument, Grancy advanced tenuous grounds for the proposed development.  Grancy 
+
+contends that, without an account, in circumstances where a debtor is obliged to furnish 
+
+one, a creditor may be unable to advance its claim, potentially for years, as evidenced 
+
+in this matter.  Grancy contends that it is thus creditors rather than debtors who require 
+
+some form of protection in this regard, or at least a proper balance must be struck.  I can 
+
+do no better than to refer to the sentiments expressed by this Court in Paulsen: 
+
+ 
+
+“Suspending the in duplum rule is not the only possible way of ameliorating a creditor’s 
+
+situation.  Vexatious litigation or delaying tactics by a debtor who truly has no defence 
+
+may, for example, be addressed by means of summary judgment.  Even mechanisms 
+
+such as punitive costs awards exist to counteract reprehensible behaviour on the part of 
+
+a litigant.  While some unscrupulous debtors may employ meritless defences in an 
+
+attempt to stretch out litigation for as long as possible, it does not make sense for this 
+
+to continue after the judgment of the court of first instance has been handed down.  That 
+
+is so because the judgment debt will be due – and ordinarily attracts interest – from the 
+
+date of judgment of the court of first instance.  This should serve to limit the amount 
+
+of undue harm to be suffered by lenders.”83 
+
+ 
+
+[80] Grancy suggests a “simple and narrow” development of the common law, which 
+
+is anything but simple and narrow.  The suggestion is that “where a debtor owes a duty 
+
+ 
+83 Paulsen above n 11 at para 84. 
+
+
+
+MLAMBO DCJ 
+
+33 
+
+to account, interest for the period before a suitably adequate and accurate account is 
+
+rendered should not be subject to any in duplum limitation”.  The issue is at what point 
+
+could any creditor be certain that a full account has been provided?  The suggestion by 
+
+Grancy places the creditor in a potentially abusive position, as it can indefinitely allege 
+
+that it has not been furnished with a full account with no suggestion or discussion of a 
+
+temperance of this position.  The judicial system will be inundated with challenges to 
+
+suitably adequate and accurate accounts.  In Paulsen, this Court recognised that the 
+
+excessive and unfair accrual of interest can bar debtors from accessing justice,84 and the 
+
+proposal by Grancy could have a similar effect.  This is not to say that there are no 
+
+instances where this Court would consider the development of the in duplum rule in 
+
+favour of a creditor, it is to simply say that Grancy has not made out a case for it.  Grancy 
+
+is, in my view, seeking a complex development of the common law which could have 
+
+potentially serious ramifications for debtors that have not been justified, militating 
+
+against this Court developing the common law as requested. 
+
+ 
+
+[81] As argued by the Gihwala respondents, developing the common law in line with 
+
+Grancy’s argument would disproportionately arm creditors to the detriment of debtors.  
+
+This fortifies my view that it would not be in the interests of justice to develop the 
+
+common law in the circumstances of this case. 
+
+ 
+
+The Da Cruz judgment 
+
+[82] As mentioned above, the judgment in Da Cruz was brought to this Court’s 
+
+attention for the first time during oral argument and I think that it is prudent to address 
+
+it for the sake of completeness.  The argument is that the operation of the principle 
+
+outlined in it precludes the need to consider the development of the common law in this 
+
+instance.  Therefore, it requires some consideration. 
+
+ 
+
+ 
+84 Da Cruz above n 71 at paras 64-9. 
+
+
+
+MLAMBO DCJ 
+
+34 
+
+[83] The High Court in Da Cruz held that mora interest on a liquidated debt should 
+
+not be subject to the same constraints as interest contractually agreed to.85  It reasoned 
+
+that the in duplum rule has been stated to apply to arrear interest on all contracts in 
+
+which a capital sum owing is subject to a stipulated interest rate.86  It distinguished mora 
+
+interest from contractual interest, stating that mora interest is “concerned with 
+
+compensation for loss or damage arising from default by the debtor where no interest is 
+
+agreed”.87  The High Court was also of the view that section 1(1) of the PRI Act 
+
+provides a discretion to a court, in “special circumstances”, to limit interest payable to 
+
+a dilatory plaintiff or to allow that interest where the defendant is the reason for the 
+
+delay.88  The High Court held that the PRI Act does not impose an in duplum limitation 
+
+on the recovery of mora interest.89 
+
+ 
+
+[84] Counsel for the Gihwala respondents argued that the decision in Da Cruz is 
+
+wrong because the in duplum rule is of general application and is not stated in our law 
+
+in a way that excludes its application to mora interest.  Of course, it goes without saying 
+
+that, if Da Cruz was correctly decided, then Grancy’s claims would not be subject to 
+
+the in duplum rule since the interest would be mora interest.  This, in turn, means that 
+
+there would be no need to develop the common law.  However, I am of the view that 
+
+this is not the occasion to consider the correctness of Da Cruz.  I explain why below.  
+
+On 18 August 2021, after reserving judgment for some time, the High Court delivered 
+
+judgment on this matter.  Da Cruz was decided on 10 August 2021.  As such, Da Cruz 
+
+would not have been debated in the High Court in this matter.  However, the appeal to 
+
+the SCA in this matter was heard in March 2024.  Accordingly, Grancy had an 
+
+opportunity to rely on Da Cruz during that appeal hearing.  It did not. 
+
+ 
+
+ 
+85 Id at para 58. 
+
+86 Id at para 59. 
+
+87 Id at para 60. 
+
+88 Id at para 61. 
+
+89 Id at paras 57 and 60-2. 
+
+
+
+MLAMBO DCJ 
+
+35 
+
+[85] In this Court, Grancy only relied on Da Cruz in oral argument; it did not canvass 
+
+the case or its reasoning in its pleadings or written submissions.  If this Court were to 
+
+embark on a consideration of the development of the common law, it would first have 
+
+to decide whether Da Cruz was correctly decided, because if that case was correctly 
+
+decided, a development of the common law in relation to mora interest on liquidated 
+
+contractual debts would not be needed.  It is Grancy’s own submission, albeit only in 
+
+oral argument in this Court, that Da Cruz was correctly decided, a submission at odds 
+
+with the need to develop the common law.  This Court would have to consider the 
+
+correctness of Da Cruz as a court of first and last instance, in circumstances where it 
+
+was not pleaded before this Court.  This is too important a question of law for this Court 
+
+to decide without having had the benefit of full argument on the question.  It was not 
+
+foreshadowed in the pleadings, nor in the written submissions; it was only dealt with in 
+
+a cursory manner in oral argument.  Therefore, it is not in the interests of justice for this 
+
+Court to consider the correctness of Da Cruz on this occasion. 
+
+ 
+
+[86] In the final analysis, leave to appeal against the SCA’s order and judgment 
+
+regarding the Scharrig investment must also be refused. 
+
+ 
+
+Costs 
+
+[87] The general principle is that costs must follow the result.  In the circumstances, 
+
+I see no reason to deviate from this principle.  Therefore, the applicants must pay the 
+
+respondents’ costs, including the costs of two counsel where so employed. 
+
+ 
+
+Order 
+
+[88] The following order is thus made: 
+
+1. Leave to appeal is refused. 
+
+2. The applicants are ordered to pay the first, second and fourth to eighth 
+
+respondents’ costs in this Court, including the costs of two counsel where 
+
+so employed. 
+
+
+
+ 
+
+ 
+
+ 
+
+For the Applicants: 
+
+ 
+
+ 
+
+For the First and Fourth to Eighth 
+
+Respondents: 
+
+ 
+
+For the Second Respondent: 
+
+P B Hodes SC and J P V McNally SC 
+
+instructed by Webber Wentzel 
+
+ 
+
+L A Rose-Innes SC and G G M Quixley 
+
+instructed by Adriaans Attorneys 
+
+ 
+
+C Bollo instructed by Biccari Bollo 
+
+Mariano Incorporated 
+
+
+	CONSTITUTIONAL COURT OF SOUTH AFRICA
+	ORDER
+	JUDGMENT
+

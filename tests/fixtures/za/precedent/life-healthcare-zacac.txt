@@ -1,0 +1,806 @@
+1 
+ 
+ 
+ 
+ 
+ 
+ 
+THE COMPETITION APPEAL COURT OF SOUTH AFRICA 
+JUDGMENT 
+ 
+    Reportable 
+         Case no: 277/CAC/Mar26  
+ 
+ 
+In the matter between: 
+ 
+LIFE HEALTHCARE GROUP PROPRIETATY LIMITED       First Appellant  
+ 
+LIFE RENAL CARE PROPRIETATY LIMITED              Second Appellant  
+ 
+and 
+ 
+MEDICLINIC SOUTHERN AFRICA PROPRIETATY            First Respondent 
+LIMITED   
+ 
+MEDICLINC RENAL SERVICES SOUTH AFRICA        Second Respondent         
+PROPRIETARY LIMITED 
+ 
+Coram: Davis, Phatshoane and Dippenaar AJJA 
+Heard  19 June 2026 
+Delivered 7 August 2026 
+Neutral citation: Life Healthcare Group Proprietary Limited and Another v Mediclinic 
+Southern Africa Proprietary Limited and Another (277/CAC/Mar26) [2026] ZACAC 5  
+(7 AUGUST 2026) 
+ 
+
+2 
+ 
+ 
+ 
+Summary: Competition law – appeal – interim relief in terms of  s 49C of the 
+Competition Act 89 of 1998 (the Act) – whether t he Competition Tribunal correctly 
+dismissed the application on the basis that the appellant failed to establish its market 
+definition and failed to make out a prima facie case of abuse of dominance under s 8 
+of the Act – whether the requirements of s 49C(2)(b) of the Act were established.  
+3 
+ 
+ 
+ 
+ORDER 
+ 
+ 
+An appeal from: The decision of the Competition Tribunal: 
+1. The appeal is upheld with costs, including the costs of two counsel; 
+2. The decision of the Tribunal dismissing the application is set aside and replaced 
+with the following order with effect from date of this order: 
+‘1 For a period of six months from the date of this order, or the conclusion of a 
+hearing in respect of the prohibited practices alleged by the applicants in the 
+complaint filed with the Competition Commission under case number 
+2025FEB0007, whichever is the earlier: 
+1.1 The first respondent is directed to reinstate the second applicant’s access 
+permissions and on-site storage at Mediclinic Vergelegen, Mediclinic Morningside, 
+Mediclinic Panorama, Mediclinic Potchefstroom and Mediclinic Newcastle (the 
+hospitals) on the same bases that applied at the time when the second applicant 
+operated at the hospitals, and to ensure that the second applicant is permitted to 
+administer renal dialysis treatment and/or extracorporeal blood -related treatment 
+to patients at the hospitals,  where the second applicant has been requested to 
+administer such treatment by a referring clinician, subject to the second applicant’s 
+substantial adherence to the first respondent’s reasonable infection control, 
+security and other protocols;  
+1.2 The first respondent is directed to permit the second applicant to continue to 
+administer any form of inpatient renal dialysis treatment and/or extracorporeal 
+blood-related treatment to patients at all Mediclinic hospitals in South Africa at 
+which the second applicant is currently providing services, on the same bases as 
+the second applicant currently provides those services, and to refrain from in any 
+way preventing or impeding the second applicant from doing so, where the second 
+applicant has been requested to administer such treatment by a referring clinician, 
+subject to the second applicant’s continued substantial adherence to the first 
+respondent’s reasonable infection control, security and other protocols;  
+1.3 The first respondent is directed to circulate a communication to all clinicians, 
+including but not limited to nephrologists, physicians, nurses and renal 
+4 
+ 
+technologists, and to hospital executive and clinical management, at all the 
+Mediclinic hospitals at which the second applicant is currently providing services, 
+or has been excluded from providing services by the first respondent, explaining 
+the nature and meaning of the obligations set out in paragraphs 1.1 and 1.2 above, 
+and expressly indicating that all clinicians are free to call for the services of the 
+second applicant to treat patients at Mediclinic hospitals, and that they will not 
+suffer any repercu ssions as a result of exercising their clinical discretion in this 
+regard; and  
+1.4 The first respondent is directed to circulate a communication to all employees 
+of the second respondent explaining the obligations set out in paragraphs 1.1 and 
+1.2 above, and indicating that the second applicant is permitted to treat patients at 
+all the Mediclinic hospitals at which it is currently providing services, or has been 
+excluded from providing services by the first respondent, and should not be 
+prevented or impeded from carrying out services in these hospitals, in any way 
+whatsoever.  
+1.5 The costs of the application, including the costs of two counsel, shall be paid 
+by the respondents, jointly and severally, the one paying, the other to be absolved.’  
+  
+5 
+ 
+ 
+ 
+JUDGMENT 
+ 
+ 
+Dippenaar AJA (Davis and Phatshoane AJJA concurring) 
+ 
+[1] This is an appeal in terms of s 49C(7) of the Competition Act 89 of 1998 (the 
+Act) concerning the dismissal of the  appellants’ application for interim relief under          
+s 49C of the Act.  The first appellant is Life Healthcare Group (Pty) Ltd  (Life 
+Healthcare). The second appellant is its wholly owned subsidiary, Life Renal Care (Pty) 
+Ltd (Life Renal). The first respondent is Mediclinic Southern Africa (Pty) Ltd (Mediclinic 
+SA). The second respondent is its wholly owned subsidiary, Mediclinic Renal Services 
+South Africa (Pty) Ltd  (Mediclinic Renal) . Where convenient the appellants and 
+respondents will collectively be referred to as ‘Life’ and 7Mediclinic’ respectively.  
+ 
+[2] Life Healthcare and Mediclinic SA both operate a number of multidisciplinary 
+private hospitals providing acute hospital care. Both Life Renal and Mediclinic Renal 
+provide renal dialysis services  in hospitals and standalone clinics. There are three 
+large corporate hospital operators in South Africa, Netcare Group Ltd, Life and 
+Mediclinic. Netcare is the largest. All three offer dialysis services at their hospitals. 
+Historically all three have permitted third party dialysis service providers to operate at 
+their hospitals. The extent to which third party providers operated at the various 
+hospital groups is in dispute. At these hospitals other services are provided by 
+independent third parties, such as doctors, pathologists and the like. These providers 
+can compete on both price and quality of service. Mediclinic confirmed that it ‘controls 
+access to its own hospitals and can therefore prevent a downstream competitor from 
+providing services at its own hospitals’. 
+6 
+ 
+[3] It was common cause that there is a category of in -hospital patients who are 
+acute patients, such as emergency patients 1 and crash landers. 2 Both acute and 
+chronic inpatients receive treatment whilst confined to a hospital. The decision as to 
+which service provider a patient is referred to typically rests with the patient’s 
+nephrologist or specialist physician. That referral decision is exerci sed with clinical 
+independence and is primarily informed by the perceived quality of care provided by a 
+particular dialysis services provider. The administration of dialysis services requires a 
+renal technologist or a renal nurse. There is no material differences in equipment used 
+to administer treatment to chronically ill and acutely ill patients. Both acute and chronic 
+patients receive treatment whilst confined to a hospital, often in its intensive care unit, 
+and so are limited to receiving dialysis services from in-hospital units and mobile units. 
+ 
+[4] At the beginning of 2024, Life Healthcare expanded Life Renal’s business by 
+acquiring the dialysis business of a third party, Fresenius (Pty) Ltd  (Fresenius). 
+Fresenius had entered the market during 2001 as an independent.  The Competition 
+Commission approved the Life/Fresenius merger with effect from 1 April 2024. One of 
+the agreed conditions of the Life Fresenius merger was that Life would continue to 
+permit third party dialysis service providers access to its hospitals.  
+ 
+[5] Mediclinic in turn, acquired a 79% interest in another dialysis service provider , 
+BGM Renal Care (Pty) Ltd  (BGM), and established the Mediclinic Renal. BGM was 
+created in 2020 by Mr Prinsloo, the previous CEO of Fresenius. For a period after the 
+Life/Fresenius acquisition both Life Renal and Mediclinic Renal provided in-hospital 
+dialysis services at certain of Mediclinic’s hospitals and competed on this level. From 
+about January 2024  and shortly prior to Life’s acquisition  of Fresenius , Mediclinic 
+began rolling out its strategy to insource the provision of dialysis services in its 
+hospitals, targeting Life Rena l’s operations at its hospitals. The affected Mediclinic 
+hospitals are Vergelegen  (Somerset West) , Pan orama (Panorama in Cape Town) , 
+Morningside (Sandton), Potchefstroom and Newcastle.  Mediclinic Renal established 
+ 
+1 Being patients who were not previously treated with dialysis but who are admitted to hospital on an 
+inpatient basis as a result of an acute episode and who require dialysis during their hospitalisation. They 
+may require dialysis owing to a catastrophic ev ent which causes his or her kidneys to shut down, but 
+he or she is anticipated to regain normal kidney function over time such that ongoing dialysis treatment 
+on an outpatient basis is not required. 
+2 Being patients who are admitted to hospital after a sudden and unexplained deterioration in their health 
+and are then for the first time diagnosed with kidney disease.  
+7 
+ 
+its own operations alongside those of Life Renal and then gave Life Renal notice that 
+it was terminating Life Renal’s access to the hospital, effectively ending its ability to 
+provide services in the hospital. Mediclinic Renal then stepped in and took over all the 
+services Life Renal had been providing at the hospital.  
+ 
+[6] This conduct led Life lodging a complaint of abuse of dominance  with the 
+Competition Commission on 6 February 2025. Its case is that Mediclinic  is engaging 
+in various exclusionary acts  in terms of s 8 of the Act ; in particular i n terms of s 
+8(1)(d)(i), in preventing dialysis patients and their referring  doctors from dealing with 
+a competitor of Mediclinic Renal ; requiring that patients  admitted to a Mediclinic 
+hospital must obtain dialysis services from Mediclinic Renal in contravention of 
+s  8(1)(d)(iii); and /or that Mediclinic  is otherwise engaging in exclusionary conduct  
+where the anti -competitive conduct is not outweighed by any alleged efficiency 
+benefits in contravention of s 8(i)(c). Life alleges that Mediclinic is seeking to foreclose 
+the market and prevent the provision of in -house dialysis services by third party 
+dialysis service providers at Mediclinic’s multidisciplinary hospitals. The complaint is 
+presently still being investigated by the Commission. 
+ 
+[7] Life sought interim interdictory relief in terms of s 49C from the Competition 
+Tribunal (Tribunal) by way of an application launched on 17 April 2025 .3 That 
+application forms the subject matter of this appeal. Some six months after the hearing, 
+on 23 February 2026, the majority of the Tribunal members dismissed the application. 
+The majority (Prof Valodia and Ms Ndoni) held that Life had failed to make out a prima 
+facie case that: (a) there was a distinct market for the provision of dialysis services to 
+patients in hospitals; and (b) Mediclinic’s dominance in the market. According to the 
+majority, the market definition advanced by Mediclinic, being the provision of services 
+in multidisciplinary hospitals, was more plausible than that of Life as dialysis services 
+simply formed one aspect of the broad market for the provision of acute 
+multidisciplinary private hospital services. The majority did not regard it necessary to 
+consider the other factors in s 49C(2) (b) and dismissed the application on the basis 
+that no prima facie case of abuse of dominance had been made out by Life.  
+ 
+3The application was argued on 25 August 2025. Further submissions were made on 9 September 
+2025. 
+8 
+ 
+[8] The minority (Mr Wessels), took issue with those findings, concluding that Life 
+had established a prima facie case of abuse of dominance and that the majority had 
+failed to consider the matter from the perspective of the constitutional imperatives as 
+set out in Competition Commission of South Africa v Mediclinic Southern Africa (Pty) 
+Ltd and Another (Mediclinic).4 In the written reasons provided for the order, neither the 
+majority nor the minority dealt with all the requirements of s 49C(2)(b) of the Act. 
+ 
+[9] This appeal is based on the following grounds: (a) that the Tribunal failed to 
+consider all the factors in s 49C(2)(b) as it only considered the issue in s 49C(2)(b)(i); 
+(b) that the Tribunal failed to have regard to the  constitutionally entrenched right of 
+access to healthcare; (c) that the Tribunal erred in relation to market definition; (d) 
+dominance and market power; (e) exclusionary conduct and anti -competitive effect; 
+and (f) its view on the effect of the decision. It was common cause that the Tribunal’s 
+order is appealable. 
+ 
+[10] The stance adopted by Life was that it has accepted that any dialysis service 
+provider should be allowed to operate at its hospitals if there is a request for them to 
+do so, having agreed to such condition when it acquired Fresenius as part of the 
+merger conditions  (the open access condition) . Life considers this to be standard 
+industry practice. Its view is that each hospital constitutes a separate market and that 
+Mediclinic’s conduct is exclusionary and falls within the prohibitions on abusive  
+dominance in that market as envisaged by s 8 of the Act, Mediclinic being a dominant 
+firm as envisaged by s 7 of the Act.  
+ 
+[11] Mediclinic adopted the opposite stance, namely that ‘for as long as patients are 
+admitted to Mediclinic, Life cannot treat them’. It s intention is to insource its renal 
+dialysis and related services at its hospitals, a strategy which will be implemented over 
+time at all its hospitals. Mediclinic’s case is that Life’s case for dominance is contrived, 
+its market definition is flawed and its theory of harm devoid of factual underpinning. 
+The parties adopted the same stance in the appeal as before the Tribunal. 
+ 
+ 
+4Competition Commission of South Africa v Mediclinic Southern Africa (Pty) Ltd and Another  [2021] 
+ZACC 35; 2022 (4) SA 323 (CC); 2022 (5) BCLR 532 (CC) (Mediclinic). 
+9 
+ 
+[12] Section 49C of the Act regulates interim relief. In relevant part, s 49C provides:  
+‘(2) The Competition Tribunal –  
+. . .  
+(b) may grant an interim order if it is reasonable and just to do so, having regard to the following 
+factors:  
+(i) The evidence relating to the alleged prohibited practice;  
+(ii) the need to prevent serious or irreparable damage to the applicant; and  
+(iii) the balance of convenience.  
+(3) I n any proceedings in terms of this section, the standard of proof is the same as the 
+standard of proof in a High Court on a common law application for an interim interdict.’ 
+ 
+[13] It is well established that all three factors must be considered holistically  and 
+must be weighed and balanced through the prism of what is reasonable and just. 5 As 
+held in Business Connexion (Pty) Ltd v Vexall (Pty) Ltd and Another (Business 
+Connexion):6 
+‘The evidence of a prohibited practice is not concerned with the rights of an applicant but the 
+competitive position of competitors in the market, judged against the regulatory criteria of the 
+prohibited practices defined in chapter 2 of the Act’.  
+ 
+[14] The need to prevent serious or irreparable damage to an applicant posits an 
+enquiry into the effects of the alleged  prohibited practice upon the applicant and is a 
+party specific enquiry.7 Damage is to the competitive position of an applicant and other 
+forms of damage are not relevant.  The balance of convenience requires that ‘the 
+currency of prejudice is reckoned by recourse to the consequences of the competitive 
+positioning of the parties in the market’.8  
+ 
+[15] The approach to be adopted is to first establish if there is evidence of a 
+prohibited practice, the Act’s analogue of a prima facie right. The facts alleged by Life 
+must be considered , together with the facts alleged by Mediclinic that Life cannot 
+dispute, and then to consider whether having regard to the inherent probabilities, Life 
+ 
+5Business Connexion (Pty) Ltd v Vexall (Pty) Ltd and Another  [2020] 2 CPLR 490 (CAC) (Business 
+Connexion) para 19.  
+6Ibid para 20. 
+7Ibid para 21. 
+8Ibid para 22. 
+10 
+ 
+should on those facts establish the existence of a prohibited practice at the hearing of 
+the complaint referral’.9 
+ 
+[16] As held in GovChat (Pty) Ltd and Another v Facebook Inc, WhatsApp Inc and 
+Facebook South Africa (Pty) Ltd (GovChat),10 s 8(1)(c) is a rule of reason prohibition. 
+This means that the conduct complained of will be prohibited only if it has an anti -
+competitive effect which is not outweighed by pro-competitive justifications. Under s 
+8(1)(c) an applicant or complainant must show the elements of the exclusionary 
+conduct and that the anti - competitive effects outweigh technological or other 
+competitive effects. However, under s 8 (1)(d) once the elements of s 8 (1)(d) are 
+satisfied, the onus sh ifts to the respondent to demonstrate that the effects are 
+outweighed by pro -competitive gains. Life must show the critical elements, namely 
+dominance of Mediclinic and that the conduct complained of has exclusionary effects. 
+An assessment of a firm ’s dominance is almost alw ays done with reference to the 
+market within which it functions.11  
+ 
+[17] According to  eMedia Investments (Pty) Ltd v Multichoice (Pty) Ltd ,12 s 49C 
+envisages that the Tribunal is obliged to make a summary assessment before granting 
+the interim relief. The assessment is only at the prima facie level. It must consider the 
+evidence as to the alleged practice. There is usually no t ime to delve too deeply into 
+theories of irreparable harm but at the very least it must be assessed in the context of 
+whether there is a prima facie right at the interim level. As long as there is clear and 
+non-speculative evidence about possible anti -competitive effects, then serious 
+consideration must be given to gran ting relief. Relief cannot be granted under s  49C 
+unless a prima facie case has been established which, in turn implies that an applicant 
+has put up an arguable case that the state of competition, that is the competitive 
+dynamics in the defined market, can be detrimentally affected by the alleged conduct 
+or practice of a respondent.  
+ 
+ 
+9GovChat (Pty) Ltd and Another v Facebook Inc and Others (case no IR165Nov20) (11 November 2021) 
+para 21. 
+10Ibid para 27. 
+11Ibid par 29 and authorities cited in fn19. 
+12eMedia Investments (Pty) Ltd v Multichoice (Pty) Ltd and Other [2023] 3 CPLR 32 (CAC) para 19. 
+11 
+ 
+[18] It is thus not contentious that if no prima facie case was made out, the Tribunal 
+was entitled to dismiss the application on that basis without considering the other two 
+factors.13  
+ 
+[19] The central issue is whether Life established a prima facie case for abuse of 
+dominance. The starting point is whether Life established its market definition on a 
+prima facie basis. This issue dominated the submissions presented at the hearing. Life 
+contended that a separate market exists for the provision of dialysis services to in -
+hospital patients in the individual hospitals. Mediclinic on the other hand submitted that 
+the well-established market for multi-disciplinary hospital services applied and that the 
+provision of dialysis services was simply a component of the provision of 
+multidisciplinary private hospital services. The key dispute between the parties is 
+whether competition occurs when patients choose a hospital prior to their admission 
+or whether a further choice is made once patients are admitted and they require 
+dialysis. It was not disputed that if Life’s market definition was accepted on a prima 
+facie basis, Mediclinic was a monopolist in each relevant market, given that it owns its 
+hospitals and controls access to them. 
+ 
+[20] Mediclinic argued that a patient makes a single purchasing decision prior to 
+admission to a multidisciplinary hospital and that the focal product and relevant market 
+is that for multidisciplinary hospitals. According to Mediclinic, crash landers and acute 
+patients make a single purchasing decision  about which hospital they wish to be 
+admitted before they know they need dialysis and that the purchasing decision is 
+clearly one between hospitals offering multidisciplinary services made prior to 
+admission. It is m ore plausible, so the argument goes , that competitive constraints 
+operate at the level of the hospital bundle rather than at the level of distinct  services 
+such as dialysis as crash landers or their referring doctors will choose the hospital at 
+which they wish to be treated based on the same considerations that any other patient 
+(except emergency) will choose a hospital  – convenience and the availability of a 
+suitable range of specialist services. For that reason, it is irrelevant whether patients 
+ 
+13Mercantile Bank, A division of Capitec Bank Limited and Others v Surve and Others [2023] ZACAC 2; 
+[2023] 3 CPLR 33 (CAC). 
+ 
+12 
+ 
+know in advance if they will require dialysis services as they contract for the provision 
+of a holistic service which includes foreseeable and unforeseeable medical services. 
+ 
+[21] According to Mediclinic, even if it is assumed that hospitals provide upstream 
+services and that separate services such as dialysis, cardiology and the like are each 
+separate non -substitutable downstream services, the relevant question for input 
+foreclosure is whether the input provided by Medicli nic is truly an essential facility or 
+whether it is substitutable with space at other hospitals or facilities. Patients are not an 
+input. The question is whether a renal dialysis provider can use space at other 
+hospitals or buildings in the same geographic area to compete effectively with 
+Mediclinic Renal. It was submitted that if one is to consider the matter with reference 
+to two vertically related market s, the relevant downstream market would be th at for 
+renal dialysis services and the upstream market ( the input required to provide such 
+services) would be space from which to practice in a given geographic area  and not 
+access to ‘captured patients’ . It maintains that it has a constitutional right to control 
+access to its own property. Mediclinic further contended that it was not shown to be a 
+dominant provider of space within hospitals in a particular geographic area.  
+ 
+[22] According to Mediclinic the market in which private hospitals compete has 
+consistently been defined as being that for multidisciplinary services .14 In-hospital 
+renal dialysis services is but one aspect of that service offering. In most hospitals the 
+hospital group that owns the hospital also provides the dial ysis services inside the 
+hospital on an exclusive basis.  It was argued that Life does not explain why dialysis 
+services are different or are a specialist discipline. According to Mediclinic, the closest 
+the Tribunal has come to departing from that approach is in Mediclinic v Matlosana  
+(Matlosana),15 where it acknowledged that hospitals compete on various metrics, 
+including quality of care and the provision of a cluster of services and noted that distinct 
+inpatient services are not substitutes for each other.16  
+ 
+14Relying on Afrox Healthcare Limited /Amalgamated Hospitals Limited  (53/LM/Sept01) [2001] ZACT 
+42; Phodiclinic (Pty) Ltd & Others/Protector Group Medical Services (Pty) Ltd & Others (122/LM/Dec05) 
+[2007] ZACT 17 paras 21-24 & 117; Netcare Hospitals (Pty) Ltd v Lakeview Hospitals (IM193Oct17) 
+[2018] ZACT 93 paras 10, 12, 17. 
+15Mediclinic v Matlosana (LM124Octo16) [2020] JOL 46577 (CT) (Matlosana). 
+16In Matlosana, the Tribunal held: 
+‘[82] The distinct inpatient hospital services generally are not substitutes for each other. Consequently 
+one could delineate each individual inpatient hospital service as a separate relevant product market. 
+13 
+ 
+ 
+[23] Life’s case on the other hand is that there is a distinct class of patients who do 
+not make up-front decisions as to which hospital they will attend to obtain dialysis. 
+Life’s argument rests on the relevant patient group being primarily the crash landers – 
+people who discover they need dialysis only after they are admitted to a hospital. 
+Those are the patients who do not make an upfront choice to select their hospital 
+based on the price or quality of its dialysis services and cannot, once they have been 
+admitted, switch hospitals, even if the dialysis service they are receiving is inferior in 
+quality. Life submitted that t hey are an important category of patients for dialysis 
+service providers because they will invariably continue to receive dialysis after the ir 
+discharge from hospital and whoever initially provided dialysis will have a distinct 
+advantage in retaining them as patients once they are discharged. It was not 
+contentious that c rash landers are the most important source of referrals of new 
+chronic patients.  
+ 
+[24] According to Life, the analysis must start with the service s that are the focal 
+point from which to assess the extent to which competitors can and do serve as 
+immediate and effective constraints on a firm supplying that service. 17 The existence 
+of such a market is supported through application of the well -established tools for 
+assessing demand and supply side suitability and the undisputed facts, including the 
+actual competition between dialysis service providers for in-house hospital services. It 
+was submitted that there is a m arket at each hospital for provision of access to the 
+hospital for the provision of these services. Once that is accepted, there can be no 
+real dispute that Mediclinic is a dominant firm at each of its hospitals , that it is able to 
+exert market power to foreclose rival dialysis service providers from its hospitals and 
+that it has in fact done so, with a clear anti-competitive effect in each market. There is 
+merit in Life’s approach. 
+ 
+However, doing so would be burdensome and therefore, for analytical convenience, we do not follow 
+that approach in this case.  
+[83] It was common cause that outpatient services are a separate relevant product market. Outpatient 
+services are not substitutable with inpatient hospital services and are offered by a different set of 
+competitors under different competitive conditions.  
+[84] The economic experts also agreed that specialised hospitals which offer only one discipline, such 
+as inpatient psychiatric services, are part of (a) separate relevant product market(s) .’ 
+17European Union Commission Notice on the definition of the relevant market for the purposes of Union 
+competition law  available at https://eur-lex.europa.eu/legal-
+content/EN/TXT/PDF/?uri=OJ:C_202401645 accessed on 5 August 2026. 
+14 
+ 
+ 
+[25] The majority of the Tribunal held that it could not apply a small but significant 
+non-transitory increase in price ( SSNIP) test and could not determine whether a 
+hypothetical monopolist could raise prices or reduce quality to this class of patients  
+(crash landers) without them switching hospitals. However, in Matlosana the Tribunal 
+held:18 
+‘…A medical scheme or uninsured patient cannot substitute an inpatient service for a day care 
+service of an acute multi -disciplinary hospital in response to a price increase or quality 
+reduction in inpatient services. Put differently, a hypothetical monopolist of inpatient multi -
+disciplinary private hospital services could profitably raise prices by a small but significant 
+amount or degraded non-price factors without the risk of substitution to the day care services 
+of the hospitals.’ 
+That lends credence to the Life’s proposed approach. 
+ 
+[26] To determine whether Life has established the market contended for, i t is 
+necessary to consider demand -side substitutability and the hypothetical monopolist 
+test. The purpose of market definition in complaint proceedings is to identify the 
+primary competitive forces relevant to assessing the effects of the conduct by the firm 
+that is the subject of the complaint – in particular whether and to what extent there are 
+other firms that act as immediate and effective constraints on that firm.19  
+ 
+[27] Applying the hypothetical monopolist test, what must be considered is the 
+smallest geographical area over which a hypothetical monopolist could impose and 
+sustain a small but significant non -transitory increase in price (SSNIP) or effect a 
+deterioration in non-price factors. The ambit of the relevant geographic market thus 
+depends on the distance that patients would be willing to travel in the case of a 
+hypothetical S SNIP or deterioration in non -price factors at one of the relevant 
+hospitals. It is accepted  that there are asymmetrical constraints between inpatients, 
+outpatients and day cases. The question is what patients would regard as an 
+alternative hospital, if any, in the case of SNIPP or a quality deterioration at a specific 
+hospital. 
+ 
+ 
+18Matlosana fn 17 para 96. 
+19eMedia fn 14 para 58. 
+15 
+ 
+[28] The smallest possible market is the provision of in-hospital dialysis services at 
+Mediclinic’s hospitals. There is no demand -side substitutability for this service for a 
+patient in a hospital. Should a patient require dialysis, they must obtain it in a hospital. 
+From a patient’s demand-side perspective, there is a specific and identifiable demand 
+for dialysis services that can only be provided in -hospital, which is not substitutable 
+with services that can be provided outside the hospital. That service is also not 
+substitutable either for other specific services provided in the hospital or for the overall 
+general suite of services offered by the hospital in which they have been admitted or 
+by any other hospital. The lack of demand side substitution is key to delineating the 
+relevant market.  
+ 
+[29] Guidance is to be found in the European Union Commission Notice on the 
+definition of the relevant market for the purposes of Union Competit ion law (EU 
+notice):20  
+‘Demand substitution constitutes the most effective and immediate disciplinary force on the 
+suppliers of a given product. An undertaking ’s influence over prevailing conditions of sale – 
+such as prices, the level of innovation or the quality offered – depends on the extent to which 
+its customers can easily  switch to available products that the customers consider as 
+substitutes. Demand substitution is therefore the main consideration when defining the 
+relevant product market.’  
+ 
+[30] From a supply side perspective, it was undisputed that the only firms that can 
+supply dialysis to patients in a hospital are those that have an in -hospital unit within 
+that hospital or have a mobile unit that can readily b e moved into that hospital in a 
+short period of time. There are no significant technical barriers preventin g a mobile 
+unit from providing such services at different hospitals within its operating area as there 
+are no material differences in processes, staff and equipment used to administer in- 
+hospital dialysis to acute or chronic patients, or to administer in -hospital dialysis 
+treatments in different multidisciplinary hospitals. Mobile units are thus capable of 
+competing and do compete with in -hospital units operating within a given 
+multidisciplinary hospital. In-hospital and mobile units are therefore the only firms that 
+ 
+20According to the EU Notice fn 19 par 23(a); See also para 23(b) of the EU Notice is states that: 
+‘Supply substitution can also be relevant for the definition of the relevant market in some cases, namely 
+when it is as effective and immediate as demand substitution and when it leads to similar competitive 
+conditions across the products concerned.’  
+16 
+ 
+can compete in the market. The direct service is access to and storage space in each 
+of the various hospitals Mediclinic operates. Once the downstream market for the 
+provision of in-hospital dialysis services is correctly identified, then the existence of an 
+upstream market for the provision of access to a hospital to provide these services 
+appears clear, at least on a prima facie basis.  
+ 
+[31] From a demand side perspective, a firm wishing to provide in-hospital dialysis 
+services at a particular hospital must be provided access to and storage facilities in a 
+particular hospital. From a supply side perspective, access to and storage facilities at 
+a specific hospital can only ever be provided by that particular hospital. Every hospital 
+has complete and exclusive control over access to and storage at its premises and 
+thus has real monopoly power. Since provision of access permissions and reasonable 
+on-site storage facilities to mobile dialysis providers constitutes an essential input into 
+the market for in-hospital dialysis services, the two markets are virtually related. This 
+gives rise to a classic input foreclosure theory of harm whereby Mediclinic’s 
+withholding of access to those essential input s results in the foreclosure of mobile 
+dialysis service providers from the market for the provision of those se rvices. The 
+markets are at least complementary – sufficient for appellants to establish a leveraging 
+theory of harm  – in-house hospital patients are locked in once admitted allowing 
+Mediclinic to leverage market power from each market for access to its various  
+hospitals to each inpatient dialysis services market. 
+ 
+[32] On the evidence there are several indicators that Mediclinic’s market definition 
+is not accurate in the current circumstances.  The respondent’s systems market is 
+inconsistent with the EU notice which provides guidance on defining markets involving 
+primary and secondary products. There is no demand side substitutability. From a 
+patient’s demand side perspective there  is a specific and identifiable demand fro m 
+dialysis services that can only be provided in a hospital, which is not substitutable with 
+services that can be provided outside the hospital. It is also not substitutable for other 
+specific services provided in a hospital or for the overall general suite of services 
+offered by the hospital in which they were admitted or by any other hospital. 
+ 
+[33] In considering the anti -competitive effects, it must be consider ed whether the 
+exclusionary act is substantial or significant in foreclosing the market to rivals . Those 
+17 
+ 
+effects can be actual or potential. Mediclinic’s submissions regarding the replacement 
+of one monopoly provider by another and hence that Computicket (Pty) Ltd v 
+Competition Commission of South Africa (Computicket)21 is distinguishable (because 
+there has been no reduction in the number of service providers ), does not bear 
+scrutiny. Factually it was undisputed that both Life Renal and Mediclinic Renal for a 
+period of time competed at the respective hospitals. Whether it was a transitiona ry 
+period, as Mediclinic contends, does not detract from this fact. 
+ 
+[34] As held in South African Airways (Pty) Ltd v Comair Ltd and Another:22  
+‘It was sufficient if there was evidence that the exclusionary practice is substantial or significant 
+or it has the potential to foreclose the market to competition. If it is substantial or significant, it 
+may be inferred that it creates, enhances or preserves the market power of the dominant firm. 
+If it creates, enhances or preserves the market power of the dominant firm it will be assumed 
+to have an anti-competitive effect’.  
+ 
+[35] Mediclinic’s contentions of pro-competitive gains, a reduction in revenue to Life 
+Renal, safety and clinical considerations, do not bear scrutiny.  In their answering 
+papers, Mediclinic raised certain complaints and concerns about the quality of renal 
+services provided by Fresenius and gaps in clinical supervision of patients , resulting 
+in harm to patients. They placed reliance on affidavits from four former employees of 
+Fresenius, who left its employ before the acquisition of Fresenius by Life Renal. It does 
+not appear from the papers that any complaints were raised at the time. There is merit 
+in Life’s contention that the quality complaints were raised to counter Life’s complaints, 
+given that they are historical prior to Life Acquiring Fresenius in 2024 and its own 
+inaction in addressing those complaints until Life acquired control before raising such 
+complaints, at least on a prima facie basis. Mediclinic’s claim that a reduction in Life’s 
+revenue is inherently pro -competitive conflates harm to an incumbent with benefit to 
+the competitive proc ess. It is not itself evidence of improved  competitive outcomes. 
+The question is not whether Life loses revenue but whether the impugned conduct 
+excludes a competitor. Mediclinic’s argument that choice is not reduced because one 
+service provider has simply been replaced by another, does not withstand scrutiny. 
+ 
+21Computicket (Pty) Ltd v Competition Commission of South Africa  [2019] 2 CPLR 539 (CAC)  
+(Computicket). 
+22South African Airways (Pty) Ltd v Comair Ltd and Another  2012 (1) SA 20 (CAC) paras 10 6, quoted 
+in Computicket para 19. 
+18 
+ 
+Even where Life Renal was the sole provider so that the market was uncontested, it 
+was always constrained by the possibility of entry by a new entrant. 
+ 
+[36] The approach adopted by the majority of the Tribunal disregarded two important 
+factors. First, in its valuation, the Tribunal was required, as pointed out in the minority 
+judgment, to take into account the jurisprudential and transformative principles of the 
+Constitution and the Act and to consider the aspir ation to create a social justice - 
+sensitive economy,  23 given that the conduct complained of impacts patients ’ 
+constitutional right to access to healthcare. 24 Second, the Tribunal was required to 
+holistically 25 consider all three factors in s 49C(2)(b), weigh and balance those factors 
+through the prism of what is reasonable and just. 26 This was stated by the Tribunal in 
+Nedschroef Johannesburg (Pty) Ltd v Teamcor Ltd and Others  (Nedschroef).27 An 
+applicant for an interim order need only adduce evidence of a contravention at a prima 
+facie level and the Tribunal is required to make a summary assessment of that 
+evidence in order to grant interim relief.28 The Tribunal was not required to determine 
+whether Life had proved its case, rather whether its case was arguable, and thus 
+crossed the prima facie case threshold.29 
+ 
+[37] It is by reference to the impugned conduct and its effects that the relevant 
+market ought to be defined. On a prima facie level Life has established the market it 
+contends for, even if it is open to some doubt. For present purposes that is sufficient. 
+On its face and at least on a prima facie basis, Mediclinic’s conduct is in contravention 
+of s 8 of the Act , by using its monopoly power as a provider of access to patients to 
+foreclose competitors to its hospitals . Granting interim would preserve competition 
+pending the final determination of Life’s complaint.  
+ 
+ 
+23eMedia Investments (Pty) Ltd South Africa v Multichoice (Pty) Ltd and Another (eMedia  2022) [2022] 
+2 CPLR 23 (CAC) para 95. 
+24Mediclinic fn 4 para 2. 
+25GovChat para 160.  
+26Business Connexion (Pty) Ltd v Vexall (Pty) Ltd and Another (Business Connexion)  (2020) 2 CPLR 
+490 (CAC) para 19.  
+27Nedschroef Johannesburg (Pty) Ltd  and Teamcor Ltd/Waco International Ltd/ CBC Fasteners (Pty) 
+Ltd/Avlock International (Pty) Ltd and Others [2006] 1 CPLR 98 (CT) para 24. 
+28Mercantile Bank, A Division of Capitec bank Ltd and Others v Surve and Others  [2023] 3 CPLR 33 
+(CAC) para 25. 
+29eMedia 2022 fn 26 para 19  
+19 
+ 
+[38] On a conspectus of the facts, at least on a prima facie basis, I conclude that 
+Life has established that Mediclinic is a dominant firm at each of its hospitals  and a 
+monopolist provider of access to and storage facilities at each of its hospitals. It is able 
+to exert market power to foreclose rival dialysis service providers from its hospitals. In 
+the hospitals referred to in these proceedings, it has done so. It has also been 
+established that there has been an anti -competitive effect, at least on a prima facie 
+basis and that Life has been completely foreclosed from operating in the specified 
+hospitals (Mediclinic Vergelegen, Mediclinic Morningside, Mediclinic Panorama, 
+Mediclinic Potchefstroom  and Mediclinic Newcastle ) and that it will ultimately be 
+excluded from all Mediclinic’s hospitals, as is its expressed intention. That is because 
+the market structure has changed. What was previously essentially an uncontested 
+market, has become an incontestable one. 
+ 
+[39] I thus conclude that Life’s complaint is at least plausible. It is not necessary for 
+Life to prove at this juncture that its complaint will succeed. It is enough that Life has 
+established at least a prima facie case. For present purposes it is not necessary to 
+determine which of the provisions of s 8 have been established on a prima facie basis. 
+That determination is best left to the Tribunal to consider and determine in due course. 
+At the very least  it can be accepted on a prima facie basis that Life has established 
+that Mediclinic has engaged in an exclusionary act, other than those described in 
+s  8(1)(d) and that the anti -competitive effect of the act outweighs its technological, 
+efficiency or other pro-competitive gain as envisaged in s 8(1)(c) or s 8(1)(d)(i). It may 
+well be that Life in due course may not be able to establish tying, as required for 
+purposes of s 8(1) (d)(iii). That is not fatal to the present relief. The reasoning and 
+conclusion of the minority of the Tribunal on this issue cannot be faulted. 
+ 
+[40] However, that is not the end of the enquiry. Both the majority and minority 
+members of the Tribunal failed to engage on the remaining factors in s 49C(2)(b). For 
+that reason alone , the Trib unal’s decision falls to be set aside.  It is necessary to 
+consider the other two factors referred to in s 49C(2). 
+ 
+[41] Turning to the requirement of the need to prevent irreparable or serious ha rm: 
+Life’s case is that its competitive position would be irreparably harmed as it would be 
+excluded from providing its services at any Mediclin ic hospital until final adjudication 
+20 
+ 
+of its complaint, forcing it to re -enter the market as a ne w entrant, requiring the re-
+establishment of relationships with referring doctors and new staff. Re-entry would be 
+a slow, costly and capital-intensive process and would depend on the availability of 
+employees with scarce skills who are in short supply. Life Renal ’s units servicing 
+Mediclinic hospitals would cease to operate and the employees of those units would 
+leave their employ ; employees who are in short supply and exceptionally valuable. 
+Mediclinic did not strenuously dispute this. 
+ 
+[42] The effect of being completely foreclosed from competing for patients in 
+Mediclinic’s hospitals from which Life Renal , constitutes a well -grounded 
+apprehension of harm, even if there is some doubt as to whether a contravention has 
+been established.30 Life’s exclusion would have a n obvious and serious effect on its 
+ability to compete, which cannot be repaired by an order in due course simply restoring 
+its ability to compete prospectively. That constitutes sufficient harm for the interim relief 
+sought by Life.  
+ 
+[43] A further well-grounded apprehension of harm would occur by the channelling 
+away of patients who require ongoing outpatient treatment after hospitalisation if the 
+crash landers are a significant source of new referrals of new chronic patients.  
+Mediclinic acknowledged that providing acute and chronic services in hospital provides 
+a good launching pad to expand into the provision of outpatients.  
+ 
+[44] Mediclinic’s argument that the high water mark of Life’s case on harm is that it 
+stands to lose revenue is an oversimplification of its case. Its further contention that it 
+was incumbent on Life to quantify the revenue at issue , does not pass muster. The 
+case is about competitive harm, not merely a loss of revenue.  The facts, considered 
+in context, do illustrate irreparable harm to Life’s competitive position.  
+ 
+[45] Turning to the balance of convenience  it requires w eighing the prejudice Life 
+would suffer if the interim relief were not granted to Life against the prejudice Mediclinic 
+would suffer if interim relief were to be granted . It requires an equitable reckoning as 
+ 
+30Lottoland SA (Pty) Ltd v Google Ireland Ltd and Google SA (Pty) Ltd  (case no IR191Mar23) (12 
+November 2024) (Lottoland) para 39. 
+21 
+ 
+to who bears the greater burden of error. 31 Prejudice is reckoned by recourse to the 
+consequences for the competitive positioning of the parties in the market. As stated in 
+Business Connexion: ‘[a] respondent that is required to desist from conduct that gives 
+it a legitimate competitive advantage suffers prejudice. An applicant that is required to 
+endure an unlawful competitive disadvantage also suffers prejudice’.32 
+ 
+[46] On the facts, Life has  established a favourable balance of convenience . 
+Mediclinic did not establish that it would suffer any material harm. On the undisputed 
+facts, it would not be precluded from entering and operating concurrently with Life 
+Renal in any Mediclinic hospital. The potential harm to patients who require dialysis in 
+hospitals must also be taken into consideration. It is irrelevant that private healthcare 
+services are involved. Harm to patients is an important consideration because it affects 
+patients’ constitutional right of access to healthcare. As confirmed by the Constitutional 
+Court, the Constitution imposes a positive duty on a court to promote the spirit, purport 
+and objects of the right. 33 That duty is reflected in the Act itself  – maintaining or 
+increasing the scope for choice of essential and much needed services.  It is beyond 
+dispute that, as found by the minority of the Tribunal: ‘patients that need dialysis are 
+severely compromised from a health perspective’ and ‘are a vulnerable group’ . 
+Competition between different service providers may well result in an improved quality 
+and price of services.  
+ 
+[47] Seen holistically, Life has met the requirements of s 49C(2)(b). This Court must 
+exercise its discretion whether to grant an interim order. In considering the various 
+factors holistically and taking into account the jurisprudential and transformative 
+principles of the Constitution and the Act and the aspiration to create a ‘social justice-
+sensitive economy’,34 it would be reasonable and just to exercise such discretion in 
+favour of Life. 
+ 
+[48] For these reasons the appeal must be upheld. It would serve no purpose to 
+simply substitute the Tribunal’s order with the proposed order, given the passage of 
+ 
+31Business Connexion fn 29 para 158. 
+32Business Connexion fn 29 para 22. 
+33Mediclinic fn 4 para 72. 
+34Mediclinic fn 4 para 2. See also eMedia para 95. 
+22 
+ 
+time. It would be fair and reasonable to grant relief with effect from the date of this 
+order. Costs follow the result. Given the complexities involved, the employment of two 
+counsel was justified.  
+ 
+Order 
+[49] In the result, the following order is granted: 
+1 The appeal is upheld with costs, including the costs of two counsel; 
+2 The decision of the Tribunal dismissing the application is set aside and replaced 
+with the following order with effect from date of this order: 
+‘1 For a period of six months from the date of this order, or the conclusion of a 
+hearing in respect of the prohibited practice s alleged by the applicants in the 
+complaint filed with the Competition Commission under case number 
+2025FEB0007, whichever is the earlier: 
+1.1 The first respondent is directed to reinstate the second applicant’s access 
+permissions and on -site storage at Mediclinic Vergelegen, Mediclinic 
+Morningside, Mediclinic Panorama, Mediclinic Potchefstroom and Mediclinic 
+Newcastle (the hospitals) on the same bases that applied at the time when the 
+second applicant operated at the hospitals, and to ensure that the second 
+applicant is permitted to administer renal dialysis treatment and/or 
+extracorporeal blood-related treatment to patients at the hospitals , where the 
+second applicant has been requested to administer such treatment by a 
+referring clinician, subject to the second applicant’s substantial adherence to 
+the first respondent’s reasonable infection control, security and other protocols;  
+1.2 The first respondent is directed to permit the second applicant to continue 
+to administer any form of inpatient renal dialysis treatment and/or 
+extracorporeal blood-related treatment to patients at all Mediclinic hospitals in 
+South Africa at which the second applicant is currently providing services, on 
+the same bases as the second applicant currently provides those services, and 
+to refrain from in any way preventing or impeding the second applicant from 
+doing so, where the second applicant has been req uested to administer such 
+treatment by a referring clinician, subject to the second applicant’s continued 
+substantial adherence to the first respondent’s reasonable infection control, 
+security and other protocols;  
+23 
+ 
+1.3 The first respondent is directed to circulate a communication to all clinicians, 
+including but not limited to nephrologists, physicians, nurses and renal 
+technologists, and to hospital executive and clinical management, at all the 
+Mediclinic hospitals at which the second applicant is currently providing 
+services, or has been excluded from providing services by the first respondent, 
+explaining the nature and meaning of the obligations set out in paragraphs 1.1 
+and 1.2 above, and expressly indicating that all clinicians are free to call for the 
+services of the second applicant to treat patients at Mediclinic hospitals, and 
+that they will not suffer any repercussions as a result of exercising their clinical 
+discretion in this regard; and  
+1.4 The first respondent is directed to circulate a communication to all 
+employees of the second respondent explaining the obligations set out in 
+paragraphs 1.1 and 1.2 above, and indicating that the second applicant is 
+permitted to treat patients at all the M ediclinic hospitals at which it is currently 
+providing services, or has been excluded from providing services by the first 
+respondent, and should not be prevented or impeded from carrying out services 
+in these hospitals, in any way whatsoever.  
+1.5 The costs of the application, including the costs of two counsel, shall be 
+paid by the respondents, jointly and severally, the one paying, the other to be 
+absolved.’  
+ 
+ 
+ 
+         _____________ 
+EF DIPPENAAR  
+Acting Judge of Appeal 
+Competition Appeal Court of South Africa 
+
+24 
+ 
+Appearances  
+Counsel for the First and Second Appellants:  M Wesley SC & C Avidon 
+Instructed by: Herbet Smith Freehills Kramer 
+South Africa Attorneys Inc. 
+ 
+Counsel for the First and Second Respondents: J Blou SC & G Marriott 
+Instructed by: Thomson Wilks Attorneys , 
+Cape Town. 
+ 

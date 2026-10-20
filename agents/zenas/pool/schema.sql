@@ -53,6 +53,16 @@ ALTER TABLE zenas_pool.documents ADD COLUMN IF NOT EXISTS known_from date;
 -- Convert's criminal check reads these for a case. Older databases gain them here.
 ALTER TABLE zenas_pool.documents ADD COLUMN IF NOT EXISTS docket_number text NOT NULL DEFAULT '';
 ALTER TABLE zenas_pool.documents ADD COLUMN IF NOT EXISTS nature_of_suit text NOT NULL DEFAULT '';
+-- Court identity from the judgment or its official listing. Empty or null means unknown.
+ALTER TABLE zenas_pool.documents ADD COLUMN IF NOT EXISTS court text NOT NULL DEFAULT '';
+ALTER TABLE zenas_pool.documents ADD COLUMN IF NOT EXISTS division text NOT NULL DEFAULT '';
+ALTER TABLE zenas_pool.documents ADD COLUMN IF NOT EXISTS seat text NOT NULL DEFAULT '';
+ALTER TABLE zenas_pool.documents ADD COLUMN IF NOT EXISTS bench_size integer;
+ALTER TABLE zenas_pool.documents ADD COLUMN IF NOT EXISTS judges text NOT NULL DEFAULT '';
+ALTER TABLE zenas_pool.documents ADD COLUMN IF NOT EXISTS neutral_citation text NOT NULL DEFAULT '';
+ALTER TABLE zenas_pool.documents ADD COLUMN IF NOT EXISTS report_citation text NOT NULL DEFAULT '';
+ALTER TABLE zenas_pool.documents ADD COLUMN IF NOT EXISTS appeal boolean;
+ALTER TABLE zenas_pool.documents ADD COLUMN IF NOT EXISTS appeal_from text NOT NULL DEFAULT '';
 
 -- New name so a database that already created documents_hash
 -- (document_id, content_hash) still gains the wider key.
@@ -131,6 +141,11 @@ CREATE TABLE IF NOT EXISTS zenas_pool.cites (
     resolved         boolean NOT NULL DEFAULT false,
     PRIMARY KEY (from_version, citation_text)
 );
+
+-- How the citing judgment treated this citation. Additive. The default is "referred to".
+ALTER TABLE zenas_pool.cites ADD COLUMN IF NOT EXISTS treatment text NOT NULL DEFAULT 'referred to';
+ALTER TABLE zenas_pool.cites ADD COLUMN IF NOT EXISTS evidence text NOT NULL DEFAULT '';
+ALTER TABLE zenas_pool.cites ADD COLUMN IF NOT EXISTS paragraph text NOT NULL DEFAULT '';
 
 CREATE INDEX IF NOT EXISTS cites_to_document
     ON zenas_pool.cites (to_document);

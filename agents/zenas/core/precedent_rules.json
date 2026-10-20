@@ -1,0 +1,146 @@
+{
+  "rules": [
+    {
+      "id": "concourt-binds-every-court",
+      "status": "draft",
+      "cited_court": "Constitutional Court",
+      "weight": "binding",
+      "reason": "ConCourt binds every court.",
+      "offer": true
+    },
+    {
+      "id": "sca-binds-below",
+      "status": "draft",
+      "cited_court": "Supreme Court of Appeal",
+      "citing_court_not_in": ["Supreme Court of Appeal", "Constitutional Court"],
+      "weight": "binding",
+      "reason": "SCA binds every court below it.",
+      "offer": true
+    },
+    {
+      "id": "lac-binds-labour",
+      "status": "draft",
+      "cited_court": "Labour Appeal Court",
+      "citing_court": "Labour Court",
+      "weight": "binding",
+      "reason": "The Labour Appeal Court binds the Labour Court.",
+      "offer": true
+    },
+    {
+      "id": "cac-binds-tribunal",
+      "status": "draft",
+      "cited_court": "Competition Appeal Court",
+      "citing_court": "Competition Tribunal",
+      "weight": "binding",
+      "reason": "The Competition Appeal Court binds the Competition Tribunal.",
+      "offer": true
+    },
+    {
+      "id": "full-bench-binds-smaller",
+      "status": "draft",
+      "cited_court": "High Court",
+      "citing_court": "High Court",
+      "same_division": true,
+      "cited_bench_min": 3,
+      "citing_bench_max": 2,
+      "weight": "binding",
+      "reason": "A full bench binds two-judge benches and single judges in the same division.",
+      "offer": true
+    },
+    {
+      "id": "two-judge-binds-single",
+      "status": "draft",
+      "cited_court": "High Court",
+      "citing_court": "High Court",
+      "same_division": true,
+      "cited_bench": 2,
+      "citing_bench": 1,
+      "weight": "binding",
+      "reason": "A two-judge bench binds single judges in the same division.",
+      "offer": true
+    },
+    {
+      "id": "single-judge-binds-lower",
+      "status": "draft",
+      "cited_court": "High Court",
+      "cited_bench": 1,
+      "citing_court_in": ["Regional Court", "Magistrates' Court"],
+      "same_division": true,
+      "weight": "binding",
+      "reason": "A single judge binds regional and magistrates' courts in that area.",
+      "offer": true
+    },
+    {
+      "id": "regional-not-precedent",
+      "status": "draft",
+      "cited_court": "Regional Court",
+      "weight": "not_precedent",
+      "reason": "Regional courts create no precedent.",
+      "offer": false
+    },
+    {
+      "id": "magistrates-not-precedent",
+      "status": "draft",
+      "cited_court": "Magistrates' Court",
+      "weight": "not_precedent",
+      "reason": "Magistrates' courts create no precedent.",
+      "offer": false
+    },
+    {
+      "id": "tax-appeals",
+      "status": "draft",
+      "cited_court": "Tax Court",
+      "weight": "persuasive",
+      "reason": "Tax Court appeals go to a full bench or the SCA.",
+      "offer": true
+    },
+    {
+      "id": "same-division-single",
+      "status": "draft",
+      "cited_court": "High Court",
+      "citing_court": "High Court",
+      "same_division": true,
+      "cited_bench": 1,
+      "citing_bench": 1,
+      "weight": "binding",
+      "reason": "same division, follow unless clearly wrong",
+      "offer": true
+    },
+    {
+      "id": "other-divisions",
+      "status": "draft",
+      "cited_court": "High Court",
+      "citing_court": "High Court",
+      "different_division": true,
+      "benches_known": true,
+      "weight": "persuasive",
+      "reason": "Other divisions are persuasive.",
+      "offer": true
+    },
+    {
+      "id": "cross-division",
+      "status": "draft",
+      "cited_court": "High Court",
+      "citing_court": "High Court",
+      "different_division": true,
+      "weight": "persuasive",
+      "reason": "A cross-division decision is persuasive.",
+      "offer": true
+    },
+    {
+      "id": "same-court-later-decision",
+      "status": "draft",
+      "same_court": true,
+      "weight": "binding",
+      "reason": "A later decision of the same court is enough to warn.",
+      "offer": true
+    },
+    {
+      "id": "conflicting-authority",
+      "status": "draft",
+      "kind": "flag",
+      "flag": "conflicting authority",
+      "reason": "Two same-division single judges who disagree. Show both."
+    }
+  ]
+}

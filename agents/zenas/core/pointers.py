@@ -99,7 +99,7 @@ def resolve_pointer(pointer: Any, text: str) -> str:
         raise PointerError("pointer did not resolve")
     paragraphs = pointer.get("paragraphs")
     if paragraphs is not None:
-        if not isinstance(paragraphs, list) or not 1 <= len(paragraphs) <= 8:
+        if not isinstance(paragraphs, list) or len(paragraphs) < 1:
             raise PointerError("pointer did not resolve")
         if any(type(number) is not int for number in paragraphs) or any(
             previous >= current for previous, current in zip(paragraphs, paragraphs[1:])
@@ -129,8 +129,6 @@ def resolve_pointer(pointer: Any, text: str) -> str:
     if len(starts) != 1 or len(ends) != 1 or ends[0].start() < starts[0].start() or ends[0].end() < starts[0].end():
         raise PointerError("pointer did not resolve")
     start, end = offsets[starts[0].start()][0], offsets[ends[0].end() - 1][1]
-    if end - start > 3000:
-        raise PointerError("pointer did not resolve")
     return _passage(text[start:end])
 
 

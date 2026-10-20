@@ -482,7 +482,11 @@ async def test_a_holdout_case_without_a_rule_card_is_an_error_not_a_zero_score()
         }
     )
     result = await run_selftest(ladder, region="us-east")
-    hold = [run for run in result["runs"] if run["kind"] == "holdout" and run["cases"]]
+    hold = [
+        run
+        for run in result["runs"]
+        if run["kind"] == "holdout" and run["cases"] and not str(run["area"]).startswith("Made-up")
+    ]
     assert len(hold) == 1
     assert hold[0]["error"] is True
     assert hold[0]["label"] == "error"

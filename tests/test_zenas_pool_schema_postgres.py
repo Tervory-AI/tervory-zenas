@@ -94,6 +94,7 @@ async def _empty_and_again(conn) -> None:
     assert fresh["enabled"] is True
     assert fresh["key_name"] == ""
     assert fresh["key_required"] is False
+    await _assert_precedent_columns(conn)
 
 
 async def _over_main(conn) -> None:
@@ -132,5 +133,35 @@ async def _over_main(conn) -> None:
     assert row["key_required"] is False
     count = await conn.fetchval("SELECT count(*) FROM zenas_pool.sources")
     assert count == 1
+    await _assert_precedent_columns(conn)
     # The statements the store applies are the same ones just run.
     assert schema_statements()
+
+
+async def _assert_precedent_columns(conn) -> None:
+    documents = await conn.fetch(
+        """
+        SELECT column_name FROM information_schema.columns
+        WHERE table_schema = 'zenas_pool' AND table_name = 'documents'
+        """
+    )
+    document_names = {row["column_name"] for row in documents}
+    assert {
+        "court",
+        "division",
+        "seat",
+        "bench_size",
+        "judges",
+        "neutral_citation",
+        "report_citation",
+        "appeal",
+        "appeal_from",
+    } <= document_names
+    cites = await conn.fetch(
+        """
+        SELECT column_name FROM information_schema.columns
+        WHERE table_schema = 'zenas_pool' AND table_name = 'cites'
+        """
+    )
+    cite_names = {row["column_name"] for row in cites}
+    assert {"treatment", "evidence", "paragraph"} <= cite_names

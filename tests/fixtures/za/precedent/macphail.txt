@@ -1,0 +1,621 @@
+ 
+ 
+IN THE HIGH COURT OF SOUTH AFRICA 
+(EASTERN CAPE DIVISION, MAKHANDA) 
+ 
+                                                                                            REPORTABLE                                      
+                                                                                                   
+   Case no: 2630/2024
+   96/2025 
+          
+          
+In the matter between:  
+ 
+ALEXANDER DONALD MACPHAIL Applicant 
+ 
+and 
+ 
+SANDRA LYNNE MACPHAIL Respondent 
+ 
+In re: the matter between: 
+ 
+SANDRA LYNNE MACPHAIL Applicant / Defendant 
+ 
+and 
+ 
+ALEXANDER DONALD MACPHAIL  Respondent / Plaintiff 
+___________________________________________________________________ 
+ 
+JUDGMENT  
+
+ 2 
+___________________________________________________________________ 
+Govindjee J 
+ 
+Background 
+[1] The parties are embroiled in divorce proceedings and there are three 
+inextricably linked applications that require determination. Firstly, the court must 
+adjudicate a contempt of court application. Mrs Macphail (the defendant / the 
+applicant) initiated con tempt proceedings pursuant to an order of this court, per 
+Nobatana AJ, dated 23 July 2024 (the order). In terms of the order, Mr Macphail (the 
+plaintiff / the respondent) was directed, inter alia, to pay increased maintenance and 
+has failed to do so. Secon dly, and as a defence to the contempt proceedings, the 
+plaintiff applies in terms of Uniform Rule 42(1)( a), alternatively the common law, for 
+rescission, alternatively variation, of the order. Finally, the defendant seeks to vary an 
+order of court dated 13 February 2025 pertaining to the obligations of the parties in 
+respect of school fees (the school fees order). 
+ 
+Rescission 
+[2] It is convenient to consider the rescission application first. The plaintiff initiated 
+divorce proceedings in the Western Cape Division. On 18 October 2023, Francis J 
+ordered the plaintiff to pay maintenance, educational costs and legal costs, following 
+an application in terms of Uniform Rule 43. The defendant subsequently brought an 
+urgent application in terms of this rule before Nobatana AJ in this court, alleging a 
+material change in the plaintiff’s financial circumstances and that she was unable to 
+maintain the minor children on the sum ordered by Francis J. At that stage, the divorce 
+proceedings were still pending in the Western Cape Division and the plaintiff was 
+resident in the United Arab Emirates.1 The subsequent order varied the Uniform Rule 
+43 order granted by Francis J in certain respects, mainly by increasing the 
+maintenance payable from R26 000,00 to R55 000,00 from 1 July 2024.2 It is apparent 
+ 
+1 The divorce action was transferred to this court on 24 March 2025. 
+2 The order was expressed as follows: 
+‘It is ordered that: 
+In terms of the provisions of rule 43, claiming the following from you, pending the final determination of 
+the divorce proceedings instituted in the High Court of South Africa, Western Cape Division, Cape 
+Town, under case number 16454/2022 of the Honourable Court: 
+1. Directing the Respondent to increase the maintenance amount of R26  000.00 to R55  000.00 
+from the 1st of July 2024 onwards; 
+ 3 
+from the face of the order that it was granted ‘in terms of the provisions of Rule 43 … 
+pending the final determination of the divorce proceedings instituted in the High Court 
+of South Africa, Western Cape Division, Cape Town …’. 
+ 
+Jurisdiction 
+[3] Did the court have jurisdiction to grant the order? In JS v WF,3 Van der Schyff 
+J noted that jurisdictional questions concerning children necessitate a sui generis  
+approach. Depending on the nature of the relief sought, a court would be required to 
+navigate between applicable provisions contained, inter alia, in the Superior Courts 
+Act, 2013, the Children’s Act, the Divorce Act, 1979 and applicable international law 
+principles to determine whether it possessed the necessary jurisdiction to adjudicate 
+the matter. To that list may be added reference to rule 43, given that the rule regulates 
+interim care of any child and interim contact with any child. 
+ 
+[4] Rule 43(1) reads as follows: 
+‘This rule shall apply whenever a spouse seeks relief from the court in respect of one or more 
+of the following matters: 
+(a) Maintenance pendente lite; 
+(b) A contribution towards the costs of a matrimonial action, pending or about to be 
+instituted; 
+(c) Interim care of any chid; 
+(d) Interim contact with any child.’ 
+ 
+ 
+2. Directing that the remaining obligations of the Respondent as set out in paragraph 1.1, 1.2, 1.3, 
+and 1.4 in the Order dated the 11 th of October 2023 in case number 10675/2023 remain the 
+same; 
+3. Directing the Respondent to effect payment of R100  000.00 as and for the loan repayment 
+within 7 (seven) days of this order being granted, together with interest at 10% from 21st March 
+2019 to date of final payment; 
+4. Directing the Respondent to pay R132  806.00 in respect of arrear educational, medical, and 
+extra-mural accounts as contemplated by clause 1.3 and 1.4 of the order in case number 
+10675/2023, within 7 (seven) days of this order being granted together with interest at the legal 
+rate from date of the relevant debt to date of first payment; 
+5. Directing the Respondent to make available, in Bushman’s Mouth, Province of the Eastern 
+Cape, the furniture set out in annexure “SM10” to the Founding Affidavit within 30 (thirty) days 
+of this order being granted; 
+6. Directing the Respondent to pay the sum of R250  000.00 as an interim contribution to the 
+Applicant’s costs by depositing same into the trust account of the Applicant’s attorneys of record 
+within seven (7) days of the order being granted; 
+7. Costs to be costs in the divorce proceedings.’ 
+3 JS v WF [2020] ZAGPPHC 350 para 28. 
+ 4 
+[5] Rule 43 is a procedure, calculated to be expeditious and inexpensive, whereby 
+defined issues may be resolved on an interim basis pending the final adjudication of 
+the divorce. The rule applies to matrimonial proceedings which are pending before ‘the 
+court’. As the court noted in SW v SW,4 (SW) considering both the Uniform Rules and 
+the Superior Courts Act, 2013,5 ‘the court’ before which the procedure may be invoked 
+is (ordinarily) only that court before which the main lis in the divorce action is pending.6   
+ 
+[6] SW considered and relied upon the decision  of this court in Green v Green 7 
+(Green).8 In that matter, Jones J expressed the position as follows: 
+‘It would, I think, be going too far to lay down that under no circumstances will a Court of one 
+Division or country entertain a Rule 43 application in respect of a divorce action pending in 
+another Division or country. Reference has already been made in Venter’s case supra to the 
+possibility of a Court making an interim custody award in these circumstances where this is 
+urgently required in the best interests of the child. In appropriate circumstances the reasoning 
+in Massey’s case may justify a Court in e xercising jurisdiction in preliminary matters though 
+the main action is pending elsewhere. But in the ordinary course authority and common sense 
+dictate that a claim which is pendente lite should be tried in the Court in which the lis itself is 
+to be tried.’ 
+ 
+[7] The judgment in Green preceded the enactment of the Children’s Act, 2005. 9 
+The court in Green accepted that there may be circumstances which would justify a 
+court exercising its inherent jurisdiction to protect the best interests of a minor child in 
+circumstances where that was urgently required during matrimonial proceedings. As 
+a result, the appl icant in SW argued that the court had the jurisdiction to entertain a 
+rule 43 application, notwithstanding that the divorce action was pending before a 
+different court. The court in SW rejected that contention:10 
+‘Although the Green judgment refers to the possibility of a court entertaining a ‘Rule 43 
+application’, a reading of the judgment, together with the authorities referred to in that 
+judgment, suggests that the jurisdiction referred to, namely to intervene in the interests of the 
+ 
+4 SW v SW and Another 2015 (6) SA 300 (ECP) (SW) para 12. 
+5 Superior Courts Act 10 of 2013. 
+6 SW above n4 para 13. 
+7 Green v Green 1987 (3) SA 131 (SE). 
+8 See DE van Loggerenberg Pollak: The South African Law of Jurisdiction (2025) (RS 2, 2020) ch 12–
+296 and further. 
+9 Act 38 of 2005. 
+10 SW above n4 paras 17, 19, 20 (emphasis as contained in SW). 
+ 5 
+minor child, is not in fact the exercise of jurisdiction in terms of rule 43 … The jurisdiction of 
+the court to make orders pendente lite arises in the first instance from the fact that the litigation 
+is pending before that court. Where, however, the court  otherwise has jurisdiction it may be 
+able to exercise its general or inherent jurisdiction in relation to proceedings pending before 
+another court. When it does so, it does not, in matrimonial matters, do so on the basis of the 
+provisions of rule 43 … [wh ich] regulates the procedure in matrimonial matters by which the 
+court exercises its jurisdiction to make appropriate orders pendente lite in relation to matters 
+pending before it. The jurisdiction referred to in Green is not jurisdiction which the court 
+exercises by virtue of the divorce action pending. It is an aspect of its inherent jurisdiction to 
+protect the interests of minor children … to give effect to the paramountcy of the best interests 
+of the minor child …’ 
+ 
+[8] The court then summarised the position:11 
+‘Two things flow from this. The first is that a litigant who is party to a divorce action pending 
+before another court cannot invoke the jurisdiction of this court to secure the relief 
+contemplated in rule 43 by the exercise of the procedure provided in ru le 43. In other words, 
+a rule 43 application cannot be brought in this court if there is a divorce action pending in 
+another court … What was left open in [earlier] cases was not the possibility of utilising the 
+rule 43 procedure. Rather it was that a cour t could exercise its inherent common -law 
+jurisdiction to act in appropriate circumstances in the interests of minor children to make an 
+order, notwithstanding that there are proceedings pending before another court. The second 
+is that in order to invoke the common-law inherent jurisdiction the applicant must establish (a) 
+that considerations of urgency justify the intervention; and (b) that the intervention is 
+necessary to protect the best interests of the minor child.’ 
+ 
+[9] In Macphail v Macphail and Another , Lowe J considered an urgent rule 43 
+application involving the present parties.12 In those proceedings, the defendant sought 
+a rule nisi to set aside a directive of a parental coordinator regarding the removal of 
+the parties’ children to Cape Town for a holiday period. The court accepted that it had 
+jurisdiction to determine the matter based on the provisions of the Children’s Act, 
+200513 and the judgment of the SCA in FS v JJ,14 which concerned the best interests 
+ 
+11 SW above n4 para 20 (emphasis added). 
+12 Macphail v Macphail and Another (unreported Eastern Cape Division, Makhanda, case no. 
+1188/2024, delivered 4 April 2024) (Macphail) paras 62–70. 
+13 Act 38 of 2005 (the Children’s Act). 
+14 FS v JJ and Another 2011 (3) SA 126 (SCA) (FS). 
+ 6 
+of a child and the rights of unmarried fathers in the context of the Children’s Act. The 
+defendant relies on this judgment in opposing the application for rescission based on 
+lack of jurisdiction. 
+ 
+[10]  Section 29 of the Children’s Act specifically permits selected kinds of 
+applications to be brought before courts within whose area of jurisdiction the child 
+concerned is ordinarily resident.15 It does not permit a court to accept jurisdiction in all 
+matters in which children are involved based purely on their ordinary residence within 
+that court’s jurisdiction. FS v JJ confirms as much and, importantly, the SCA cautioned 
+against a practice of forum-shopping:16 
+‘…I would caution against a practice of forum -shopping, even in cases concerning disputes 
+over parenting rights and responsibilities. High Courts should not in general be faced with 
+litigation requiring them in effect to set aside an order made in another jurisdiction. And as a 
+rule, since one is entitled to assume that any order has been made in the best interests of a 
+child, should those interests change over time, the court that made the initial order should be 
+approached for a variation. Much of the difficulty may now be resolved with the enactment of 
+s 29 of the Children’s Act, which came into operation only in 2010. It provides that an 
+application under ss 23 and 24 (for parental responsibilities and rights by an interested part) 
+may be brought in a High Court within whose area of jurisdiction the child is ordinarily resident. 
+Where that does not assist, however, reliance on formalism and a resort to inflexible rules is 
+to be discouraged, a matter to which I shall revert when dealing with the second jud gment in 
+the Northern Cape High Court.’ 
+ 
+[11] The SCA’s remarks pertaining to ‘formalism’ and ‘inflexibility’ were occasioned 
+by a biased approach on the part of the presiding judge in the court a quo in that 
+matter. This included an invitation to one of the parties to bring an application for an 
+order that the other was in contempt of court, so that the court was criticised as being 
+‘more concerned about legal niceties than the child’s best interests’.  
+ 
+ 
+15 The only applications listed are those permissible in terms of sections 22(4)( b) (date of effect of a 
+parental responsibilities and rights agreement), 23 (assignment of contact and care to interested person 
+by order of court), 24 (assignment of guardianship by order of court), 26(1)( b) (order confirming 
+paternity) or 28 (termination, extension, suspension or restriction of parental responsibilities and rights) 
+of the Children’s Act. 
+16 FS above n14 para 38. 
+ 7 
+[12] Considering these authorities, and as a starting point, it appears to be 
+appropriate to draw a distinction between rule 43 applications pertaining to matters 
+regulated by s 29 of the Children’s Act and other rule 43 applications. Care and contact 
+of children are matters regulated by s 29 of the Children’s Act and rule 43(1)( c) and 
+(d). While couched under rule 43, the application before Lowe J triggered the 
+provisions of s 29, read with s 23, of the Children’s Act so that the court heard the 
+matter based on the children being ordinarily resident within its jurisdiction. The 
+learned judge emphasised that the relief sought was not a variation of the Western 
+Cape Division order but rather a matter pertaining to care and contact with the three 
+minor children.17 In effect, the court exercised jurisdiction based on ss 23 and 29 of 
+the Children’s Act and held that it would have been formalistic to refuse to hear the 
+matter because the application had been framed purely in terms of rule 43. 18 I 
+respectfully align myself with that approach. 
+ 
+[13] Unlike the situation confronted by Lowe J, however, the application before 
+Nobatana AJ was an ordinary rule 43 application for maintenance, rather than for 
+interim care or contact with the children. Although the defendant linked the claim for 
+increased maintenance to the needs of the children, and unlike the case before Lowe 
+J, the application did not trigger the application of s 29 of the Children’s Act.  
+ 
+[14] This is not to suggest that it will only be in the instances enumerated in s 29 
+that a court will exercise jurisdiction based on where the children are ‘ordinarily 
+resident’. As the SCA alluded to in FS v JJ, while s 29 is expected to resolve much of 
+the difficulty, the door remains open for a court to exercise its common -law, inherent 
+powers of jurisdiction in appropriate circumstances in the best interests of a child. This 
+remains the exception where the di vorce action is being adjudicated by a different 
+court.19 On the authority of Green, deviation from the ordinary position required a 
+proper case to be made out that considerations of urgency justified the intervention 
+and that the intervention was necessary to protect the best interests of the minor 
+children. Leaving aside the fact that the application before Nobatana AJ was framed 
+ 
+17 The court added that, to the extent necessary on the facts, limited variation of the Western Cape 
+Division order was justified: Macphail above n12. 
+18 Ibid.  
+19 AC v RC [2015] ZAECPEHC 1 para 19. 
+ 8 
+in terms of rule 43, that case was not made out on the papers.20 Read with SW, such 
+jurisdiction is not exercised by virtue of the divorce action pending before the court but 
+rather an aspect of the court’s inherent jurisdiction to protect the interests of minor 
+children. Such jurisdiction cannot be invoked automatically in any cla im for 
+maintenance simply because a child would likely obtain some benefit from an increase 
+in the maintenance amount. To permit this would unjustifiably circumvent and negate 
+the established position, as expressed in Green, when the main action is pending 
+before a different court and where interim care or contact with a child is not in issue. 
+By the doctrine of precedent, this court is not at liberty to ignore the judgment in Green 
+unless that decision is clearly wrong. I am unable to draw that conclusion. 
+ 
+[15] The effect of the preceding analysis is that the court lacked jurisdiction when it 
+made the order. It may be added that, on the defendant’s own papers before Nobatana 
+AJ, the plaintiff was permanently resident in Dubai. A domicile of choice shall be 
+acquired by a person when they are lawfully present at a particular place and have the 
+intention to settle there for an indefinite period. 21 On the probabilities, including due 
+consideration of the plaintiff’s submissions to the court dated 8 July 2024 (the plaintiff’s 
+letter), the plaintiff’s domicile at the material time was Dubai. As such, the court could 
+not exercise power in terms of s 8( 2) of the Divorce Act, 1979 22 (the Act) absent the 
+plaintiff’s consent. 23 Not only did the plaintiff’s letter contain no such consent, the 
+plaintiff also alluded to an application for additional maintenance struck from the roll in 
+the maintenance court in Alexandria because of the Francis J order and the pending 
+divorce proceedings in the Western Cape Division. Considering the wording of s 8(2), 
+any argument that the court had jurisdiction based on s 2 of the Act, read with the 
+ 
+20 There were contradictory allegations that ‘the sum previously ordered is insufficient … I was never 
+able to maintain the children on the amount’ and ‘I am no longer able to maintain the minor children, 
+and myself, on the sum of R26  000.00’ and the bulk of the application focused on alleged ‘short 
+payment’, repayment of a debt, furniture and a contribution to costs. The answering affidavit to the 
+rescission application reflects that the defendant was ‘struggling on R26  000,00 per month for myself 
+and our three teenage sons and hence the request for an increase…’. 
+21 S 1 of the Domicile Act, 1992 (Act 3 of 1992). 
+22 Act 70 of 1979. 
+23 S 8(2) provides: ‘A court other than the court which made an order referred to in subsection (1) may 
+rescind, vary or suspend such order if the parties are domiciled in the area of jurisdiction of such first -
+mentioned court or the applicant is domiciled in the area of jurisdiction of such first-mentioned court and 
+the respondent consents to the jurisdiction of that court.’ 
+ 9 
+definition of ‘divorce action’, fails based on the maxim that general rules do not 
+derogate from special ones.24  
+ 
+Nullity? 
+[16] The fact that the order was granted in circumstances where the court lacked 
+jurisdiction is not by itself dispositive of the present litigation. The validity of court 
+orders is derived from the Constitution, 1996, itself. Section 165(5) of the Constitution 
+states that ‘an order or decision issued by a court binds all persons to whom and 
+organs of state to which it applies’.25 Following Department of Transport and Others v 
+Tasima (Pty) Ltd 26 (Tasima), and Ekurhuleni City v Rohlandt Holdings CC and 
+Others27 (Rohlandt), a court order can no longer be ignored or rescinded merely upon 
+proof that it would have been regarded as a common -law nullity. 28 It suffices to 
+establish that there was a court and that the court issued an order. Once that is 
+established, any order so issued is valid and binding until set aside, even if it is grossly 
+wrong. Judicial orders wrongly issued exist in fact, may have legal consequences and 
+are not to be treated as nullities. 29 Court orders must be appropriately challenged to 
+be set aside and it is the court that, once invalidity is proven, can overturn the decision. 
+Parties cannot usurp the court’s role in making legal determinations.30  
+ 
+[17] In Van Dyk and Another v Rhodes ,31 a full court confirmed that the ordinary 
+principles of rescission or appeal will always apply to court orders wrongly granted, no 
+matter what error led to their issuance. Accepting that authority puts paid to the 
+argument that the plaintiff incurred unnece ssary costs in launching the rescission 
+ 
+24 See GE Devenish Devenish on Interpretation  (2nd Ed) (2024) at 531. S 2(1): ‘A court shall have 
+jurisdiction in a divorce action if the parties are or either of the parties is – 
+(a) domiciled in the area of jurisdiction of the court on the date on which the action is instituted; or  
+(b) ordinarily resident in the area of jurisdiction of the court on the said date and have or has been 
+ordinarily resident in the Republic for a period of not less than one year immediately prior to 
+that date.’ 
+25 Also see s 2, read with s 172(2)( a), as discussed in Department of Transport and Others v Tasima 
+(Pty) Ltd 2017 (2) SA 622 (CC); 2017 (1) BCLR 1; [2016] ZACC 39 (Tasima). 
+26 Tasima above n25. 
+27 Ekurhuleni City v Rohlandt Holdings CC and Others 2025 (1) SA 1 (CC); [2024] ZACC 10. 
+28 Van Dyk and Another v Rhodes  2025 (4) SA 313 (GJ) ( Rhodes) para 1. Cf The Master of the High 
+Court (North Gauteng High Court, Pretoria) v Motala NO and Others  2012 (3) SA 325 (SCA); [2011] 
+ZASCA 238 paras 14–15, and the cases cited there. 
+29 Tasima above n25 para 182. 
+30 Tasima above n25 paras 191, 192. 
+31 Rhodes above n28 para 1. 
+ 10 
+application when the basis for this was already canvassed as a defence to the 
+contempt proceedings. In the circumstances, he was obliged to institute appropriate 
+proceedings to set aside an order wrongly issued, separate from defending the 
+contempt application. 
+ 
+Delay 
+[18] I am satisfied that the application for rescission has been brought within a 
+reasonable period, despite the lapse of a year since the order was served on the 
+plaintiff. In coming to this decision, I have considered that the plaintiff was 
+unrepresented for part of this time and that his representatives raised the issue of the 
+court’s jurisdiction in granting the order by the end of October 2024. This basis for 
+rescission was also raised during January 2025 in opposition to the contempt 
+application. There wer e also bona fide  efforts to settle the matter for some time 
+thereafter. Considering these factors as a part-explanation for the delay, the absence 
+of any real prejudice to the defendant and the prospects of success, the delay in 
+applying for rescission is condoned. 
+ 
+The Divorce Act, 1979 
+[19] In addition to relying on rule 42 and the common law, counsel for the plaintiff 
+relied on s 8 of the Act, as interpreted in Sharma v Harry,32 in heads of argument and 
+during argument, as a basis for rescission. To the extent that this amounted to a new 
+point, it is open to this court to consider the argument given that each of the well -
+established pre -conditions have been met. 33 It is a point of law in the true sense, 
+foreshadowed in the affidavits or supported by the established facts in the record. 
+There is also no prejudice to the defendant given that the parties have fully addressed 
+the question of rescission and variation of the order and considering that the argument 
+was raised squarely in the plaintiff’s heads of argument.   
+ 
+[20] Rule 43 regulates the procedure to be followed whenever a spouse seeks 
+interim relief from the court in respect of various matters, including maintenance 
+pendente lite . The substantive basis for maintenance in the context of a pending 
+ 
+32 Sharma v Harry [2019] 3 All SA 645 (GJ) (Sharma). 
+33 Maphango and Others v Aengus Lifestyle Properties (Pty) Ltd 2012 (3) SA 531 (CC) para 109. 
+ 11 
+divorce is the Act, read with the common law and the Children’s Act, 2005. 34 Section 
+8(1) of the Act provides for rescission of a maintenance order made in terms of this 
+act ‘at any time … if the court finds that there is sufficient reason therefor…’. 35 A rule 
+43 maintenance order is a maintenance order granted in terms of the Act and is 
+accordingly susceptible to rescission in terms of s 8(1).36 In the present circumstances, 
+the finding that the order was granted absent the necessary jurisdiction constitutes 
+sufficient reason to grant the rescission sought on that basis, and without the need to 
+establish the requirements in terms of s 42(1)(a) or the common law. 
+ 
+The common law 
+[21] If this approach is erroneous, it is appropriate to consider whether rescission is 
+warranted based on either the rules or common law. It is convenient to consider the 
+common law position first. To succeed, an applicant is required to prove that there is 
+‘sufficient cause’ or ‘good cause’ to warrant rescission.37 This is assessed as follows:38 
+‘First, the applicant must furnish a reasonable and satisfactory explanation for its default. 
+Second, it must show that on the merits it has a bona fide defence which prima facie carries 
+some prospect of success. Proof of these requirements is taken as showing that there is 
+sufficient cause for an order to be rescinded.’ 
+ 
+[22] Under the common law, the courts of Holland enjoyed a relatively wide 
+discretion, and adopted a more lenient attitude, in respect of ‘applications for purgation 
+of procedural defaults and the rescission of default judgments’. 39 The exercise of the 
+court’s discretionary power has, broadly speaking, been influenced by considerations 
+of justice and fairness, having regard to all the facts and circumstances of a particular 
+case.  
+ 
+ 
+34 Act 38 of 2005. See, for example, JG v CG  2012 (3) SA 103 (GSJ) para 28. Also see Cilliers et al 
+Herbstein & Van Winsen: The Civil Practice of the High Courts of South Africa (5th Ed) (2009) at 1535. 
+35 ‘Divorce action’ is defined in s 1(1) of the Act to include ‘an application pendente lite for an interdict 
+or for the interim custody of, or access to, a minor child of the marriage concerned or for the payment 
+of maintenance…’.  
+36 Sharma above n32 para 25. 
+37 De Wet v Western Bank Ltd 1979 (2) SA 1031 (A) (De Wet) at 1033C and 1042G. 
+38 Zuma v Secretary of the Judicial Commission of Inquiry into Allegations of State Capture, Corruption 
+and Fraud in the Public Sector including Organs of State (Council for the Advancement of the South 
+African Constitution and Democracy in Action Amicus Curiae) 2021 JDR 2069 (CC) (Zuma) para 71. 
+39 De Wet above n37 at 1040D–1041D.  
+ 12 
+[23] In the present instance, the plaintiff was employed and resident in Dubai when 
+the second rule 43 application was launched. The application was e-mailed to him on 
+26 June 2024, the defendant noting that his attorneys had withdrawn and that he was 
+no longer legally represented. In response, he addressed a letter to the presiding judge 
+on 8 July 2024. That correspondence informed the court, inter alia, that ‘…I do not 
+have resources or legal skills to defend this action at present and I respectfully request 
+that My Lord stand the matter over until next year when I hope to have an improved 
+financial position … I have taken up a new post, but I am still in the training and 
+probationary period … I have yet to earn the leave entitlement which would allow me 
+to attend the court in person…’.  
+ 
+[24] This constitutes a reasonable and satisfactory explanation for default in my 
+view, rather than action in wilful disregard or indifference of court rules and processes. 
+This was not an instance where the plaintiff deliberately and freely failed or omitted to 
+take steps to avoid the default, so that he must be saddled with the consequences. 
+Unrepresented as he was, he took personal steps to convey his position to the court, 
+including the reasons for his inability to attend in person. In addition, while it is 
+apparent that the plaintiff’s circumstances changed favourably once he was employed 
+by Emirates, also in respect of his entitlement to benefits, so that an increase in the 
+maintenance amount ordered by Francis J may well be justified, I am satisfied on the 
+papers that the application was made bona fide and that the plaintiff has shown a bona 
+fide defence to the defendant’s claims which prima facie  have some prospect of 
+success based on the financial information presented. 40 On this basis too, it is 
+appropriate to rescind the order in the exercise of the court’s discretion. I consider it 
+fair and just to do so having regard to all the facts and circumstances of the matter. It 
+is therefore unnecessary to consider whether a cas e has also been made out for 
+rescission in terms of rule 42. 
+ 
+Contempt 
+[25] A rescinded default judgment is a nullity and neither advantage nor 
+disadvantage can flow therefrom. The plaintiff is entitled to proceed on the basis that 
+ 
+40 Colyn v Tiger Food Industries Ltd t/a Meadow Feed Mills (Cape) 2003 (6) SA 1 (SCA) para 11.  
+ 13 
+the status quo ante the judgment be restored. Once a judgment has been rescinded, 
+the consequences thereof fall to be set aside.41 
+ 
+[26] In the circumstances, I am in any event satisfied that the plaintiff was not in 
+wilful contempt of the order or that his non -compliance with its provisions was in bad 
+faith. Objectively assessed, the plaintiff’s actions were not intended to obstruct justice 
+deliberately or intentionally or to act in with contumacious disrespect for judicial 
+authority. At the very least the plaintiff has discharged the evidential burden and there 
+is reasonable doubt whether he acted wilfully and in bad faith. The application  for 
+contempt is accordingly dismissed. 
+ 
+Variation of the school fees order 
+[27] On 13 February 2025, this court issued the school fees order, by agreement 
+between the parties, pursuant to an urgent application launched by the defendant. The 
+material parts of the school fees order are quoted below: 
+‘4. The payment of the account for James to attend St Andrew’s College during the 2025 
+academic year will be arranged by the applicant [the defendant], without recourse to the 
+respondent [the plaintiff]. 
+5. The respondent will continue to pay directly to the applicant the equivalent as was required 
+to be paid in 2024, in regard to James’ educational costs … pursuant to the provisions of the 
+court order of 11 October 2023 (in the Western Cape High Court …). 
+6. To the extent that there is a shortfall in regard to the amounts referred to in paragraph 5, 
+above, emanating from James’ schooling at St Andrew’s College, payment of such shortfall 
+shall be arranged by the applicant without recourse to the respondent. 
+7. The respondent will not be liable to pay any amount directly to St Andrew’s College in regard 
+to James’ schooling at St Andrew’s College during the 2025 academic year, unless agreed or 
+ordered otherwise by this Honourable Court … 
+10. The respondent is to approach his employer in regard to the possibility of the school fees 
+for James and Matthew to attend St Andrew’s College being covered (and, if so, the extent to 
+which they would be covered), within thirty (30) working days, and to provide certainty on this 
+issue to the applicant prior to the main divorce action being finalised (whether by way of 
+settlement or otherwise). 
+ 
+41 Naidoo v Somai 2011 (1) SA 219 (KZD) at 221G–H; Securiforce CC v Ruiters 2012 (4) SA 252 (NCK) 
+at 261D–E. 
+ 14 
+11. In the event that the respondent’s employer undertakes to pay any portion (or all) of James 
+and Matthew’s fees for St Andrew’s College during the 2025 academic year, then the 
+applicant’s liability in regard to such fees shall reduce accordingly … 
+15. Paragraphs 1 to 13 of this order shall (subject to any amendment by this court) remain in 
+effect until the main divorce action is finalised, or until the end of the 2025 academic year, 
+whichever is the later, alternatively as may be ordered by this court in due course.’ 
+ 
+[28] The defendant seeks to vary paragraph 15 of the school fees order by making 
+the plaintiff liable to pay all amounts due to St Andrew’s College for 2025 within seven 
+days, coupled with an order directing the plaintiff to sign all admission documents with 
+the school in respect of James, and costs. The defendant seeks these amendments 
+to compel reimbursement of school fees paid by the children’s maternal grandfather, 
+and to ensure formal enrolment of the children at St Andrew’s College through 
+signature of the admission forms. The basis for this is that the plaintiff, despite enjoying 
+the employment benefit of private schooling for his children, has not taken any steps 
+to activate the benefit. The application was launched urgently on the basis that the 
+defendant’s father’s retirement investment was being depleted and that he could not 
+afford his grandchildren’s private schooling when this was the plaintiff’s obligation. It 
+was further alleged that James’ tenure at the school was under threat.  
+ 
+[29] The plaintiff argued, inter alia, that the school fees order had been agreed to 
+on the basis that the defendant had managed to secure funding for James to attend 
+St Andrew’s College for the entire 2025 academic year. Paragraph 4 was framed 
+accordingly. The  plaintiff had submitted the relevant information to his employer 
+without receipt of a response at the time the application was argued.  
+ 
+[30] I accept that private school fees constitute significant financial expenditure. This 
+explains why the plaintiff was seemingly determined to avoid the responsibility of 
+bearing such costs during 2025 while the divorce remained unfinalized. There is simply 
+no proper explanation on the papers as to why and how the defendant’s financial 
+position, pertaining to the St Andrew’s schooling, has been altered since the time the 
+school fees order was agreed to between the parties. The allegation that James’ 
+tenure at the school is now at risk, a few months after the parties agreed to specific 
+school funding arrangements for 2025, is bald and unsubstantiated. It does not help 
+ 15 
+matters that no confirmatory affidavit was filed by the defendant’s father in respect of 
+his changed circumstances, bearing in mind that the anticipated costs of private 
+schooling would have been apparent prior to the school fees order being agreed. That 
+order was carefully crafted to operate only until the end of the 2025 academic year, if 
+the divorce was not finalised by that time. The defendant expressly agreed to make 
+the necessary arrangements without recourse to the plaintiff, who remained obliged to 
+pay what had been paid during 2024 in respect of James’ schooling. Interpreting the 
+school fees order, it is apparent that the plaintiff was only willing to obtain 
+reimbursement from his employer, without accepting personal liability for the 2025 
+school year. On the papers, the defendant has failed to make out a proper case for 
+varying the school fees order on an urgent basis. In arriving at that conclusion, I 
+accepted that the plaintiff had acted in terms of the school fees order in raising the 
+matter with his employer, albeit that no response had been received at the time the 
+application was argued. Considering the affidavits and supporting documentation 
+presented, the defendant’s belief that the plaintiff has refused to comply with the 
+school fees order, or simply refuses to take up the employment benefit of private 
+schooling, is erroneous. 
+ 
+Costs 
+[31] This court has a wide discretion in respect of the awarding of costs, 
+notwithstanding that both parties sought costs orders against the other. In respect of 
+the application for rescission, I am mindful that the plaintiff sought an indulgence, 42 
+and that the defendant opposed the jurisdictional basis for rescission, at least in part, 
+by relying on the order of Lowe J in the previous rule 43 application. 43  Given the 
+events that resulted in the order by default and the basis for the application for 
+rescission, including the authority in point, the opposition to the application was 
+unreasonable in my view, so that it is appropriate for each party to pay their own costs.  
+ 
+[32] In arriving at that decision, I am mindful of the nature of the proceedings and 
+the acrimonious, sustained litigation that has enveloped the parties. To quote TN v 
+NN:44 
+ 
+42 Phillips t/a Southern Cross Optical v SA Vision Care (Pty) Ltd 2000 (2) SA 1007 (C) at 1015. 
+43 See Williams v Shackleton Credit Management 2024 (3) SA 234 (WCC) para 67. 
+44 TN v NN and Others 2018 (4) SA 316 (WCC) para 31. 
+ 16 
+‘Costs fall to be decided judicially in the exercise by the court of a broad discretion in the strict 
+sense of the concept. The general rule that costs should follow the result does not always 
+work satisfactorily in matrimonial proceedings, and particularl y when the interests of the 
+parties’ children fall to be addressed as part of the issues for determination … I think it would 
+also be appropriate, in what were primarily matrimonial and family law proceedings, to take 
+into account the apparent inequality of the financial means of the parties. The first defendant 
+is a well-established senior attorney and self-described entrepreneur, whereas the plaintiff is 
+a middle -ranking civil servant dependent upon a comparatively modest salary. She has 
+incurred substantial debt in respect of legal expenses leading up to the trial. To burden her 
+with the liability to pay the first defendant’s costs of suit would work unduly harshly in the 
+circumstances and, having regard to her role as primary caregiver, would also probab ly 
+redound negatively against the material best interests of the parties’ minor child.’ 
+ 
+[33] Such considerations appear to find application in respect of both the contempt 
+application and the application to vary the school fees order. The contempt application 
+was defeated due to the rescission of the underlying judgment and the variation 
+application failed based on this court’s interpretation of the school fees order and 
+reading of the affidavits and supporting documentation. Neither application was 
+brought in bad faith and I consider it inappropriate to saddle the defendant with the 
+costs in the c ontext of the overall litigation between the parties, their respective 
+financial positions and the role of the defendant as the primary caregiver of the minor 
+children. As a result, each party is ordered to bear their own costs in respect of all 
+these proceedings, including the costs reserved on 12 June 2025. 
+ 
+[34] It goes without saying that a future court considering litigation between the 
+same parties may adopt a less benign approach. More importantly, it is hoped, in the 
+best interests of the children, that the parties may be guided by those who advise them 
+towards an expeditious yet fair finalisation of their divorce. 
+ 
+Order 
+[35] The following order is issued: 
+ 
+1. The respondent’s late filing of an application for rescission is condoned. 
+2. The order granted by Nobatana AJ on 23 July 2024 under case number 
+2630/2024 is rescinded. 
+ 17 
+3. The contempt application under case number 2630/2024 is dismissed. 
+4. The application to vary the order dated 13 February 2025 under case number 
+96/2025 is dismissed. 
+5. Each party to pay their own costs. 
+ 
+ 
+ 
+_________________________  
+A GOVINDJEE                                                                                                                                                        
+JUDGE OF THE HIGH COURT 
+ 
+ 
+Heard:  1 August 2025  
+ 
+Delivered:  21 August 2025  
+ 
+ 
+Appearances:   
+ 
+For the Applicant:  Adv TS Miller  
+       
+Instructed by:  Wheeldon Rushmere & Cole 
+    Makhanda 
+       
+For the Respondent: Adv SA Sephton 
+       
+Instructed by:  Nolte Smit Inc 
+    Makhanda     
+      
