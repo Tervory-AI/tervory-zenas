@@ -221,7 +221,7 @@ async def test_joined_passages_pass_only_when_each_is_verbatim() -> None:
         region="za",
     )
     assert words["converted"] == 0
-    assert words["failures"][0]["reason"] == "quote is not in the judgment"
+    assert words["failures"][0]["reason"] == "facts too short"
 
 
 @pytest.mark.asyncio

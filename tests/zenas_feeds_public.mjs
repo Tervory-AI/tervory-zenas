@@ -150,6 +150,31 @@ const quoted = reasons.failures.find((row) => row.reason === "quote is not in th
 const other = reasons.failures.find((row) => row.reason === "other");
 if (!quoted || quoted.count !== 3 || !other || other.count !== 2) throw new Error("failure counts must cross without the text");
 
+const shortFacts = publicConvert({
+  region: "za",
+  failed: 2,
+  failures: [
+    { reason: "facts too short", count: 1 },
+    { reason: "made up", count: 1 },
+  ],
+  cases: [
+    {
+      id: "grootboom",
+      citation: "[2000] ZACC 19",
+      reason: "facts too short",
+      answer: "the right ... of access",
+      quote_part: "facts",
+    },
+  ],
+});
+const kept = shortFacts.failures.find((row) => row.reason === "facts too short");
+const folded = shortFacts.failures.find((row) => row.reason === "other");
+if (!kept || kept.count !== 1) throw new Error("facts too short must stay a known reason");
+if (!folded || folded.count !== 1) throw new Error("an unknown reason still folds to other");
+if (shortFacts.cases.length !== 1 || shortFacts.cases[0].reason !== "facts too short") {
+  throw new Error("a case must show facts too short");
+}
+
 const erred = publicScores({
   region: "us-east",
   runs: [{ kind: "holdout", error: true, reason: "no rule card", cases: 1, outcome_agreement: 0, text: judgment, label: "error" }],

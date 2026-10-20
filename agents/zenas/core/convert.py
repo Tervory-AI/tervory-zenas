@@ -34,7 +34,11 @@ _PLATFORM = "00000000-0000-0000-0000-000000000001"
 _DEFAULT_MAX = 200
 _EXCERPT = 1500
 _QUOTE_BIT = 120
-_PASSAGE_WORDS = 4
+# A joined facts quote is several passages, not a handful of words.
+_MIN_PASSAGE_WORDS = 8
+_MAX_PASSAGES = 8
+_MIN_FACTS_CHARS = 200
+_PASSAGE_WORDS = _MIN_PASSAGE_WORDS
 _convert_lock = asyncio.Lock()
 _convert_running: set[str] = set()
 # Models join verbatim passages with '...', '…', or '. . .', spaces or not.
@@ -117,6 +121,33 @@ def _fold(text: str) -> str:
     return " ".join((text or "").split())
 
 
+def _joined_parts(facts: str) -> list[str] | None:
+    """The pieces of a joined facts quote. None when the facts are one passage."""
+    text = facts or ""
+    if not _PASSAGE_JOIN.search(text):
+        return None
+    parts = [part.strip() for part in _PASSAGE_JOIN.split(text) if part.strip()]
+    if len(parts) <= 1:
+        return None
+    return parts
+
+
+def facts_too_short(facts: str) -> bool:
+    """True when joined facts are scraps, too brief, or split into too many pieces.
+
+    Each passage needs 8 words, the facts need 200 characters, and there may
+    be at most 8 passages. One continuous passage is not judged here.
+    """
+    parts = _joined_parts(facts)
+    if parts is None:
+        return False
+    if len(parts) > _MAX_PASSAGES:
+        return True
+    if len(facts or "") < _MIN_FACTS_CHARS:
+        return True
+    return any(len(fold_for_quote(part).split()) < _MIN_PASSAGE_WORDS for part in parts)
+
+
 def fact_passages(facts: str) -> list[str]:
     """One verbatim passage, or several joined the way a model writes an ellipsis.
 
@@ -124,11 +155,12 @@ def fact_passages(facts: str) -> list[str]:
     Shorter pieces stay one string, so a paraphrase split into words fails.
     """
     text = facts or ""
-    parts = [part.strip() for part in _PASSAGE_JOIN.split(text) if part.strip()]
-    if not parts:
-        return []
-    if len(parts) == 1:
-        return parts if _PASSAGE_JOIN.search(text) else [text]
+    parts = _joined_parts(text)
+    if parts is None:
+        stripped = [part.strip() for part in _PASSAGE_JOIN.split(text) if part.strip()]
+        if len(stripped) == 1 and _PASSAGE_JOIN.search(text):
+            return stripped
+        return [text] if text.strip() else []
     if any(len(fold_for_quote(part).split()) < _PASSAGE_WORDS for part in parts):
         return [text]
     return parts
@@ -769,6 +801,18 @@ async def convert_cases(
                 region=box,
                 pool_doc_id=case["document_id"],
                 reason="the model did not return case facts",
+                answer=content,
+                finish_reason=finish,
+                tokens_in=tokens_in,
+                tokens_out=tokens_out,
+            )
+            continue
+        if facts_too_short(str(parsed.get("facts") or "")):
+            await _remember_failure(
+                ladder,
+                region=box,
+                pool_doc_id=case["document_id"],
+                reason="facts too short",
                 answer=content,
                 finish_reason=finish,
                 tokens_in=tokens_in,

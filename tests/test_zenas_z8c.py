@@ -20,7 +20,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from agents.zenas.core.convert import convert_cases, fact_passages, merger_approval_letter  # noqa: E402
+from agents.zenas.core.convert import convert_cases, fact_passages, facts_too_short, merger_approval_letter  # noqa: E402
 from agents.zenas.core.engine import quote_in_source, same_case_citation  # noqa: E402
 from agents.zenas.core.ladder_store import LadderMemory  # noqa: E402
 
@@ -279,3 +279,59 @@ async def test_a_failed_case_keeps_only_its_latest_attempt() -> None:
     assert cleared["converted"] == 1
     assert cleared["failed"] == 0
     assert ladder.failures == []
+
+
+@pytest.mark.asyncio
+async def test_joined_facts_need_real_passages() -> None:
+    scraps = "the right ... of access ... to adequate"
+    assert facts_too_short(scraps)
+    assert [len(part.split()) for part in scraps.split(" ... ")] == [2, 2, 2]
+    short = await convert_cases(
+        Pool(
+            Doc(
+                GROOTBOOM,
+                doc_id="grootboom",
+                citation="[2000] ZACC 19",
+                title="Government of the Republic of South Africa v Grootboom",
+                source_id="concourt",
+            )
+        ),
+        LadderMemory(),
+        Answer(_body(scraps, citation="[2000] ZACC 19", element=HOUSING)),
+        region="za",
+    )
+    assert short["converted"] == 0
+    assert short["failures"] == [{"reason": "facts too short", "count": 1}]
+
+    # Twenty words each, from Government v Grootboom [2000] ZACC 19.
+    one = (
+        "The right of access to adequate housing cannot be seen in isolation. "
+        "There is a close relationship between it and"
+    )
+    two = (
+        "The state is obliged to take positive action to meet the needs of those "
+        "living in extreme conditions of poverty,"
+    )
+    assert len(one.split()) == 20
+    assert len(two.split()) == 20
+    assert quote_in_source(one, GROOTBOOM)
+    assert quote_in_source(two, GROOTBOOM)
+    facts = f"{one} ... {two}"
+    assert len(facts) >= 200
+    assert not facts_too_short(facts)
+    passed = await convert_cases(
+        Pool(
+            Doc(
+                GROOTBOOM,
+                doc_id="grootboom",
+                citation="[2000] ZACC 19",
+                title="Government of the Republic of South Africa v Grootboom",
+                source_id="concourt",
+            )
+        ),
+        LadderMemory(),
+        Answer(_body(facts, citation="[2000] ZACC 19", element=one)),
+        region="za",
+    )
+    assert passed["converted"] == 1
+    assert passed["failed"] == 0
