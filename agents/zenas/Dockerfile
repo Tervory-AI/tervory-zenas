@@ -13,6 +13,7 @@ RUN pip install --no-cache-dir -r requirements.txt -r zenas-requirements.txt "cr
     && chown agent:agent /data
 COPY _chassis/chassis /app/chassis
 COPY zenas/app.py /app/app.py
+COPY zenas/gold_sources.py /app/agents/zenas/gold_sources.py
 COPY zenas/schema.sql /app/agents/zenas/schema.sql
 COPY zenas/core /app/agents/zenas/core
 COPY zenas/pool /app/agents/zenas/pool

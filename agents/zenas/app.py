@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import hmac
 import os
 import sys
 from contextlib import asynccontextmanager
@@ -30,7 +31,7 @@ from agents.zenas.pool.region import RegionError, assert_box_region  # noqa: E40
 from agents.zenas.pool.store import PostgresStore  # noqa: E402
 from chassis.app import create_app  # noqa: E402
 from chassis.jobs import JobContext  # noqa: E402
-from fastapi import HTTPException  # noqa: E402
+from fastapi import HTTPException, Header, Query  # noqa: E402
 from pydantic import BaseModel, Field  # noqa: E402
 
 from agents.zenas.core.ladder_store import PgLadder  # noqa: E402
@@ -67,6 +68,7 @@ from agents.zenas.core.service import (  # noqa: E402
 from agents.zenas.core.convert import begin_convert, conversion_report, convert_cases, convert_running  # noqa: E402
 from agents.zenas.core.selftest import list_scores, run_selftest  # noqa: E402
 from agents.zenas.core.store import PgStore, register_home  # noqa: E402
+from agents.zenas.gold_sources import candidates as gold_candidates  # noqa: E402
 
 AGENT = os.environ.get("AGENT_NAME", "zenas")
 HEARTBEAT_TENANT = "00000000-0000-0000-0000-000000000001"
@@ -192,6 +194,17 @@ app = create_app(
         }
     ],
 )
+
+
+@app.get("/gold/candidates")
+async def get_gold_candidates(
+    limit: int = Query(default=200, ge=0, le=200),
+    x_tank_key: str = Header(default=""),
+) -> list[dict[str, Any]]:
+    expected = os.environ.get("TANK_KEY", "")
+    if not expected or not hmac.compare_digest(x_tank_key.encode(), expected.encode()):
+        raise HTTPException(status_code=401, detail="room key required")
+    return await gold_candidates(app.state.pool, region=_box_region(), limit=limit)
 
 
 class ConsentIn(BaseModel):
