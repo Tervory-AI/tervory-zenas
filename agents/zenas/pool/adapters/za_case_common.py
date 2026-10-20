@@ -36,9 +36,20 @@ _MONTHS = {
     "november": 11,
     "december": 12,
 }
+# The body scan stays narrow so a commercial judgment that cites a criminal
+# case in its opening is kept. Titles and file names also match "The State vs",
+# a mid-title "S v", and the DPP and NPA initials.
 _CRIMINAL = re.compile(
-    r"(^\s*s\s+v\s+\S|\bv\s+the\s+state\b|\bv\s+s\b|\bdirector of public prosecutions\b|"
-    r"\bnational prosecuting authority\b|criminal appeal|criminal trial)",
+    r"(^\s*s\s+v\s+\S|\bv\s+the\s+state\b|\bv\s+s\b|\bthe\s+state\s+vs?\.?\s+\S|"
+    r"\bdirector of public prosecutions\b|\bnational prosecuting authority\b|"
+    r"criminal appeal|criminal trial)",
+    re.I,
+)
+_CRIMINAL_TITLE = re.compile(
+    r"(^\s*s\s+v\s+\S|(?:^|[\s\[\(])s\s+v\s+\S|\bthe\s+state\s+vs?\.?\s+\S|"
+    r"\bv\s+the\s+state\b|\bv\s+s\b|\bdpp\b|\bnpa\b|"
+    r"\bdirector of public prosecutions\b|\bnational prosecuting authority\b|"
+    r"criminal appeal|criminal trial)",
     re.I,
 )
 
@@ -99,7 +110,7 @@ def is_criminal_caption(title: str, text: str = "") -> bool:
     """Drop criminal matters. The check reads the caption, not the whole reasons."""
     head = title or ""
     opening = (text or "")[:600]
-    return bool(_CRIMINAL.search(head) or _CRIMINAL.search(opening))
+    return bool(_CRIMINAL_TITLE.search(head) or _CRIMINAL.search(opening))
 
 
 def slug_title(url: str) -> str:

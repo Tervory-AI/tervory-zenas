@@ -11,16 +11,13 @@ from __future__ import annotations
 import re
 from urllib.parse import unquote
 
+from agents.zenas.pool.adapters.za_archive import ArchiveRun, accept_pdf, polite_get
 from agents.zenas.pool.adapters.za_case_common import (
     absolute_url,
-    after_cursor,
-    case_pause,
-    max_docs,
     neutral_citation,
     parse_case_blob,
-    pdfs_to_cases,
 )
-from agents.zenas.pool.adapters.za_common import html_headers, reject_credential_url
+from agents.zenas.pool.adapters.za_common import html_headers
 from agents.zenas.pool.model import LegalDocument, SourceSpec
 
 JUSTICE = "https://www.justice.gov.za/tribunal/jdgm.html"
@@ -95,48 +92,105 @@ def _citation(url: str, text: str) -> str:
     return ""
 
 
+def _next_listing(page: bytes, base: str, current: str) -> str:
+    """The next SIU listing page, if this HTML has one. Matter pages are not listings."""
+    text = page.decode("utf-8", errors="replace")
+    current_page = 1
+    match = re.search(r"/page/(\d+)/?$", current.rstrip("/"))
+    if match:
+        current_page = int(match.group(1))
+    pages = [int(value) for value in re.findall(r"/page/(\d+)/?", text) if int(value) > current_page]
+    if not pages:
+        return ""
+    nxt = min(pages)
+    return absolute_url(base, f"page/{nxt}/")
+
+
 class SpecialTribunalAdapter:
     source_id = "special-tribunal"
+
+    def __init__(self) -> None:
+        self.run = ArchiveRun("")
+
+    def load_note(self) -> dict:
+        return self.run.load_note()
 
     async def fetch(self, http_get) -> list[bytes]:
         blobs, _cursor = await self.fetch_bulk(http_get, resume="")
         return blobs
 
     async def fetch_bulk(self, http_get, *, resume: str = "") -> tuple[list[bytes], str]:
-        urls: list[str] = []
-        reject_credential_url(JUSTICE)
-        try:
-            page = await http_get(JUSTICE, html_headers())
-        except OSError:
-            page = b""
-        await case_pause("TRIBUNAL_MIN_INTERVAL")
-        urls.extend(justice_pdfs(page))
-        reject_credential_url(SIU)
-        try:
-            listing = await http_get(SIU, html_headers())
-        except OSError:
-            listing = b""
-        await case_pause("TRIBUNAL_MIN_INTERVAL")
-        for matter in siu_matter_urls(listing):
-            reject_credential_url(matter)
-            try:
-                matter_page = await http_get(matter, html_headers())
-            except OSError:
-                await case_pause("TRIBUNAL_MIN_INTERVAL")
-                continue
-            await case_pause("TRIBUNAL_MIN_INTERVAL")
-            pdf = siu_pdf(matter_page, matter)
-            if pdf and pdf not in urls:
-                urls.append(pdf)
-        pending = after_cursor(urls, resume)[: max_docs()]
-        blobs = await pdfs_to_cases(
-            http_get,
-            pending,
-            body="Special Tribunal",
-            interval_env="TRIBUNAL_MIN_INTERVAL",
-            citation_for=_citation,
-        )
-        return blobs, (pending[-1] if pending else resume)
+        self.run = ArchiveRun(resume)
+        run = self.run
+        blobs: list[bytes] = []
+        justice = await polite_get(http_get, JUSTICE, html_headers(), "TRIBUNAL_MIN_INTERVAL")
+        if justice.challenge:
+            run.skip("challenge page")
+            run.hold = True
+        elif not justice.error:
+            run.place("justice", "0", "0")
+            for url in justice_pdfs(justice.body):
+                payload = await accept_pdf(
+                    run,
+                    http_get,
+                    url,
+                    title="",
+                    body="Special Tribunal",
+                    interval_env="TRIBUNAL_MIN_INTERVAL",
+                    headers=html_headers(),
+                    citation_for=_citation,
+                )
+                if payload:
+                    blobs.append(payload)
+                if run.stopped:
+                    break
+        if not run.stopped and not run.hold:
+            listing_url = SIU
+            seen_listings: set[str] = set()
+            page_no = 1
+            while listing_url and listing_url not in seen_listings and not run.stopped and not run.hold:
+                seen_listings.add(listing_url)
+                if run.resume_done and page_no > 1:
+                    break
+                run.place("siu", "0", str(page_no))
+                listing = await polite_get(http_get, listing_url, html_headers(), "TRIBUNAL_MIN_INTERVAL")
+                if listing.challenge:
+                    run.skip("challenge page")
+                    run.hold = True
+                    break
+                if listing.error:
+                    run.hold = True
+                    break
+                for matter in siu_matter_urls(listing.body):
+                    matter_page = await polite_get(http_get, matter, html_headers(), "TRIBUNAL_MIN_INTERVAL")
+                    if matter_page.challenge:
+                        run.skip("challenge page")
+                        run.mark(matter)
+                        continue
+                    if matter_page.error or not matter_page.body:
+                        continue
+                    pdf = siu_pdf(matter_page.body, matter)
+                    if not pdf:
+                        continue
+                    payload = await accept_pdf(
+                        run,
+                        http_get,
+                        pdf,
+                        title="",
+                        body="Special Tribunal",
+                        interval_env="TRIBUNAL_MIN_INTERVAL",
+                        headers=html_headers(),
+                        citation_for=_citation,
+                    )
+                    if payload:
+                        blobs.append(payload)
+                    if run.stopped:
+                        break
+                nxt = _next_listing(listing.body, listing_url, listing_url)
+                page_no += 1
+                listing_url = nxt
+        run.finish()
+        return blobs, run.cursor()
 
     def parse(self, blob: bytes, source: SourceSpec) -> list[LegalDocument]:
         return parse_case_blob(blob, source)

@@ -12,18 +12,22 @@ from __future__ import annotations
 import html
 import re
 
+from agents.zenas.pool.adapters.za_archive import (
+    ArchiveRun,
+    accept_pdf,
+    limit_years,
+    next_number,
+    polite_get,
+)
 from agents.zenas.pool.adapters.za_case_common import (
     absolute_url,
-    after_cursor,
-    case_pause,
     env_int,
     is_criminal_caption,
     neutral_citation,
     parse_case_blob,
     parse_date,
-    pdfs_to_cases,
 )
-from agents.zenas.pool.adapters.za_common import html_headers, reject_credential_url
+from agents.zenas.pool.adapters.za_common import html_headers
 from agents.zenas.pool.model import LegalDocument, SourceSpec
 
 HOST = "https://www.supremecourtofappeal.org.za"
@@ -90,61 +94,115 @@ def _court(citation: str, category_url: str) -> str:
     return "Supreme Court of Appeal"
 
 
+def _year_of(url: str) -> int:
+    match = re.search(r"(19\d{2}|20\d{2})", url)
+    return int(match.group(1)) if match else 0
+
+
 class ScaAdapter:
     source_id = "sca"
+
+    def __init__(self) -> None:
+        self.run = ArchiveRun("")
+
+    def load_note(self) -> dict:
+        return self.run.load_note()
 
     async def fetch(self, http_get) -> list[bytes]:
         blobs, _cursor = await self.fetch_bulk(http_get, resume="")
         return blobs
 
     async def fetch_bulk(self, http_get, *, resume: str = "") -> tuple[list[bytes], str]:
-        years = env_int("SCA_MAX_YEARS", 1)
-        pages = env_int("SCA_MAX_PAGES", 1)
-        limit = env_int("SCA_MAX_FILES", env_int("ZA_CASE_MAX_DOCS", 8))
-        categories: list[str] = []
-        for index in (SCA_INDEX, ELECTORAL_INDEX):
-            reject_credential_url(index)
-            page = await http_get(index, html_headers())
-            await case_pause("SCA_MIN_INTERVAL")
-            picked = category_urls(page)[:years]
-            for url in picked:
-                if url not in categories:
-                    categories.append(url)
-        sends: list[tuple[str, str, str]] = []
-        for category in categories:
+        """Every SCA and Electoral Court year, and every page of each year.
+
+        SCA_MAX_YEARS and SCA_MAX_PAGES still bound a run when set. Unset, the
+        walk covers the whole index and stops at ZENAS_ZA_ARCHIVE_MAX.
+        """
+        self.run = ArchiveRun(resume)
+        run = self.run
+        year_cap = env_int("SCA_MAX_YEARS", 0)
+        page_cap = env_int("SCA_MAX_PAGES", 0)
+        grouped: list[tuple[str, str, str]] = []
+        for scope, index in (("sca", SCA_INDEX), ("electoral", ELECTORAL_INDEX)):
+            got = await polite_get(http_get, index, html_headers(), "SCA_MIN_INTERVAL")
+            if got.challenge:
+                run.skip("challenge page")
+                run.hold = True
+                return [], run.cursor()
+            if got.error:
+                run.hold = True
+                return [], run.cursor()
+            folders = limit_years(category_urls(got.body), year_cap, _year_of)
+            for url in folders:
+                grouped.append((scope, str(_year_of(url)), url))
+        scope_order = list(dict.fromkeys(scope for scope, _year, _url in grouped))
+        fronts: dict[str, str] = {}
+        for scope, year, _url in grouped:
+            if scope not in fronts or int(year or 0) > int(fronts[scope] or 0):
+                fronts[scope] = year
+        blobs: list[bytes] = []
+        by_send: dict[str, tuple[str, str]] = {}
+        for scope, year, category in grouped:
+            if run.stopped or run.hold:
+                break
+            if run.behind(scope_order, scope, year, "end"):
+                continue
+            front = fronts.get(scope, year)
             start = 0
             seen_pages = 0
-            while seen_pages < pages:
-                url = category if start == 0 else f"{category}?start={start}"
-                reject_credential_url(url)
-                page = await http_get(url, html_headers())
-                await case_pause("SCA_MIN_INTERVAL")
-                seen_pages += 1
-                for send, title in summary_sends(page):
-                    sends.append((send, title, category))
-                jumps = [value for value in next_starts(page) if value > start and value % 10 == 0]
-                if not jumps:
+            while not run.stopped and not run.hold:
+                if not run.caught_up_visit(year, str(start), front):
                     break
-                start = jumps[0]
-        pending = set(after_cursor([send for send, _title, _category in sends], resume))
-        window = [(send, title, category) for send, title, category in sends if send in pending][:limit]
-        chosen = [
-            (send, title, category) for send, title, category in window if not is_criminal_caption(title)
-        ]
-        by_send = {send: (title, category) for send, title, category in chosen}
-        blobs = await pdfs_to_cases(
-            http_get,
-            [send for send, _title, _category in chosen],
-            body="Supreme Court of Appeal",
-            interval_env="SCA_MIN_INTERVAL",
-            citation_for=lambda url, text: neutral_citation(by_send.get(url, ("", ""))[0]) or neutral_citation(text),
-            title_for=lambda url, text: by_send.get(url, ("", ""))[0] or text.split("\n", 1)[0][:180],
-        )
-        # pdfs_to_cases stamps every row as the SCA. Electoral rows are rewritten below.
-        blobs = [_retag(blob, by_send) for blob in blobs]
-        blobs = [blob for blob in blobs if blob]
-        last = window[-1][0] if window else resume
-        return blobs, last
+                if run.behind(scope_order, scope, year, str(start)):
+                    if run.resume_scope == scope and run.resume_year == year and start < int(run.resume_page or 0):
+                        start = int(run.resume_page or 0)
+                        continue
+                    break
+                run.place(scope, year, str(start))
+                if int(year or 0):
+                    run.note_year(int(year))
+                url = category if start == 0 else f"{category}?start={start}"
+                got = await polite_get(http_get, url, html_headers(), "SCA_MIN_INTERVAL")
+                seen_pages += 1
+                if got.challenge:
+                    run.skip("challenge page")
+                    run.hold = True
+                    break
+                if got.error:
+                    run.hold = True
+                    break
+                for send, title in summary_sends(got.body):
+                    by_send[send] = (title, category)
+                    payload = await accept_pdf(
+                        run,
+                        http_get,
+                        send,
+                        title=title,
+                        body="Supreme Court of Appeal",
+                        interval_env="SCA_MIN_INTERVAL",
+                        headers=html_headers(),
+                        citation_for=lambda file_url, text, titles=by_send: (
+                            neutral_citation(titles.get(file_url, ("", ""))[0]) or neutral_citation(text)
+                        ),
+                        title_for=lambda file_url, text, titles=by_send: (
+                            titles.get(file_url, ("", ""))[0] or text.split("\n", 1)[0][:180]
+                        ),
+                    )
+                    if payload:
+                        blobs.append(payload)
+                    if run.stopped:
+                        break
+                if run.stopped or run.hold:
+                    break
+                if page_cap and seen_pages >= page_cap:
+                    break
+                nxt = next_number(got.body, start, kind="start")
+                if nxt is None:
+                    break
+                start = nxt
+        blobs = [blob for blob in (_retag(blob, by_send) for blob in blobs) if blob]
+        run.finish()
+        return blobs, run.cursor()
 
     def parse(self, blob: bytes, source: SourceSpec) -> list[LegalDocument]:
         return parse_case_blob(blob, source)

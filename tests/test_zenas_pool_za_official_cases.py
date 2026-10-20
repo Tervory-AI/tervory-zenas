@@ -460,7 +460,11 @@ async def _phoca_family():
     assert not any("court-rolls" in url and "download=9" in url for url in calls)
     assert not any(url.endswith("Appeal-court-rules.pdf") for url in calls)
     assert not any("CONFI-secret.pdf" in url for url in calls)
-    assert not any("western-cape" in url or "kwazulu" in url for url in calls)
+    assert not any(
+        piece in url
+        for url in calls
+        for piece in ("limpopo", "mpumalanga", "north-west", "northern-cape")
+    )
 
 
 def test_special_tribunal_and_rules_and_gazette_rss():

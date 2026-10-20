@@ -16,6 +16,16 @@ import json
 import re
 from xml.etree import ElementTree as ET
 
+from urllib.parse import quote
+
+from agents.zenas.pool.adapters.za_archive import (
+    ArchiveRun,
+    ChallengePage,
+    archive_max,
+    is_challenge_page,
+    log_challenge,
+    polite_get,
+)
 from agents.zenas.pool.adapters.za_case_common import (
     case_bytes,
     env_int,
@@ -166,6 +176,29 @@ def _values(item: dict, key: str) -> list[str]:
     return found
 
 
+def year_sets(blob: bytes) -> list[tuple[int, str]]:
+    """Year collections only. Rolls, hearings, and other sets are left out."""
+    try:
+        root = ET.fromstring(blob)
+    except ET.ParseError:
+        return []
+    found: dict[int, str] = {}
+    for element in root.iter():
+        if _local(element.tag) != "set":
+            continue
+        spec = ""
+        name = ""
+        for child in list(element):
+            kind = _local(child.tag)
+            if kind == "setspec":
+                spec = " ".join((child.text or "").split())
+            elif kind == "setname":
+                name = " ".join((child.text or "").split())
+        if spec and re.fullmatch(r"(?:19|20)\d{2}", name):
+            found[int(name)] = spec
+    return [(year, found[year]) for year in sorted(found)]
+
+
 def describe_item(item: dict) -> dict:
     from agents.zenas.pool.adapters.za_case_common import neutral_citation
 
@@ -193,41 +226,174 @@ def _embedded(payload: dict, key: str) -> list[dict]:
 class ConcourtAdapter:
     source_id = "concourt"
 
+    def __init__(self) -> None:
+        self.run = ArchiveRun("")
+
+    def load_note(self) -> dict:
+        return self.run.load_note()
+
     async def fetch(self, http_get) -> list[bytes]:
         blobs, _cursor = await self.fetch_bulk(http_get, resume="")
         return blobs
 
     async def fetch_bulk(self, http_get, *, resume: str = "") -> tuple[list[bytes], str]:
-        limit = env_int("CONCOURT_MAX_ITEMS", 5)
-        records = await _list_latest(http_get)
-        pending = [row for row in records if row["handle"] > resume] if resume else records
-        pending = pending[:limit]
+        """Every year collection, then Latest Judgments.
+
+        CONCOURT_MAX_ITEMS still bounds a run when set. Unset, the walk follows
+        each set's resumption token and stops at ZENAS_ZA_ARCHIVE_MAX.
+        A ListSets response with no year collections falls back to Latest
+        Judgments, which is what a short test double returns.
+        """
+        self.run = ArchiveRun(resume)
+        run = self.run
+        limit = env_int("CONCOURT_MAX_ITEMS", 0)
+        sets, challenged = await _list_year_sets(http_get)
+        if challenged:
+            run.skip("challenge page")
+            run.hold = True
+            return [], run.cursor()
+        if sets:
+            walk = [(str(year), spec, 40) for year, spec in sets]
+            walk.append(("0", OAI_SET, 20))
+            highest = max(year for year, _spec in sets)
+        else:
+            walk = [("0", OAI_SET, 4)]
+            highest = 0
+        order = [spec for _year, spec, _pages in walk]
         blobs: list[bytes] = []
-        last = resume
-        for row in pending:
-            last = row["handle"]
-            if is_criminal_caption(row["title"]):
+        considered = 0
+        for year, spec, max_pages in walk:
+            if run.stopped or run.hold:
+                break
+            if run.resume_done and spec != OAI_SET and int(year or 0) <= int(run.resume_year or 0):
                 continue
-            payload = await _one_item(http_get, row)
-            if payload:
-                blobs.append(payload)
-        return blobs, last
+            if run.behind(order, spec, year, "end"):
+                continue
+            token = ""
+            if run.resume_scope == spec and run.resume_page not in {"", "0", "end"}:
+                token = run.resume_page
+            if run.resume_scope == spec and run.resume_page == "end" and not run.resume_done:
+                continue
+            seen_tokens: set[str] = set()
+            for _page in range(max_pages):
+                if run.stopped or run.hold:
+                    break
+                page_label = token or "0"
+                run.place(spec, year, page_label)
+                if int(year or 0):
+                    run.note_year(int(year))
+                rows, token, failed = await _oai_page(http_get, spec, token)
+                if failed == "challenge":
+                    run.skip("challenge page")
+                    run.hold = True
+                    break
+                if failed == "error":
+                    run.hold = True
+                    break
+                for row in rows:
+                    handle_url = f"https://collections.concourt.org.za/handle/{row['handle']}"
+                    if run.already(handle_url):
+                        run.skip("unchanged")
+                        continue
+                    if limit and considered >= limit:
+                        run.stopped = True
+                        break
+                    considered += 1
+                    payload = await _consider(run, http_get, row)
+                    if payload:
+                        blobs.append(payload)
+                    if run.stopped:
+                        break
+                if run.stopped or run.hold or not token or token in seen_tokens:
+                    if not token and not run.hold and not run.stopped:
+                        run.place(spec, year, "end")
+                    break
+                seen_tokens.add(token)
+        if not run.stopped and not run.hold:
+            run.place(OAI_SET, str(highest), "0")
+            run.finish()
+        return blobs, run.cursor()
 
     def parse(self, blob: bytes, source: SourceSpec) -> list[LegalDocument]:
         return parse_case_blob(blob, source)
 
 
+async def _consider(run: ArchiveRun, http_get, row: dict) -> bytes:
+    handle_url = f"https://collections.concourt.org.za/handle/{row['handle']}"
+    if run.already(handle_url):
+        run.skip("unchanged")
+        return b""
+    if is_criminal_caption(row["title"]):
+        run.skip("criminal")
+        run.mark(handle_url)
+        return b""
+    if run.downloaded >= archive_max():
+        run.stopped = True
+        return b""
+    run.downloaded += 1
+    try:
+        payload = await _one_item(http_get, row)
+    except ChallengePage:
+        run.skip("challenge page")
+        run.mark(handle_url)
+        return b""
+    except OSError:
+        run.downloaded -= 1
+        return b""
+    if not payload:
+        run.skip("not a judgment")
+        run.mark(handle_url)
+        return b""
+    match = re.search(r"\[((?:19|20)\d{2})\]", str(row.get("citation") or ""))
+    if match:
+        run.note_year(int(match.group(1)))
+    run.mark(handle_url)
+    return payload
+
+
+async def _list_year_sets(http_get) -> tuple[list[tuple[int, str]], bool]:
+    found: dict[int, str] = {}
+    token = ""
+    for _page in range(5):
+        url = f"{OAI}?verb=ListSets" if not token else f"{OAI}?verb=ListSets&resumptionToken={quote(token, safe='')}"
+        assert_allowed(url)
+        got = await polite_get(http_get, url, xml_headers(), "CONCOURT_MIN_INTERVAL", pause_default="10")
+        if got.challenge:
+            return [], True
+        if got.error or not got.body:
+            return [], False
+        for year, spec in year_sets(got.body):
+            found[year] = spec
+        _rows, token = records_from_oai(got.body)
+        if not token:
+            break
+    return [(year, found[year]) for year in sorted(found)], False
+
+
+async def _oai_page(http_get, set_spec: str, token: str) -> tuple[list[dict], str, str]:
+    """One ListRecords page. The third value is '', 'challenge', or 'error'."""
+    if token:
+        url = f"{OAI}?verb=ListRecords&resumptionToken={quote(token, safe='')}"
+    else:
+        url = f"{OAI}?verb=ListRecords&metadataPrefix=oai_dc&set={set_spec}"
+    assert_allowed(url)
+    got = await polite_get(http_get, url, xml_headers(), "CONCOURT_MIN_INTERVAL", pause_default="10")
+    if got.challenge:
+        return [], token, "challenge"
+    if got.error:
+        return [], token, "error"
+    rows, next_token = records_from_oai(got.body)
+    return rows, next_token, ""
+
+
 async def _list_latest(http_get) -> list[dict]:
-    """Latest Judgments via OAI. A few resumption pages, then stop."""
+    """Latest Judgments via OAI. Kept for callers that want one set."""
     found: dict[str, dict] = {}
     token = ""
-    verb = f"{OAI}?verb=ListRecords&metadataPrefix=oai_dc&set={OAI_SET}"
     for _page in range(4):
-        url = verb if not token else f"{OAI}?verb=ListRecords&resumptionToken={token}"
-        assert_allowed(url)
-        page = await http_get(url, xml_headers())
-        await pause("CONCOURT_MIN_INTERVAL", "10")
-        rows, token = records_from_oai(page)
+        rows, token, failed = await _oai_page(http_get, OAI_SET, token)
+        if failed:
+            break
         for row in rows:
             found[row["handle"]] = row
         if not token:
@@ -258,6 +424,9 @@ async def _one_item(http_get, row: dict) -> bytes:
     assert_allowed(content)
     pdf = await http_get(content, pdf_headers())
     await pause("CONCOURT_MIN_INTERVAL", "10")
+    if is_challenge_page(pdf):
+        log_challenge(content)
+        raise ChallengePage()
     text = pdf_text(pdf)
     if not text:
         fallback = choose_text_fallback(names, judgment)

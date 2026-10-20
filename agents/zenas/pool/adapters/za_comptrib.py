@@ -10,16 +10,19 @@ from __future__ import annotations
 import re
 from urllib.parse import quote, unquote
 
+from agents.zenas.pool.adapters.za_archive import (
+    ArchiveRun,
+    accept_pdf,
+    next_number,
+    note_case_years,
+    polite_get,
+)
 from agents.zenas.pool.adapters.za_case_common import (
     absolute_url,
-    after_cursor,
-    case_pause,
-    max_docs,
     neutral_citation,
     parse_case_blob,
-    pdfs_to_cases,
 )
-from agents.zenas.pool.adapters.za_common import html_headers, reject_credential_url
+from agents.zenas.pool.adapters.za_common import html_headers
 from agents.zenas.pool.model import LegalDocument, SourceSpec
 
 INDEX = "https://www.comptrib.co.za/decided-cases"
@@ -66,23 +69,68 @@ def _citation(url: str, text: str) -> str:
 class ComptribAdapter:
     source_id = "comptrib"
 
+    def __init__(self) -> None:
+        self.run = ArchiveRun("")
+
+    def load_note(self) -> dict:
+        return self.run.load_note()
+
     async def fetch(self, http_get) -> list[bytes]:
         blobs, _cursor = await self.fetch_bulk(http_get, resume="")
         return blobs
 
     async def fetch_bulk(self, http_get, *, resume: str = "") -> tuple[list[bytes], str]:
-        reject_credential_url(INDEX)
-        page = await http_get(INDEX, html_headers())
-        await case_pause("COMPTRIB_MIN_INTERVAL")
-        urls = after_cursor(decision_pdfs(page), resume)[: max_docs()]
-        blobs = await pdfs_to_cases(
-            http_get,
-            urls,
-            body="Competition Tribunal",
-            interval_env="COMPTRIB_MIN_INTERVAL",
-            citation_for=_citation,
-        )
-        return blobs, (urls[-1] if urls else resume)
+        """Every decided-cases page. Merger approval letters are not judgments.
+
+        A caught-up run re-reads page 1 only. New matters are filed there;
+        the older pages are not fetched again.
+        """
+        self.run = ArchiveRun(resume)
+        run = self.run
+        blobs: list[bytes] = []
+        page_no = 1
+        while not run.stopped and not run.hold:
+            if not run.caught_up_visit("0", str(page_no), "0"):
+                break
+            if run.behind(["comptrib"], "comptrib", "0", str(page_no)):
+                if page_no < int(run.resume_page or 1):
+                    page_no = int(run.resume_page or 1)
+                    continue
+                break
+            run.place("comptrib", "0", str(page_no))
+            url = INDEX if page_no == 1 else f"{INDEX}?page={page_no}"
+            got = await polite_get(http_get, url, html_headers(), "COMPTRIB_MIN_INTERVAL")
+            if got.challenge:
+                run.skip("challenge page")
+                run.hold = True
+                break
+            if got.error:
+                run.hold = True
+                break
+            for pdf in decision_pdfs(got.body):
+                note_case_years(run, pdf)
+                payload = await accept_pdf(
+                    run,
+                    http_get,
+                    pdf,
+                    title="",
+                    body="Competition Tribunal",
+                    interval_env="COMPTRIB_MIN_INTERVAL",
+                    headers=html_headers(),
+                    citation_for=_citation,
+                )
+                if payload:
+                    blobs.append(payload)
+                if run.stopped:
+                    break
+            if run.stopped or run.hold:
+                break
+            nxt = next_number(got.body, page_no, kind="page")
+            if nxt is None:
+                break
+            page_no = nxt
+        run.finish()
+        return blobs, run.cursor()
 
     def parse(self, blob: bytes, source: SourceSpec) -> list[LegalDocument]:
         return parse_case_blob(blob, source)

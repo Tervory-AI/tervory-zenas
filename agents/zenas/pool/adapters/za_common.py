@@ -5,9 +5,8 @@ from __future__ import annotations
 import asyncio
 import os
 
+from agents.zenas.pool.http import USER_AGENT as _USER_AGENT
 from agents.zenas.pool.licence import FetchNotConfigured
-
-_USER_AGENT = "TervoryZenasPool/0.1"
 
 
 def reject_credential_url(url: str, secret: str = "") -> None:

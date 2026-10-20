@@ -151,6 +151,17 @@ async def _update_source(
     blobs: list[bytes] | None
     if snapshots is not None:
         blobs = list(snapshots.get(source.source_id, []))
+    elif live and await _live_archive(
+        store,
+        source,
+        on=on,
+        when=when,
+        http_get=http_get,
+        embedder=embedder,
+        index=index,
+        region=region,
+    ):
+        return
     elif live:
         try:
             blobs = await get_adapter(source).fetch(http_get)
@@ -351,6 +362,93 @@ async def courtlistener_night(
         documents=await store.instrument_count(source.source_id),
         when=when,
     )
+
+
+async def _live_archive(
+    store: Store,
+    source,
+    *,
+    on: date,
+    when: datetime,
+    http_get,
+    embedder: Embedder,
+    index: VectorIndex,
+    region: str,
+) -> bool:
+    """Resume a ZA court archive. Other sources keep the ordinary live fetch.
+
+    bulk.py imports urllib_get from this module, so this does not call back into bulk.
+    """
+    from agents.zenas.pool.adapters.za_archive import ZA_ARCHIVE_SOURCES, feed_detail
+    from agents.zenas.pool.http import RateLimited
+
+    if source.source_id not in ZA_ARCHIVE_SOURCES:
+        return False
+    adapter = get_adapter(source)
+    if not hasattr(adapter, "fetch_bulk"):
+        return False
+    try:
+        resume = await store.get_checkpoint(source.source_id)
+        if resume.startswith("snap:"):
+            resume = ""
+        blobs, cursor = await adapter.fetch_bulk(http_get, resume=resume)
+    except RateLimited as exc:
+        await store.record_source(source)
+        await store.record_run(
+            source.source_id,
+            status="rate_limited",
+            detail=f"{exc}; the next Load retries",
+            documents=await store.instrument_count(source.source_id),
+            when=when,
+        )
+        return True
+    except (FetchNotConfigured, LicenceError) as exc:
+        await store.record_source(source)
+        await store.record_run(
+            source.source_id,
+            status="not_configured",
+            detail=str(exc),
+            documents=await store.instrument_count(source.source_id),
+            when=when,
+        )
+        return True
+    note: dict = {}
+    load_note = getattr(adapter, "load_note", None)
+    if callable(load_note):
+        try:
+            loaded = load_note()
+        except Exception:  # noqa: BLE001 — a note never fails the night
+            loaded = {}
+        if isinstance(loaded, dict):
+            note = loaded
+    skips: Counter[str] = Counter(note.get("skips") or {})
+    if blobs:
+        inserted = await ingest_snapshot(
+            store,
+            source,
+            list(blobs),
+            on=on,
+            embedder=embedder,
+            index=index,
+            region=region,
+            skips=skips,
+        )
+    else:
+        inserted = 0
+        await store.record_source(source)
+    if cursor:
+        await store.set_checkpoint(source.source_id, cursor, await store.stored_bytes())
+    elif resume:
+        await store.set_checkpoint(source.source_id, "", await store.stored_bytes())
+    count = await store.instrument_count(source.source_id)
+    await store.record_run(
+        source.source_id,
+        status="ok",
+        detail=feed_detail(inserted, skips),
+        documents=count,
+        when=when,
+    )
+    return True
 
 
 async def _update_official(
