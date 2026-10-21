@@ -335,6 +335,10 @@ class _Conn:
             return self.row
         return {"rejected": 0, "judged": 0}
 
+    async def fetchval(self, sql: str, *_args: object) -> bool:
+        assert "tank.controls" in sql
+        return False
+
     async def execute(self, *_args: object) -> str:
         return "INSERT 0 1"
 
