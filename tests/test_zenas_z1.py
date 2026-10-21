@@ -538,7 +538,7 @@ def test_skill_config_matches_the_box_copy_and_policy_row() -> None:
     chassis = (ROOT / "agents" / "_chassis" / "requirements.txt").read_text(encoding="utf-8")
     tank_req = (ROOT / "tank" / "requirements.txt").read_text(encoding="utf-8")
     assert "cryptography" not in chassis
-    assert "cryptography" not in tank_req
+    assert "cryptography==50.0.2" in tank_req  # ACCESS-1 now also encrypts Tank credentials.
     app = (ROOT / "agents" / "zenas" / "app.py").read_text(encoding="utf-8")
     assert "agents.zenas.pool" in app
     assert len(CATALOGUE) > 0
