@@ -26,7 +26,7 @@ from agents.zenas.core.selftest import (  # noqa: E402
     run_scheduled,
     run_selftest,
 )
-from tank.skala import SkillPackage, zenas_approval_reason, zenas_approval_refusal  # noqa: E402
+from tank.skala import SkillPackage, zenas_approval_reason, zenas_approval_refusal, evidence_hash, package_hash  # noqa: E402
 
 _PLATFORM = "00000000-0000-0000-0000-000000000001"
 _QUOTE = "The court refuses leave to appeal."
@@ -311,6 +311,14 @@ class _Conn:
         self.updates: list[str] = []
         self.regions: list[object] = []
 
+    async def fetch(self, sql: str, *args: object) -> list[dict]:
+        if "tank.skills" in sql:
+            return [{"id": args[0], "version": "1.0.0", "state": self.state, "present": True, "approved_at": None}]
+        pkg = _package(str(args[0]))
+        return [{"score": 1, "passed": 5, "total": 5, "details": [
+            {"case_hash": evidence_hash(c), "package_hash": package_hash(pkg), "passed": True}
+            for c in pkg.cases]}] * 3
+
     async def fetchval(self, sql: str, *args: object) -> str:
         return self.state
 
@@ -330,7 +338,8 @@ class _Conn:
         return False
 
     async def execute(self, sql: str, *args: object) -> str:
-        self.updates.append(sql)
+        if sql.startswith(("UPDATE", "INSERT")):
+            self.updates.append(sql)
         return "UPDATE 1"
 
 
@@ -360,6 +369,7 @@ def _package(skill_id: str) -> SkillPackage:
         output_schema={},
         eval_threshold=1.0,
         path=ROOT / "tank" / "skills" / skill_id / "1.0.0",
+        cases=[{"input": {"n": i}, "expected": {"ok": i != 4}, "must_refuse": i == 4} for i in range(5)],
     )
 
 
