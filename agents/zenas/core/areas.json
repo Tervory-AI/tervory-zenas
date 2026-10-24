@@ -39,7 +39,10 @@
     "charged with",
     "indictment",
     "police matter",
-    "plead guilty"
+    "plead guilty",
+    "bail",
+    "theft",
+    "thefts"
   ],
   "jurisdiction_phrases": {
     "us": ["united states", "u.s.", "delaware", "new york", "texas", "ofac", "itar"],
