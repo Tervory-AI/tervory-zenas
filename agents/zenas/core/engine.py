@@ -577,10 +577,35 @@ def card_from_proposal(
     return card
 
 
+def _law_facing(card: dict[str, Any]) -> dict[str, Any]:
+    """Fields a lawyer reads. Skip pool ids (version_id embeds dates that trip PII)."""
+    elements = []
+    for raw in card.get("elements") or []:
+        if not isinstance(raw, dict):
+            continue
+        elements.append(
+            {
+                "id": raw.get("id"),
+                "test": raw.get("test"),
+                "citation": raw.get("citation"),
+                "quote": raw.get("quote"),
+            }
+        )
+    return {
+        "question": card.get("question"),
+        "elements": elements,
+        "exceptions": card.get("exceptions"),
+        "defences": card.get("defences"),
+        "remedies": card.get("remedies"),
+        "decision_table": card.get("decision_table"),
+    }
+
+
 def law_only_problem(card: dict[str, Any], secrets: list[str] | None = None) -> str | None:
-    if client_text_present(card, secrets or []):
+    view = _law_facing(card)
+    if client_text_present(view, secrets or []):
         return LAW_ONLY
-    if identifiers_present(card):
+    if identifiers_present(view):
         return LAW_ONLY
     return None
 

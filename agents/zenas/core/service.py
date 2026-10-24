@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import base64
 import json
+import re
 from typing import Any
 
 from agents.zenas.core.engine import (
@@ -250,6 +251,72 @@ async def retrieve(
     return {"ok": True, "passages": passages}
 
 
+_SEARCH_STOP = frozenset(
+    {
+        "a",
+        "an",
+        "and",
+        "are",
+        "as",
+        "at",
+        "be",
+        "by",
+        "for",
+        "from",
+        "in",
+        "is",
+        "it",
+        "of",
+        "on",
+        "or",
+        "that",
+        "the",
+        "to",
+        "under",
+        "was",
+        "were",
+        "with",
+        "a",
+        "does",
+        "do",
+        "how",
+        "what",
+        "when",
+        "where",
+        "which",
+        "who",
+        "why",
+        "can",
+        "could",
+        "should",
+        "would",
+        "may",
+        "might",
+        "this",
+        "these",
+        "those",
+        "about",
+        "into",
+        "over",
+        "than",
+        "then",
+        "its",
+        "our",
+        "your",
+        "their",
+        "united",
+        "states",
+    }
+)
+
+
+def _search_query(query: str) -> str:
+    """Drop English stop words so Ask questions can hit MemoryStore and FTS alike."""
+    raw = re.findall(r"[a-z0-9§.]+", query.lower())
+    tokens = [tok for tok in raw if len(tok) > 1 and tok not in _SEARCH_STOP]
+    return " ".join(tokens) if tokens else query.strip()
+
+
 async def _passages_from_pool(
     pool: Any,
     *,
@@ -269,9 +336,10 @@ async def _passages_from_pool(
     chunks: list[Any] = []
     if citation.strip() and hasattr(pool, "find_by_citation"):
         chunks.extend(await pool.find_by_citation(citation, jurisdiction=law, as_at=day))
-    if query.strip() and hasattr(pool, "search_text"):
+    search = _search_query(query)
+    if search and hasattr(pool, "search_text"):
         chunks.extend(
-            await pool.search_text(query, jurisdiction=law, as_at=day, level=level, kind=kind, limit=8)
+            await pool.search_text(search, jurisdiction=law, as_at=day, level=level, kind=kind, limit=8)
         )
     passages = []
     seen: set[str] = set()
@@ -1586,11 +1654,15 @@ async def answer_question(
     matter_id: str | None = None,
     provider: str = "luna",
     tank: Any = None,
+    pool: Any = None,
 ) -> dict[str, Any]:
     """Full ladder for one question. A bad citation is never delivered.
 
     With review off, a memo that passes cite-check is released to the matter
     and marked reviewed false. With review on, it waits in the queue.
+
+    When the caller sends no passages (Ask Zenas from Workspace), look them up
+    in the knowledge pool (`pool` / app.state.law_pool) before building a card.
     """
     _home, refused = await _use_home(ladder, tenant_id=tenant_id, home_region=home_region, box_region=box_region)
     if refused:
@@ -1602,6 +1674,18 @@ async def answer_question(
     prepared = prepare_prompt(question, home_region=home_region, provider=provider)
     if not prepared["ok"]:
         return _refuse(prepared["reason"] or IDENTIFIER_REFUSED, delivered=False)
+    if not passages:
+        passages = await _passages_from_pool(
+            pool,
+            query=question,
+            citation="",
+            jurisdiction=jurisdiction,
+            as_at=None,
+            level=None,
+            kind=None,
+        )
+    if not passages:
+        return _refuse("could not verify", delivered=False)
     built = await build_rule_card(
         ladder,
         tank,

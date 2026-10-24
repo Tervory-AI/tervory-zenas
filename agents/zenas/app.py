@@ -27,7 +27,8 @@ if _CHASSIS.is_dir() and str(_CHASSIS) not in sys.path:
 from agents.zenas.pool.api import interrupt_abandoned_loads  # noqa: E402
 from agents.zenas.pool.api import register_routes as register_pool_routes  # noqa: E402
 from agents.zenas.pool.catalogue import CATALOGUE  # noqa: E402
-from agents.zenas.pool.region import RegionError, assert_box_region  # noqa: E402
+from agents.zenas.pool.region import RegionError, assert_box_region
+from agents.zenas.core.law_pool import bind_law_pool  # noqa: E402
 from agents.zenas.pool.store import PostgresStore  # noqa: E402
 from chassis.app import create_app  # noqa: E402
 from chassis.jobs import JobContext  # noqa: E402
@@ -285,14 +286,15 @@ _inner_lifespan = app.router.lifespan_context
 
 @asynccontextmanager
 async def _room_lifespan(application):
-    """After the chassis pool is up, a load still marked running was cut off."""
+    """After the chassis pool is up, bind law_pool and mark cut-off loads."""
     async with _inner_lifespan(application):
         raw = os.environ.get("TANK_REGION", "").strip().lower()
         try:
-            assert_box_region(raw or None)
+            region = assert_box_region(raw or None)
         except RegionError:
             yield
             return
+        bind_law_pool(application, home_region=region)
         try:
             async with _pool_store() as store:
                 await interrupt_abandoned_loads(store)
@@ -946,6 +948,7 @@ async def post_answer(body: AnswerIn) -> dict[str, Any]:
         matter_id=str(body.matter_id) if body.matter_id else None,
         provider=body.provider,
         tank=app.state.tank,
+        pool=getattr(app.state, "law_pool", None),
     )
     if result.get("reason") == "could not verify":
         return result
