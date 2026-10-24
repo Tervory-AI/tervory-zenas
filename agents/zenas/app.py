@@ -42,6 +42,19 @@ from agents.zenas.core.matters import (  # noqa: E402
     upload_document,
 )
 from agents.zenas.core.seal import key_from_env  # noqa: E402
+from agents.zenas.core.moot.problem import (  # noqa: E402
+    counsel_bundle,
+    counsel_payload_leaks_bench,
+    edit_problem,
+    load_fixture_problem,
+    list_fixture_ids,
+    lock_problem,
+)
+from agents.zenas.core.moot.session import (  # noqa: E402
+    publish_match,
+    run_fairness_pair,
+    run_student_match,
+)
 from agents.zenas.core.service import (  # noqa: E402
     add_approved_clause,
     add_playbook,
@@ -1035,3 +1048,108 @@ async def get_metrics(tenant_id: UUID, home_region: str) -> dict[str, Any]:
     )
     _fail(result)
     return result
+
+
+class MootFairnessIn(BaseModel):
+    problem_id: str
+    home_region: str
+    strictness: str = "standard"
+
+
+class MootStudentIn(BaseModel):
+    problem_id: str
+    home_region: str
+    mode: str
+    student_side: str
+    student_text: str
+    strictness: str = "standard"
+
+
+class MootEditIn(BaseModel):
+    changes: dict[str, Any]
+
+
+@app.get("/moot/fixtures")
+async def get_moot_fixtures() -> dict[str, Any]:
+    """List MOOT-1a fixture problem ids (ZA fixtures included; no live ZA host required)."""
+    return {"fixtures": list_fixture_ids()}
+
+
+@app.get("/moot/problems/{problem_id}/counsel/{side}")
+async def get_moot_counsel_bundle(problem_id: str, side: str) -> dict[str, Any]:
+    """Counsel bundle for one side. Bench notes never appear in this payload."""
+    try:
+        problem = load_fixture_problem(problem_id)
+        payload = counsel_bundle(problem, side)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    leaks = counsel_payload_leaks_bench(payload)
+    if leaks:
+        raise HTTPException(status_code=500, detail="bench notes leaked")
+    return payload
+
+
+@app.post("/moot/problems/{problem_id}/edit")
+async def post_moot_edit(problem_id: str, body: MootEditIn) -> dict[str, Any]:
+    """Founder edits a fixture problem (in-memory on this process until lock)."""
+    try:
+        return edit_problem(problem_id, body.changes)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@app.post("/moot/problems/{problem_id}/lock")
+async def post_moot_lock(problem_id: str) -> dict[str, Any]:
+    try:
+        return lock_problem(problem_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.post("/moot/matches/ai-ai")
+async def post_moot_ai_ai(body: MootFairnessIn) -> dict[str, Any]:
+    """Run AI-against-AI twice with sides swapped (fairness check). Unpublished by default."""
+    box = _box_region()
+    if body.home_region != box:
+        raise HTTPException(status_code=403, detail="wrong region")
+    if body.strictness not in ("gentle", "standard", "sca"):
+        raise HTTPException(status_code=422, detail="strictness is gentle, standard or sca")
+    try:
+        return run_fairness_pair(body.problem_id, strictness=body.strictness)  # type: ignore[arg-type]
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.post("/moot/matches/student")
+async def post_moot_student(body: MootStudentIn) -> dict[str, Any]:
+    """Student-against-AI or student-against-student on a fixture problem."""
+    box = _box_region()
+    if body.home_region != box:
+        raise HTTPException(status_code=403, detail="wrong region")
+    if body.strictness not in ("gentle", "standard", "sca"):
+        raise HTTPException(status_code=422, detail="strictness is gentle, standard or sca")
+    try:
+        return run_student_match(
+            body.problem_id,
+            mode=body.mode,  # type: ignore[arg-type]
+            student_side=body.student_side,
+            student_text=body.student_text,
+            strictness=body.strictness,  # type: ignore[arg-type]
+        )
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@app.post("/moot/matches/{match_id}/publish")
+async def post_moot_publish(match_id: str, body: dict[str, Any]) -> dict[str, Any]:
+    """Mark a match payload published (fixture path: client echoes the match body)."""
+    match = dict(body or {})
+    if str(match.get("match_id") or "") != match_id:
+        raise HTTPException(status_code=422, detail="match_id mismatch")
+    return publish_match(match)

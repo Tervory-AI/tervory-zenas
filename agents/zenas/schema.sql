@@ -514,3 +514,39 @@ ALTER TABLE agent_zenas.convert_failures ADD COLUMN IF NOT EXISTS tokens_in inte
 ALTER TABLE agent_zenas.convert_failures ADD COLUMN IF NOT EXISTS tokens_out integer NOT NULL DEFAULT 0;
 ALTER TABLE agent_zenas.convert_failures ADD COLUMN IF NOT EXISTS quote_part text NOT NULL DEFAULT '';
 ALTER TABLE agent_zenas.convert_failures ADD COLUMN IF NOT EXISTS quote_excerpt text NOT NULL DEFAULT '';
+
+-- MOOT-1a: text moot court. Additive only. Matches are training, not filed matters.
+CREATE TABLE IF NOT EXISTS agent_zenas.moot_problems (
+    id            text PRIMARY KEY,
+    tenant_id     uuid NOT NULL,
+    region        text NOT NULL,
+    title         text NOT NULL,
+    body          jsonb NOT NULL,
+    locked        boolean NOT NULL DEFAULT false,
+    created_at    timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT moot_problems_region_chk CHECK (region IN ('za', 'us-east'))
+);
+
+CREATE INDEX IF NOT EXISTS moot_problems_tenant_idx
+    ON agent_zenas.moot_problems (tenant_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS agent_zenas.moot_matches (
+    id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id     uuid NOT NULL,
+    problem_id    text NOT NULL,
+    region        text NOT NULL,
+    mode          text NOT NULL,
+    published     boolean NOT NULL DEFAULT false,
+    fairness      jsonb NOT NULL DEFAULT '{}'::jsonb,
+    runs          jsonb NOT NULL DEFAULT '[]'::jsonb,
+    created_at    timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT moot_matches_region_chk CHECK (region IN ('za', 'us-east')),
+    CONSTRAINT moot_matches_mode_chk CHECK (mode IN ('ai_ai', 'student_ai', 'student_student'))
+);
+
+CREATE INDEX IF NOT EXISTS moot_matches_tenant_idx
+    ON agent_zenas.moot_matches (tenant_id, created_at DESC);
+
+CREATE UNIQUE INDEX IF NOT EXISTS moot_matches_public_id_idx
+    ON agent_zenas.moot_matches (id)
+    WHERE published = true;

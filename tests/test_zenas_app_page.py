@@ -40,8 +40,9 @@ def test_moot_court_starts_empty() -> None:
     assert middle.index("PAGE_LINKS") < middle.index("{MOOT_LABEL}") < middle.index("Plugins")
     assert "showMoot" in middle
     moot = (PAGE / "moot.ts").read_text(encoding="utf-8")
-    assert "There is no training problem yet." in moot
+    assert "Load a locked civil appeal problem to begin." in moot
     assert "Law students will use it later, for free." in moot
+    assert "trains in text" in moot
     assert "return null" in moot
     assert "criminal" not in moot.lower()
     css = (PAGE / "zenas.css").read_text(encoding="utf-8")

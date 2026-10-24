@@ -1,0 +1,56 @@
+{
+  "id": "fixture-us-forum-appeal",
+  "kind": "civil_appeal",
+  "criminal": false,
+  "region": "us-east",
+  "title": "Fixture Supplier v Buyer (3d Cir.) [TEST]",
+  "court": "United States Court of Appeals",
+  "neutral_citation": "[TEST] 3d Cir. 0",
+  "source_url": "https://example.test/fixture-us-forum-appeal",
+  "facts": "A B2B supply contract had a Delaware forum-selection clause. The district court refused to enforce it. The supplier appeals.",
+  "grounds_of_appeal": [
+    "Forum-selection clauses in B2B contracts are presumptively enforceable.",
+    "The buyer did not show the exceptional circumstances that defeat enforcement."
+  ],
+  "bundles": {
+    "appellant": {
+      "role": "Appellant (supplier)",
+      "grounds": [
+        "The clause is mandatory and selects Delaware courts.",
+        "There is no fraud or overreaching on this record."
+      ],
+      "authorities": [
+        {"name": "Fixture Forum Clauses [TEST] U.S. 1", "binding": true, "paragraph": "15"},
+        {"name": "Fixture Circuit Follows [TEST] 3d Cir. 2", "binding": true, "paragraph": "7"}
+      ]
+    },
+    "respondent": {
+      "role": "Appellee (buyer)",
+      "grounds": [
+        "Enforcement would be unreasonable on these facts.",
+        "Public-policy interests of the forum weigh against transfer."
+      ],
+      "authorities": [
+        {"name": "Fixture Unreasonable Forum [TEST] 3d Cir. 3", "binding": true, "paragraph": "11"},
+        {"name": "Fixture Other Circuit Persuasive [TEST] 9th Cir. 4", "binding": false, "paragraph": "5"}
+      ]
+    }
+  },
+  "bench_notes": {
+    "issues": ["Whether the Delaware forum-selection clause is enforceable."],
+    "binding_authorities": [
+      "Fixture Forum Clauses [TEST] U.S. 1",
+      "Fixture Circuit Follows [TEST] 3d Cir. 2"
+    ],
+    "press_questions": [
+      "Counsel, what exceptional circumstance defeats this clause?"
+    ],
+    "preferred_order": "appeal_upheld",
+    "reason_paragraphs": [
+      "1. Forum-selection clauses in B2B contracts are presumptively enforceable.",
+      "2. The record does not show the exceptional case that defeats enforcement."
+    ],
+    "real_holding": "Judgment reversed. The forum-selection clause is enforced."
+  },
+  "real_holding": "Judgment reversed. The forum-selection clause is enforced."
+}
