@@ -769,6 +769,9 @@ def compose_memo(card: dict[str, Any], element_results: list[dict[str, Any]]) ->
     citations: list[str] = []
     for element in card.get("elements") or []:
         rules.append(f"{element.get('test')} ({element.get('citation')})")
+        quote = str(element.get("quote") or "").strip()
+        if quote:
+            rules.append(quote)
         if element.get("citation"):
             citations.append(str(element["citation"]))
     applications: list[str] = []

@@ -15,6 +15,20 @@ FROM agent_zenas.matters
 WHERE tenant_id = $1 AND id = $2
 """.strip()
 
+MATTERS_LIST = """
+SELECT id, tenant_id, jurisdiction, area, title, parties, status, created_by, created_at
+FROM agent_zenas.matters
+WHERE tenant_id = $1
+ORDER BY created_at DESC
+""".strip()
+
+RELEASED_DOCS_FOR_MATTER = """
+SELECT id, matter_id, tenant_id, kind, version, body, sources, state, reviewed
+FROM agent_zenas.documents
+WHERE tenant_id = $1 AND matter_id = $2 AND state = 'released'
+ORDER BY kind ASC, version ASC
+""".strip()
+
 INSERT_MATTER = """
 INSERT INTO agent_zenas.matters
     (id, tenant_id, jurisdiction, area, title, parties, status, created_by)
@@ -108,6 +122,8 @@ WHERE region = $1 AND tenant_id = $2 AND id = $3
 
 READS = (
     MATTERS_FOR_TENANT,
+    MATTERS_LIST,
+    RELEASED_DOCS_FOR_MATTER,
     NEXT_VERSION,
     DOCUMENT_FOR_TENANT,
     CURRENT_CONSENT,
@@ -223,11 +239,34 @@ class MemoryStore:
         self.matters.append(saved)
         return saved
 
+
     async def get_matter(self, tenant_id: str, matter_id: str) -> dict[str, Any] | None:
         for row in self.matters:
             if row["tenant_id"] == str(tenant_id) and row["id"] == str(matter_id):
                 return row
         return None
+
+    async def list_matters(self, tenant_id: str) -> list[dict[str, Any]]:
+        rows = [dict(row) for row in self.matters if row["tenant_id"] == str(tenant_id)]
+        rows.sort(key=lambda row: str(row.get("created_at") or ""), reverse=True)
+        return rows
+
+    async def list_released_documents(self, tenant_id: str, matter_id: str) -> list[dict[str, Any]]:
+        out: list[dict[str, Any]] = []
+        for row in self.documents:
+            if (
+                row["tenant_id"] == str(tenant_id)
+                and row["matter_id"] == str(matter_id)
+                and row.get("state") == "released"
+            ):
+                saved = dict(row)
+                sources = saved.get("sources") or []
+                if isinstance(sources, str):
+                    sources = json.loads(sources)
+                saved["sources"] = sources
+                out.append(saved)
+        out.sort(key=lambda row: (str(row.get("kind") or ""), int(row.get("version") or 0)))
+        return out
 
     async def add_document(self, row: dict[str, Any]) -> dict[str, Any]:
         saved = dict(row)
@@ -330,12 +369,34 @@ class PgStore:
         saved["tenant_id"] = str(row["tenant_id"])
         return saved
 
+
     async def get_matter(self, tenant_id: str, matter_id: str) -> dict[str, Any] | None:
         async with self.pool.acquire() as conn:
             row = await conn.fetchrow(MATTERS_FOR_TENANT, _as_uuid(tenant_id), _as_uuid(matter_id))
         if row is None:
             return None
         return _public_matter(row)
+
+    async def list_matters(self, tenant_id: str) -> list[dict[str, Any]]:
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(MATTERS_LIST, _as_uuid(tenant_id))
+        return [_public_matter(row) for row in rows]
+
+    async def list_released_documents(self, tenant_id: str, matter_id: str) -> list[dict[str, Any]]:
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(RELEASED_DOCS_FOR_MATTER, _as_uuid(tenant_id), _as_uuid(matter_id))
+        out: list[dict[str, Any]] = []
+        for row in rows:
+            data = dict(row)
+            data["id"] = str(data["id"])
+            data["matter_id"] = str(data["matter_id"])
+            data["tenant_id"] = str(data["tenant_id"])
+            sources = data.get("sources") or []
+            if isinstance(sources, str):
+                sources = json.loads(sources)
+            data["sources"] = sources
+            out.append(data)
+        return out
 
     async def add_document(self, row: dict[str, Any]) -> dict[str, Any]:
         document_id = str(row.get("id") or _id())

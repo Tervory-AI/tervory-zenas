@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import re
 from collections import defaultdict
 from typing import Any
 
@@ -278,21 +279,53 @@ def made_up_questions(library: list[dict[str, str]] | None = None, *, region: st
 
 
 def _verbatim_quote(text: str) -> str:
-    """A sentence copied from the stored judgment, short enough to score, still the court's words."""
-    for piece in text.replace("\r", "\n").split("\n"):
+    """A sentence copied from the stored judgment, short enough to score, still the court's words.
+
+    Skip judge bylines and sentences that personal-information masking would alter, because
+    rule-card cleaning runs quotes through that mask before cite-check. Keep the historic
+    20-character floor so short court holdings still become library quotes.
+    """
+    _skip = re.compile(
+        r"(circuit judge|district judge|per curiam|justice[.:]?$|after stat\w* the facts)",
+        re.I,
+    )
+    try:
+        from agents.zenas.core.engine import _clean_piece
+    except Exception:  # pragma: no cover
+        _clean_piece = None  # type: ignore
+
+    normalized = text.replace(chr(13), chr(10))
+    candidates: list[str] = []
+    for piece in normalized.split(chr(10)):
         line = piece.strip()
-        if len(line) < 20:
+        if len(line) < 20 or _skip.search(line):
             continue
         end = line.find(". ")
         if end >= 20:
             sentence = line[: end + 1]
-            if sentence in text:
-                return sentence
-        if line.endswith(".") and len(line) <= 400 and line in text:
-            return line
-        if len(line) >= 40 and line[:240] in text:
-            return line[:240]
-    return ""
+            if sentence in text and not _skip.search(sentence):
+                candidates.append(sentence)
+        if line.endswith(".") and 20 <= len(line) <= 400 and line in text:
+            candidates.append(line)
+        elif len(line) >= 40 and line[:240] in text:
+            candidates.append(line[:240])
+    for sentence in candidates:
+        if _clean_piece is None:
+            return sentence
+        if _clean_piece(sentence, []) == sentence:
+            return sentence
+    # fall back: any substring that survives cleaning
+    body = " ".join(normalized.split())
+    for width in (120, 90, 70):
+        for i in range(0, max(0, len(body) - width)):
+            chunk = body[i : i + width]
+            if _skip.search(chunk):
+                continue
+            if _clean_piece is not None and _clean_piece(chunk, []) != chunk:
+                continue
+            if chunk in text or chunk in body:
+                return chunk
+    return candidates[0] if candidates else ""
 
 
 def _made_up_box(region: str) -> tuple[str, str, str, str]:

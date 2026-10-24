@@ -69,6 +69,7 @@ from agents.zenas.core.service import (  # noqa: E402
     extract_case_facts,
     judgment_from_pool_row,
     ladder_metrics,
+    list_matters,
     mark_stale,
     match_matters,
     plain_language,
@@ -318,6 +319,21 @@ async def post_consent(body: ConsentIn) -> dict[str, Any]:
         jurisdiction=body.jurisdiction,
         wording=body.wording,
         ip=body.ip,
+        box_region=_box_region(),
+    )
+    _fail(result)
+    return result
+
+
+@app.get("/matters")
+async def get_matters(tenant_id: UUID, home_region: str) -> dict[str, Any]:
+    """List this tenant's matters on the home box. Released documents only."""
+    store = _store()
+    await store.apply_schema()
+    result = await list_matters(
+        store,
+        tenant_id=str(tenant_id),
+        home_region=home_region,
         box_region=_box_region(),
     )
     _fail(result)

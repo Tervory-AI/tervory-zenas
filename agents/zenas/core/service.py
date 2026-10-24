@@ -1217,6 +1217,45 @@ def _review_match(worked: dict[str, Any], tenant_id: str) -> dict[str, Any]:
     }
 
 
+async def list_matters(
+    store: Any,
+    *,
+    tenant_id: str,
+    home_region: str,
+    box_region: str,
+) -> dict[str, Any]:
+    """Tenant-scoped matters on this home box, with released documents only."""
+    _home, refused = await _use_home(store, tenant_id=tenant_id, home_region=home_region, box_region=box_region)
+    if refused:
+        return refused
+    rows = await store.list_matters(str(tenant_id))
+    matters: list[dict[str, Any]] = []
+    for row in rows:
+        matter_id = str(row.get("id") or "")
+        documents = await store.list_released_documents(str(tenant_id), matter_id)
+        matters.append(
+            {
+                "id": matter_id,
+                "title": row.get("title") or "",
+                "jurisdiction": row.get("jurisdiction") or "",
+                "area": row.get("area") or "",
+                "status": row.get("status") or "",
+                "documents": [
+                    {
+                        "id": str(doc.get("id") or ""),
+                        "kind": doc.get("kind") or "",
+                        "version": doc.get("version"),
+                        "body": doc.get("body") or "",
+                        "sources": doc.get("sources") or [],
+                        "state": doc.get("state") or "released",
+                    }
+                    for doc in documents
+                ],
+            }
+        )
+    return {"ok": True, "matters": matters}
+
+
 async def review_queue(
     matters: Any,
     ladder: Any,
@@ -1711,7 +1750,7 @@ async def answer_question(
         return _refuse("could not verify", delivered=False)
     applied = await apply_law(
         ladder,
-        None,
+        model,
         tenant_id=tenant_id,
         home_region=home_region,
         box_region=box_region,
