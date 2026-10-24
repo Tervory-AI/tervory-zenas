@@ -1,0 +1,56 @@
+{
+  "id": "fixture-sa-lease-appeal",
+  "kind": "civil_appeal",
+  "criminal": false,
+  "region": "za",
+  "title": "Fixture Landlord v Tenant (SCA) [TEST]",
+  "court": "Supreme Court of Appeal",
+  "neutral_citation": "[TEST] ZASCA 0",
+  "source_url": "https://example.test/fixture-sa-lease-appeal",
+  "facts": "A commercial landlord cancelled a lease for late payment without notice. The High Court set the cancellation aside. The landlord appeals.",
+  "grounds_of_appeal": [
+    "The lease clause allowed cancellation on any late payment.",
+    "No notice was required on a proper reading of the clause."
+  ],
+  "bundles": {
+    "appellant": {
+      "role": "Appellant (landlord)",
+      "grounds": [
+        "The cancellation clause is clear and was triggered by late payment.",
+        "The High Court rewrote a commercial bargain."
+      ],
+      "authorities": [
+        {"name": "Fixture Pacta Sunt Servanda [TEST] ZASCA 1", "binding": true, "paragraph": "12"},
+        {"name": "Fixture Commercial Lease Co [TEST] ZASCA 2", "binding": true, "paragraph": "8"}
+      ]
+    },
+    "respondent": {
+      "role": "Respondent (tenant)",
+      "grounds": [
+        "Cancellation without notice is contrary to good faith in this lease.",
+        "The clause must be read with the notice provision in clause 14."
+      ],
+      "authorities": [
+        {"name": "Fixture Good Faith Lease [TEST] ZASCA 3", "binding": true, "paragraph": "21"},
+        {"name": "Fixture Other Division Persuasive [TEST] ZAGPPHC 9", "binding": false, "paragraph": "4"}
+      ]
+    }
+  },
+  "bench_notes": {
+    "issues": ["Whether notice was required before cancellation.", "Whether the clause is enforceable as written."],
+    "binding_authorities": [
+      "Fixture Pacta Sunt Servanda [TEST] ZASCA 1",
+      "Fixture Good Faith Lease [TEST] ZASCA 3"
+    ],
+    "press_questions": [
+      "Counsel, where in the lease is notice dispensed with in clear words?"
+    ],
+    "preferred_order": "appeal_dismissed",
+    "reason_paragraphs": [
+      "1. The cancellation clause must be read with clause 14's notice requirement.",
+      "2. On these facts, cancellation without notice could not stand."
+    ],
+    "real_holding": "Appeal dismissed. Notice was required before cancellation."
+  },
+  "real_holding": "Appeal dismissed. Notice was required before cancellation."
+}

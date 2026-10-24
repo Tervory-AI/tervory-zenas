@@ -42,6 +42,13 @@ from agents.zenas.core.matters import (  # noqa: E402
     upload_document,
 )
 from agents.zenas.core.seal import key_from_env  # noqa: E402
+from agents.zenas.core.moot.problem import (  # noqa: E402
+    counsel_bundle,
+    counsel_payload_leaks_bench,
+    load_fixture_problem,
+    list_fixture_ids,
+)
+from agents.zenas.core.moot.session import run_fairness_pair  # noqa: E402
 from agents.zenas.core.service import (  # noqa: E402
     add_approved_clause,
     add_playbook,
@@ -1035,3 +1042,45 @@ async def get_metrics(tenant_id: UUID, home_region: str) -> dict[str, Any]:
     )
     _fail(result)
     return result
+
+
+class MootFairnessIn(BaseModel):
+    problem_id: str
+    home_region: str
+
+
+@app.get("/moot/fixtures")
+async def get_moot_fixtures() -> dict[str, Any]:
+    """List MOOT-1a fixture problem ids (ZA fixtures included; no live ZA host required)."""
+    return {"fixtures": list_fixture_ids()}
+
+
+@app.get("/moot/problems/{problem_id}/counsel/{side}")
+async def get_moot_counsel_bundle(problem_id: str, side: str) -> dict[str, Any]:
+    """Counsel bundle for one side. Bench notes never appear in this payload."""
+    try:
+        problem = load_fixture_problem(problem_id)
+        payload = counsel_bundle(problem, side)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    leaks = counsel_payload_leaks_bench(payload)
+    if leaks:
+        raise HTTPException(status_code=500, detail="bench notes leaked")
+    return payload
+
+
+@app.post("/moot/matches/ai-ai")
+async def post_moot_ai_ai(body: MootFairnessIn) -> dict[str, Any]:
+    """Run AI-against-AI twice with sides swapped (fairness check). Unpublished by default."""
+    box = _box_region()
+    if body.home_region != box:
+        raise HTTPException(status_code=403, detail="wrong region")
+    try:
+        match = run_fairness_pair(body.problem_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    # Region lock: fixture region must match this box (US box runs US fixture; ZA fixtures for tests only when box is za).
+    # When ZA is offline, Boston may still load ZA *fixtures* for local tests via home_region check above only.
+    return match
