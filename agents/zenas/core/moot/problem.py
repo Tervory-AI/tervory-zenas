@@ -10,7 +10,6 @@ from typing import Any
 
 _FIXTURES = Path(__file__).with_name("fixtures")
 
-# Keys never shown on counsel pages or in counsel API responses.
 _BENCH_PRIVATE = frozenset(
     {
         "bench_notes",
@@ -19,6 +18,9 @@ _BENCH_PRIVATE = frozenset(
         "binding_on_issues",
     }
 )
+
+# In-memory founder edits for fixture problems (no DB in offline tests).
+_EDITED: dict[str, dict[str, Any]] = {}
 
 
 @lru_cache(maxsize=1)
@@ -36,15 +38,57 @@ def list_fixture_ids() -> list[str]:
 
 
 def load_fixture_problem(problem_id: str) -> dict[str, Any]:
-    path = _index().get(problem_id)
-    if path is None:
-        raise KeyError(f"unknown moot fixture: {problem_id}")
-    data = json.loads(path.read_text(encoding="utf-8"))
+    if problem_id in _EDITED:
+        data = deepcopy(_EDITED[problem_id])
+    else:
+        path = _index().get(problem_id)
+        if path is None:
+            raise KeyError(f"unknown moot fixture: {problem_id}")
+        data = json.loads(path.read_text(encoding="utf-8"))
     if str(data.get("kind") or "") != "civil_appeal":
         raise ValueError("moot fixtures must be civil appeals")
     if data.get("criminal"):
         raise ValueError("criminal fixtures are refused")
+    data.setdefault("locked", False)
     return data
+
+
+def edit_problem(problem_id: str, changes: dict[str, Any]) -> dict[str, Any]:
+    """Founder edits a fixture problem. Refused when locked. Never accepts criminal=true."""
+    current = load_fixture_problem(problem_id)
+    if current.get("locked"):
+        raise ValueError("problem is locked")
+    if changes.get("criminal") is True:
+        raise ValueError("criminal problems are refused")
+    # Bench-private keys may be edited by founder only through this path.
+    allowed = {
+        "title",
+        "facts",
+        "grounds_of_appeal",
+        "bundles",
+        "bench_notes",
+        "real_holding",
+        "source_url",
+    }
+    updated = deepcopy(current)
+    for key, val in changes.items():
+        if key not in allowed:
+            raise ValueError(f"cannot edit field: {key}")
+        updated[key] = deepcopy(val)
+    _EDITED[problem_id] = updated
+    return deepcopy(updated)
+
+
+def lock_problem(problem_id: str) -> dict[str, Any]:
+    current = load_fixture_problem(problem_id)
+    current["locked"] = True
+    _EDITED[problem_id] = current
+    return deepcopy(current)
+
+
+def reset_edits() -> None:
+    """Test helper: clear in-memory founder edits."""
+    _EDITED.clear()
 
 
 def counsel_bundle(problem: dict[str, Any], side: str) -> dict[str, Any]:
@@ -57,13 +101,11 @@ def counsel_bundle(problem: dict[str, Any], side: str) -> dict[str, Any]:
     public = {k: deepcopy(v) for k, v in problem.items() if k not in _BENCH_PRIVATE and k != "bundles"}
     public["side"] = side
     public["bundle"] = deepcopy(bundles[side])
-    # Defence in depth: never leak nested private keys.
     _strip_private(public)
     return public
 
 
 def bench_view(problem: dict[str, Any]) -> dict[str, Any]:
-    """Operator / judge view including private notes."""
     return deepcopy(problem)
 
 
@@ -80,7 +122,6 @@ def _strip_private(node: Any) -> None:
 
 
 def counsel_payload_leaks_bench(payload: dict[str, Any]) -> list[str]:
-    """Return private key paths found in a counsel payload (empty = clean)."""
     found: list[str] = []
 
     def walk(node: Any, path: str) -> None:

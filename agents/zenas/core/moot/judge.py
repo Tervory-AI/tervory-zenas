@@ -2,9 +2,17 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from agents.zenas.core.precedent import drop_unverified_cases
+
+Strictness = Literal["gentle", "standard", "sca"]
+
+_STRICTNESS_QUESTIONS = {
+    "gentle": 1,
+    "standard": 2,
+    "sca": 3,
+}
 
 
 def flag_authorities(
@@ -13,12 +21,7 @@ def flag_authorities(
     library_names: list[str],
     binding_names: list[str] | None = None,
 ) -> dict[str, Any]:
-    """Flag made-up citations and non-binding authorities presented as binding.
-
-    ``library_names`` are verified library case names / citations.
-    ``binding_names`` are the subset that bind this bench. Naming a library case
-    that is only persuasive as if it binds is flagged.
-    """
+    """Flag made-up citations and non-binding authorities presented as binding."""
     from agents.zenas.core.precedent import named_cases
 
     binding = set(binding_names or [])
@@ -54,8 +57,37 @@ def flag_authorities(
         "made_up": made_up,
         "nonbinding_as_binding": nonbinding_as_binding,
         "ok": not made_up and not nonbinding_as_binding,
+        "penalty": len(made_up) + len(nonbinding_as_binding),
     }
 
+
+def questions_after_submission(
+    problem: dict[str, Any],
+    *,
+    side: str,
+    submission: str,
+    strictness: Strictness = "standard",
+    style: dict[str, Any] | None = None,
+) -> list[str]:
+    """Text questions the judge puts after a counsel submission (no voice)."""
+    notes = problem.get("bench_notes") or {}
+    press = [str(q) for q in (notes.get("press_questions") or [])]
+    n = _STRICTNESS_QUESTIONS.get(strictness, 2)
+    address = (style or {}).get("judge_address") or "Counsel"
+    out: list[str] = []
+    for q in press[:n]:
+        out.append(f"{address}, on the {side}'s submission: {q}")
+    # Immediate flag question when the submission cites something bad.
+    library = _library_names(problem)
+    binding = list((notes.get("binding_authorities") or []))
+    flags = flag_authorities(submission, library_names=library, binding_names=binding)
+    if flags["made_up"]:
+        out.insert(0, f"{address}, that authority is not in the library. Why should I receive it?")
+    if flags["nonbinding_as_binding"]:
+        out.insert(0, f"{address}, that is a decision of another division. It does not bind me. Why should I follow it?")
+    if strictness == "sca" and len(out) < n:
+        out.append(f"{address}, put the strongest contrary authority and distinguish it.")
+    return out[: max(n, len(out))]
 
 
 def judge_text_ruling(
@@ -64,23 +96,64 @@ def judge_text_ruling(
     appellant_points: list[str],
     respondent_points: list[str],
     library_names: list[str],
+    appellant_flags: dict[str, Any] | None = None,
+    respondent_flags: dict[str, Any] | None = None,
+    strictness: Strictness = "standard",
 ) -> dict[str, Any]:
-    """Deterministic text ruling for fixtures: verified cites only + reveal."""
+    """Deterministic text ruling for fixtures: verified cites only + reveal + penalties."""
     notes = problem.get("bench_notes") or {}
     binding = list(notes.get("binding_authorities") or library_names)
     order = str(notes.get("preferred_order") or "appeal_dismissed")
     reasons = list(notes.get("reason_paragraphs") or ["The fixture bench notes supply the reasons."])
-    # Strip any unverified name from reasons.
     safe_reasons = [drop_unverified_cases(p, library_names) for p in reasons]
+    app_f = appellant_flags or flag_authorities(" ".join(appellant_points), library_names=library_names, binding_names=binding)
+    resp_f = respondent_flags or flag_authorities(" ".join(respondent_points), library_names=library_names, binding_names=binding)
+    penalties = {
+        "appellant": int(app_f.get("penalty") or 0),
+        "respondent": int(resp_f.get("penalty") or 0),
+    }
+    citation_flags = []
+    for side, flags in (("appellant", app_f), ("respondent", resp_f)):
+        for name in flags.get("made_up") or []:
+            citation_flags.append({"side": side, "kind": "made_up", "name": name})
+        for name in flags.get("nonbinding_as_binding") or []:
+            citation_flags.append({"side": side, "kind": "nonbinding_as_binding", "name": name})
+    if citation_flags:
+        safe_reasons = list(safe_reasons) + [
+            f"Citation flags: {len(citation_flags)} failure(s) counted against counsel."
+        ]
     reveal = {
         "real_holding": problem.get("real_holding") or notes.get("real_holding") or "",
         "source": problem.get("source_url") or "",
     }
+    # Authorities in the judgment: binding names only (verified).
+    authorities = [{"name": name, "source_url": problem.get("source_url") or ""} for name in binding]
     return {
         "order": order,
         "reasons": safe_reasons,
-        "authorities": binding,
+        "authorities": [a["name"] for a in authorities],
+        "authority_links": authorities,
         "reveal": reveal,
         "appellant_points_seen": list(appellant_points),
         "respondent_points_seen": list(respondent_points),
+        "citation_flags": citation_flags,
+        "penalties": penalties,
+        "strictness": strictness,
     }
+
+
+def _library_names(problem: dict[str, Any]) -> list[str]:
+    names = [
+        str(x.get("name") or x)
+        for side in ("appellant", "respondent")
+        for x in (problem.get("bundles") or {}).get(side, {}).get("authorities") or []
+    ]
+    names += list((problem.get("bench_notes") or {}).get("binding_authorities") or [])
+    # de-dupe preserve order
+    seen: set[str] = set()
+    out: list[str] = []
+    for n in names:
+        if n not in seen:
+            seen.add(n)
+            out.append(n)
+    return out
