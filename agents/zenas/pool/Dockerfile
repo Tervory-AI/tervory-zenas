@@ -1,6 +1,6 @@
 # Pool loader only. The Zenas room image does not install these packages.
 # Build context is agents/ (the parent of zenas/).
-FROM python:3.12-slim
+FROM python:3.12-slim@sha256:a0f57064cbdcd6285fa45f51237ab0b35ea8ebaed06a1f5973e89e19dfb86704
 WORKDIR /app
 COPY _chassis/requirements.txt /tmp/chassis.txt
 COPY zenas/requirements.txt /tmp/zenas.txt
