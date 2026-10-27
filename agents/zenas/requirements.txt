@@ -8,4 +8,4 @@ pypdf==6.21.2
 # patchright is Apache-2.0. SAFLII answers a plain client with a Cloudflare
 # challenge. The loader fetches those pages in Chromium. A challenge page is
 # refused and never stored. No key.
-patchright==1.64.1
+patchright==1.64.3

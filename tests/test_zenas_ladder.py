@@ -1218,7 +1218,9 @@ def test_ladder_routes_are_registered() -> None:
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    paths = {getattr(route, "path", "") for route in module.app.routes}
+    from http_routes import http_paths
+
+    paths = http_paths(module.app.routes)
     for expected in (
         "/ladder/retrieve",
         "/ladder/cite-check",
