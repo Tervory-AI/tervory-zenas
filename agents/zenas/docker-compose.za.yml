@@ -16,6 +16,7 @@ services:
     environment:
       TANK_REGION: za
       AGENT_NAME: zenas
+      LAWS_AFRICA_API_TOKEN: ${LAWS_AFRICA_API_TOKEN:-}
       # Founder creates Cloudflare R2 bucket tervory-zenas-za and sets this name.
       # US agent-zenas keeps R2_BUCKET: tervory-zenas unchanged.
       R2_BUCKET_ZENAS_ZA: ${R2_BUCKET_ZENAS_ZA:-}

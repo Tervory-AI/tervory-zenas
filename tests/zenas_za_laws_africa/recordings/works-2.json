@@ -1,0 +1,107 @@
+{
+  "count": 13,
+  "next": null,
+  "previous": "https://api.laws.africa/v3/akn/za/.json",
+  "results": [
+    {
+      "frbr_uri": "/akn/za/act/1995/66",
+      "title": "Labour Relations Act 66 of 1995",
+      "publication_date": "1995-01-01",
+      "points_in_time": [
+        {
+          "date": "2024-01-01",
+          "expressions": [
+            {
+              "language": "eng",
+              "url": "https://api.laws.africa/v3/akn/za/act/1995/66/eng@2024-01-01"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "frbr_uri": "/akn/za/act/1997/75",
+      "title": "Basic Conditions of Employment Act 75 of 1997",
+      "publication_date": "1997-01-01",
+      "points_in_time": [
+        {
+          "date": "2024-01-01",
+          "expressions": [
+            {
+              "language": "eng",
+              "url": "https://api.laws.africa/v3/akn/za/act/1997/75/eng@2024-01-01"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "frbr_uri": "/akn/za/act/1993/194",
+      "title": "Trade Marks Act 194 of 1993",
+      "publication_date": "1993-01-01",
+      "points_in_time": [
+        {
+          "date": "2024-01-01",
+          "expressions": [
+            {
+              "language": "eng",
+              "url": "https://api.laws.africa/v3/akn/za/act/1993/194/eng@2024-01-01"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "frbr_uri": "/akn/za/act/2002/41",
+      "title": "National Conventional Arms Control Act 41 of 2002",
+      "publication_date": "2002-01-01",
+      "points_in_time": [
+        {
+          "date": "2024-01-01",
+          "expressions": [
+            {
+              "language": "eng",
+              "url": "https://api.laws.africa/v3/akn/za/act/2002/41/eng@2024-01-01"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "frbr_uri": "/akn/za/act/2000/60",
+      "title": "Firearms Control Act 60 of 2000",
+      "publication_date": "2000-01-01",
+      "points_in_time": [
+        {
+          "date": "2024-01-01",
+          "expressions": [
+            {
+              "language": "eng",
+              "url": "https://api.laws.africa/v3/akn/za/act/2000/60/eng@2024-01-01"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "frbr_uri": "/akn/za/act/gn/2011/r351",
+      "title": "Companies Regulations, 2011",
+      "points_in_time": [
+        {
+          "date": "2024-01-01",
+          "expressions": [
+            {
+              "language": "eng",
+              "url": "https://api.laws.africa/v3/akn/za/act/gn/2011/r351/eng@2024-01-01"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "frbr_uri": "/akn/za-cpt/act/by-law/2009/streets",
+      "title": "Streets by-law",
+      "points_in_time": []
+    }
+  ]
+}

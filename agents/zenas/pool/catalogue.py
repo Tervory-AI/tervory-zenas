@@ -337,7 +337,14 @@ _SAFLII_TERMS = (
 
 
 def _za_sources() -> tuple[SourceSpec, ...]:
-    rows: list[SourceSpec] = []
+    rows: list[SourceSpec] = [SourceSpec(
+        source_id="laws-africa", name="Laws.Africa", region="za", jurisdiction="za",
+        licence="Consolidated statute text published through the Laws.Africa content API.",
+        terms=_LA_TERMS, terms_url=_LA_URL, bulk_use="allowed", store_full_text=True,
+        canonical_url="https://api.laws.africa/v3/akn/za/.json",
+        notes="Consolidated text from the Laws.Africa content API.",
+        adapter="laws-africa", key_name="LAWS_AFRICA_API_TOKEN", key_required=True,
+    )]
     for source_id, title, frbr, _number, _year, regulatory in ACTS:
         notes = (
             "Consolidated text from the Laws.Africa content API. "
@@ -384,6 +391,7 @@ def _za_sources() -> tuple[SourceSpec, ...]:
                 "HTML it links. A challenge page is not stored as a judgment."
             ),
             adapter="saflii",
+            enabled=False,
         )
     )
     rows.append(

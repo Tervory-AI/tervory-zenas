@@ -3,6 +3,7 @@
 import asyncio
 import re
 import sys
+from dataclasses import replace
 from datetime import date
 from pathlib import Path
 
@@ -31,7 +32,9 @@ COMMERCIAL = (
 
 
 def _source():
-    return next(item for item in CATALOGUE if item.source_id == "saflii")
+    # Only these offline transport/parser tests enable SAFLII. The catalogue
+    # stays disabled, and the Laws.Africa suite checks live loads cannot fetch it.
+    return replace(next(item for item in CATALOGUE if item.source_id == "saflii"), enabled=True)
 
 
 def test_saved_cloudflare_responses_are_not_judgments():

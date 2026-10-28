@@ -8,6 +8,7 @@ Snapshots of Akoma Ntoso still parse without it.
 from __future__ import annotations
 
 from datetime import date
+import json
 from xml.etree import ElementTree as ET
 
 from agents.zenas.pool.adapters.za_common import bearer_headers, laws_africa_token, reject_credential_url
@@ -166,10 +167,14 @@ class LawsAfricaAdapter:
 
     def _url(self) -> str:
         url = expression_url(self.frbr)
-        reject_credential_url(url, laws_africa_token())
+        reject_credential_url(url)
         return url
 
     async def _get(self, http_get) -> bytes:
+        from agents.zenas.pool.config import current_region
+        from agents.zenas.pool.region import RegionError
+        if current_region() != "za":
+            raise RegionError("this box does not read za law")
         token = laws_africa_token()
         if not token:
             raise FetchNotConfigured("LAWS_AFRICA_API_TOKEN is not set")
@@ -186,8 +191,12 @@ class LawsAfricaAdapter:
         return [blob], url
 
     def parse(self, blob: bytes, source: SourceSpec) -> list[LegalDocument]:
+        if blob.lstrip().startswith(b"{"):
+            from agents.zenas.pool.adapters.laws_africa_html import parse_expression
+            return parse_expression(json.loads(blob), source)
         return parse_akn(blob, source, number=self.number, year=self.year)
 
 
 def laws_africa_adapters() -> list[LawsAfricaAdapter]:
-    return [LawsAfricaAdapter(source_id, frbr, number, year) for source_id, _title, frbr, number, year, _reg in ACTS]
+    return [LawsAfricaAdapter("laws-africa", "", "", ""),
+            *[LawsAfricaAdapter(source_id, frbr, number, year) for source_id, _title, frbr, number, year, _reg in ACTS]]

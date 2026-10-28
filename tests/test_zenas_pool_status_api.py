@@ -92,7 +92,8 @@ def test_status_key_set_is_false_until_the_variable_is_set(monkeypatch: pytest.M
 
 
 @pytest.mark.asyncio
-async def test_load_one_za_source_from_a_snapshot():
+async def test_load_one_za_source_from_a_snapshot(monkeypatch):
+    monkeypatch.delenv("LAWS_AFRICA_API_TOKEN", raising=False)
     store = MemoryStore()
     app = create_app(store, region="za", snapshots=packaged_snapshots("za"), live=False)
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://fixture") as client:
@@ -104,7 +105,8 @@ async def test_load_one_za_source_from_a_snapshot():
     assert status["region"] == "za"
     companies = next(row for row in status["sources"] if row["source_id"] == "companies-act")
     assert companies["documents"] == 1
-    assert companies["last_status"] == "ok"
+    # Stored offline text does not make the live feed configured.
+    assert companies["last_status"] == "not_configured"
     assert companies["errors"] == []
     assert companies["key_name"] == "LAWS_AFRICA_API_TOKEN"
     popia = next(row for row in status["sources"] if row["source_id"] == "popia")

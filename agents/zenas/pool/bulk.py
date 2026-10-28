@@ -20,6 +20,7 @@ from agents.zenas.pool.embed import Embedder, NoOpEmbedder, NoOpVectorIndex, Vec
 from agents.zenas.pool.http import RateLimited
 from agents.zenas.pool.ingest import ingest_snapshot
 from agents.zenas.pool.licence import FetchNotConfigured, LicenceError, refusal_reason
+from agents.zenas.pool.laws_africa import is_laws_africa, live_sources, sync_source
 from agents.zenas.pool.model import SourceSpec
 from agents.zenas.pool.nightly import urllib_get
 from agents.zenas.pool.region import RegionError, assert_source_region, bind_store
@@ -62,6 +63,8 @@ async def load_wave(
     budget = disk_cap_bytes(cap)
     root = data_dir or os.environ.get("DATA_DIR", ".") or "."
     sources = list(only) if only is not None else sources_for_region(region)
+    if live and snapshots is None:
+        sources = live_sources(sources)
     for source in sources:
         try:
             assert_source_region(source, region)
@@ -196,6 +199,12 @@ async def load_source(
             when=when,
         )
         return False
+
+    if is_laws_africa(source):
+        return await sync_source(
+            store, source, region=region, http_get=None if http_get is urllib_get else http_get,
+            on=on, when=when, embedder=embedder, index=index, cap=cap, data_dir=data_dir,
+        )
 
     try:
         adapter = get_adapter(source)

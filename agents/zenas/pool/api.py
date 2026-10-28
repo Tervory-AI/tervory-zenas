@@ -68,7 +68,10 @@ async def status_for_box(store: Store, region: str | None) -> dict:
     by_id = {row["source_id"]: row for row in report["sources"]}
     sources = []
     for source in sources_for_region(box):
-        sources.append(by_id.get(source.source_id) or _blank_row(source))
+        row = by_id.get(source.source_id) or _blank_row(source)
+        if source.key_name == "LAWS_AFRICA_API_TOKEN" and not row["key_set"]:
+            row = {**row, "last_status": "not_configured", "detail": f"{source.key_name} is not set"}
+        sources.append(row)
     return {"region": box, "sources": sources}
 
 

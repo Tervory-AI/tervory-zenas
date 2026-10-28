@@ -1,7 +1,9 @@
 """South African law loads on the ZA box only. Network calls are mocked."""
 
 import asyncio
+import json
 import sys
+from dataclasses import replace
 from datetime import date
 from pathlib import Path
 
@@ -9,7 +11,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from agents.zenas.pool.adapters.za_akn import expression_url
+from agents.zenas.pool.adapters import laws_africa_api
 from agents.zenas.pool.bulk import load_wave
 from agents.zenas.pool.catalogue import CATALOGUE, sources_for_region
 from agents.zenas.pool.citations import extract_citations
@@ -52,7 +54,9 @@ async def _fixtures():
     assert "saflii" in snaps
     assert "companies-act" in snaps
     assert set(snaps).isdisjoint(packaged_snapshots("us-east"))
-    report = await load_wave(store, region="za", snapshots=snaps, on=ON)
+    # SAFLII is disabled in production; explicitly enable only this offline parser corpus.
+    offline_sources = [replace(source, enabled=True) if source.source_id == "saflii" else source for source in sources_for_region("za")]
+    report = await load_wave(store, region="za", snapshots=snaps, on=ON, only=offline_sources)
     by_id = {row["source_id"]: row for row in report["sources"]}
     assert set(by_id) == {source.source_id for source in sources_for_region("za")}
     assert all(row["region"] == "za" and row["jurisdiction"] == "za" for row in by_id.values())
@@ -92,7 +96,7 @@ async def _fixtures():
     with pytest.raises(RegionError):
         await store.find_by_citation("49 U.S.C. § 14706", jurisdiction="us", as_at=None)
 
-    again = await load_wave(store, region="za", snapshots=snaps, on=ON)
+    again = await load_wave(store, region="za", snapshots=snaps, on=ON, only=offline_sources)
     again_ids = {row["source_id"]: row for row in again["sources"]}
     assert again_ids["saflii"]["documents"] == 2
     assert again_ids["companies-act"]["versions"] == 1
@@ -134,25 +138,34 @@ async def _refuse(region: str, sources):
 
 def test_laws_africa_token_stays_in_the_header(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("LAWS_AFRICA_API_TOKEN", MARKER)
+    async def sleep(_delay):
+        pass
+    monkeypatch.setattr(laws_africa_api.asyncio, "sleep", sleep)
     asyncio.run(_laws_africa())
 
 
 async def _laws_africa():
     seen: list[tuple[str, dict]] = []
+    recordings = ROOT / "tests/zenas_za_laws_africa/recordings"
+    work = json.loads((recordings / "works-1.json").read_text())["results"][0]
 
     async def get(url, headers):
         seen.append((url, dict(headers)))
-        return ACT_XML
+        if url.endswith("/toc.json"):
+            return (recordings / "toc.json").read_bytes()
+        if ".html?" in url:
+            return (recordings / "section.html").read_bytes()
+        return json.dumps(work).encode()
 
     store = MemoryStore()
     source = _source("companies-act")
     report = await load_wave(store, region="za", only=[source], live=True, http_get=get, on=ON)
-    assert len(seen) == 1
-    url, headers = seen[0]
-    assert url == expression_url("akn/za/act/2008/71")
-    assert MARKER not in url
-    assert "token=" not in url.lower()
-    assert headers["Authorization"] == f"Bearer {MARKER}"
+    assert len(seen) == 3
+    assert seen[0][0] == "https://api.laws.africa/v3/akn/za/act/2008/71.json"
+    for url, headers in seen:
+        assert MARKER not in url
+        assert "token=" not in url.lower()
+        assert headers["Authorization"] == f"Bearer {MARKER}"
     row = report["sources"][0]
     assert row["documents"] == 1
     assert row["key_set"] is True
@@ -189,7 +202,7 @@ async def _laws_africa_missing():
     assert "LAWS_AFRICA_API_TOKEN is not set" in row["detail"]
 
 
-def test_saflii_live_load_reads_the_court_pages():
+def test_saflii_live_load_stays_disabled():
     asyncio.run(_saflii_live())
 
 
@@ -203,10 +216,9 @@ async def _saflii_live():
 
     store = MemoryStore()
     report = await load_wave(store, region="za", only=[_source("saflii")], live=True, http_get=get, on=ON)
-    assert seen
-    assert all("saflii.org" in url and url.endswith("recent.html") for url in seen)
+    assert seen == []
     row = report["sources"][0]
-    assert row["last_status"] == "ok"
+    assert row["last_status"] == "skipped"
     assert row["documents"] == 0
     assert "deferred" not in row["detail"].lower()
     assert await store.all_text() == ""

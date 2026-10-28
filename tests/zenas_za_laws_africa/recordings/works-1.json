@@ -1,0 +1,103 @@
+{
+  "count": 13,
+  "next": "https://api.laws.africa/v3/akn/za/.json?page=2",
+  "previous": null,
+  "results": [
+    {
+      "frbr_uri": "/akn/za/act/2008/71",
+      "title": "Companies Act 71 of 2008",
+      "publication_date": "2008-01-01",
+      "points_in_time": [
+        {
+          "date": "2024-01-01",
+          "expressions": [
+            {
+              "language": "eng",
+              "url": "https://api.laws.africa/v3/akn/za/act/2008/71/eng@2024-01-01"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "frbr_uri": "/akn/za/act/2008/68",
+      "title": "Consumer Protection Act 68 of 2008",
+      "publication_date": "2008-01-01",
+      "points_in_time": [
+        {
+          "date": "2024-01-01",
+          "expressions": [
+            {
+              "language": "eng",
+              "url": "https://api.laws.africa/v3/akn/za/act/2008/68/eng@2024-01-01"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "frbr_uri": "/akn/za/act/2013/4",
+      "title": "Protection of Personal Information Act 4 of 2013",
+      "publication_date": "2013-01-01",
+      "points_in_time": [
+        {
+          "date": "2024-01-01",
+          "expressions": [
+            {
+              "language": "eng",
+              "url": "https://api.laws.africa/v3/akn/za/act/2013/4/eng@2024-01-01"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "frbr_uri": "/akn/za/act/1964/91",
+      "title": "Customs and Excise Act 91 of 1964",
+      "publication_date": "1964-01-01",
+      "points_in_time": [
+        {
+          "date": "2024-01-01",
+          "expressions": [
+            {
+              "language": "eng",
+              "url": "https://api.laws.africa/v3/akn/za/act/1964/91/eng@2024-01-01"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "frbr_uri": "/akn/za/act/2002/71",
+      "title": "International Trade Administration Act 71 of 2002",
+      "publication_date": "2002-01-01",
+      "points_in_time": [
+        {
+          "date": "2024-01-01",
+          "expressions": [
+            {
+              "language": "eng",
+              "url": "https://api.laws.africa/v3/akn/za/act/2002/71/eng@2024-01-01"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "frbr_uri": "/akn/za/act/2002/25",
+      "title": "Electronic Communications and Transactions Act 25 of 2002",
+      "publication_date": "2002-01-01",
+      "points_in_time": [
+        {
+          "date": "2024-01-01",
+          "expressions": [
+            {
+              "language": "eng",
+              "url": "https://api.laws.africa/v3/akn/za/act/2002/25/eng@2024-01-01"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

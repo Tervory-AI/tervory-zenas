@@ -43,7 +43,7 @@ def host_of(url: str) -> str:
         return "the host"
 
 
-def retry_after_seconds(value: str | None, *, now: float | None = None) -> float:
+def retry_after_seconds(value: str | None, *, now: float | None = None, max_wait: float | None = RATE_LIMIT_MAX_WAIT_SECONDS) -> float:
     """Seconds from a Retry-After header (delta or HTTP date). Default when absent."""
     raw = (value or "").strip()
     wait = RATE_LIMIT_WAIT_SECONDS
@@ -57,7 +57,7 @@ def retry_after_seconds(value: str | None, *, now: float | None = None) -> float
                 when = None
             if when is not None:
                 wait = when.timestamp() - (time.time() if now is None else now)
-    return max(0.0, min(wait, RATE_LIMIT_MAX_WAIT_SECONDS))
+    return max(0.0, min(wait, max_wait) if max_wait is not None else wait)
 
 
 def request_headers(headers: dict[str, str] | None) -> dict[str, str]:
@@ -83,7 +83,12 @@ def _decode(raw: bytes, encoding: str) -> bytes:
     return raw
 
 
-async def urllib_get(url: str, headers: dict[str, str] | None = None) -> bytes:
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+async def urllib_get(url: str, headers: dict[str, str] | None = None, *, retry: bool = True, redirects: bool = True) -> bytes:
     """Public government URLs only. Never put a key in the URL.
 
     A 406 or 5xx is retried with backoff. A 429 waits for Retry-After (or
@@ -96,11 +101,14 @@ async def urllib_get(url: str, headers: dict[str, str] | None = None) -> bytes:
     def _once() -> bytes:
         request = urllib.request.Request(url, headers=outgoing)
         try:
-            with urllib.request.urlopen(request, timeout=60) as response:
+            open_url = urllib.request.urlopen if redirects else urllib.request.build_opener(_NoRedirect()).open
+            with open_url(request, timeout=60) as response:
                 raw = response.read()
                 encoding = response.headers.get("Content-Encoding") or ""
                 return _decode(raw, encoding)
         except urllib.error.HTTPError as exc:
+            if not retry:
+                raise
             body = exc.read() if exc.fp is not None else b""
             code = int(exc.code or 0)
             if code == 429:

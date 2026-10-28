@@ -16,6 +16,7 @@ from agents.zenas.pool.embed import Embedder, NoOpEmbedder, NoOpVectorIndex, Vec
 from agents.zenas.pool.http import RateLimited
 from agents.zenas.pool.ingest import ingest_snapshot
 from agents.zenas.pool.licence import FetchNotConfigured, LicenceError, refusal_reason
+from agents.zenas.pool.laws_africa import is_laws_africa, live_sources
 from agents.zenas.pool.region import RegionError, assert_source_region, bind_store
 from agents.zenas.pool.status import pool_status
 from agents.zenas.pool.store import Store
@@ -77,6 +78,8 @@ async def run_nightly(
     if only is not None:
         wanted = set(only)
         sources = [source for source in sources if source.source_id in wanted]
+    if live and snapshots is None:
+        sources = live_sources(sources)
     for source in sources:
         try:
             assert_source_region(source, region)
@@ -134,6 +137,14 @@ async def _update_source(
             detail=reason,
             documents=0,
             when=when,
+        )
+        return
+    if snapshots is None and live and is_laws_africa(source):
+        from agents.zenas.pool.bulk import disk_cap_bytes, load_source
+        await load_source(
+            store, source, region=region, snapshots=None, on=on, when=when, live=True,
+            http_get=http_get, embedder=embedder, index=index, cap=disk_cap_bytes(),
+            data_dir=os.environ.get("DATA_DIR", ".") or ".",
         )
         return
     if snapshots is None and live and source.source_id in _OFFICIAL_STATUTES:

@@ -35,8 +35,8 @@ def test_terms_are_information_and_enabled_is_the_only_switch():
     found = {source.source_id for source in CATALOGUE if source.source_id in recorded}
     assert found == recorded
     for source in CATALOGUE:
-        assert source.enabled is True
-        assert may_store_text(source) is True
+        assert source.enabled is (source.source_id != "saflii")
+        assert may_store_text(source) is source.enabled
         assert terms_recorded(source)
     for source in CATALOGUE:
         if source.source_id in recorded:
