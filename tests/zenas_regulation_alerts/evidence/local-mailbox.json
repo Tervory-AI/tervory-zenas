@@ -1,0 +1,15 @@
+{
+  "fixture": "agents/zenas/pool/fixtures/saved/federal-register/19-cfr-141.json",
+  "source_title": "Low-Value Shipments",
+  "source_link": "https://www.federalregister.gov/documents/2026/10/08/2026-20650/low-value-shipments",
+  "watch_id": "966043ce-b7d5-4c41-a360-8ab35da803ec",
+  "change_id": "63ae0588-d349-4c17-8ff3-87598b067dd7",
+  "tenant_id": "19e2718c-6811-4d49-ad20-46fbe7e5f15a",
+  "mail_state": "sent",
+  "messages_received": 1,
+  "tank_route": "zenas.plain_language",
+  "tank_stub": "source excerpt, no model inference",
+  "smtp": "loopback only; existing STARTTLS boundary stub; verifying TLS requested",
+  "subject": "Law change: Low-Value Shipments",
+  "body": "Low-Value Shipments\r\nThis document proposes to amend the U.S. Customs and Border Protection regulations to modify filing requirements for informal entries of goods valued at $2,500 or less and to establish a new electronic informal entry type for merchandise entering through the mail environment. This document also proposes other related changes such as requiring an additional data element for carriers pertaining to mail shipments and imposing bonding requirements for certain informal entries.\r\nSource: https://www.federalregister.gov/documents/2026/10/08/2026-20650/low-value-shipments\r\nDate: 2026-10-08\r\nZenas provides legal information, not legal advice.\r\n"
+}

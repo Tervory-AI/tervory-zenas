@@ -1,0 +1,4 @@
+
+{ "head": { "link": [], "vars": ["celex", "title", "date"] },
+  "results": { "distinct": false, "ordered": true, "bindings": [
+    { "celex": { "type": "literal", "datatype": "http://www.w3.org/2001/XMLSchema#string", "value": "32011L0083" }	, "title": { "type": "literal", "datatype": "http://www.w3.org/2001/XMLSchema#string", "value": "Directive 2011/83/EU of the European Parliament and of the Council of 25\u00A0October 2011 on consumer rights, amending Council Directive 93/13/EEC and Directive 1999/44/EC of the European Parliament and of the Council and repealing Council Directive 85/577/EEC and Directive 97/7/EC of the European Parliament and of the Council Text with EEA relevance" }	, "date": { "type": "literal", "datatype": "http://www.w3.org/2001/XMLSchema#date", "value": "2011-10-25" }} ] } }

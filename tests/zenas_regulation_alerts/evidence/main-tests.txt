@@ -1,0 +1,212 @@
+..............s......................................................... [ 10%]
+........................................................................ [ 21%]
+........................................................................ [ 31%]
+........................s............................................... [ 42%]
+........................................................................ [ 52%]
+...s................................s................................... [ 63%]
+........................................................................ [ 74%]
+.......................................F.s.............................. [ 84%]
+........................................................................ [ 95%]
+................................                                         [100%]
+=================================== FAILURES ===================================
+______________ test_email_copy_matches_actual_workspace_formatter ______________
+
+    def test_email_copy_matches_actual_workspace_formatter():
+        examples = []
+        for kind, before, after, currency in [
+            ("price", "120", "115", "USD"),
+            ("price", "9", "12", "ZAR"),
+            ("stock", "in_stock", "out_of_stock", "USD"),
+            ("stock", "PreOrder", "InStock", "USD"),
+        ]:
+            alert = {
+                "id": str(uuid4()),
+                "kind": kind,
+                "before": before,
+                "after": after,
+                "url": URL,
+                "ts": NOW.isoformat(),
+                "product_name": LABEL,
+                "currency": currency,
+            }
+            observation = {
+                "id": str(uuid4()),
+                "url": URL,
+                "ts": NOW.isoformat(),
+                "currency": currency,
+                "product_name": LABEL,
+                "price": "120",
+                "method": "jsonld",
+                "availability": "in_stock",
+            }
+            examples.append({"alert": alert, "observation": observation})
+>       result = subprocess.run(
+            ["node", "tests/tiger_alert_email/page_copy.cjs"],
+            cwd=ROOT,
+            input=json.dumps(examples),
+            text=True,
+            capture_output=True,
+            check=True,
+        )
+
+tests/test_tiger_alert_email.py:399:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+input = '[{"alert": {"id": "79bff66e-a790-4535-b504-ed71453fa122", "kind": "price", "before": "120", "after": "115", "url": "h..."product_name": "Raspberry Pi 4 Model B - 4 GB RAM", "price": "120", "method": "jsonld", "availability": "in_stock"}}]'
+capture_output = True, timeout = None, check = True
+popenargs = (['node', 'tests/tiger_alert_email/page_copy.cjs'],)
+kwargs = {'cwd': PosixPath('/workspace/zenas-regulation-alerts-main'), 'stderr': -1, 'stdin': -1, 'stdout': -1, ...}
+process = <Popen: returncode: 1 args: ['node', 'tests/tiger_alert_email/page_copy.cjs']>
+stdout = ''
+stderr = "node:internal/modules/cjs/loader:1433\n  throw err;\n  ^\n\nError: Cannot find module '/workspace/zenas-regulation-al...: [\n    '/workspace/zenas-regulation-alerts-main/tests/tiger_alert_email/page_copy.cjs'\n  ]\n}\n\nNode.js v22.23.4\n"
+retcode = 1
+
+    def run(*popenargs,
+            input=None, capture_output=False, timeout=None, check=False, **kwargs):
+        """Run command with arguments and return a CompletedProcess instance.
+
+        The returned instance will have attributes args, returncode, stdout and
+        stderr. By default, stdout and stderr are not captured, and those attributes
+        will be None. Pass stdout=PIPE and/or stderr=PIPE in order to capture them,
+        or pass capture_output=True to capture both.
+
+        If check is True and the exit code was non-zero, it raises a
+        CalledProcessError. The CalledProcessError object will have the return code
+        in the returncode attribute, and output & stderr attributes if those streams
+        were captured.
+
+        If timeout (seconds) is given and the process takes too long,
+         a TimeoutExpired exception will be raised.
+
+        There is an optional argument "input", allowing you to
+        pass bytes or a string to the subprocess's stdin.  If you use this argument
+        you may not also use the Popen constructor's "stdin" argument, as
+        it will be used internally.
+
+        By default, all communication is in bytes, and therefore any "input" should
+        be bytes, and the stdout and stderr will be bytes. If in text mode, any
+        "input" should be a string, and stdout and stderr will be strings decoded
+        according to locale encoding, or by "encoding" if set. Text mode is
+        triggered by setting any of text, encoding, errors or universal_newlines.
+
+        The other arguments are the same as for the Popen constructor.
+        """
+        if input is not None:
+            if kwargs.get('stdin') is not None:
+                raise ValueError('stdin and input arguments may not both be used.')
+            kwargs['stdin'] = PIPE
+
+        if capture_output:
+            if kwargs.get('stdout') is not None or kwargs.get('stderr') is not None:
+                raise ValueError('stdout and stderr arguments may not be used '
+                                 'with capture_output.')
+            kwargs['stdout'] = PIPE
+            kwargs['stderr'] = PIPE
+
+        with Popen(*popenargs, **kwargs) as process:
+            try:
+                stdout, stderr = process.communicate(input, timeout=timeout)
+            except TimeoutExpired as exc:
+                process.kill()
+                if _mswindows:
+                    # Windows accumulates the output in a single blocking
+                    # read() call run on child threads, with the timeout
+                    # being done in a join() on those threads.  communicate()
+                    # _after_ kill() is required to collect that and add it
+                    # to the exception.
+                    exc.stdout, exc.stderr = process.communicate()
+                else:
+                    # POSIX _communicate already populated the output so
+                    # far into the TimeoutExpired exception.
+                    process.wait()
+                raise
+            except:  # Including KeyboardInterrupt, communicate handled that.
+                process.kill()
+                # We don't call process.wait() as .__exit__ does that for us.
+                raise
+            retcode = process.poll()
+            if check and retcode:
+>               raise CalledProcessError(retcode, process.args,
+                                         output=stdout, stderr=stderr)
+E               subprocess.CalledProcessError: Command '['node', 'tests/tiger_alert_email/page_copy.cjs']' returned non-zero exit status 1.
+
+/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/subprocess.py:571: CalledProcessError
+=============================== warnings summary ===============================
+tank/main.py:679
+tests/test_zenas_z12_followup.py::test_convert_prompt_extracts_each_issue_from_the_court_words
+  /workspace/zenas-regulation-alerts-main/tank/main.py:679: DeprecationWarning:
+          on_event is deprecated, use lifespan event handlers instead.
+
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+
+    @app.on_event("startup")
+
+../.tervory-cloud/venv/lib/python3.12/site-packages/fastapi/applications.py:4495
+../.tervory-cloud/venv/lib/python3.12/site-packages/fastapi/applications.py:4495
+../.tervory-cloud/venv/lib/python3.12/site-packages/fastapi/applications.py:4495
+../.tervory-cloud/venv/lib/python3.12/site-packages/fastapi/applications.py:4495
+tests/test_zenas_z12_followup.py::test_convert_prompt_extracts_each_issue_from_the_court_words
+tests/test_zenas_z12_followup.py::test_convert_prompt_extracts_each_issue_from_the_court_words
+tests/test_zenas_z12_followup.py::test_convert_prompt_extracts_each_issue_from_the_court_words
+tests/test_zenas_z12_followup.py::test_convert_prompt_extracts_each_issue_from_the_court_words
+  /workspace/.tervory-cloud/venv/lib/python3.12/site-packages/fastapi/applications.py:4495: DeprecationWarning:
+          on_event is deprecated, use lifespan event handlers instead.
+
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+
+    return self.router.on_event(event_type)
+
+tank/main.py:714
+tests/test_zenas_z12_followup.py::test_convert_prompt_extracts_each_issue_from_the_court_words
+  /workspace/zenas-regulation-alerts-main/tank/main.py:714: DeprecationWarning:
+          on_event is deprecated, use lifespan event handlers instead.
+
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+
+    @app.on_event("shutdown")
+
+../.tervory-cloud/venv/lib/python3.12/site-packages/pydantic/_internal/_fields.py:192
+  /workspace/.tervory-cloud/venv/lib/python3.12/site-packages/pydantic/_internal/_fields.py:192: UserWarning: Field name "register" in "TriggerWriteArgs" shadows an attribute in parent "TriggerCheckArgs"
+    warnings.warn(
+
+tank/agent_skills.py:529
+tests/test_zenas_z12_followup.py::test_convert_prompt_extracts_each_issue_from_the_court_words
+  /workspace/zenas-regulation-alerts-main/tank/agent_skills.py:529: DeprecationWarning:
+          on_event is deprecated, use lifespan event handlers instead.
+
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+
+    @router.on_event("startup")
+
+tank/skala_intake.py:67
+tests/test_zenas_z12_followup.py::test_convert_prompt_extracts_each_issue_from_the_court_words
+  /workspace/zenas-regulation-alerts-main/tank/skala_intake.py:67: DeprecationWarning:
+          on_event is deprecated, use lifespan event handlers instead.
+
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+
+    @app.on_event("startup")
+
+tank/skala_intake.py:72
+tests/test_zenas_z12_followup.py::test_convert_prompt_extracts_each_issue_from_the_court_words
+  /workspace/zenas-regulation-alerts-main/tank/skala_intake.py:72: DeprecationWarning:
+          on_event is deprecated, use lifespan event handlers instead.
+
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+
+    @app.on_event("shutdown")
+
+../.tervory-cloud/venv/lib/python3.12/site-packages/starlette/testclient.py:40
+  /workspace/.tervory-cloud/venv/lib/python3.12/site-packages/starlette/testclient.py:40: DeprecationWarning: The anyio.abc.BlockingPortal alias is deprecated, use anyio.from_thread.BlockingPortal instead.
+    _PortalFactoryType = typing.Callable[[], typing.ContextManager[anyio.abc.BlockingPortal]]
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_tiger_alert_email.py::test_email_copy_matches_actual_workspace_formatter
+1 failed, 674 passed, 5 skipped, 20 warnings in 127.67s (0:02:07)

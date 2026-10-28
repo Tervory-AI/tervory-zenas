@@ -1,0 +1,7 @@
+Working directory: /workspace/tervory-tank
+/workspace/.tervory-cloud/venv/bin/ruff check agents/zenas/core/regulation*.py tank/event_bus.py tests/zenas_regulation_alerts
+All checks passed! (exit 0)
+/workspace/.tervory-cloud/venv/bin/python -m py_compile agents/zenas/core/regulation_sources.py agents/zenas/core/regulation_store.py agents/zenas/core/regulations.py tank/event_bus.py tests/zenas_regulation_alerts/test_review.py
+No output; exit 0.
+git diff --check origin/main...HEAD
+No output; exit 0.

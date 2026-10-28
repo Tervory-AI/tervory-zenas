@@ -1,0 +1,14 @@
+$ /workspace/.tervory-cloud/venv/bin/ruff check agents/zenas/core/regulation_store.py agents/zenas/core/regulations.py agents/zenas/core/regulation_api.py agents/zenas/core/regulation_sources.py tests/zenas_regulation_alerts agents/tiger/alert_email.py
+All checks passed!
+
+exit=0
+
+$ /workspace/.tervory-cloud/venv/bin/python -m py_compile agents/zenas/app.py agents/zenas/pool/nightly.py agents/zenas/core/regulation_store.py agents/zenas/core/regulations.py agents/zenas/core/regulation_api.py agents/zenas/core/regulation_sources.py agents/tiger/alert_email.py tank/main.py
+
+
+exit=0
+
+$ git diff --check founder/main...HEAD
+
+
+exit=0

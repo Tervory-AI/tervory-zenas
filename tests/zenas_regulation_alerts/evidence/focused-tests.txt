@@ -1,0 +1,65 @@
+...........................................................s.....        [100%]
+=============================== warnings summary ===============================
+tests/zenas_regulation_alerts/test_integrations.py::test_real_tank_proxy_allows_watch_and_supplies_room_auth
+  /workspace/tervory-tank/tank/main.py:679: DeprecationWarning:
+          on_event is deprecated, use lifespan event handlers instead.
+
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+
+    @app.on_event("startup")
+
+tests/zenas_regulation_alerts/test_integrations.py::test_real_tank_proxy_allows_watch_and_supplies_room_auth
+tests/zenas_regulation_alerts/test_integrations.py::test_real_tank_proxy_allows_watch_and_supplies_room_auth
+tests/zenas_regulation_alerts/test_integrations.py::test_real_tank_proxy_allows_watch_and_supplies_room_auth
+tests/zenas_regulation_alerts/test_integrations.py::test_real_tank_proxy_allows_watch_and_supplies_room_auth
+  /workspace/.tervory-cloud/venv/lib/python3.12/site-packages/fastapi/applications.py:4495: DeprecationWarning:
+          on_event is deprecated, use lifespan event handlers instead.
+
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+
+    return self.router.on_event(event_type)
+
+tests/zenas_regulation_alerts/test_integrations.py::test_real_tank_proxy_allows_watch_and_supplies_room_auth
+  /workspace/tervory-tank/tank/main.py:714: DeprecationWarning:
+          on_event is deprecated, use lifespan event handlers instead.
+
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+
+    @app.on_event("shutdown")
+
+tests/zenas_regulation_alerts/test_integrations.py::test_real_tank_proxy_allows_watch_and_supplies_room_auth
+  /workspace/.tervory-cloud/venv/lib/python3.12/site-packages/pydantic/_internal/_fields.py:192: UserWarning: Field name "register" in "TriggerWriteArgs" shadows an attribute in parent "TriggerCheckArgs"
+    warnings.warn(
+
+tests/zenas_regulation_alerts/test_integrations.py::test_real_tank_proxy_allows_watch_and_supplies_room_auth
+  /workspace/tervory-tank/tank/agent_skills.py:529: DeprecationWarning:
+          on_event is deprecated, use lifespan event handlers instead.
+
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+
+    @router.on_event("startup")
+
+tests/zenas_regulation_alerts/test_integrations.py::test_real_tank_proxy_allows_watch_and_supplies_room_auth
+  /workspace/tervory-tank/tank/skala_intake.py:67: DeprecationWarning:
+          on_event is deprecated, use lifespan event handlers instead.
+
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+
+    @app.on_event("startup")
+
+tests/zenas_regulation_alerts/test_integrations.py::test_real_tank_proxy_allows_watch_and_supplies_room_auth
+  /workspace/tervory-tank/tank/skala_intake.py:72: DeprecationWarning:
+          on_event is deprecated, use lifespan event handlers instead.
+
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+
+    @app.on_event("shutdown")
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+64 passed, 1 skipped, 10 warnings in 7.55s

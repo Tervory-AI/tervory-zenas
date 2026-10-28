@@ -1,0 +1,18 @@
+{
+  "tenant_id": "19e2718c-6811-4d49-ad20-46fbe7e5f15a",
+  "change_id": "81c629da-b9f8-49fe-a3b3-f9e8d9c8c19d",
+  "events": [
+    {
+      "event": "zenas.regulation.changed",
+      "source_id": "9063a403-7b54-543c-a6b5-18e3e7be5d52",
+      "facts": {
+        "source": "federal-register",
+        "document_id": "federal-register:91 fr 64532",
+        "date": "2026-10-08",
+        "link": "https://www.federalregister.gov/documents/2026/10/08/2026-20650/low-value-shipments"
+      }
+    }
+  ],
+  "emails": 1,
+  "transport": "offline HTTP bus boundary"
+}

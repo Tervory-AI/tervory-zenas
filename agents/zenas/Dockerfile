@@ -16,6 +16,9 @@ COPY zenas/app.py /app/app.py
 COPY zenas/gold_sources.py /app/agents/zenas/gold_sources.py
 COPY zenas/schema.sql /app/agents/zenas/schema.sql
 COPY zenas/core /app/agents/zenas/core
+# Same SMTP transport and durable dispatch policy as Tiger.
+COPY tiger/alert_email.py /app/agents/tiger/alert_email.py
+COPY rig/rigbox/reserve.py /app/agents/rig/rigbox/reserve.py
 COPY zenas/pool /app/agents/zenas/pool
 COPY zenas/__init__.py /app/agents/zenas/__init__.py
 USER agent

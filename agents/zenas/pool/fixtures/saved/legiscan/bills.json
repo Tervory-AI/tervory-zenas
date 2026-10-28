@@ -1,0 +1,42 @@
+{
+  "1001": {
+    "status": "OK",
+    "bill": {
+      "bill_id": 1001,
+      "bill_number": "AB 1",
+      "state": "CA",
+      "title": "Background check record keeping",
+      "status": "Engrossed",
+      "status_date": "2024-03-02",
+      "url": "https://legiscan.com/CA/bill/AB1/2024",
+      "description": "Background check record keeping",
+      "history": [
+        {
+          "date": "2024-03-02",
+          "action": "Engrossed"
+        }
+      ],
+      "change_hash": "1001"
+    }
+  },
+  "1002": {
+    "status": "OK",
+    "bill": {
+      "bill_id": 1002,
+      "bill_number": "SB 9",
+      "state": "CA",
+      "title": "Park picnic tables",
+      "status": "Introduced",
+      "status_date": "2024-01-10",
+      "url": "https://legiscan.com/CA/bill/SB9/2024",
+      "description": "Park picnic tables",
+      "history": [
+        {
+          "date": "2024-01-10",
+          "action": "Introduced"
+        }
+      ],
+      "change_hash": "1002"
+    }
+  }
+}

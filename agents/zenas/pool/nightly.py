@@ -595,6 +595,14 @@ async def _main() -> None:
             )
         else:
             report = await run_nightly(store, live=True)
+        if not use_fixtures:
+            try:
+                from agents.zenas.core.regulations import run_scheduled as regulations_scheduled
+
+                report["regulations"] = await regulations_scheduled(conn, region=current_region())
+            except Exception:
+                # No exception text: upstream failures can contain credentials or tenant data.
+                report["regulations"] = {"unavailable": 1}
         try:
             from agents.zenas.core.convert import run_scheduled as convert_scheduled
 

@@ -1,0 +1,91 @@
+..............s......................................................... [ 10%]
+........................................................................ [ 21%]
+........................................................................ [ 31%]
+........................s............................................... [ 42%]
+........................................................................ [ 52%]
+...s................................s................................... [ 63%]
+........................................................................ [ 74%]
+.........................................s.............................. [ 84%]
+........................................................................ [ 95%]
+................................                                         [100%]
+=============================== warnings summary ===============================
+tank/main.py:680
+tests/test_zenas_z12_followup.py::test_convert_prompt_extracts_each_issue_from_the_court_words
+  /workspace/tervory-tank/tank/main.py:680: DeprecationWarning:
+          on_event is deprecated, use lifespan event handlers instead.
+
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+
+    @app.on_event("startup")
+
+../.tervory-cloud/venv/lib/python3.12/site-packages/fastapi/applications.py:4495: 5 warnings
+tests/test_zenas_z12_followup.py: 5 warnings
+  /workspace/.tervory-cloud/venv/lib/python3.12/site-packages/fastapi/applications.py:4495: DeprecationWarning:
+          on_event is deprecated, use lifespan event handlers instead.
+
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+
+    return self.router.on_event(event_type)
+
+tank/main.py:715
+tests/test_zenas_z12_followup.py::test_convert_prompt_extracts_each_issue_from_the_court_words
+  /workspace/tervory-tank/tank/main.py:715: DeprecationWarning:
+          on_event is deprecated, use lifespan event handlers instead.
+
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+
+    @app.on_event("shutdown")
+
+../.tervory-cloud/venv/lib/python3.12/site-packages/pydantic/_internal/_fields.py:192
+  /workspace/.tervory-cloud/venv/lib/python3.12/site-packages/pydantic/_internal/_fields.py:192: UserWarning: Field name "register" in "TriggerWriteArgs" shadows an attribute in parent "TriggerCheckArgs"
+    warnings.warn(
+
+tank/agent_skills.py:529
+tests/test_zenas_z12_followup.py::test_convert_prompt_extracts_each_issue_from_the_court_words
+  /workspace/tervory-tank/tank/agent_skills.py:529: DeprecationWarning:
+          on_event is deprecated, use lifespan event handlers instead.
+
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+
+    @router.on_event("startup")
+
+tank/skala_intake.py:67
+tests/test_zenas_z12_followup.py::test_convert_prompt_extracts_each_issue_from_the_court_words
+  /workspace/tervory-tank/tank/skala_intake.py:67: DeprecationWarning:
+          on_event is deprecated, use lifespan event handlers instead.
+
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+
+    @app.on_event("startup")
+
+tank/skala_intake.py:72
+tests/test_zenas_z12_followup.py::test_convert_prompt_extracts_each_issue_from_the_court_words
+  /workspace/tervory-tank/tank/skala_intake.py:72: DeprecationWarning:
+          on_event is deprecated, use lifespan event handlers instead.
+
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+
+    @app.on_event("shutdown")
+
+tank/skala_revalidation.py:190
+tests/test_zenas_z12_followup.py::test_convert_prompt_extracts_each_issue_from_the_court_words
+  /workspace/tervory-tank/tank/skala_revalidation.py:190: DeprecationWarning:
+          on_event is deprecated, use lifespan event handlers instead.
+
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+
+    @app.on_event("startup")
+
+../.tervory-cloud/venv/lib/python3.12/site-packages/starlette/testclient.py:40
+  /workspace/.tervory-cloud/venv/lib/python3.12/site-packages/starlette/testclient.py:40: DeprecationWarning: The anyio.abc.BlockingPortal alias is deprecated, use anyio.from_thread.BlockingPortal instead.
+    _PortalFactoryType = typing.Callable[[], typing.ContextManager[anyio.abc.BlockingPortal]]
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+675 passed, 5 skipped, 24 warnings in 130.35s (0:02:10)
