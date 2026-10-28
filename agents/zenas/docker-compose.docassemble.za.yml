@@ -1,0 +1,84 @@
+# Docassemble for Zenas (South Africa), deployed as its OWN Coolify resource, separate
+# from agent-zenas (28 Oct): Docassemble starts slowly (up to ~15 min), and inside agent-zenas
+# that slow start failed every Zenas deploy. Same Base Directory as the room (/agents/zenas),
+# so the ./docassemble mounts are unchanged. deploy-on-merge does not deploy this resource
+# (its name does not start with agent-); Grok redeploys it when these files change.
+# The shared private network is created once on the server:
+#   docker network create --internal tervory-zenas-assembly
+# agent-zenas joins the same network and calls http://docassemble (the code allows only that private host).
+
+services:
+  # Official image; no public port, ingress label, gateway or remote database.
+  docassemble:
+    # The official pinned image plus the Zenas package (docassemble/Dockerfile); no nested mounts.
+    build:
+      context: .
+      dockerfile: docassemble/Dockerfile
+      args:
+        REGION_DIR: za
+    restart: unless-stopped
+    stop_grace_period: 10m
+    mem_limit: 4g
+    cpus: 1
+    environment:
+      TANK_REGION: za
+      CONTAINERROLE: all
+      DAHOSTNAME: docassemble
+      DAUPDATEONSTART: "false"
+      DAALLOWUPDATES: "false"
+      DAENABLEPLAYGROUND: "false"
+      DADEBUG: "false"
+      DAALLOWLOGVIEWING: "false"
+      DBPASSWORD: ${DOCASSEMBLE_DB_PASSWORD:?Set the Docassemble database password in Coolify}
+      DASECRETKEY: ${DOCASSEMBLE_SECRET_KEY:?Set the Docassemble secret key in Coolify}
+      DA_ADMIN_EMAIL: ${DOCASSEMBLE_ADMIN_EMAIL:?Set the Docassemble admin email in Coolify}
+      DA_ADMIN_PASSWORD: ${DOCASSEMBLE_ADMIN_PASSWORD:?Set the Docassemble admin password in Coolify}
+      DA_ADMIN_API_KEY: ${DOCASSEMBLE_API_KEY:?Set the Docassemble API key in Coolify}
+      TIMEZONE: UTC
+      DABACKUPDAYS: "14"
+    volumes:
+      - docassemble_za_backup:/usr/share/docassemble/backup
+    networks:
+      assembly:
+        aliases: [docassemble]
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "--output", "/dev/null", "http://127.0.0.1/health_check?ready=1"]
+      interval: 30s
+      timeout: 5s
+      start_period: 5m
+      retries: 20
+
+  # Reuses the existing age/R2 worker; only completed local snapshots are archived.
+  docassemble-backup:
+    build:
+      context: ../..
+      dockerfile: jobs/train/Dockerfile.backup
+    restart: unless-stopped
+    user: "0:0"
+    read_only: true
+    mem_limit: 512m
+    cpus: 0.25
+    tmpfs: [/tmp]
+    environment:
+      AGENT_NAME: zenas
+      TANK_REGION: za
+      R2_BUCKET_ZENAS_ZA: ${R2_BUCKET_ZENAS_ZA:-}
+      R2_BUCKET: ${R2_BUCKET_ZENAS_ZA:-}
+      R2_ACCOUNT_ID: ${R2_ACCOUNT_ID:-}
+      R2_ACCESS_KEY_ID_ZENAS: ${R2_ACCESS_KEY_ID_ZENAS:-}
+      R2_SECRET_ACCESS_KEY_ZENAS: ${R2_SECRET_ACCESS_KEY_ZENAS:-}
+      R2_BACKUP_RECIPIENT: ${R2_BACKUP_RECIPIENT:-}
+    volumes:
+      - docassemble_za_backup:/backup:ro
+      - ./docassemble/backup.py:/app/jobs/train/docassemble_backup.py:ro
+    command: ["python", "jobs/train/docassemble_backup.py", "--nightly"]
+    networks: [backup]
+
+volumes:
+  docassemble_za_backup:
+
+networks:
+  assembly:
+    external: true
+    name: tervory-zenas-assembly
+  backup:
