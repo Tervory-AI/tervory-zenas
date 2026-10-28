@@ -1,7 +1,6 @@
 # Zenas. Deploy this file as its own Coolify resource.
 # Build context is agents/ (the parent of this file), because the chassis lives there.
-# The only network is the external gateway. Coolify's own network for this resource
-# contains just this service, so it cannot see the main stack.
+# The room uses its existing gateway and a private Docassemble-only network.
 # The server network already exists: docker network create tervory-gw-zenas
 
 services:
@@ -10,6 +9,9 @@ services:
       context: ..
       dockerfile: zenas/Dockerfile
     restart: unless-stopped
+    depends_on:
+      docassemble:
+        condition: service_healthy
     mem_limit: 2g
     cpus: 0.5
     environment:
@@ -22,6 +24,9 @@ services:
       TANK_URL: http://tank:8000
       TANK_KEY: ${TANK_KEY_ZENAS:-}
       HERMES_URL: http://hermes:8000
+      DOCASSEMBLE_REGION: us-east
+      DOCASSEMBLE_URL: http://docassemble
+      DOCASSEMBLE_API_KEY: ${DOCASSEMBLE_API_KEY:-}
       # Fail closed: no default region. Compose refuses to start without it.
       TANK_REGION: ${TANK_REGION:?TANK_REGION is required (us-east or za)}
       ZENAS_PII_KEY: ${ZENAS_PII_KEY:-}
@@ -30,6 +35,7 @@ services:
       - agent_zenas_data:/data
     networks:
       - gw
+      - assembly
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
       interval: 10s
@@ -37,6 +43,67 @@ services:
       retries: 10
     expose:
       - "8000"
+
+  # Official image; no public port, ingress label, gateway or remote database.
+  docassemble:
+    image: jhpyle/docassemble:1.10.14@sha256:5dc6feb56f69a912885ad5652d1754330f37c1a05331c5831e34e9d0c509492d
+    restart: unless-stopped
+    stop_grace_period: 10m
+    mem_limit: 4g
+    cpus: 1
+    environment:
+      TANK_REGION: us-east
+      CONTAINERROLE: all
+      DAHOSTNAME: docassemble
+      DAUPDATEONSTART: "false"
+      DAALLOWUPDATES: "false"
+      DAENABLEPLAYGROUND: "false"
+      DADEBUG: "false"
+      DAALLOWLOGVIEWING: "false"
+      DBPASSWORD: ${DOCASSEMBLE_DB_PASSWORD:?Set the Docassemble database password in Coolify}
+      DASECRETKEY: ${DOCASSEMBLE_SECRET_KEY:?Set the Docassemble secret key in Coolify}
+      DA_ADMIN_EMAIL: ${DOCASSEMBLE_ADMIN_EMAIL:?Set the Docassemble admin email in Coolify}
+      DA_ADMIN_PASSWORD: ${DOCASSEMBLE_ADMIN_PASSWORD:?Set the Docassemble admin password in Coolify}
+      DA_ADMIN_API_KEY: ${DOCASSEMBLE_API_KEY:?Set the Docassemble API key in Coolify}
+      TIMEZONE: UTC
+      DABACKUPDAYS: "14"
+    volumes:
+      - docassemble_us_backup:/usr/share/docassemble/backup
+      - ./docassemble/package:/usr/share/docassemble/local3.14/lib/python3.14/site-packages/docassemble/zenas:ro
+      - ./core/drafting.py:/usr/share/docassemble/local3.14/lib/python3.14/site-packages/docassemble/zenas/legacy.py:ro
+      - ./docassemble/us:/usr/share/docassemble/local3.14/lib/python3.14/site-packages/docassemble/zenas/data/questions/region:ro
+    networks: [assembly]
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "--output", "/dev/null", "http://127.0.0.1/health_check?ready=1"]
+      interval: 30s
+      timeout: 5s
+      start_period: 5m
+      retries: 20
+
+  # Reuses the existing age/R2 worker; only completed local snapshots are archived.
+  docassemble-backup:
+    build:
+      context: ../..
+      dockerfile: jobs/train/Dockerfile.backup
+    restart: unless-stopped
+    user: "0:0"
+    read_only: true
+    mem_limit: 512m
+    cpus: 0.25
+    tmpfs: [/tmp]
+    environment:
+      AGENT_NAME: zenas
+      TANK_REGION: us-east
+      R2_BUCKET: tervory-zenas
+      R2_ACCOUNT_ID: ${R2_ACCOUNT_ID:-}
+      R2_ACCESS_KEY_ID_ZENAS: ${R2_ACCESS_KEY_ID_ZENAS:-}
+      R2_SECRET_ACCESS_KEY_ZENAS: ${R2_SECRET_ACCESS_KEY_ZENAS:-}
+      R2_BACKUP_RECIPIENT: ${R2_BACKUP_RECIPIENT:-}
+    volumes:
+      - docassemble_us_backup:/backup:ro
+      - ./docassemble/backup.py:/app/jobs/train/docassemble_backup.py:ro
+    command: ["python", "jobs/train/docassemble_backup.py", "--nightly"]
+    networks: [backup]
 
   # One-shot US pool load. Not started with the room.
   # docker compose --profile load run --rm pool-loader
@@ -69,9 +136,13 @@ services:
     entrypoint: ["nice", "-n", "19", "python", "-m", "agents.zenas.pool.bulk"]
 
 volumes:
+  docassemble_us_backup:
   agent_zenas_data:
 
 networks:
+  assembly:
+    internal: true
+  backup:
   gw:
     external: true
     name: tervory-gw-zenas

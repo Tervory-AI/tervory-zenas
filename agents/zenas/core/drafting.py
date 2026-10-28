@@ -78,11 +78,13 @@ def assemble_draft(
     clauses: list[dict[str, Any]],
     terms: dict[str, Any] | None,
     prior: dict[str, Any] | None = None,
+    render_clause: Any = None,
 ) -> dict[str, Any]:
     """Code assembly. model_calls stays 0. The caller decides whether a model may revise a difference."""
     slots = template_slots(template)
     if slots is None:
         return {"ok": False, "reason": "no such template"}
+    renderer = render_clause or fill_clause
     facts = _terms(terms)
     pattern: dict[str, Any] = {}
     if isinstance(prior, dict):
@@ -141,7 +143,7 @@ def assemble_draft(
                 }
             )
             continue
-        filled, missing = fill_clause(str(clause.get("text") or ""), facts)
+        filled, missing = renderer(str(clause.get("text") or ""), facts)
         keys = _PLACEHOLDER.findall(str(clause.get("text") or ""))
         if previous and _same_keys(list(previous.get("keys") or keys), prior_features, facts):
             sentences.append(dict(previous))

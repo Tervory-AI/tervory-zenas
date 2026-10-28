@@ -1,0 +1,7 @@
+initial: True
+code: |
+  assembly_jurisdiction = "us"
+  assembly_template = "sale_of_goods"
+---
+include:
+  - docassemble.zenas:data/questions/assembly.yml

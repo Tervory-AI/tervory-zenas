@@ -38,7 +38,8 @@ from agents.zenas.core.engine import (
     wording_keeps_law,
 )
 from agents.zenas.core.docx_redline import docx_bytes
-from agents.zenas.core.drafting import TEMPLATES, assemble_draft, select_prior
+from agents.zenas.core.drafting import TEMPLATES, select_prior
+from agents.zenas.core.docassemble import DocassembleClient
 from agents.zenas.core.matters import consider
 from agents.zenas.core.review import review_positions
 from agents.zenas.core.review_switch import card_servable, review_required
@@ -1503,6 +1504,7 @@ async def draft_contract(
     narrative: str = "",
     matter_id: str | None = None,
     provider: str = "luna",
+    assembler: Any = None,
 ) -> dict[str, Any]:
     _home, refused = await _use_home(store, tenant_id=tenant_id, home_region=home_region, box_region=box_region)
     if refused:
@@ -1515,6 +1517,10 @@ async def draft_contract(
         reason = str((gate.get("scope") or {}).get("reason") or "Not in scope.")
         return _refuse(reason, scope=gate.get("scope"))
     box = _box(box_region)
+    local_jurisdiction = "za" if box == "za" else "us"
+    if jurisdiction not in {local_jurisdiction, "both"}:
+        from agents.zenas.core.matters import ZA_HOME_MESSAGE, US_HOME_MESSAGE
+        return _refuse(ZA_HOME_MESSAGE if jurisdiction == "za" else US_HOME_MESSAGE)
     clauses = await store.list_clauses(region=box, template=template, jurisdiction=jurisdiction)
     prior = None
     if ladder is not None:
@@ -1523,8 +1529,12 @@ async def draft_contract(
             tenant_id=tenant_id,
             sharing=sharing_mode(None),
         )
+        rows = [row for row in rows if row.get("region") == box
+                and row.get("jurisdiction") in {local_jurisdiction, "both"}]
         prior = select_prior(rows, template, terms)
-    assembled = assemble_draft(template=template, clauses=clauses, terms=terms, prior=prior)
+    assembler = assembler or DocassembleClient(box)
+    assembled = await assembler.assemble(template=template, jurisdiction=jurisdiction,
+                                         clauses=clauses, terms=terms, prior=prior)
     if not assembled.get("ok"):
         return assembled
     sentences = list(assembled["sentences"])
@@ -1547,18 +1557,9 @@ async def draft_contract(
         _apply_revision(sentences, str(called["result"]["content"]), differing)
         model_calls = 1
         cost = float(called["result"]["cost_usd"])
-    if reused:
-        text = str(assembled["text"])
-        blocks = [[{"kind": "plain", "text": text}]]
-    else:
-        text = "\n\n".join(str(item["text"]) for item in sentences)
-        blocks = [
-            [{"kind": "ins" if item.get("review") else "plain", "text": str(item["text"])}]
-            for item in sentences
-        ]
-    if not text.rstrip().endswith(_LEGAL_NOTICE):
-        blocks.append([{"kind": "plain", "text": _LEGAL_NOTICE}])
-    text = _with_legal_notice(text)
+    finished = await assembler.finish(template=template, jurisdiction=jurisdiction,
+                                      assembled={**assembled, "sentences": sentences}, notice=_LEGAL_NOTICE)
+    text = finished["text"]
     document_id = None
     if matter_id:
         matter = await store.get_matter(str(tenant_id), str(matter_id))
@@ -1595,7 +1596,7 @@ async def draft_contract(
         "cost_usd": cost,
         "model_calls": model_calls,
         "document_id": document_id,
-        "docx_base64": base64.b64encode(docx_bytes(blocks)).decode("ascii"),
+        "docx_base64": finished["docx_base64"],
     }
 
 

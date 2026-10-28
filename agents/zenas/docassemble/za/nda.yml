@@ -1,0 +1,7 @@
+initial: True
+code: |
+  assembly_jurisdiction = "za"
+  assembly_template = "nda"
+---
+include:
+  - docassemble.zenas:data/questions/assembly.yml

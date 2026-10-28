@@ -216,3 +216,9 @@ async def test_new_and_reused_drafts_save_and_download_the_notice_once(region, j
     assert word_text.endswith(NOTICE)
     # The output notice is the already-approved footer, character for character.
     assert f'>{NOTICE}</p>' in (ROOT / "workspace/app/zenas/view.tsx").read_text()
+
+
+@pytest.fixture(autouse=True)
+def offline_docassemble(monkeypatch):
+    from zenas_docassemble.api_stub import install
+    return install(monkeypatch)
