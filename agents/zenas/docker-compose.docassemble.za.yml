@@ -1,11 +1,14 @@
 # Docassemble for Zenas (South Africa), deployed as its OWN Coolify resource, separate
 # from agent-zenas (28 Oct): Docassemble starts slowly (up to ~15 min), and inside agent-zenas
-# that slow start failed every Zenas deploy. Same Base Directory as the room (/agents/zenas),
-# so the ./docassemble mounts are unchanged. deploy-on-merge does not deploy this resource
-# (its name does not start with agent-); Grok redeploys it when these files change.
+# that slow start failed every Zenas deploy. Same Base Directory as the room (/agents/zenas).
+# deploy-on-merge does not deploy this resource (its name does not start with agent-); Grok
+# redeploys it when these files change.
 # The shared private network is created once on the server:
 #   docker network create --internal tervory-zenas-assembly
 # agent-zenas joins the same network and calls http://docassemble (the code allows only that private host).
+# Backup script is COPY'd into the image (docassemble/Dockerfile.backup) — do not bind-mount
+# ./docassemble/backup.py from Coolify's sparse app workdir (Docker turns a missing path into
+# an empty directory and the sidecar cannot run).
 
 services:
   # Official image; no public port, ingress label, gateway or remote database.
@@ -49,10 +52,11 @@ services:
       retries: 20
 
   # Reuses the existing age/R2 worker; only completed local snapshots are archived.
+  # Requires R2_BACKUP_RECIPIENT (public age recipient); empty → sidecar exits 1 by design.
   docassemble-backup:
     build:
       context: ../..
-      dockerfile: jobs/train/Dockerfile.backup
+      dockerfile: agents/zenas/docassemble/Dockerfile.backup
     restart: unless-stopped
     user: "0:0"
     read_only: true
@@ -70,7 +74,6 @@ services:
       R2_BACKUP_RECIPIENT: ${R2_BACKUP_RECIPIENT:-}
     volumes:
       - docassemble_za_backup:/backup:ro
-      - ./docassemble/backup.py:/app/jobs/train/docassemble_backup.py:ro
     command: ["python", "jobs/train/docassemble_backup.py", "--nightly"]
     networks: [backup]
 

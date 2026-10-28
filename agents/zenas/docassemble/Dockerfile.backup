@@ -1,0 +1,20 @@
+# Build from repository root.
+# Bakes agents/zenas/docassemble/backup.py into the image so Coolify does not
+# bind-mount ./docassemble/backup.py from its sparse application workdir.
+# Docker turns a missing host path into an empty directory, which made the
+# sidecar unable to run the script after every redeploy.
+FROM python:3.12-slim-trixie
+WORKDIR /app
+# Trixie's pg_dump can read the stack's PostgreSQL 16 databases. age keeps the
+# private restore identity off this worker; only a public recipient is needed.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends postgresql-client age \
+    && pip install --no-cache-dir httpx==0.28.1 \
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd --create-home --uid 1000 backup-worker
+COPY --chown=backup-worker:backup-worker agents/_chassis/chassis/__init__.py agents/_chassis/chassis/storage.py /app/agents/_chassis/chassis/
+COPY --chown=backup-worker:backup-worker jobs/train/backup.py jobs/train/r2_archive.py /app/jobs/train/
+COPY --chown=backup-worker:backup-worker agents/zenas/docassemble/backup.py /app/jobs/train/docassemble_backup.py
+USER backup-worker
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
+CMD ["python", "jobs/train/docassemble_backup.py", "--nightly"]
