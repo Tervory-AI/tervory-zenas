@@ -595,3 +595,7 @@ async def _main() -> None:
     finally:
         await conn.close()
     print(json.dumps(report, indent=2, default=str))
+
+
+if __name__ == "__main__":
+    main()
