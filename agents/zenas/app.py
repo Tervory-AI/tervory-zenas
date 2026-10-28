@@ -959,7 +959,8 @@ async def post_answer(body: AnswerIn) -> dict[str, Any]:
         box_region=_box_region(),
         jurisdiction=body.jurisdiction,
         question=body.question,
-        passages=body.passages,
+        # Ask uses this box's stored law only. Caller-supplied passages cannot establish a citation.
+        passages=[],
         features=body.features,
         matter_id=str(body.matter_id) if body.matter_id else None,
         provider=body.provider,

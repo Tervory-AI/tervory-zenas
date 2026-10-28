@@ -250,7 +250,7 @@ async def test_draft_uses_approved_clauses_and_marks_the_rest() -> None:
     )
     assert shared["ok"] is True
     assert shared["reused"] is True
-    assert shared["text"] == "Reused supply agreement."
+    assert shared["text"] == "Reused supply agreement.\n\nZenas provides legal information, not legal advice."
     assert shared["model_calls"] == 0
 
     za = MemoryStore()
