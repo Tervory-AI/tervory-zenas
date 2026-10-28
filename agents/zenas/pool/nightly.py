@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import os
 from collections import Counter
@@ -14,7 +15,7 @@ from agents.zenas.pool.catalogue import sources_for_region
 from agents.zenas.pool.config import current_region
 from agents.zenas.pool.embed import Embedder, NoOpEmbedder, NoOpVectorIndex, VectorIndex, live_backends
 from agents.zenas.pool.http import RateLimited
-from agents.zenas.pool.ingest import ingest_snapshot
+from agents.zenas.pool.ingest import ingest_snapshot, version_saved
 from agents.zenas.pool.indexing import index_pending
 from agents.zenas.pool.licence import FetchNotConfigured, LicenceError, refusal_reason
 from agents.zenas.pool.laws_africa import is_laws_africa, live_sources
@@ -83,25 +84,34 @@ async def run_nightly(
         sources = [source for source in sources if source.source_id in wanted]
     if live and snapshots is None:
         sources = live_sources(sources)
-    for source in sources:
-        try:
-            assert_source_region(source, region)
-            await _update_source(
-                store,
-                source,
-                snapshots=snapshots,
-                on=day,
-                when=when,
-                live=live,
-                http_get=getter,
-                embedder=embedder,
-                index=index,
-                region=region,
-            )
-        except RegionError:
-            continue
-        except Exception as exc:
-            await _record_source_error(store, source, exc, when)
+    async def changed(document):
+        from chassis.events import publish
+        await publish("00000000-0000-0000-0000-000000000001", "zenas.regulation.changed", document.version_id, {
+            "document_id": hashlib.sha256(document.id.encode()).hexdigest(),
+            "version_id": hashlib.sha256(document.version_id.encode()).hexdigest()})
+    token = version_saved.set(changed)
+    try:
+        for source in sources:
+            try:
+                assert_source_region(source, region)
+                await _update_source(
+                    store,
+                    source,
+                    snapshots=snapshots,
+                    on=day,
+                    when=when,
+                    live=live,
+                    http_get=getter,
+                    embedder=embedder,
+                    index=index,
+                    region=region,
+                )
+            except RegionError:
+                continue
+            except Exception as exc:
+                await _record_source_error(store, source, exc, when)
+    finally:
+        version_saved.reset(token)
     return await pool_status(store, region=region)
 
 

@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import asyncio
 from collections import Counter
+from contextvars import ContextVar
 from datetime import date
+import logging
 
 from agents.zenas.pool.adapters import get_adapter
 from agents.zenas.pool.blobs import text_payloads
@@ -17,6 +19,8 @@ from agents.zenas.pool.model import LegalDocument, SourceSpec
 from agents.zenas.pool.region import assert_source_region
 from agents.zenas.pool.store import Store
 from agents.zenas.pool.textutil import version_id_for
+
+version_saved = ContextVar("zenas_nightly_version_saved", default=None)
 
 
 async def ingest_snapshot(
@@ -73,6 +77,11 @@ async def ingest_snapshot(
                         skips["unchanged"] += 1
                 else:
                     inserted += 1
+                    if callback := version_saved.get():
+                        try:
+                            await callback(document)
+                        except Exception:
+                            logging.getLogger(__name__).warning("Regulation event unavailable; the version remains saved")
                 await index_pending(store, embedder, index, region=region or store.home_region,
                                     document_id=document.id)
                 await _attach_cites(store, document, citations)
