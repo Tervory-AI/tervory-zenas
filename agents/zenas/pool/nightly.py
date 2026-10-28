@@ -12,9 +12,10 @@ from pathlib import Path
 from agents.zenas.pool.adapters import get_adapter
 from agents.zenas.pool.catalogue import sources_for_region
 from agents.zenas.pool.config import current_region
-from agents.zenas.pool.embed import Embedder, NoOpEmbedder, NoOpVectorIndex, VectorIndex
+from agents.zenas.pool.embed import Embedder, NoOpEmbedder, NoOpVectorIndex, VectorIndex, live_backends
 from agents.zenas.pool.http import RateLimited
 from agents.zenas.pool.ingest import ingest_snapshot
+from agents.zenas.pool.indexing import index_pending
 from agents.zenas.pool.licence import FetchNotConfigured, LicenceError, refusal_reason
 from agents.zenas.pool.laws_africa import is_laws_africa, live_sources
 from agents.zenas.pool.region import RegionError, assert_source_region, bind_store
@@ -70,8 +71,10 @@ async def run_nightly(
     bind_store(store, region)
     day = on or date.today()
     when = datetime.now(timezone.utc)
-    embedder = embedder or NoOpEmbedder()
-    index = index or NoOpVectorIndex()
+    if live and snapshots is None:
+        embedder, index = live_backends(store, region, embedder, index)
+    else:
+        embedder, index = embedder or NoOpEmbedder(), index or NoOpVectorIndex()
     getter = http_get or urllib_get
 
     sources = sources_for_region(region)
@@ -117,6 +120,7 @@ async def _update_source(
 ) -> None:
     assert_source_region(source, region)
     if snapshots is None and live and source.source_id == "courtlistener" and region == "us-east":
+        await index_pending(store, embedder, index, region=region, source_ids=[source.source_id])
         await courtlistener_night(
             store,
             source,
@@ -147,6 +151,7 @@ async def _update_source(
             data_dir=os.environ.get("DATA_DIR", ".") or ".",
         )
         return
+    await index_pending(store, embedder, index, region=region, source_ids=[source.source_id])
     if snapshots is None and live and source.source_id in _OFFICIAL_STATUTES:
         await _update_official(
             store,

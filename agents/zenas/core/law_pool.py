@@ -20,9 +20,10 @@ class AsyncpgLawPool:
 
     requires_source_links = True
 
-    def __init__(self, pool: Any, *, home_region: str) -> None:
+    def __init__(self, pool: Any, *, home_region: str, embedder=None, index=None) -> None:
         self._pool = pool
         self.home_region = home_region
+        self._embedder, self._index = embedder, index
 
     async def find_by_citation(
         self,
@@ -56,6 +57,18 @@ class AsyncpgLawPool:
                 limit=limit,
             )
 
+    async def search_hybrid(self, query, *, keyword_query, jurisdiction, as_at=None, level=None, kind=None, limit=8):
+        from agents.zenas.pool.embed import HermesLawClient
+        from agents.zenas.pool.search import search_hybrid
+        if self._embedder is None or self._index is None:
+            client = HermesLawClient(region=self.home_region)
+            self._embedder = self._embedder or client
+            self._index = self._index or client
+        async with self._pool.acquire() as conn:
+            store = PostgresStore(conn, home_region=self.home_region)
+            return await search_hybrid(store, self._embedder, self._index, query, keyword_query=keyword_query,
+                                       jurisdiction=jurisdiction, as_at=as_at, level=level, kind=kind, limit=limit)
+
     async def source_metadata(self, chunks: list[Any], *, jurisdiction: str) -> dict[tuple[str, str], dict[str, str]]:
         """Resolve links from the exact stored document versions, never the request or model."""
         if not known_region(self.home_region) or jurisdiction != jurisdiction_for(self.home_region):
@@ -64,11 +77,13 @@ class AsyncpgLawPool:
         if not versions:
             return {}
         async with self._pool.acquire() as conn:
-            rows = await conn.fetch("""SELECT d.document_id,d.version_id,d.url,d.title,d.kind,d.level,d.status
+            rows = await conn.fetch("""SELECT d.document_id,d.version_id,d.url,d.title,d.kind,d.level,d.status,
+                d.effective_from::text AS version_date, d.known_from::text AS known_from,
+                COALESCE(NULLIF(d.body,''),s.name) AS attribution,d.licence
                 FROM zenas_pool.documents d JOIN zenas_pool.sources s ON s.source_id=d.source_id
-                WHERE d.jurisdiction=$1 AND s.region=$2 AND d.version_id=ANY($3::text[])""",
+                WHERE d.jurisdiction=$1 AND s.region=$2 AND d.version_id=ANY($3::text[]) AND s.enabled""",
                 jurisdiction, self.home_region, versions)
-        return {(row["document_id"], row["version_id"]): {key: row[key] for key in ("url", "title", "kind", "level", "status")}
+        return {(row["document_id"], row["version_id"]): {key: row.get(key, "") for key in ("url", "title", "kind", "level", "status", "version_date", "known_from", "attribution", "licence")}
                 for row in rows}
 
 

@@ -23,6 +23,15 @@
     {"id": "firearms_permits", "phrases": ["firearms import", "firearms export"]}
   ],
   "criminal_phrases": [
+    "criminal procedure act",
+    "national prosecuting authority act",
+    "npa prosecution",
+    "prosecutions",
+    "criminal proceedings",
+    "plea bargain",
+    "plea and sentence agreement",
+    "admission of guilt fine",
+    "appeal against sentence",
     "criminal defence",
     "criminal defense",
     "criminal charge",

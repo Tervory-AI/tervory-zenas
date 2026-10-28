@@ -55,6 +55,8 @@ services:
     profiles:
       - load
     environment:
+      HERMES_URL: http://hermes:8000
+      TANK_KEY: ${TANK_KEY:-}
       TANK_REGION: za
       DATABASE_URL: postgresql://agent_zenas:${AGENT_DB_PASSWORD_ZENAS}@postgres:5432/${POSTGRES_DB:-tervory}
       LAWS_AFRICA_API_TOKEN: ${LAWS_AFRICA_API_TOKEN:-}

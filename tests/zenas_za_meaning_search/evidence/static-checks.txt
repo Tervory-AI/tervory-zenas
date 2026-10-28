@@ -1,0 +1,6 @@
+$ /workspace/.tervory-cloud/venv/bin/ruff check agents/zenas/core/citation_sources.py agents/zenas/core/law_pool.py agents/zenas/core/matters.py agents/zenas/core/service.py agents/zenas/pool/bulk.py agents/zenas/pool/embed.py agents/zenas/pool/indexing.py agents/zenas/pool/ingest.py agents/zenas/pool/model.py agents/zenas/pool/nightly.py agents/zenas/pool/search.py agents/zenas/pool/store.py hermes/embeddings.py hermes/law_routes.py hermes/law_store.py hermes/runtime.py hermes/service.py tank/skills/zenas.scope/1.2.0/rules.py tank/skills/zenas.scope/1.2.0/run.py tests/test_tank_one_door.py tests/test_zenas_fix7_answers.py tests/test_zenas_z1.py tests/zenas_za_meaning_search/test_hermes_law.py tests/zenas_za_meaning_search/test_retrieval.py tests/zenas_za_meaning_search/test_sa_scope.py --select E9,F --output-format concise
+All checks passed!
+Exit code: 0
+
+$ git diff --check founder/main
+Exit code: 0

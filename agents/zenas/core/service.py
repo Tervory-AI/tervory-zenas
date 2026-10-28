@@ -344,7 +344,10 @@ async def _passages_from_pool(
     if citation.strip() and hasattr(pool, "find_by_citation"):
         chunks.extend(await pool.find_by_citation(citation, jurisdiction=law, as_at=day))
     search = _search_query(query)
-    if search and hasattr(pool, "search_text"):
+    if query.strip() and hasattr(pool, "search_hybrid"):
+        chunks.extend(await pool.search_hybrid(query, keyword_query=search, jurisdiction=law, as_at=day,
+                                               level=level, kind=kind, limit=8))
+    elif search and hasattr(pool, "search_text"):
         chunks.extend(
             await pool.search_text(search, jurisdiction=law, as_at=day, level=level, kind=kind, limit=8)
         )
@@ -352,6 +355,9 @@ async def _passages_from_pool(
     seen: set[str] = set()
     metadata = await pool.source_metadata(chunks, jurisdiction=law) if hasattr(pool, "source_metadata") else {}
     for chunk in chunks:
+        source = metadata.get((chunk.document_id, chunk.version_id), {})
+        if getattr(pool, "requires_source_links", False) and not public_source_url(source.get("url")):
+            continue
         key = getattr(chunk, "chunk_id", "") or str(chunk)
         if key in seen:
             continue

@@ -41,7 +41,8 @@ def cited_sources(statements: list[dict[str, Any]], checked: dict[str, Any], pas
         url = public_source_url(passage.get("url"))
         if require_links and not url:
             return None
-        sources.setdefault(citation, {"citation": citation, "quote": str(statement.get("quote") or ""), **({"url": url} if url else {})})
+        sources.setdefault(citation, {"citation": citation, "quote": str(statement.get("quote") or ""), **({"url": url} if url else {}),
+                                      **{key: str(passage[key]) for key in ("version_date", "known_from", "attribution", "licence") if passage.get(key)}})
     if any(citation not in sources for citation in citations):
         return None
     return [sources[citation] for citation in dict.fromkeys(citations)]

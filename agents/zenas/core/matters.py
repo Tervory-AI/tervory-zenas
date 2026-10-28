@@ -107,6 +107,11 @@ async def consider(
     question never reaches a second skill.
     """
     law = _law(jurisdiction)
+    # The local rules already decide criminal questions. Refuse before Tank,
+    # even while a newer scope package is awaiting its normal approval.
+    local = classify(text or "", law)
+    if local["criminal"]:
+        return {"stopped": True, "scope": local, "outputs": []}
     payload: dict[str, Any] = {"text": text or ""}
     if law is not None:
         payload["jurisdiction"] = law
@@ -114,7 +119,6 @@ async def consider(
     if not isinstance(scope, dict):
         scope = {}
     kind = ruled(text or "")
-    local = classify(text or "", law)
     if kind is None:
         decision = scope
         stopped = bool(scope.get("criminal") or not scope.get("in_scope"))

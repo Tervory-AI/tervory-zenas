@@ -147,7 +147,7 @@ def test_no_key_a_wrong_key_and_an_agent_key_are_refused(monkeypatch: pytest.Mon
 
 # ---------- Scope gate ----------
 
-SKILL = ROOT / "tank" / "skills" / "zenas.scope" / "1.1.0"
+SKILL = ROOT / "tank" / "skills" / "zenas.scope" / "1.2.0"
 
 
 @pytest.mark.parametrize(
@@ -193,7 +193,7 @@ def test_the_box_copy_and_the_new_skill_version_agree_and_1_0_0_is_untouched() -
     new = json.loads((SKILL / "areas.json").read_text(encoding="utf-8"))
     for word in ("bail", "theft", "thefts"):
         assert word in new["criminal_phrases"]
-    assert "version: 1.1.0" in (SKILL / "skill.yaml").read_text(encoding="utf-8")
+    assert "version: 1.2.0" in (SKILL / "skill.yaml").read_text(encoding="utf-8")
 
 
 def test_the_new_skill_version_evals_include_the_doc_question() -> None:

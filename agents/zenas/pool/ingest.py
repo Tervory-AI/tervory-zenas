@@ -11,6 +11,7 @@ from agents.zenas.pool.blobs import text_payloads
 from agents.zenas.pool.chunk import chunk_document
 from agents.zenas.pool.citations import extract_citations
 from agents.zenas.pool.embed import Embedder, NoOpEmbedder, VectorIndex, NoOpVectorIndex
+from agents.zenas.pool.indexing import index_pending
 from agents.zenas.pool.licence import LicenceError, may_store_text, refusal_reason
 from agents.zenas.pool.model import LegalDocument, SourceSpec
 from agents.zenas.pool.region import assert_source_region
@@ -72,9 +73,8 @@ async def ingest_snapshot(
                         skips["unchanged"] += 1
                 else:
                     inserted += 1
-                    vectors = await embedder.embed([chunk.text for chunk in chunks])
-                    if vectors:
-                        await index.upsert(document.jurisdiction, chunks, vectors, embedder.name)
+                await index_pending(store, embedder, index, region=region or store.home_region,
+                                    document_id=document.id)
                 await _attach_cites(store, document, citations)
     return inserted
 

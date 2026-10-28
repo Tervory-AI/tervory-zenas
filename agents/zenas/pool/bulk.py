@@ -16,9 +16,10 @@ from agents.zenas.pool.adapters import get_adapter
 from agents.zenas.pool.adapters.courtlistener_bulk import BulkStalled
 from agents.zenas.pool.catalogue import sources_for_region
 from agents.zenas.pool.config import current_region
-from agents.zenas.pool.embed import Embedder, NoOpEmbedder, NoOpVectorIndex, VectorIndex
+from agents.zenas.pool.embed import Embedder, NoOpEmbedder, NoOpVectorIndex, VectorIndex, live_backends
 from agents.zenas.pool.http import RateLimited
 from agents.zenas.pool.ingest import ingest_snapshot
+from agents.zenas.pool.indexing import index_pending
 from agents.zenas.pool.licence import FetchNotConfigured, LicenceError, refusal_reason
 from agents.zenas.pool.laws_africa import is_laws_africa, live_sources, sync_source
 from agents.zenas.pool.model import SourceSpec
@@ -57,8 +58,10 @@ async def load_wave(
     bind_store(store, region)
     day = on or date.today()
     when = datetime.now(timezone.utc)
-    embedder = embedder or NoOpEmbedder()
-    index = index or NoOpVectorIndex()
+    if live and snapshots is None:
+        embedder, index = live_backends(store, region, embedder, index)
+    else:
+        embedder, index = embedder or NoOpEmbedder(), index or NoOpVectorIndex()
     getter = http_get or urllib_get
     budget = disk_cap_bytes(cap)
     root = data_dir or os.environ.get("DATA_DIR", ".") or "."
@@ -136,6 +139,10 @@ async def load_source(
             when=when,
         )
         return False
+
+    from agents.zenas.pool.laws_africa import MINIMUM, SOURCE_ID
+    source_ids = [source.source_id, *MINIMUM.values()] if source.source_id == SOURCE_ID else [source.source_id]
+    await index_pending(store, embedder, index, region=region, source_ids=source_ids)
 
     if snapshots is not None:
         blobs = list(snapshots.get(source.source_id, []))

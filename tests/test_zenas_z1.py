@@ -42,7 +42,7 @@ from agents.zenas.pool.catalogue import CATALOGUE  # noqa: E402
 TENANT = "00000000-0000-0000-0000-000000000010"
 OTHER = "00000000-0000-0000-0000-000000000011"
 KEY = bytes(range(32))
-SCOPE = ROOT / "tank" / "skills" / "zenas.scope" / "1.1.0"
+SCOPE = ROOT / "tank" / "skills" / "zenas.scope" / "1.2.0"
 PII = ROOT / "tank" / "skills" / "zenas.pii" / "1.0.0"
 NDA = "Draft a mutual NDA under Delaware law in the United States."
 
@@ -172,7 +172,7 @@ async def test_criminal_question_never_reaches_another_skill() -> None:
     )
     assert result["stopped"] is True
     assert result["scope"]["criminal"] is True
-    assert tank.calls == ["zenas.scope"]
+    assert tank.calls == []
     assert result["outputs"] == []
 
 
@@ -369,9 +369,9 @@ async def test_upload_redacts_and_a_criminal_upload_stores_nothing() -> None:
         key=KEY,
     )
     assert refused["ok"] is False
-    assert criminal.calls == ["zenas.scope"]
+    assert criminal.calls == []
     assert (len(store.documents), len(store.pii)) == before
-    assert "219-09-9999" not in criminal.payloads[0]["input"]["text"]
+    assert criminal.payloads == []
 
 
 @pytest.mark.asyncio
