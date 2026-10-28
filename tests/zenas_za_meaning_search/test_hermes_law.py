@@ -116,7 +116,8 @@ def test_model_download_is_in_dependency_layer_before_application_code_copy():
     assert manifest["name"] == "BAAI/bge-small-en-v1.5"
     assert manifest["revision"] == "aa8f8b060edb00e03bfdd08813a2949946c8ba55"
     assert "revision=m['revision']" in dockerfile
-    assert dockerfile.index("COPY requirements.txt model.json") < dockerfile.index("snapshot_download") < dockerfile.index("COPY *.py")
+    assert dockerfile.index("COPY hermes/requirements.txt hermes/model.json") < dockerfile.index("snapshot_download") < dockerfile.index("COPY hermes/*.py")
+    assert dockerfile.index("python /tmp/memory_encoder.py") < dockerfile.index("COPY hermes/*.py")
     assert "HF_HUB_OFFLINE=1" in dockerfile
     assert "TextEmbedding(" not in dockerfile  # Build downloads files; does not run inference.
 
