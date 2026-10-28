@@ -198,7 +198,7 @@ def test_counsel_route_strips_bench_notes(monkeypatch):
 
 
 def test_watch_page_unpublished_returns_404_rule():
-    store = (ROOT / "workspace/app/moot/store.ts").read_text(encoding="utf-8")
+    store = (ROOT / "tests/moot-watch-fixtures.ts").read_text(encoding="utf-8")
     page = (ROOT / "workspace/app/moot/[match]/page.tsx").read_text(encoding="utf-8")
     panel = (ROOT / "workspace/app/moot/WatchPanel.tsx").read_text(encoding="utf-8")
     assert 'matchId: "fixture-unpublished"' in store

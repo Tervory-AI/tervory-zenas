@@ -1088,6 +1088,19 @@ class MootEditIn(BaseModel):
     changes: dict[str, Any]
 
 
+@app.get("/moot/published")
+async def get_moot_published(home_region: str, match_id: UUID | None = None) -> dict[str, Any]:
+    from agents.zenas.core.moot.published import published_matches
+
+    if home_region != "us-east" or _box_region() != "us-east":
+        raise HTTPException(status_code=403, detail="region mismatch")
+    try:
+        matches = await published_matches(app.state.pool, UUID(HEARTBEAT_TENANT), home_region, match_id)
+    except Exception:
+        raise HTTPException(status_code=503, detail="published matches unavailable") from None
+    return {"matches": matches}
+
+
 @app.get("/moot/fixtures")
 async def get_moot_fixtures() -> dict[str, Any]:
     """List MOOT-1a fixture problem ids (ZA fixtures included; no live ZA host required)."""

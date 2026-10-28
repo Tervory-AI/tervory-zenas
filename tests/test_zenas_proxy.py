@@ -389,3 +389,24 @@ async def test_a_foreign_room_url_is_not_called(monkeypatch: pytest.MonkeyPatch)
     assert caught.value.status_code == 403
     assert caught.value.detail == "Zenas stays in this region"
     assert room.calls == []
+
+
+@pytest.mark.asyncio
+async def test_published_moot_reader_reaches_only_the_local_us_room(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("TANK_REGION", "us-east")
+    monkeypatch.setenv("ZENAS_AGENT_URL", "http://agent-zenas:8000")
+    room = _Room(b'{"matches": []}')
+    monkeypatch.setattr(main, "_http", room)
+    response = await main.zenas_proxy(
+        "moot/published", _request("GET", "/v1/zenas/moot/published", query=b"home_region=us-east"),
+    )
+    assert response.status_code == 200
+    assert json.loads(response.body) == {"matches": []}
+    assert room.calls == ["http://agent-zenas:8000/moot/published"]
+    room.calls.clear()
+    with pytest.raises(HTTPException) as caught:
+        await main.zenas_proxy(
+            "moot/published", _request("GET", "/v1/zenas/moot/published", query=b"home_region=za"),
+        )
+    assert caught.value.status_code == 403
+    assert room.calls == []
