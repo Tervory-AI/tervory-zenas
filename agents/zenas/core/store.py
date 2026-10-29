@@ -336,7 +336,11 @@ class PgStore:
 
     async def apply_schema(self) -> None:
         statements = schema_statements()
-        async with self.pool.acquire() as conn:
+        from chassis.tenant_db import TenantPool
+
+        # A denied CREATE SCHEMA must not abort the fallback lookup or later DDL.
+        checkout = self.pool.acquire(autocommit=True) if isinstance(self.pool, TenantPool) else self.pool.acquire()
+        async with checkout as conn:
             for statement in statements:
                 if statement.upper().startswith("CREATE SCHEMA"):
                     try:
