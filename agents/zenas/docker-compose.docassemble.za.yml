@@ -75,6 +75,13 @@ services:
     volumes:
       - docassemble_za_backup:/backup:ro
     command: ["python", "jobs/train/docassemble_backup.py", "--nightly"]
+    # Scheduled-worker liveness only; encrypted archive/restore proof is separate.
+    healthcheck:
+      test: ["CMD", "python", "-c", "from pathlib import Path; c=Path('/proc/1/cmdline').read_bytes().split(bytes([0])); raise SystemExit(0 if b'jobs/train/docassemble_backup.py' in c and b'--nightly' in c else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
     networks: [backup]
 
 volumes:
