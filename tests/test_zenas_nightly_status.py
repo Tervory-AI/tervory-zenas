@@ -149,3 +149,19 @@ def test_transport_is_fixed_host_allowlisted_get_without_redirects(monkeypatch):
     with pytest.raises(status.MetadataError):
         status.get_metadata(next(iter(status.ALLOWED_PATHS)))
     assert len(seen) == len(status.ALLOWED_PATHS)
+
+
+def test_workflow_runs_only_dedicated_read_step():
+    import yaml
+
+    workflow = yaml.safe_load((ROOT / ".github/workflows/coolify-ops.yml").read_text())
+    steps = workflow["jobs"]["op"]["steps"]
+    read = next(step for step in steps if step.get("name") == "Read existing US and ZA nightly execution metadata")
+    assert read["if"] == "inputs.op == 'nightly-status'"
+    assert read["run"] == "python3 .github/scripts/zenas_nightly_status.py"
+    shell = next(step for step in steps if step.get("name") == "Run")
+    assert "inputs.op != 'nightly-status'" in shell["if"]
+    check = next(step for step in steps if step.get("name") == "Check nightly metadata scope")
+    assert check["run"] == 'test -z "$APP$ROOM$NAMES"'
+    assert check["if"] == "inputs.op == 'nightly-status'"
+    assert steps.index(check) < steps.index(read)
