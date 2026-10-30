@@ -114,3 +114,50 @@ async def test_za_and_offline_paths_have_no_new_deadline(monkeypatch, region, li
         http_get=None, embedder=NoOpEmbedder(), index=NoOpVectorIndex(),
     )
     assert completed
+
+
+@pytest.mark.asyncio
+async def test_deadline_during_ingestion_retries_unacknowledged_opinions_in_same_process(monkeypatch):
+    monkeypatch.setenv("TANK_REGION", "us-east")
+    monkeypatch.setattr(nightly, "_US_COURTLISTENER_SECONDS", 0.01)
+    source = next(row for row in CATALOGUE if row.source_id == "courtlistener")
+    adapter = nightly.get_adapter(source)
+    monkeypatch.setattr(adapter, "_bulk_state", None, raising=False)
+    store = MemoryStore(home_region="us-east")
+    saved = "cl-bulk:2026-01-01:opinions:42"
+    await store.set_checkpoint(source.source_id, saved, 0)
+    blocking = True
+    starting_ids = []
+    ingested = []
+
+    async def fetched(_getter, *, resume, state):
+        cursor = bulk.parse_cursor(bulk.split_cursor(resume)[0])
+        state.day = "2026-01-01"
+        state.last_opinion_id = max(state.last_opinion_id, cursor.last_id)
+        starting_ids.append(state.last_opinion_id)
+        blobs = [b"opinion99"] if state.last_opinion_id < 99 else []
+        state.last_opinion_id = 99
+        state.files_done.add("dockets")
+        return bulk.BulkResult(blobs, "cl-bulk:2026-01-01:opinions:99", {}, state.day, "opinions", 1, 1)
+
+    async def ingest(_store, _source, blobs, **_kwargs):
+        if blocking:
+            await asyncio.Event().wait()
+        ingested.extend(blobs)
+        return len(blobs)
+
+    monkeypatch.setattr(bulk, "load_bulk", fetched)
+    monkeypatch.setattr(nightly, "ingest_snapshot", ingest)
+    kwargs = dict(region="us-east", live=True, only=[source.source_id],
+                  embedder=NoOpEmbedder(), index=NoOpVectorIndex())
+    await nightly.run_nightly(store, **kwargs)
+    assert store.runs[source.source_id].last_status == "stalled"
+    assert await store.get_checkpoint(source.source_id) == saved
+    assert adapter._bulk_state is None
+    assert not ingested
+    blocking = False
+    await nightly.run_nightly(store, **kwargs)
+    assert starting_ids == [42, 42]
+    assert ingested == [b"opinion99"]
+    assert await store.get_checkpoint(source.source_id) == "cl-bulk:2026-01-01:opinions:99"
+    assert store.runs[source.source_id].last_status == "ok"
