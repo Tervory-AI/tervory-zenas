@@ -135,9 +135,11 @@ async def _update_nightly_source(store: Store, source, **kwargs) -> None:
             raise
         from agents.zenas.pool.adapters.courtlistener_bulk import BulkStalled
 
-        # load_bulk restores its unacknowledged opinion cursor on cancellation;
-        # index_pending acknowledges each completed chunk. Never advance either
-        # checkpoint to cover unfinished work. Later sources still get a turn.
+        # A deadline can also expire after load_bulk returns, while its blobs
+        # are still being ingested. Discard the singleton adapter's speculative
+        # state so the next run starts from the durable checkpoint, not a cached
+        # opinion id or files_done marker ahead of acknowledged data.
+        get_adapter(source)._bulk_state = None
         await store.record_source(source)
         await store.record_run(
             source.source_id, status="stalled", detail=str(BulkStalled()),
