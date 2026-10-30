@@ -21,6 +21,8 @@ from agents.zenas.pool.region import RegionError
 
 API = "https://api.laws.africa/v3/"
 WORKS = API + "akn/za/.json"
+CONTENT_API_403 = ("HTTP 403 from api.laws.africa: the Content API for za is not on this plan; "
+                   "answers use the Laws.Africa Knowledge Base")
 _WORK = re.compile(r"^/akn/za/act/(?:[a-z][a-z0-9_-]*/)?[0-9]{4}(?:-[0-9]{2}-[0-9]{2})?/[a-zA-Z0-9._-]+$")
 
 
@@ -109,6 +111,9 @@ class LawsAfricaClient:
                 code = exc.code
                 retry_after = exc.headers.get("Retry-After") if exc.headers else None
                 exc.close()
+                if code == 403:
+                    # Build plan: Knowledge Bases only. /v3/akn/za/ needs the Content API add-on.
+                    raise FetchNotConfigured(CONTENT_API_403) from None
                 if code != 429 and not 500 <= code <= 599:
                     raise FetchNotConfigured(f"HTTP {code} from api.laws.africa") from None
                 if attempt == 5:

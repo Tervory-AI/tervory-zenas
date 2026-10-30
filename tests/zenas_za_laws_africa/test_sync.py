@@ -193,7 +193,7 @@ async def test_bad_token_through_load_route_does_not_log_response_or_create_chec
         await finish_loads()
         result = row((await client.get("/pool/status")).json())
     assert result["last_status"] == "not_configured"
-    assert result["detail"] == "HTTP 403 from api.laws.africa"
+    assert result["detail"] == api.CONTENT_API_403
     assert store.docs == {} and store.checkpoints == {}
 
 

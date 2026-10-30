@@ -378,6 +378,17 @@ async def _passages_from_pool(
                 **metadata.get((chunk.document_id, chunk.version_id), {}),
             }
         )
+    if law == "za" and query.strip() and getattr(pool, "laws_africa_kb", True):
+        # Build plan: South African law comes from the Laws.Africa Knowledge Base
+        # at question time (the bulk Content API is not on this plan).
+        from agents.zenas.pool.adapters.laws_africa_kb import za_passages
+
+        for item in await za_passages(query):
+            key = "kb:" + item["doc_id"] + "#" + item["path"] + "|" + item["text"][:64]
+            if key in seen:
+                continue
+            seen.add(key)
+            passages.append(item)
     return passages
 
 
