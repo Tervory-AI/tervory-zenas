@@ -27,6 +27,9 @@ FIXTURES = Path(__file__).resolve().parent / "fixtures"
 # Official statute feeds. Load now uses fetch_bulk through the pool loader.
 # Nightly uses the same resume cursor and writes the feeds sentence itself.
 _OFFICIAL_STATUTES = frozenset({"govza-acts", "govza-regulations"})
+# The US scheduler allows two hours for the entire night. A progressing bulk
+# archive must also yield; its no-progress watchdog alone cannot bound it.
+_US_COURTLISTENER_SECONDS = 30 * 60
 
 
 def packaged_snapshots(region: str) -> dict[str, list[bytes]]:
@@ -94,7 +97,7 @@ async def run_nightly(
         for source in sources:
             try:
                 assert_source_region(source, region)
-                await _update_source(
+                await _update_nightly_source(
                     store,
                     source,
                     snapshots=snapshots,
@@ -113,6 +116,35 @@ async def run_nightly(
     finally:
         version_saved.reset(token)
     return await pool_status(store, region=region)
+
+
+async def _update_nightly_source(store: Store, source, **kwargs) -> None:
+    bounded = (
+        kwargs["region"] == "us-east" and source.source_id == "courtlistener"
+        and kwargs["live"] and kwargs["snapshots"] is None
+    )
+    if not bounded:
+        await _update_source(store, source, **kwargs)
+        return
+    window = asyncio.timeout(_US_COURTLISTENER_SECONDS)
+    try:
+        async with window:
+            await _update_source(store, source, **kwargs)
+    except TimeoutError:
+        if not window.expired():
+            raise
+        from agents.zenas.pool.adapters.courtlistener_bulk import BulkStalled
+
+        # A deadline can also expire after load_bulk returns, while its blobs
+        # are still being ingested. Discard the singleton adapter's speculative
+        # state so the next run starts from the durable checkpoint, not a cached
+        # opinion id or files_done marker ahead of acknowledged data.
+        get_adapter(source)._bulk_state = None
+        await store.record_source(source)
+        await store.record_run(
+            source.source_id, status="stalled", detail=str(BulkStalled()),
+            documents=await store.instrument_count(source.source_id), when=kwargs["when"],
+        )
 
 
 async def _update_source(
