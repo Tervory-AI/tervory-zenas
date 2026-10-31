@@ -395,3 +395,133 @@ def test_a_4xx_is_not_retried_but_a_5xx_still_is(monkeypatch: pytest.MonkeyPatch
     calls.clear()
     asyncio.run(polite_get(failing(429), "https://www.siu.org.za/slow/", {}, "TRIBUNAL_MIN_INTERVAL"))
     assert calls == [429, 429, 429]
+
+
+# --- Review of #502, round 2 ---------------------------------------------------
+
+_SIGNED = "\nJUDGE L MODIBA\nMEMBER OF THE SPECIAL TRIBUNAL\n26 August 2026"
+
+
+def test_wrapped_prose_is_not_a_date_label():
+    """D2: hard-wrapped prose can start a line; a label needs ':' or '-', or a date and nothing else after it."""
+    head = "IN THE SPECIAL TRIBUNAL\nCASE NO: GP 1/2026\n"
+    for prose in (
+        "The applicant relies on the\ndate of order of the High Court, 3 March 2019, as the start.\n",
+        "As was confirmed in the\njudgment delivered on 12 March 2019 in SIU v Y.\n",
+    ):
+        assert judgment_date(head + prose + _SIGNED) == date(2026, 8, 26), prose
+    order = "\n" + "word " * 500 + "\nInterest from the\ndate of judgment, being 1 May 2026 (the hearing), at the prescribed rate."
+    assert judgment_date(head + "word " * 600 + order + _SIGNED) == date(2026, 8, 26)
+    # The real label forms still work.
+    assert judgment_date(head + "Date of judgment - 26 August 2026\n") == date(2026, 8, 26)
+    assert judgment_date(head + "Judgment delivered on 26 August 2026.\n") == date(2026, 8, 26)
+    assert judgment_date(head + "Judgment handed down on this 26th day of August 2026\n") == date(2026, 8, 26)
+
+
+def test_a_stack_maps_by_position_only_when_every_label_has_a_date_below():
+    """D3: a Coram line among the values must not shift the hearing date onto the judgment label."""
+    for stack in (
+        "Date of hearing:\nDate of judgment:\nCoram: Mia J\n1 May 2026\n26 August 2026\n",
+        "Coram:\nDate of hearing:\nDate of judgment:\nMia J\n1 May 2026\n26 August 2026\n",
+    ):
+        assert judgment_date("IN THE SPECIAL TRIBUNAL\n" + stack) is None, stack
+        assert judgment_date("IN THE SPECIAL TRIBUNAL\n" + stack + "Reasons follow." + _SIGNED) == date(2026, 8, 26)
+    even = "Date of hearing:\nDate of judgment:\n1 May 2026\n26 August 2026 at 10h00\n"
+    assert judgment_date("IN THE SPECIAL TRIBUNAL\n" + even) == date(2026, 8, 26)
+    assert judgment_date("IN THE SPECIAL TRIBUNAL\nDate of judgment:\nDate of hearing:\n1 May 2026\n") is None
+
+
+# D1. A dated citation re-keys a judgment that main stored under its bare case number.
+# store.url_replaces already closes the old row: a ZA case file holds one judgment, so a new
+# document from the same source and file supersedes any open row there under another id
+# (MemoryStore.upsert_version and the same UPDATE in PostgresStore.upsert_version).
+# These tests pin that for this source, through the nightly ingest path.
+
+_OLD_URL = "https://www.justice.gov.za/tribunal/jdm/ST-Judgment-GP-17-2020.pdf"
+_OTHER_URL = "https://www.justice.gov.za/tribunal/jdm/ST-Judgment-GP-17-2020-Jdm.pdf"
+
+
+def _row(citation: str, url: str, when: str) -> bytes:
+    text = "IN THE SPECIAL TRIBUNAL\n" + REASONS
+    return json.dumps({"citation": citation, "title": "SIU v X", "url": url, "date": when, "text": text}).encode()
+
+
+async def _rekey(store) -> None:
+    from collections import Counter
+
+    from agents.zenas.pool.catalogue import CATALOGUE
+    from agents.zenas.pool.ingest import ingest_snapshot
+
+    source = next(item for item in CATALOGUE if item.source_id == "special-tribunal")
+    listing = source.canonical_url
+    # What main stored: bare case numbers. Two rows on the source's own page stand for a
+    # loader whose URL names a listing, not one file; those must never close each other.
+    before = [
+        _row("Special Tribunal GP 17/2020", _OLD_URL, ""),
+        _row("Special Tribunal GP 17/2020 (2021-03-08)", _OTHER_URL, "2021-03-08"),
+        _row("Special Tribunal GP 1/2019", listing, ""),
+        _row("Special Tribunal GP 2/2019", listing, ""),
+    ]
+    await ingest_snapshot(store, source, before, on=date(2026, 10, 1))
+    dated = [_row("Special Tribunal GP 17/2020 (2021-02-26)", _OLD_URL, "2021-02-26")]
+    assert await ingest_snapshot(store, source, dated, on=date(2026, 11, 1)) == 1
+    again: Counter[str] = Counter()
+    assert await ingest_snapshot(store, source, dated, on=date(2026, 11, 2), skips=again) == 0
+    assert again == Counter({"unchanged": 1})
+
+
+def _assert_rekeyed(rows: list[tuple[str, str, str, date | None]]) -> None:
+    by_citation = {citation: (url, status, effective_to) for citation, url, status, effective_to in rows}
+    assert len(rows) == len(by_citation) == 5
+    assert by_citation["Special Tribunal GP 17/2020"][1:] == ("superseded", date(2026, 11, 1))
+    open_rows = sorted(citation for citation, (_url, _status, until) in by_citation.items() if until is None)
+    assert open_rows == [
+        "Special Tribunal GP 1/2019",
+        "Special Tribunal GP 17/2020 (2021-02-26)",
+        "Special Tribunal GP 17/2020 (2021-03-08)",
+        "Special Tribunal GP 2/2019",
+    ]
+
+
+def test_a_rekeyed_judgment_closes_its_old_row_in_memory():
+    from agents.zenas.pool.store import MemoryStore
+
+    store = MemoryStore(home_region="za")
+    asyncio.run(_rekey(store))
+    _assert_rekeyed([(doc.citation, doc.url, doc.status, doc.effective_to) for doc in store.docs.values()])
+
+
+def _database_url() -> str:
+    import os
+
+    url = os.environ.get("POOL_SCHEMA_DATABASE_URL", "").strip()
+    if url:
+        return url
+    if os.environ.get("GITHUB_ACTIONS"):
+        pytest.fail("POOL_SCHEMA_DATABASE_URL is not set")
+    pytest.skip("POOL_SCHEMA_DATABASE_URL is not set")
+    return ""
+
+
+def test_a_rekeyed_judgment_closes_its_old_row_in_postgres():
+    asyncio.run(_rekey_postgres(_database_url()))
+
+
+async def _rekey_postgres(url: str) -> None:
+    import asyncpg
+
+    from agents.zenas.pool.store import PostgresStore
+
+    conn = await asyncpg.connect(url)
+    try:
+        await conn.execute("DROP SCHEMA IF EXISTS zenas_pool CASCADE")
+        store = PostgresStore(conn, home_region="za")
+        await store.apply_schema()
+        await _rekey(store)
+        rows = await conn.fetch(
+            "SELECT citation, url, status, effective_to FROM zenas_pool.documents WHERE source_id = 'special-tribunal'"
+        )
+        _assert_rekeyed([(row["citation"], row["url"], row["status"], row["effective_to"]) for row in rows])
+    finally:
+        await conn.execute("DROP SCHEMA IF EXISTS zenas_pool CASCADE")
+        await conn.close()

@@ -112,14 +112,22 @@ _DAY_MONTH_YEAR = re.compile(
 )
 _YMD = re.compile(r"\b(\d{4})[/-](\d{1,2})[/-](\d{1,2})\b")
 _DMY = re.compile(r"\b(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})\b")
-# Strongest first. Each is a label at the start of a line; its value is the rest of
-# that line, or (labels stacked above their values) the matching line below.
+# Strongest first. Each is a label at the start of a line. It counts only when a ':' or
+# '-' follows it, or when the rest of the line is a date and nothing else: PDF text is
+# hard-wrapped, so prose ("relies on the\ndate of order of the High Court, 3 March 2019")
+# can start a line too. The value is the rest of the line, or (labels stacked above their
+# values) the matching line below.
 # "Date of hearing" / "Heard on" is never the judgment date and is not listed.
 _DATE_LABELS = (
-    re.compile(r"\s*date\s+of\s+(?:judg(?:e)?ment|order|delivery|hand[\s-]*down)\b\s*[:\-]?", re.I),
-    re.compile(r"\s*(?:judg(?:e)?ment|order)\s+(?:delivered|handed\s+down)\b\s*(?:on\b)?\s*[:\-]?", re.I),
-    re.compile(r"\s*date\s*:", re.I),
-    re.compile(r"\s*date\s+held\s*:", re.I),
+    re.compile(r"\s*date\s+of\s+(?:judg(?:e)?ment|order|delivery|hand[\s-]*down)\b", re.I),
+    re.compile(r"\s*(?:judg(?:e)?ment|order)\s+(?:delivered|handed\s+down)\b(?:\s*on\b)?", re.I),
+    re.compile(r"\s*date\b", re.I),
+    re.compile(r"\s*date\s+held\b", re.I),
+)
+_ONLY_DATE = re.compile(
+    r"\s*(?:(?:this|the)\s+)?(?:\d{1,2}(?:st|nd|rd|th)?\s+(?:day\s+)?(?:of\s+)?[A-Za-z]{3,9}\.?,?\s+\d{4}"
+    r"|\d{4}[/-]\d{1,2}[/-]\d{1,2}|\d{1,2}[/.-]\d{1,2}[/.-]\d{4})\s*\.?\s*",
+    re.I,
 )
 # The hand-down sentence, anywhere on a line of the header: "... is deemed to be 13h30 on 26 August 2026."
 _DEEMED = re.compile(r"\b(?:hand[\s-]*down|delivery)\s+is\s+deemed\s+to\s+be\b", re.I)
@@ -186,9 +194,21 @@ def date_from_name(url: str) -> date | None:
 
 
 def _label_value(lines: list[str], index: int, label: re.Pattern) -> str | None:
-    """The value for the label on lines[index]: the rest of its line, else the matching line below a stack of labels."""
+    """The value for the label on lines[index], or None when that line is not a label.
+
+    "Date of judgment: 26 August 2026" or "Judgment delivered on 26 August 2026" give the
+    rest of the line. A bare "Date of judgment:" in a stack of N empty labels takes its
+    value by position, but only when the N lines after the stack are all dates; any other
+    layout (a Coram line in between, a missing value) gives None rather than a guess.
+    """
     match = label.match(lines[index])
+    if not match:
+        return None
     rest = lines[index][match.end() :].strip()
+    if rest[:1] in (":", "-"):
+        rest = rest[1:].strip()
+    elif not (rest and _ONLY_DATE.fullmatch(rest) and date_in(rest)):
+        return None  # prose that happens to start a line, or a bare label without ':'
     if rest:
         return rest
     start = index
@@ -197,10 +217,10 @@ def _label_value(lines: list[str], index: int, label: re.Pattern) -> str | None:
     end = index
     while end + 1 < len(lines) and (below := _ANY_LABEL.match(lines[end + 1])) and not lines[end + 1][below.end() :].strip():
         end += 1
-    target = end + 1 + (index - start)
-    if target >= len(lines) or _ANY_LABEL.match(lines[target]):
+    values = lines[end + 1 : end + 1 + (end - start + 1)]
+    if len(values) != end - start + 1 or not all(date_in(value) for value in values):
         return None
-    return lines[target]
+    return values[index - start]
 
 
 def _segments(text: str) -> list[list[str]]:
