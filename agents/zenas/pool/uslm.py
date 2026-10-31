@@ -91,15 +91,18 @@ def _child_sections(element: ET.Element) -> list[Section]:
     return nodes
 
 
+_DASHES = str.maketrans({"\u2013": "-", "\u2014": "-"})
+
+
 def _section_number(element: ET.Element) -> str:
     num_el = next((child for child in list(element) if _local(child.tag) == "num"), None)
     if num_el is not None:
         value = (num_el.attrib.get("value") or "").strip()
         if value:
-            return value
+            return value.translate(_DASHES)
     raw = _direct_text(element, "num")
-    match = re.search(r"([0-9]+[0-9A-Za-z\-]*)", raw)
-    return match.group(1) if match else ""
+    match = re.search(r"([0-9]+[0-9A-Za-z\-\u2013\u2014]*)", raw)
+    return match.group(1).translate(_DASHES) if match else ""
 
 
 def parse_uslm(blob: bytes, source: SourceSpec) -> list[LegalDocument]:

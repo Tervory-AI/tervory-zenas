@@ -12,7 +12,10 @@ from agents.zenas.pool.model import Section
 
 _MARKER = re.compile(r"^\(([0-9]+|[A-Za-z]+)\)\s*")
 _EFF = re.compile(r"eff\.\s+([A-Z][a-z]+)\.?\s+(\d{1,2}),\s+(\d{4})")
-_SECTION_NO = re.compile(r"§\s*([0-9]+[0-9A-Za-z-]*)")
+# GovInfo headings print "§80b–1." with an en dash. Keep the full number and
+# write it with a plain hyphen so sections do not collapse onto "§ 80b".
+_SECTION_NO = re.compile(r"§\s*([0-9]+[0-9A-Za-z\-\u2013\u2014]*)")
+_DASHES = str.maketrans({"\u2013": "-", "\u2014": "-"})
 _RULE_NO = re.compile(r"Rule\s+([0-9]+(?:\.[0-9]+)?)")
 _TITLE_NO = re.compile(r"Title\s+(\d+)")
 _USC_LABEL = re.compile(r"(\d+)\s+U\.S\.C\.")
@@ -189,7 +192,7 @@ def parse_govinfo_html(blob: bytes) -> GovinfoInstrument:
     section = _SECTION_NO.search(heading)
     rule = _RULE_NO.search(heading)
     if section:
-        number = section.group(1)
+        number = section.group(1).translate(_DASHES)
     elif rule:
         number = rule.group(1)
     notes = nest_paragraphs(parser.notes)
@@ -425,6 +428,6 @@ def parse_delaware_html(blob: bytes) -> list[tuple[str, str, list[Section]]]:
         number = head_id or ""
         match = _SECTION_NO.search(heading)
         if match:
-            number = match.group(1)
+            number = match.group(1).translate(_DASHES)
         out.append((number, heading, nest_paragraphs(paras)))
     return out

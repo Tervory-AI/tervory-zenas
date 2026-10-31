@@ -482,3 +482,16 @@ def test_uscode_adapter_parses_uslm_without_touching_html():
     html = (Path(__file__).resolve().parents[1] / "agents/zenas/pool/fixtures/us-east/govinfo-uscode/49-usc-14706.html").read_bytes()
     parsed = UsCodeAdapter().parse(html, source)
     assert parsed[0].citation == "49 U.S.C. § 14706"
+
+
+def test_uscode_en_dash_sections_keep_their_own_citation():
+    # GovInfo prints "§80b–21." with an en dash. Each section must keep its own
+    # citation rather than collapsing onto "§ 80b".
+    source = _source("govinfo-uscode")
+    fixture = Path(__file__).resolve().parents[1] / "agents/zenas/pool/fixtures/us-east/govinfo-uscode/49-usc-14706.html"
+    html = fixture.read_bytes().replace(b"&sect;14706. Liability", b"&sect;14706&ndash;1. Liability", 1)
+    assert UsCodeAdapter().parse(html, source)[0].citation == "49 U.S.C. § 14706-1"
+    xml = _uslm([("15", "80b–21", "Effective date", "This subchapter takes effect.")])
+    assert UsCodeAdapter().parse(xml, source)[0].citation == "15 U.S.C. § 80b-21"
+    bare = xml.replace('<num value="80b–21">'.encode(), b"<num>", 1)
+    assert UsCodeAdapter().parse(bare, source)[0].citation == "15 U.S.C. § 80b-21"
