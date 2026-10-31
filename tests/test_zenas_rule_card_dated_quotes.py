@@ -46,7 +46,7 @@ def _context(pkg):
 
 def test_room_prompt_and_skill_carry_the_same_quote_rule():
     rule = _quote_rule()
-    assert "dates" in rule and "cannot be verified" in rule
+    assert "dates" in rule and "amounts" in rule and "patent" in rule and "cannot be verified" in rule
     assert rule in service._RULE_PROMPT
     assert rule in service.rule_card_prompt("Who may order a divestiture?", [{"citation": "X", "text": "Y."}])
 
@@ -84,6 +84,19 @@ def test_room_still_masks_a_dated_quote_and_fails_it():
     # Unchanged gate: the date is masked, so the quote cannot be verified.
     card = _room_card("The Tribunal approved the merger on 08 March 2023.")
     assert "[Date]" in card["elements"][0]["quote"]
+    assert card["cite"]["passed"] is False
+
+
+def test_room_still_masks_a_patent_number_quote_and_fails_it():
+    # 1 F.2d 10: a patent number reads as an amount and is masked. Gate unchanged.
+    passages = [{"doc_id": "f", "version_id": "v1", "citation": "1 F.2d 10", "status": "effective",
+                 "text": "Claims 9 and 10 of United States patent 1,237,432 are void for want of invention."}]
+    from agents.zenas.core import engine
+    card = engine.card_from_proposal(
+        {"elements": [{"id": "e", "test": "Void.", "citation": "1 F.2d 10",
+                       "quote": "Claims 9 and 10 of United States patent 1,237,432 are void for want of invention."}]},
+        passages, question="What did 1 F.2d 10 hold?", secrets=[])
+    assert "[Amount]" in card["elements"][0]["quote"]
     assert card["cite"]["passed"] is False
 
 
