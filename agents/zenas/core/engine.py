@@ -239,6 +239,11 @@ def quote_in_source(quote: str, source: str) -> bool:
 # tests/test_zenas_rule_card_dated_quotes.py checks that against both detectors' labels.
 MASK_TOKEN = re.compile(r"(\[(?:Party [A-Z0-9]+|[A-Z][A-Za-z]*(?:_[A-Z][A-Za-z]*)*(?:_\d+)?)\])")
 
+# The most characters of court text one placeholder may stand for when a masked quote
+# is rechecked. Detector matches (dates, phone and ID numbers, names, addresses, emails)
+# are far shorter; a longer span fails closed. It bounds the caller's quote_len.
+MASK_TOKEN_MAX_CHARS = 256
+
 
 def _sha_folded(folded: str) -> str:
     return hashlib.sha256(folded.encode("utf-8")).hexdigest()
@@ -273,8 +278,15 @@ def masked_quote_in_source(quote: str, sha: str, length: Any, source: str) -> bo
     fingerprint and length of those words were kept. Here every window of the source
     with that length, starting where the quote's first words appear, is tried: its
     fingerprint must match AND it must mask to the quote shown. A different date,
-    number or name gives a different fingerprint, so it fails. Each window costs one
-    hash, so the work is bounded by the size of the source.
+    number or name gives a different fingerprint, so it fails.
+
+    Each window costs one hash over the window, so the work is the number of starts
+    times the length: O(source x length), not linear. When the quote opens with a
+    mask every position is a start. The length comes from the caller (cite_check
+    1.1.0), so it is bounded first: a placeholder stands for at most
+    MASK_TOKEN_MAX_CHARS characters, and a length longer than the quote's literal
+    words plus that much per placeholder cannot be the words shown, so it fails
+    closed before any scan.
     """
     folded = fold_for_quote(quote)
     try:
@@ -282,6 +294,10 @@ def masked_quote_in_source(quote: str, sha: str, length: Any, source: str) -> bo
     except (TypeError, ValueError):
         return False
     if not sha or not folded or size <= 0 or not MASK_TOKEN.search(folded):
+        return False
+    tokens = MASK_TOKEN.findall(folded)
+    literal = len(folded) - sum(len(token) for token in tokens)
+    if size > literal + MASK_TOKEN_MAX_CHARS * len(tokens):
         return False
     parts = MASK_TOKEN.split(folded)
     head, tail = parts[0], parts[-1]

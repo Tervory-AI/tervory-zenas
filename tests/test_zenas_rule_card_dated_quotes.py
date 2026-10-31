@@ -84,6 +84,7 @@ PHONE_CITE = "[2025] ZAWCHC 12"
 PHONE_TEXT = ("The notice was served at the registry. The registry may be reached on 021 555 0123 during "
               "office hours. No later notice was filed.")
 PHONE_QUOTE = "The registry may be reached on 021 555 0123 during office hours."
+MASK_PHONE = "[PHONE_1]"
 PHONE_PASSAGES = [{"doc_id": "w1", "version_id": "v1", "citation": PHONE_CITE, "text": PHONE_TEXT,
                    "status": "effective"}]
 
@@ -109,7 +110,7 @@ def test_cite_check_1_1_0_keeps_every_1_0_2_case():
     pkgs = _packages()
     old, new = pkgs[("zenas.cite_check", "1.0.2")], pkgs[("zenas.cite_check", "1.1.0")]
     assert {skala.evidence_hash(c) for c in old.cases} <= {skala.evidence_hash(c) for c in new.cases}
-    assert len(new.cases) == len(old.cases) + 5
+    assert len(new.cases) == len(old.cases) + 6
     assert "allow_masked=True" in (new.path / "run.py").read_text(encoding="utf-8")
 
 
@@ -336,3 +337,66 @@ def test_true_sa_id_quote_builds_and_rechecks_and_another_valid_id_fails(eng_nam
     assert "[SA_ID_1]" in card["elements"][0]["quote"] and card["cite"]["passed"] is True
     assert _recheck(card, passages, eng=eng)["passed"] is True
     assert _card(quote.replace(SA_ID, other), passages, PHONE_CITE, eng=eng)["cite"]["passed"] is False
+
+
+# An oversize caller quote_len is refused before any scan (round-3 review point 2).
+OVERSIZE_TEXT = ("on 1 the 2 and 3 " * 70000)[:1_000_000]
+
+
+def test_oversize_quote_len_is_refused_in_under_a_second_on_1_mb():
+    assert engine.MASK_TOKEN_MAX_CHARS == SHARED.MASK_TOKEN_MAX_CHARS == 256
+    for eng in (engine, SHARED):
+        started = time.monotonic()
+        assert eng.masked_quote_in_source("[Date]", "0" * 64, 100_000, OVERSIZE_TEXT) is False
+        assert time.monotonic() - started < 1
+
+
+def test_oversize_quote_len_is_refused_in_under_a_second_through_cite_check_1_1_0():
+    module = _load(ROOT / "tank" / "skills" / "zenas.cite_check" / "1.1.0" / "run.py", "cite_check_110_oversize")
+    payload = {
+        "statements": [{"citation": PHONE_CITE, "quote": "[Date]", "quote_sha": "0" * 64, "quote_len": 100_000}],
+        "passages": [{"doc_id": "w", "version_id": "v", "citation": PHONE_CITE, "text": OVERSIZE_TEXT,
+                      "status": "effective"}],
+    }
+    import asyncio
+
+    started = time.monotonic()
+    result = asyncio.run(module.run(payload, None))
+    assert time.monotonic() - started < 1
+    assert result["passed"] is False and result["blocked"] is True
+
+
+@pytest.mark.parametrize("eng_name", ["room", "tank"])
+def test_quote_len_bound_is_literal_words_plus_256_per_placeholder(eng_name):
+    # Tank's zenas.pii/1.0.0 masks phone numbers, not dates, so the phone quote runs on both.
+    eng = engine if eng_name == "room" else SHARED
+    card = _card(PHONE_QUOTE, PHONE_PASSAGES, PHONE_CITE, eng=eng)
+    element = card["elements"][0]
+    shown, sha, size = element["quote"], element["quote_sha"], element["quote_len"]
+    assert MASK_PHONE in shown and size == len(PHONE_QUOTE)
+    assert eng.masked_quote_in_source(shown, sha, size, PHONE_TEXT) is True
+    tokens = eng.MASK_TOKEN.findall(shown)
+    literal = len(shown) - sum(len(token) for token in tokens)
+    bound = literal + eng.MASK_TOKEN_MAX_CHARS * len(tokens)
+    # Lengths up to the bound are still scanned (and fail only on the fingerprint) ...
+    assert eng.masked_quote_in_source(shown, sha, bound, PHONE_TEXT + " x" * 200) is False
+    # ... and anything past it is refused before any scan.
+    calls = []
+    real = eng._quote_starts
+    try:
+        eng._quote_starts = lambda *a: calls.append(a) or real(*a)
+        assert eng.masked_quote_in_source(shown, sha, bound + 1, PHONE_TEXT) is False
+        assert calls == []
+        assert eng.masked_quote_in_source(shown, sha, bound, PHONE_TEXT) is False
+        assert calls
+    finally:
+        eng._quote_starts = real
+
+
+def test_cite_check_1_1_0_has_a_must_refuse_case_for_an_oversize_quote_len():
+    path = ROOT / "tank" / "skills" / "zenas.cite_check" / "1.1.0" / "evals" / "cases.jsonl"
+    cases = [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
+    oversize = [c for c in cases if any(int(s.get("quote_len") or 0) > 256 * 10
+                                        for s in c["input"]["statements"])]
+    assert oversize and all(c["must_refuse"] is True and c["expected"] == {"passed": False, "blocked": True}
+                            for c in oversize)
