@@ -74,7 +74,7 @@ async def link_card(pool: Any, ladder: Any, model: Any, worked: dict[str, Any], 
         if superseded:
             await ladder.set_status(str(card["id"]), region=region, status="stale", active=False)
             continue
-        if card.get("elements") and previous <= source_versions and cite_check(card["elements"], passages).get("passed"):
+        if card.get("elements") and previous <= source_versions and cite_check(card["elements"], passages, allow_masked=True).get("passed"):
             return await ladder.link_worked_card(
                 region=region, worked_id=str(worked["id"]), card_id=str(card["id"]), area=area,
             )
@@ -92,7 +92,7 @@ async def link_card(pool: Any, ladder: Any, model: Any, worked: dict[str, Any], 
         if not result.get("ok"):
             return False
         card = result["rule_card"]
-        if card.get("status") == "stale" or not card.get("elements") or not cite_check(card["elements"], passages).get("passed"):
+        if card.get("status") == "stale" or not card.get("elements") or not cite_check(card["elements"], passages, allow_masked=True).get("passed"):
             return False
         succeeded = True
         return await ladder.link_worked_card(
@@ -114,6 +114,6 @@ class _CheckedLadder:
         return getattr(self.ladder, name)
 
     async def add_rule_card(self, row: dict[str, Any]) -> dict[str, Any]:
-        if not row.get("elements") or not cite_check(row["elements"], self.passages).get("passed"):
+        if not row.get("elements") or not cite_check(row["elements"], self.passages, allow_masked=True).get("passed"):
             row = {**row, "status": "stale", "active": False}
         return await self.ladder.add_rule_card(row)

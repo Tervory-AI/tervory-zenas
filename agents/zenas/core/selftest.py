@@ -13,7 +13,7 @@ import re
 from collections import defaultdict
 from typing import Any
 
-from agents.zenas.core.engine import cite_check, code_finding, compose_memo, decide_without_model
+from agents.zenas.core.engine import cite_check, cite_statement, code_finding, compose_memo, decide_without_model
 from agents.zenas.core.legalbench import legalbench_scores
 from agents.zenas.core.scope_rules import classify
 
@@ -164,11 +164,11 @@ async def _score(card: dict[str, Any], case: dict[str, Any], given: dict[str, An
         cost += float(found.get("cost_usd") or 0)
     memo = compose_memo(card, findings)
     statements = [
-        {"citation": element.get("citation"), "quote": element.get("quote")}
+        cite_statement(element)
         for element in card.get("elements") or []
         if element.get("citation")
     ]
-    checked = cite_check(statements, _passages(card)) if statements else {"passed": False}
+    checked = cite_check(statements, _passages(card), allow_masked=True) if statements else {"passed": False}
     predicted = _predicted_outcome(findings)
     court = _court_outcome(str(case.get("outcome") or ""))
     return {
@@ -587,7 +587,8 @@ def supported_quotes(result: dict[str, Any] | None, citation: str, judgment_text
         # the exact unmasked words must be in this judgment (engine.masked_quote_in_source).
         if quote not in text and not sha:
             continue
-        if not cite_check([{"citation": wanted, "quote": quote, "quote_sha": sha}], passage).get("passed"):
+        statement = {"citation": wanted, "quote": quote, "quote_sha": sha, "quote_len": element.get("quote_len")}
+        if not cite_check([statement], passage, allow_masked=True).get("passed"):
             continue
         out.append(quote)
     return out

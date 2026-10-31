@@ -4,10 +4,17 @@
 with a date or a patent number. The quote used to be masked ("[Date]",
 "[Amount]") BEFORE cite-check, so a true quote could never match. Now the exact
 words are checked first. A wrong date, number or name still fails.
+
+The new behaviour is opt-in (card_from_proposal(verify_unmasked=True),
+cite_check(allow_masked=True)) so approved Skala versions that load the shared
+engine (rule_card 1.0.x, cite_check 1.0.x) behave exactly as before.
 """
 
 import importlib.util
+import itertools
+import json
 import sys
+import time
 import uuid
 from pathlib import Path
 
@@ -54,15 +61,31 @@ def _context(pkg):
                               httpx.AsyncClient(transport=httpx.MockTransport(no_network)))
 
 
-def _card(quote, passages=PASSAGES, citation=CITE):
+def _card(quote, passages=PASSAGES, citation=CITE, eng=engine, verify_unmasked=True):
     proposal = {"elements": [{"id": "e", "test": "Who decides.", "citation": citation, "quote": quote}]}
-    return engine.card_from_proposal(proposal, passages, question="What did the court hold?", secrets=[])
+    return eng.card_from_proposal(proposal, passages, question="What did the court hold?", secrets=[],
+                                  verify_unmasked=verify_unmasked)
 
 
-def _recheck(card, passages=PASSAGES):
-    statements = [{"citation": e["citation"], "quote": e["quote"], "quote_sha": e.get("quote_sha")}
-                  for e in card["elements"]]
-    return engine.cite_check(statements, passages)
+def _recheck(card, passages=PASSAGES, eng=engine):
+    return eng.cite_check([eng.cite_statement(e) for e in card["elements"]], passages, allow_masked=True)
+
+
+def _load(path, name):
+    spec = importlib.util.spec_from_file_location(name, path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+SHARED = _load(ROOT / "tank" / "skills" / "zenas.shared" / "engine.py", "zenas_shared_engine_501")
+SA_ID = "8001015009087"
+PHONE_CITE = "[2025] ZAWCHC 12"
+PHONE_TEXT = ("The notice was served at the registry. The registry may be reached on 021 555 0123 during "
+              "office hours. No later notice was filed.")
+PHONE_QUOTE = "The registry may be reached on 021 555 0123 during office hours."
+PHONE_PASSAGES = [{"doc_id": "w1", "version_id": "v1", "citation": PHONE_CITE, "text": PHONE_TEXT,
+                   "status": "effective"}]
 
 
 # Prompt hint (kept, not the fix).
@@ -77,8 +100,17 @@ def test_rule_card_1_1_0_keeps_every_1_0_1_case_and_1_0_1_is_untouched():
     pkgs = _packages()
     old, new = pkgs[("zenas.rule_card", "1.0.1")], pkgs[("zenas.rule_card", "1.1.0")]
     assert {skala.evidence_hash(c) for c in old.cases} <= {skala.evidence_hash(c) for c in new.cases}
-    assert len(new.cases) == len(old.cases) + 3
+    assert len(new.cases) == len(old.cases) + 6
     assert "QUOTE_RULE" not in (old.path / "run.py").read_text(encoding="utf-8")
+    assert "verify_unmasked" not in (old.path / "run.py").read_text(encoding="utf-8")
+
+
+def test_cite_check_1_1_0_keeps_every_1_0_2_case():
+    pkgs = _packages()
+    old, new = pkgs[("zenas.cite_check", "1.0.2")], pkgs[("zenas.cite_check", "1.1.0")]
+    assert {skala.evidence_hash(c) for c in old.cases} <= {skala.evidence_hash(c) for c in new.cases}
+    assert len(new.cases) == len(old.cases) + 5
+    assert "allow_masked=True" in (new.path / "run.py").read_text(encoding="utf-8")
 
 
 @pytest.mark.asyncio
@@ -90,6 +122,67 @@ async def test_rule_card_1_1_0_evals_pass_offline_with_dated_evidence():
     by_name = {d["name"]: d for d in result["details"]}
     assert by_name["a true dated quote is approvable"]["result"]["approvable"] is True
     assert by_name["a quote with an altered date is not approvable"]["result"]["approvable"] is False
+    # Tank's zenas.pii/1.0.0 masks phone and SA ID numbers (not dates), so these exercise the fix on Tank.
+    assert by_name["a true quote with a phone number is approvable on Tank"]["result"]["approvable"] is True
+    assert by_name["a true quote with an SA ID number is approvable on Tank"]["result"]["approvable"] is True
+    assert by_name["a quote with an altered phone number is not approvable"]["result"]["approvable"] is False
+
+
+@pytest.mark.asyncio
+async def test_cite_check_1_1_0_evals_pass_offline():
+    pkg = _packages()[("zenas.cite_check", "1.1.0")]
+    result = await skala.run_evals(pkg, lambda: _context(pkg))
+    assert result["passed"] == result["total"] == len(pkg.cases), [d for d in result["details"] if not d["passed"]]
+    assert result["eligible"] is True, result["evidence_reason"]
+
+
+# Approved versions keep their behaviour (review point 1).
+async def _run_skill(skill, version, payload, model=None):
+    pkg = _packages()[(skill, version)]
+    module = _load(pkg.path / "run.py", f"run_{skill}_{version}".replace(".", "_"))
+
+    class Ctx:
+        async def model(self, *args, **kwargs):
+            return model
+
+    return await module.run(payload, Ctx())
+
+
+def _phone_masked_statement():
+    return {"citation": PHONE_CITE, "quote": "The registry may be reached on [PHONE_1] during office hours.",
+            "quote_sha": SHARED.quote_sha(PHONE_QUOTE), "quote_len": SHARED.quote_len(PHONE_QUOTE)}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("version,approvable", [("1.0.0", False), ("1.0.1", False), ("1.1.0", True)])
+async def test_rule_card_versions_on_a_true_phone_quote(version, approvable):
+    model = json.dumps({"elements": [{"id": "c", "test": "Reachable.", "citation": PHONE_CITE, "quote": PHONE_QUOTE}]})
+    payload = {"question": "How is the registry reached?", "passages": PHONE_PASSAGES}
+    out = await _run_skill("zenas.rule_card", version, payload, model=model)
+    assert out["approvable"] is approvable
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("version,passed", [("1.0.0", False), ("1.0.1", False), ("1.0.2", False), ("1.1.0", True)])
+async def test_cite_check_versions_on_a_masked_quote_with_its_fingerprint(version, passed):
+    out = await _run_skill("zenas.cite_check", version,
+                           {"statements": [_phone_masked_statement()], "passages": PHONE_PASSAGES})
+    assert out["passed"] is passed
+
+
+def test_engine_defaults_are_mains_behaviour():
+    # Default build masks before cite-check, adds no fingerprint, and a true phone or dated quote fails.
+    for eng in (engine, SHARED):
+        phone = _card(PHONE_QUOTE, PHONE_PASSAGES, PHONE_CITE, eng=eng, verify_unmasked=False)
+        assert phone["cite"]["passed"] is False and "quote_sha" not in phone["elements"][0]
+        assert phone["elements"][0]["quote"] == "The registry may be reached on [PHONE_1] during office hours."
+        # Default cite_check ignores quote_sha.
+        assert eng.cite_check([_phone_masked_statement()], PHONE_PASSAGES)["passed"] is False
+    room_dated = _card(DATED, verify_unmasked=False)
+    assert room_dated["cite"]["passed"] is False and "quote_sha" not in room_dated["elements"][0]
+    # An undated quote passes either way.
+    plain = "Only the Tribunal may order a divestiture under section 43D(2) of the Competition Act."
+    assert _card(plain, verify_unmasked=False)["cite"]["passed"] is True
 
 
 # Root fix in the room.
@@ -150,3 +243,96 @@ def test_selftest_counts_a_true_masked_quote_only_through_its_fingerprint():
     assert supported_quotes({"rule_card": {"elements": [forged]}}, CITE, JUDGMENT) == []
     bare = {k: v for k, v in card["elements"][0].items() if k != "quote_sha"}
     assert supported_quotes({"rule_card": {"elements": [bare]}}, CITE, JUDGMENT) == []
+
+
+# Recheck tries every window, not the first regex match (review point 2).
+@pytest.mark.parametrize("quote,judgment", [
+    ("08 March 2023 was the date the Tribunal approved the merger.",
+     "Background. On 08 March 2023 was the date the Tribunal approved the merger. Costs followed."),
+    ("The Tribunal later approved the merger on 08 March 2023",
+     "The Tribunal later approved the merger on 08 March 2023 and costs followed."),
+    ("The Tribunal approved the merger on 08 March 2023.",
+     "The Tribunal approved the merger on 01 May 2020 and later The Tribunal approved the merger on 08 March 2023."),
+])
+def test_true_quote_that_starts_ends_or_repeats_around_a_date_passes_build_and_recheck(quote, judgment):
+    passages = [{"doc_id": "z", "version_id": "v", "citation": CITE, "text": judgment, "status": "effective"}]
+    card = _card(quote, passages)
+    assert "[Date]" in card["elements"][0]["quote"] and card["elements"][0]["quote_len"] > 0
+    assert card["cite"]["passed"] is True
+    assert _recheck(card, passages)["passed"] is True
+    other = quote.replace("08 March 2023", "09 March 2023")
+    assert _card(other, passages)["cite"]["passed"] is False
+
+
+def test_recheck_without_a_length_fails_closed():
+    card = _card(DATED)
+    element = {k: v for k, v in card["elements"][0].items() if k != "quote_len"}
+    assert _recheck({"elements": [element]})["passed"] is False
+
+
+def test_build_reports_a_pass_only_when_the_stored_form_rechecks(monkeypatch):
+    monkeypatch.setattr(engine, "masked_quote_in_source", lambda *args: False)
+    card = _card(DATED)
+    assert card["cite"]["passed"] is False and card["cite"]["results"][0]["quote_match"] is False
+
+
+def test_recheck_is_bounded_on_1_mb_of_repetitive_text():
+    text = ("on 1 the 2 and 3 " * 70000)[:1_000_000]
+    for eng in (engine, SHARED):
+        for quote, size in (("on [Date] the [Amount] and", 40), ("[PHONE_1]", 12), ("on 1 the 2 [PHONE_1]", 30)):
+            started = time.monotonic()
+            assert eng.masked_quote_in_source(quote, "0" * 64, size, text) is False
+            assert time.monotonic() - started < 10
+    # A true phone quote deep in 1 MB still builds and rechecks.
+    big = ("on 1 the 2 and 3 " * 60000) + PHONE_TEXT
+    passages = [{"doc_id": "w", "version_id": "v", "citation": PHONE_CITE, "text": big, "status": "effective"}]
+    started = time.monotonic()
+    card = _card(PHONE_QUOTE, passages, PHONE_CITE, eng=SHARED)
+    assert card["cite"]["passed"] is True and _recheck(card, passages, eng=SHARED)["passed"] is True
+    assert time.monotonic() - started < 10
+
+
+# Every placeholder the detectors write is a mask token (review point 3).
+def _detectors():
+    yield _load(ROOT / "agents" / "zenas" / "core" / "pii_detect.py", "room_pii_501")
+    for path in sorted((ROOT / "tank" / "skills" / "zenas.pii").glob("*/detect.py")):
+        yield _load(path, f"tank_pii_{path.parent.name.replace('.', '_')}")
+
+
+def test_every_detector_placeholder_is_a_mask_token():
+    seen = 0
+    for module in _detectors():
+        labels = dict(getattr(module, "_LABELS", {}))
+        stable = dict(getattr(module, "_STABLE", {}))
+        for kind, label in labels.items():
+            forms = [f"[{label}_1]", f"[{label}_12]"]
+            if kind == "party":
+                forms = ["[Party A]", "[Party Z]", "[Party 27]"]
+            if kind in stable:
+                forms = [stable[kind]]
+            for form in forms:
+                assert engine.MASK_TOKEN.fullmatch(form), form
+                assert SHARED.MASK_TOKEN.fullmatch(form), form
+                seen += 1
+    assert seen > 10
+    assert engine.MASK_TOKEN.fullmatch("[SA_ID_1]") and engine.MASK_TOKEN.fullmatch("[US_PASSPORT_1]")
+
+
+@pytest.mark.parametrize("eng_name", ["room", "tank"])
+def test_true_sa_id_quote_builds_and_rechecks_and_another_valid_id_fails(eng_name):
+    eng = engine if eng_name == "room" else SHARED
+    detect = eng.load_detect()
+    other = None
+    for tail in itertools.product("0123456789", repeat=3):
+        candidate = "8001015009" + "".join(tail)
+        if candidate != SA_ID and detect(candidate)["matches"]:
+            other = candidate
+            break
+    assert other
+    quote = f"The applicant, identity number {SA_ID}, was not a party to the sale agreement."
+    text = f"The record was corrected. {quote}"
+    passages = [{"doc_id": "w", "version_id": "v", "citation": PHONE_CITE, "text": text, "status": "effective"}]
+    card = _card(quote, passages, PHONE_CITE, eng=eng)
+    assert "[SA_ID_1]" in card["elements"][0]["quote"] and card["cite"]["passed"] is True
+    assert _recheck(card, passages, eng=eng)["passed"] is True
+    assert _card(quote.replace(SA_ID, other), passages, PHONE_CITE, eng=eng)["cite"]["passed"] is False

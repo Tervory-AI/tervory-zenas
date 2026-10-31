@@ -18,6 +18,7 @@ from agents.zenas.core.engine import (
     TOP_CALL_USD,
     card_from_proposal,
     cite_check,
+    cite_statement,
     compose_memo,
     decide_without_model,
     law_only_problem,
@@ -66,7 +67,7 @@ def _with_legal_notice(text: str) -> str:
 _RULE_PROMPT = """Build a rule card from these passages only. Reply with JSON:
 {{"elements":[{{"id":"","test":"","citation":"","quote":""}}],"exceptions":[],"defences":[],"remedies":[],"decision_table":[]}}
 Every quote must be copied from a passage. Do not add law. Do not include client facts.
-Quote whole sentences that contain no dates, amounts, patent or case numbers, ID or phone numbers, email or street addresses, and keep those out of every other field too. They are masked before the card is checked, so a quote that contains one cannot be verified and a card that contains one is refused.
+Prefer whole sentences that contain no dates, amounts, patent or case numbers, ID or phone numbers, email or street addresses, and keep those out of every other field too. They are masked in the card, so a quote without them reads clearly and is checked most simply.
 
 Question: {question}
 
@@ -506,7 +507,9 @@ async def build_rule_card(
         proposal = parse_json_object(called["result"]["content"])
     except (ValueError, json.JSONDecodeError):
         return _refuse("the model did not return a rule card")
-    built = card_from_proposal(proposal, passages, question=question, secrets=[client_facts] if client_facts else [])
+    built = card_from_proposal(
+        proposal, passages, question=question, secrets=[client_facts] if client_facts else [], verify_unmasked=True
+    )
     problem = law_only_problem(built, [client_facts] if client_facts else [])
     if problem:
         return _refuse(problem)
@@ -587,10 +590,10 @@ async def approve_rule_card(
     if str(card.get("model_used") or "").strip().lower().startswith("build-"):
         return _refuse("this rule card was drafted by a build-only model and cannot be approved")
     statements = [
-        {"citation": element.get("citation"), "quote": element.get("quote"), "quote_sha": element.get("quote_sha")}
+        cite_statement(element)
         for element in card.get("elements") or []
     ]
-    checked = cite_check(statements, passages)
+    checked = cite_check(statements, passages, allow_masked=True)
     if not checked["passed"]:
         return _refuse("a citation did not resolve to the pool", cite=checked)
     edit_count = int(card.get("edit_count") or 0)
@@ -1856,11 +1859,11 @@ async def answer_question(
     if str(jurisdiction or "") == "za" and rules_are_draft():
         memo["text"] = f"{memo['text']}\n{draft_label()}".strip()
     statements = [
-        {"citation": element.get("citation"), "quote": element.get("quote"), "quote_sha": element.get("quote_sha")}
+        cite_statement(element)
         for element in fresh.get("elements") or []
         if element.get("citation")
     ]
-    checked = cite_check(statements, passages)
+    checked = cite_check(statements, passages, allow_masked=True)
     memo_cites = [str(item) for item in memo.get("citations") or []]
     known = {str(item.get("citation") or "") for item in statements}
     if not checked.get("passed") or any(item not in known for item in memo_cites):
