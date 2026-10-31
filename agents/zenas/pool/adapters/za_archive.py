@@ -387,8 +387,13 @@ async def accept_pdf(
     headers: dict[str, str],
     citation_for,
     title_for=None,
+    date_for=None,
 ) -> bytes:
-    """Download one judgment, or record why it was skipped. Unchanged URLs are not fetched."""
+    """Download one judgment, or record why it was skipped. Unchanged URLs are not fetched.
+
+    date_for(url, text) may give the judgment date when the source knows better
+    than the first 800 characters (a "Date of judgment:" line further down).
+    """
     if "saflii.org" in url.lower():
         run.skip("not a judgment")
         return b""
@@ -428,15 +433,20 @@ async def accept_pdf(
         run.skip("criminal")
         run.mark(url)
         return b""
-    citation = citation_for(url, text) if text else ""
-    if not citation or not text:
+    if not text:
+        # A scan with no text layer. There is no OCR here, so nothing is stored.
+        run.skip("no text layer")
+        run.mark(url)
+        return b""
+    citation = citation_for(url, text)
+    if not citation:
         run.skip("not a judgment")
         run.mark(url)
         return b""
     match = re.search(r"\[((?:19|20)\d{2})\]", citation)
     if match:
         run.note_year(int(match.group(1)))
-    when = parse_date(text[:800]) or parse_date(heading)
+    when = (date_for(url, text) if date_for is not None else None) or parse_date(text[:800]) or parse_date(heading)
     payload = case_bytes(
         citation=citation,
         title=heading or citation,
