@@ -26,6 +26,7 @@ back catalogue again.
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import logging
 import re
@@ -400,7 +401,7 @@ async def accept_pdf(
         run.skip("not a judgment")
         run.mark(url)
         return b""
-    text = pdf_text(got.body)
+    text = await asyncio.to_thread(pdf_text, got.body)  # CPU-bound; keep the room answering
     # The listing title, else the judgment's own caption, else the file name.
     heading = title or caption_title(text) or slug_title(url)
     if title_for is not None:

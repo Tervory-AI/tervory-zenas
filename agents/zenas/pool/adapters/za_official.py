@@ -8,6 +8,7 @@ a rule still parse.
 
 from __future__ import annotations
 
+import asyncio
 import os
 import re
 from datetime import date
@@ -357,7 +358,7 @@ class _RulesAdapter:
         reject_saflii_rules(self.page_url)
         blob = await http_get(self.page_url, pdf_headers())
         if blob.startswith(b"%PDF"):
-            return pdf_text(blob).encode("utf-8")
+            return (await asyncio.to_thread(pdf_text, blob)).encode("utf-8")  # off the event loop
         return blob
 
     async def fetch(self, http_get) -> list[bytes]:

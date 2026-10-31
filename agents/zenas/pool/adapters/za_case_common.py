@@ -6,6 +6,7 @@ before the loader sees it, because the loader does not store PDF bytes.
 
 from __future__ import annotations
 
+import asyncio
 import html
 import io
 import json
@@ -735,7 +736,8 @@ async def pdfs_to_cases(
             await case_pause(interval_env)
             continue
         await case_pause(interval_env)
-        text = pdf_text(raw)
+        # pypdf is CPU-bound: parse off the event loop so the room keeps answering.
+        text = await asyncio.to_thread(pdf_text, raw)
         if not text:
             continue
         citation = citation_for(url, text)

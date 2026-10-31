@@ -11,6 +11,7 @@ the default interval matches that.
 
 from __future__ import annotations
 
+import asyncio
 import html
 import json
 import re
@@ -427,7 +428,7 @@ async def _one_item(http_get, row: dict) -> bytes:
     if is_challenge_page(pdf):
         log_challenge(content)
         raise ChallengePage()
-    text = pdf_text(pdf)
+    text = await asyncio.to_thread(pdf_text, pdf)  # CPU-bound; keep the room answering
     if not text:
         fallback = choose_text_fallback(names, judgment)
         text_url = bitstream_content_url(content_by_name.get(fallback) or "")
