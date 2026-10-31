@@ -18,7 +18,7 @@ from agents.zenas.pool.licence import LicenceError, may_store_text, refusal_reas
 from agents.zenas.pool.model import LegalDocument, SourceSpec
 from agents.zenas.pool.region import assert_source_region
 from agents.zenas.pool.store import Store
-from agents.zenas.pool.textutil import version_id_for
+from agents.zenas.pool.textutil import split_parents, version_id_for
 
 version_saved = ContextVar("zenas_nightly_version_saved", default=None)
 
@@ -85,7 +85,25 @@ async def ingest_snapshot(
                 await index_pending(store, embedder, index, region=region or store.home_region,
                                     document_id=document.id)
                 await _attach_cites(store, document, citations)
+            await _close_collapsed(store, source, documents, on, skips)
     return inserted
+
+
+async def _close_collapsed(store: Store, source: SourceSpec, documents: list[LegalDocument], on: date,
+                           skips: Counter[str] | None) -> None:
+    """A parse that split "§ 80a" into "§ 80a-1" ... closes the old collapsed "§ 80a" row.
+
+    Only a row that holds one of the children's text or heading is closed, so a
+    real parent section stored beside its children is left alone.
+    """
+    close = getattr(store, "close_collapsed", None)
+    if close is None or not documents:
+        return
+    for parent, (hashes, titles) in split_parents(documents).items():
+        jurisdiction = documents[0].jurisdiction
+        closed = await close(source.source_id, jurisdiction, parent, hashes, titles, on=on)
+        if closed and skips is not None:
+            skips["closed collapsed"] += closed
 
 
 def _parse_payload(adapter, payload: bytes, source: SourceSpec) -> tuple[list[LegalDocument], list[str]]:

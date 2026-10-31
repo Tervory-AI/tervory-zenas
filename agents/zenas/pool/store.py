@@ -227,6 +227,9 @@ def _chunk_from_mapping(row: dict) -> Chunk:
 
 class Store(Protocol):
     async def record_source(self, source: SourceSpec) -> None: ...
+    async def close_collapsed(
+        self, source_id: str, jurisdiction: str, citation: str, hashes: set[str], titles: set[str], *, on: date
+    ) -> int: ...
 
     async def get_source(self, source_id: str) -> SourceSpec | None: ...
 
@@ -389,6 +392,25 @@ class MemoryStore:
                 raise LicenceError("chunk jurisdiction does not match the document")
             self.chunks[chunk.chunk_id] = chunk
         return True
+
+    async def close_collapsed(
+        self, source_id: str, jurisdiction: str, citation: str, hashes: set[str], titles: set[str], *, on: date
+    ) -> int:
+        """Close open rows of ``citation`` that hold one of its split children's text or heading."""
+        _guard_home(self.home_region, jurisdiction=jurisdiction)
+        closed = 0
+        for item in self.docs.values():
+            if (
+                item.source_id == source_id
+                and item.jurisdiction == jurisdiction
+                and item.citation == citation
+                and item.effective_to is None
+                and (item.content_hash in hashes or item.title in titles)
+            ):
+                item.effective_to = on
+                item.status = "superseded"
+                closed += 1
+        return closed
 
     async def record_link(self, source_id: str, url: str, reason: str) -> None:
         _guard_home(self.home_region)
@@ -745,6 +767,30 @@ class PostgresStore:
                     doc.id,
                 )
         return True
+
+    async def close_collapsed(
+        self, source_id: str, jurisdiction: str, citation: str, hashes: set[str], titles: set[str], *, on: date
+    ) -> int:
+        """Close open rows of ``citation`` that hold one of its split children's text or heading."""
+        _guard_home(self.home_region, jurisdiction=jurisdiction)
+        result = await self._conn.execute(
+            """
+            UPDATE zenas_pool.documents
+            SET effective_to = $1, status = 'superseded'
+            WHERE source_id = $2 AND jurisdiction = $3 AND citation = $4 AND effective_to IS NULL
+              AND (content_hash = ANY($5::text[]) OR title = ANY($6::text[]))
+            """,
+            on,
+            source_id,
+            jurisdiction,
+            citation,
+            sorted(hashes),
+            sorted(titles),
+        )
+        try:
+            return int(str(result).split()[-1])
+        except (ValueError, IndexError):
+            return 0
 
     async def record_link(self, source_id: str, url: str, reason: str) -> None:
         _guard_home(self.home_region)

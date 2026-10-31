@@ -152,3 +152,32 @@ def flatten_text(sections: list) -> str:
 
     walk(sections)
     return "\n".join(part.strip() for part in parts if part and part.strip())
+
+
+# "15 U.S.C. § 80a-64" -> base "15 U.S.C. § 80a". Hyphen or en dash.
+_SPLIT_CHILD = re.compile(r"^(?P<base>.+§\s*\d+[A-Za-z]*)[-\u2013]\S+$")
+
+
+def split_parents(documents) -> dict[str, tuple[set[str], set[str]]]:
+    """Section numbers that a parse split into children but did not produce itself.
+
+    Returns {parent citation: (child content hashes, child titles)}. When an
+    older parser collapsed "§ 80a-1" ... "§ 80a-64" onto "§ 80a", that row kept the
+    text and heading of whichever child it saw last. A parent that the new parse
+    does produce (a real "§ 300gg" beside "§ 300gg-1") is never listed.
+    """
+    produced = {str(doc.citation) for doc in documents}
+    parents: dict[str, tuple[set[str], set[str]]] = {}
+    for doc in documents:
+        match = _SPLIT_CHILD.match(str(doc.citation or ""))
+        if not match:
+            continue
+        base = match.group("base")
+        if base in produced:
+            continue
+        hashes, titles = parents.setdefault(base, (set(), set()))
+        if doc.content_hash:
+            hashes.add(doc.content_hash)
+        if doc.title:
+            titles.add(doc.title)
+    return parents
