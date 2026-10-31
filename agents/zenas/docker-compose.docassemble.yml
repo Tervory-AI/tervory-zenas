@@ -1,3 +1,9 @@
+# coolify: raw compose
+# Raw Compose Deployment must be on for this resource (Coolify > app > Advanced).
+# Normal mode would add Coolify's internet-facing app network to docassemble, which
+# is sealed on the internal assembly network (SEAL-1, tests/test_room_seal.py). Raw
+# mode deploys this file as written: no app network, no env_file; every variable is
+# explicit below. docassemble-backup reaches R2 through its own backup network.
 # Docassemble for Zenas (Boston, us-east), deployed as its OWN Coolify resource, separate
 # from agent-zenas (28 Oct): Docassemble starts slowly (up to ~15 min), and inside agent-zenas
 # that slow start failed every Zenas deploy. Same Base Directory as the room (/agents/zenas).
@@ -83,8 +89,16 @@ services:
       start_period: 30s
     networks: [backup]
 
+# The backup volume normal mode created, by its live name (Coolify names it
+# <resource uuid>_<key with - for _>; zenas-docassemble is iumzytsbbvjn2ah2wmlvuiyk,
+# docs/ops/BACKUP-AUDIT-2026-10-30.md). Docassemble restores its database and files
+# from this volume on start, so it must survive the switch. external: a wrong name
+# fails the deploy instead of starting on an empty volume. On a new server, create it
+# once first: docker volume create <name>
 volumes:
   docassemble_us_backup:
+    external: true
+    name: iumzytsbbvjn2ah2wmlvuiyk_docassemble-us-backup
 
 networks:
   assembly:
