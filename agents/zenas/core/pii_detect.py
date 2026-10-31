@@ -51,16 +51,20 @@ _DEAL_DATE = re.compile(
 )
 _CASE_NO = re.compile(
     r"\b(?:case|docket)\s+(?:no\.?|number)\s*[:#]?\s*[A-Z0-9][A-Z0-9./-]{2,}\b"
-    r"|\b\d{1,6}/\d{4}\b",
+    r"|\b\d{1,6}/\d{4}\b"
+    r"|(?<=\()\d{1,6}\s+of\s+\d{4}(?=\))",
     re.IGNORECASE,
 )
 _REGISTRATION = re.compile(
     r"\b(?:registration|reg\.?|company)\s+(?:number|no\.?)\s*[:#]?\s*[A-Z0-9][A-Z0-9/-]{2,}\b",
     re.IGNORECASE,
 )
+# A name is up to six capitalised words, joined by spaces or "&", then a company suffix.
+# Suffixes ending in a full stop take no word boundary, so "Corp." before a space still matches.
+_NAME_WORDS = r"[A-Z][A-Za-z0-9&'.-]*(?:\s+(?:&\s+)?[A-Z][A-Za-z0-9&'.-]*){0,5}"
 _COMPANY = re.compile(
-    r"\b[A-Z][A-Za-z0-9&'.-]*(?:\s+[A-Z][A-Za-z0-9&'.-]*){0,5}\s+\((?:Pty|Proprietary)\)\s+Ltd\b"
-    r"|\b[A-Z][A-Za-z0-9&'.-]*(?:\s+[A-Z][A-Za-z0-9&'.-]*){0,5}\s+(?:Inc\.|LLC|Ltd\.|Limited|Corp\.|Corporation)\b"
+    rf"\b{_NAME_WORDS}\s+\((?:Pty|Proprietary)\)\s+Ltd\b"
+    rf"|\b{_NAME_WORDS}\s+(?:(?:Inc|Ltd|Corp|Co|CO)\.|(?:LLC|Ltd|LTD|Limited|LIMITED|Corporation|CORPORATION|Company|COMPANY|Inc|INC|CC|NPC)\b)"
 )
 _PERSON = re.compile(r"\b(?:Mr|Mrs|Ms|Dr|Prof)\.?\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2}\b")
 

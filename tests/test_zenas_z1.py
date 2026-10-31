@@ -523,7 +523,7 @@ def test_room_files_and_main_compose_add_the_corridor() -> None:
 def test_skill_config_matches_the_box_copy_and_policy_row() -> None:
     assert (SCOPE / "rules.py").read_bytes() == (ROOT / "agents" / "zenas" / "core" / "scope_rules.py").read_bytes()
     assert (SCOPE / "areas.json").read_bytes() == (ROOT / "agents" / "zenas" / "core" / "areas.json").read_bytes()
-    current_pii = ROOT / "tank" / "skills" / "zenas.pii" / "1.1.0" / "detect.py"
+    current_pii = ROOT / "tank" / "skills" / "zenas.pii" / "1.1.2" / "detect.py"
     assert current_pii.read_bytes() == (ROOT / "agents" / "zenas" / "core" / "pii_detect.py").read_bytes()
     policy = (SCOPE / "policy.sql").read_text(encoding="utf-8")
     assert "zenas.scope" in policy
