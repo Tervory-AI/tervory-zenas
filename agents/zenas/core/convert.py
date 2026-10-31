@@ -35,6 +35,9 @@ log = logging.getLogger("zenas.convert")
 
 _PLATFORM = "00000000-0000-0000-0000-000000000001"
 _DEFAULT_MAX = 200
+_DEFAULT_PARALLEL = 50
+# Nightly task types that may wait in Tank's batch queue.
+_BACKGROUND_TASKS = frozenset({"zenas.case_facts"})
 _EXCERPT = 1500
 _QUOTE_BIT = 120
 # A joined facts quote is several passages, not a handful of words.
@@ -148,6 +151,16 @@ def convert_limit() -> int:
     if value < 0:
         return _DEFAULT_MAX
     return value
+
+
+def convert_parallel() -> int:
+    """Nightly case_facts calls in flight at once. ZENAS_CONVERT_PARALLEL, default 50."""
+    raw = os.environ.get("ZENAS_CONVERT_PARALLEL", "").strip()
+    try:
+        value = int(raw) if raw else _DEFAULT_PARALLEL
+    except ValueError:
+        return _DEFAULT_PARALLEL
+    return value if value > 0 else _DEFAULT_PARALLEL
 
 
 def _box(region: str) -> str | None:
@@ -278,6 +291,28 @@ async def _ask_model(model: Any, messages: list[dict[str, str]]) -> dict[str, An
     else:
         result = await model.model(messages, task_type="zenas.case_facts")
     return _answer_view(result)
+
+
+async def _ask_all(model: Any, prompts: list[str]) -> list[Any]:
+    """One answer (or the exception) per prompt, in order.
+
+    At most model.parallel calls run at once; a model without it is asked one
+    at a time, as before.
+    """
+    try:
+        limit = max(1, int(getattr(model, "parallel", 1) or 1))
+    except (TypeError, ValueError):
+        limit = 1
+    gate = asyncio.Semaphore(limit)
+
+    async def one(prompt: str) -> Any:
+        async with gate:
+            try:
+                return await _ask_model(model, [{"role": "user", "content": prompt}])
+            except Exception as exc:
+                return exc
+
+    return list(await asyncio.gather(*(one(prompt) for prompt in prompts)))
 
 
 def _empty(*, ok: bool, region: str, reason: str = "") -> dict[str, Any]:
@@ -922,6 +957,7 @@ async def convert_cases(
         elif not existing.get("rule_card_ids") and repaired < cap and not criminal_case(case):
             await _link_converted_card(pool, ladder, model, existing, region=box)
             repaired += 1
+    ready: list[tuple[dict[str, Any], str, str, str]] = []
     for case in pending:
         if case["jurisdiction"] != jurisdiction:
             continue
@@ -944,10 +980,12 @@ async def convert_cases(
             await _remember_failure(ladder, region=box, pool_doc_id=case["document_id"], reason="cite check failed")
             continue
         await _store_court_and_treatment(pool, case, text)
-        prompt = _PROMPT_HEAD + case["citation"] + "\n\n" + text
-        try:
-            called = await _ask_model(model, [{"role": "user", "content": prompt}])
-        except Exception:
+        ready.append((case, material, text, _PROMPT_HEAD + case["citation"] + "\n\n" + text))
+    # Ask for every case first, then check the answers in order. A nightly model
+    # in background mode waits in Tank's batch queue, so its calls overlap.
+    answers = await _ask_all(model, [prompt for *_, prompt in ready])
+    for (case, material, text, _prompt), called in zip(ready, answers):
+        if isinstance(called, BaseException):
             await _remember_failure(ladder, region=box, pool_doc_id=case["document_id"], reason="model call failed")
             continue
         content = str(called.get("content") or "")
@@ -1151,9 +1189,15 @@ def _night_model() -> tuple[Any, Any]:
     client = TankClient(url, key, "zenas", http)
 
     class _Route:
+        # Nobody waits on the nightly run: case_facts (the bulk, asked all at
+        # once) goes in background mode (priority batch, interactive false)
+        # through Tank's batch queue. The occasional rule card is built in
+        # order and its answer is reused by later cases, so it stays direct.
+        parallel = convert_parallel()
+
         async def complete(self, messages: list[dict[str, str]], *, task_type: str, provider: str) -> dict[str, Any]:
             del provider
-            data = await client.route(_PLATFORM, task_type, messages)
+            data = await client.route(_PLATFORM, task_type, messages, background=task_type in _BACKGROUND_TASKS)
             return {
                 "content": str(data.get("content") or ""),
                 "cost_usd": float(data.get("cost_usd") or 0),
