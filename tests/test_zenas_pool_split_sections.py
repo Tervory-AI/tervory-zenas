@@ -1,13 +1,17 @@
 """A re-ingest closes rows an older parser collapsed onto a parent section number."""
 
 import asyncio
+import sys
 from datetime import date
+from pathlib import Path
 
-from agents.zenas.pool.catalogue import CATALOGUE
-from agents.zenas.pool.ingest import ingest_snapshot
-from agents.zenas.pool.store import MemoryStore
-from agents.zenas.pool.textutil import split_parents
-from tests.test_zenas_pool_bulk import _uslm
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from agents.zenas.pool.catalogue import CATALOGUE  # noqa: E402
+from agents.zenas.pool.ingest import ingest_snapshot  # noqa: E402
+from agents.zenas.pool.store import MemoryStore  # noqa: E402
+from agents.zenas.pool.textutil import split_parents  # noqa: E402
+from test_zenas_pool_bulk import _uslm  # noqa: E402  (tests/ is on sys.path under pytest)
 
 OLD = date(2026, 10, 19)
 NEW = date(2026, 10, 31)

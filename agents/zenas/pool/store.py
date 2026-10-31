@@ -297,15 +297,23 @@ class Store(Protocol):
     async def stored_bytes(self) -> int: ...
 
 
-def url_replaces(doc: LegalDocument) -> bool:
+def url_replaces(doc: LegalDocument, source: SourceSpec | None = None) -> bool:
     """A South African judgment file holds one judgment, so a new document from
     the same source and file replaces an open one stored under another citation.
 
     The citation is the document's identity. When a parser fix changes the
     citation it reads from a file (the first neutral citation in the body was
     often a case the judgment cites), the old row must close, not stay beside it.
+
+    Some adapters (SAFLII, the official-site loaders) record the source's own
+    page as the URL of every document they read, so that URL names a listing,
+    not one judgment file, and must never close the other cases from it.
     """
-    return doc.jurisdiction == "za" and doc.kind == "case" and bool((doc.url or "").strip())
+    url = (doc.url or "").strip()
+    if not (doc.jurisdiction == "za" and doc.kind == "case" and url):
+        return False
+    canonical = (source.canonical_url if source is not None else "") or ""
+    return url.rstrip("/") != canonical.strip().rstrip("/")
 
 
 def _require_source(source: SourceSpec | None, doc: LegalDocument) -> SourceSpec:
@@ -342,7 +350,6 @@ class MemoryStore:
     async def upsert_version(self, doc: LegalDocument, chunks: list[Chunk], *, on: date) -> bool:
         _guard_home(self.home_region, jurisdiction=doc.jurisdiction)
         source = _require_source(self.sources.get(doc.source_id), doc)
-        del source
         if doc.known_from is None:
             doc.known_from = on
         same = [
@@ -374,7 +381,7 @@ class MemoryStore:
             old = self.docs[version_id]
             old.effective_to = plan.close_on
             old.status = "superseded"
-        if url_replaces(doc):
+        if url_replaces(doc, source):
             for item in self.docs.values():
                 if (
                     item.source_id == doc.source_id
@@ -751,7 +758,7 @@ class PostgresStore:
                     for chunk in chunks
                 ],
             )
-            if url_replaces(doc):
+            if url_replaces(doc, source):
                 await self._conn.execute(
                     """
                     UPDATE zenas_pool.documents

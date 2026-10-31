@@ -7,6 +7,7 @@ name ('212CACApr23 March 2024'). These fixtures are real header shapes.
 
 import asyncio
 import sys
+from dataclasses import replace
 from datetime import date
 from pathlib import Path
 
@@ -183,6 +184,26 @@ def test_only_za_case_files_replace_by_url():
         effective_from=None,
     )
     assert not url_replaces(statute)
+
+
+def test_a_source_page_url_is_not_one_judgment_file():
+    # SAFLII records its listing page as every case's URL; two cases from it both stay open.
+    source = next(item for item in sources_for_region("za") if item.source_id == "saflii")
+    case = build_document(
+        source,
+        citation="[2023] ZASCA 12",
+        title="Appeal",
+        level="national",
+        kind="case",
+        body="Judgment",
+        sections=[Section("1", "Judgment", "text", [])],
+        url=source.canonical_url,
+        status="in_force",
+        doc_date=None,
+        effective_from=None,
+    )
+    assert not url_replaces(case, source)
+    assert url_replaces(replace(case, url="https://www.saflii.org/za/cases/ZASCA/2023/12.html"), source)
 
 
 def test_files_without_a_neutral_citation_use_the_printed_case_number():
