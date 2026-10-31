@@ -117,7 +117,9 @@ _DATE_LABELS = (
     re.compile(r"(?:^|\n)\s*date\s*:", re.I),
     re.compile(r"\bdate\s+held\s*:", re.I),
 )
-_FILE_LONG = re.compile(r"(?<![A-Za-z0-9])(\d{1,2})([A-Za-z]{3,9})(\d{4})(?![0-9])")
+_FILE_LONG = re.compile(r"(?<![0-9])(\d{1,2})([A-Za-z]{3,9})(\d{4})(?![0-9])")
+# A date alone on the last line, under the judge's signature ("MEMBER OF THE SPECIAL TRIBUNAL\n15 March 2022").
+_SIGNED_DATE = re.compile(r"(?:tribunal|judge|j)\s*\n\s*((?:\d{1,2}\s+[A-Za-z]{3,9}\s+\d{4})|(?:\d{1,4}[/.-]\d{1,2}[/.-]\d{1,4}))\s*$", re.I)
 _FILE_DIGITS = re.compile(r"(?<![0-9])(\d{2})(\d{2})(20\d{2})(?![0-9])")
 
 
@@ -177,6 +179,11 @@ def judgment_date(text: str, url: str = "") -> date | None:
             found = date_in(text[match.end() : match.end() + 80])
             if found:
                 return found
+    signed = _SIGNED_DATE.search((text or "")[-400:])
+    if signed:
+        found = date_in(signed.group(1))
+        if found:
+            return found
     return date_from_name(url) if url else None
 
 

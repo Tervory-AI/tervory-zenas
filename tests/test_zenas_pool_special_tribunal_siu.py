@@ -132,12 +132,17 @@ def test_judgment_date_reads_labelled_lines_not_the_first_number():
     ) == date(2026, 8, 26)
     assert judgment_date("CASE NO: GP/10/2019\nDATE:  2020/01/21\nIn the matter") == date(2020, 1, 21)
     assert judgment_date(preamble + "nothing labelled 5 May 2020") is None
+    signed = preamble + "6. There is no order as to costs.\nJUDGE L MODIBA\nMEMBER OF THE SPECIAL TRIBUNAL\n \n15 March 2022"
+    assert judgment_date(signed) == date(2022, 3, 15)
+    # A settlement "DATED 25 July 2022" is not the order's date.
+    assert judgment_date(preamble + "The settlement agreement DATED 25 July 2022 is made an Order.\nJUDGE") is None
     assert judgment_date(preamble, "https://x/ST-Judgment-MP-03-2021-13Oct2022.pdf") == date(2022, 10, 13)
 
 
 def test_dates_in_file_names_and_fragments():
     assert date_from_name("https://x/gp20_2026-order-01102026.pdf") == date(2026, 10, 1)
     assert date_from_name("https://x/ST-Judgment-GP-01-2021-18Oct2022.pdf") == date(2022, 10, 18)
+    assert date_from_name("https://x/ST-Judgment-GP-04-2020-Order29Sep2022.pdf") == date(2022, 9, 29)
     assert date_from_name("https://x/ST-Judgment-GP-01-2021.pdf") is None
     assert date_from_name("https://x/20 Others 2019.pdf") is None
     assert date_in("7th day of September 2022") == date(2022, 9, 7)
