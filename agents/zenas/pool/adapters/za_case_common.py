@@ -87,6 +87,204 @@ def neutral_citation(text: str) -> str:
     return f"[{match.group(1)}] {match.group(2)} {match.group(3)}"
 
 
+# A judgment cites other cases. Only the judgment's own neutral citation names it:
+# it sits in the header (before paragraph [1] or the JUDGMENT heading) and carries
+# this court's own code. A citation found further down belongs to a cited case.
+_CAPTION_START = re.compile(r"in\s+the\s+(?:matter|appeal)\s+(?:between|of)\s*:?", re.I)
+_PARA_ONE = (
+    re.compile(r"\n\s*\[\s*1\s*\]"),
+    re.compile(r"\n\s*1\.?[ \t]+[A-Z][a-z]+[ \t]+[a-z]"),
+)
+# Some courts print JUDGMENT above the caption (the SCA), others between the
+# caption and paragraph 1. It ends the header only after the caption.
+_JUDGMENT_HEADING = re.compile(r"\n\s*J\s*U\s*D\s*G\s*M\s*E\s*N\s*T\s*:?\s*\n")
+_HEAD_MAX = 4000
+_SLUG_NEUTRAL = re.compile(r"\b((?:19|20)\d{2})\s+(za[a-z]{2,8})\s+(\d{1,4})\b", re.I)
+_CITATION_LINE = re.compile(r"neutral\s+citation", re.I)
+
+
+def judgment_head(text: str) -> str:
+    """The header of a judgment: everything before paragraph 1 (or a JUDGMENT heading below the caption)."""
+    body = text or ""
+    cut = min(len(body), _HEAD_MAX)
+    for pattern in _PARA_ONE:
+        found = pattern.search(body)
+        if found and found.start() > 0:
+            cut = min(cut, found.start())
+    caption = _CAPTION_START.search(body[:cut])
+    if caption:
+        found = _JUDGMENT_HEADING.search(body, caption.end())
+        if found:
+            later = _CITATION_LINE.search(body, found.end(), cut)
+            if not later:
+                cut = min(cut, found.start())
+    return body[:cut]
+
+
+def _code_ok(code: str, codes) -> bool:
+    code = code.upper()
+    if callable(codes):
+        return bool(codes(code))
+    return code in {str(item).upper() for item in codes}
+
+
+def own_citation(text: str, codes, *, url: str = "", title: str = "") -> str:
+    """This judgment's own neutral citation, with this court's code, or "".
+
+    Looked for in the listing title, then the file name, then the judgment header.
+    Never in the body, where the citations belong to the cases the court cites.
+    """
+    for place in (title or "", unquote(url or ""), judgment_head(text)):
+        for match in _NEUTRAL.finditer(place):
+            if _code_ok(match.group(2), codes):
+                return f"[{match.group(1)}] {match.group(2)} {match.group(3)}"
+    slug = slug_title(url) if url else ""
+    for match in _SLUG_NEUTRAL.finditer(slug):
+        if _code_ok(match.group(2), codes):
+            return f"[{match.group(1)}] {match.group(2).upper()} {match.group(3)}"
+    return ""
+
+
+_SLUG_CASE_NO = (
+    re.compile(r"\b([a-z]{1,5}\d{1,6}[a-z]?)\s+((?:19|20)\d{2})\b", re.I),
+    re.compile(r"\b((?:19|20)\d{2})\s+(\d{3,7})\b"),
+)
+
+
+def slug_case_number(url: str) -> str:
+    """A case number from a court's file name, e.g. 'ja13 2016' -> 'JA13/2016'."""
+    slug = slug_title(url) if url else ""
+    found = _SLUG_CASE_NO[0].search(slug)
+    if found:
+        return f"{found.group(1).upper()}/{found.group(2)}"
+    found = _SLUG_CASE_NO[1].search(slug)
+    if found:
+        return f"{found.group(2)}/{found.group(1)}"
+    return ""
+
+
+_HEAD_CASE_NO = re.compile(
+    r"case\s*(?:no|number)\b\.?\s*:?\s*([A-Z]{0,6}\s?\d[\w]*(?:\s?/\s?[\w]+){1,3}(?: \d{2}\b)?)", re.I
+)
+
+
+# A header line that starts with a case label, even one a PDF broke ("CAS\nE NO:"),
+# followed by a number with no slash ("IM238JAN19", "(019513)", "2025 – 154050").
+_LINE_CASE_NO = re.compile(
+    r"^[ \t]*(?:(?:ct|cc|cct|cac|lcc)[ \t]+)?c\s?a\s?s\s?e[ \t]*(?:n\s?o\s?s?|numbers?)?[ \t]*[.:]*[ \t]*\(?"
+    r"((?:[A-Z]{1,6}[ \t]?)?\d[\w]*(?:[ \t]?[/\u2013-][ \t]?\w+){0,3})",
+    re.I | re.M,
+)
+
+
+def header_case_number(text: str) -> str:
+    """The case number printed in the judgment header ("Case No: LCC 16/2020"), or ""."""
+    head = judgment_head(text)
+    found = _HEAD_CASE_NO.search(head) or _LINE_CASE_NO.search(head)
+    if not found:
+        return ""
+    number = " ".join(found.group(1).split())
+    number = re.sub(r"\s*[/]\s*", "/", number)
+    number = re.sub(r"\s*[\u2013]\s*|\s+-\s+", "-", number)
+    return number.upper()[:40]
+
+
+def court_citation(url: str, text: str, codes, label: str, *, title: str = "") -> str:
+    """This court's own neutral citation, else "<label> <case number>", else "" (skip the file)."""
+    own = own_citation(text, codes, url=url, title=title)
+    if own:
+        return own
+    number = slug_case_number(url) or header_case_number(text)
+    return f"{label} {number}" if number else ""
+
+
+_CAPTION_END = re.compile(
+    r"^\s*(?:coram|heard|delivered|decided|judgment|j\s*u\s*d\s*g|summary|neutral\s+citation|order\b|"
+    r"in\s+re\b|arising|this\s+judgment|date|case\s+no|ct\s+case|cac\s+case|reasons|_{3,}|\[\s*1\s*\])",
+    re.I,
+)
+_CAPTION_SPLIT = re.compile(r"^\s*(?:and|versus|vs?\.?)\s*$", re.I)
+_ROLE = re.compile(
+    r"\s*\b(?:(?:first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth|\d+(?:st|nd|rd|th))\s+)?"
+    r"(?:applicants?|appellants?|respondents?|plaintiffs?|defendants?|excipients?|"
+    r"intervening\s+part(?:y|ies)|intervenors?|amicus\s+curiae|complainants?|"
+    r"(?:primary\s+)?(?:acquiring|target)\s+firms?)\b.*$",
+    re.I,
+)
+_JOINS_NEXT = re.compile(r"(?:\b(?:of|and|the|for|south|in)|&|,|\(pty\)|\(proprietary\)|-)\s*$", re.I)
+_CASE_LINE = re.compile(r"^\s*(?:(?:cac\s+|ct\s+|cct\s+)?case\b|cct\b|cac\b|tribunal\s+case|reportable|of\s+interest|revised)", re.I)
+_CONTINUES = re.compile(r"^\s*(?:\(|(?i:ltd|limited|proprietary|t/a)\b|[a-z])")
+_KEEP_UPPER = frozenset({"CC", "NPC", "SOC", "SA", "RF", "NO", "CCMA", "SARS", "NERSA", "FAWU", "HCI", "CEO", "MEC"})
+_SMALL = frozenset({"of", "and", "the", "for", "in", "on", "v", "a", "an", "to", "t/a"})
+
+
+def _tidy_party_case(name: str) -> str:
+    letters = [ch for ch in name if ch.isalpha()]
+    if not letters or sum(ch.isupper() for ch in letters) < 0.8 * len(letters):
+        return name
+    words = []
+    for index, word in enumerate(name.split()):
+        bare = word.strip("(),.&'’")
+        if bare.upper() in _KEEP_UPPER:
+            words.append(word.upper())
+        elif index and word.lower() in _SMALL:
+            words.append(word.lower())
+        else:
+            words.append(re.sub(r"[A-Za-z][A-Za-z'’]*", lambda m: m.group(0)[:1].upper() + m.group(0)[1:].lower(), word))
+    return " ".join(words)
+
+
+def _first_party(lines: list[str]) -> tuple[str, bool]:
+    """The first party in a caption side, and whether more parties follow it."""
+    parts: list[str] = []
+    rest_at = len(lines)
+    for index, raw in enumerate(lines):
+        line = " ".join(raw.split())
+        if not line or _CASE_LINE.match(line):
+            continue
+        stripped = _ROLE.sub("", line).strip()
+        if parts and not (_JOINS_NEXT.search(parts[-1]) or _CONTINUES.match(line)):
+            rest_at = index
+            break
+        if stripped:
+            parts.append(stripped)
+        if stripped != line and not _JOINS_NEXT.search(stripped):
+            rest_at = index + 1
+            break
+    rest = any(
+        _ROLE.sub("", " ".join(raw.split())).strip() and not _CONTINUES.match(raw.strip())
+        for raw in lines[rest_at:]
+    )
+    name = " ".join(parts).strip(" ,;:")
+    return name, rest
+
+
+def caption_title(text: str) -> str:
+    """'Party v Party' from the judgment's own caption ("In the matter between ... and ..."), or ""."""
+    head = judgment_head(text)
+    start = _CAPTION_START.search(head)
+    if not start:
+        return ""
+    lines = head[start.end():].split("\n")[:60]
+    block: list[str] = []
+    for line in lines:
+        if block and _CAPTION_END.match(line):
+            break
+        if _CAPTION_START.match(line.strip()):
+            continue
+        block.append(line)
+    split = next((i for i, line in enumerate(block) if _CAPTION_SPLIT.match(line)), None)
+    if split is None:
+        return ""
+    left, left_more = _first_party(block[:split])
+    right, right_more = _first_party(block[split + 1 :])
+    if not left or not right:
+        return ""
+    left = _tidy_party_case(left) + (" and Others" if left_more and "other" not in left.lower() else "")
+    right = _tidy_party_case(right) + (" and Others" if right_more and "other" not in right.lower() else "")
+    return f"{left} v {right}"[:200]
+
+
 # Neutral-citation codes. Seat is the one the code names. The judgment's own
 # words win when they name the same place; a disagreement leaves the field unknown.
 _CODE_COURT: dict[str, tuple[str, str, str]] = {
@@ -543,7 +741,7 @@ async def pdfs_to_cases(
         citation = citation_for(url, text)
         if not citation:
             continue
-        title = slug_title(url)
+        title = caption_title(text) or slug_title(url)
         if title_for is not None:
             title = title_for(url, text) or title
         when = parse_date(text[:800]) or parse_date(title)

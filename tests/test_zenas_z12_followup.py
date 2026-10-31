@@ -147,7 +147,9 @@ def test_load_case_library_keeps_this_box_current_cases() -> None:
             "name": "Sample v Example",
             "citation": "[2024] ZASCA 10",
             "quote": "The court refuses leave to appeal.",
-            "text": text,
+            # The passage is the judgment body with whitespace folded, so a quote copied
+            # across a PDF line break still matches it word for word.
+            "text": "Note. The court refuses leave to appeal. A later sentence follows here.",
         }
     ]
     empty = asyncio.run(load_case_library(_Rows([], "us"), region="us-east"))

@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from agents.zenas.pool.adapters.za_archive import ArchiveRun, accept_pdf, paged_listings
 from agents.zenas.pool.adapters.za_case_common import (
-    neutral_citation,
+    court_citation,
     parse_case_blob,
     phoca_downloads,
 )
@@ -88,7 +88,9 @@ class OcjHighCourtAdapter:
                         body=body,
                         interval_env="OCJ_MIN_INTERVAL",
                         headers=html_headers(),
-                        citation_for=lambda file_url, text: neutral_citation(text),
+                        citation_for=lambda file_url, text, body=body: court_citation(
+                            file_url, text, lambda code: code.endswith("HC"), body
+                        ),
                     )
                     if payload:
                         blobs.append(payload)

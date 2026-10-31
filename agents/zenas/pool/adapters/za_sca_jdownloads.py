@@ -23,7 +23,9 @@ from agents.zenas.pool.adapters.za_case_common import (
     absolute_url,
     env_int,
     is_criminal_caption,
-    neutral_citation,
+    header_case_number,
+    judgment_head,
+    own_citation,
     parse_case_blob,
     parse_date,
 )
@@ -97,6 +99,19 @@ def _court(citation: str, category_url: str) -> str:
 def _year_of(url: str) -> int:
     match = re.search(r"(19\d{2}|20\d{2})", url)
     return int(match.group(1)) if match else 0
+
+
+
+def _citation(url: str, text: str, title: str) -> str:
+    """Own neutral citation, else the court and the case number printed in the header."""
+    found = own_citation(text, ("ZASCA", "ZAEC"), url=url, title=title)
+    if found:
+        return found
+    number = header_case_number(text)
+    if not number:
+        return ""
+    court = "Electoral Court" if re.search(r"electoral\s+court", judgment_head(text)[:600], re.I) else "SCA"
+    return f"{court} {number}"
 
 
 class ScaAdapter:
@@ -181,8 +196,8 @@ class ScaAdapter:
                         body="Supreme Court of Appeal",
                         interval_env="SCA_MIN_INTERVAL",
                         headers=html_headers(),
-                        citation_for=lambda file_url, text, titles=by_send: (
-                            neutral_citation(titles.get(file_url, ("", ""))[0]) or neutral_citation(text)
+                        citation_for=lambda file_url, text, titles=by_send: _citation(
+                            file_url, text, titles.get(file_url, ("", ""))[0]
                         ),
                         title_for=lambda file_url, text, titles=by_send: (
                             titles.get(file_url, ("", ""))[0] or text.split("\n", 1)[0][:180]

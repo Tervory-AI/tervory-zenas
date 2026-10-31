@@ -19,7 +19,7 @@ from agents.zenas.pool.adapters.za_archive import (
 from agents.zenas.pool.adapters.za_case_common import (
     absolute_url,
     env_int,
-    neutral_citation,
+    court_citation,
     parse_case_blob,
     phoca_downloads,
 )
@@ -76,6 +76,7 @@ class _LabourFamily:
     source_id = ""
     marker = ""
     body = ""
+    codes: tuple[str, ...] = ()
 
     def __init__(self) -> None:
         self.run = ArchiveRun("")
@@ -141,7 +142,7 @@ class _LabourFamily:
                         body=self.body,
                         interval_env="LABOUR_MIN_INTERVAL",
                         headers=html_headers(),
-                        citation_for=lambda file_url, text: neutral_citation(text),
+                        citation_for=lambda file_url, text: court_citation(file_url, text, self.codes, self.body),
                     )
                     if payload:
                         blobs.append(payload)
@@ -160,9 +161,11 @@ class LabourCourtAdapter(_LabourFamily):
     source_id = "labour-court"
     marker = LC_MARKER
     body = "Labour Court"
+    codes = ("ZALCJHB", "ZALCCT", "ZALCD", "ZALCPE", "ZALCBF")
 
 
 class LabourAppealAdapter(_LabourFamily):
     source_id = "labour-appeal"
     marker = LAC_MARKER
     body = "Labour Appeal Court"
+    codes = ("ZALAC",)

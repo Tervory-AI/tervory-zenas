@@ -18,7 +18,7 @@ from agents.zenas.pool.adapters.za_archive import (
 from agents.zenas.pool.adapters.za_case_common import (
     absolute_url,
     env_int,
-    neutral_citation,
+    court_citation,
     parse_case_blob,
     phoca_downloads,
 )
@@ -130,7 +130,7 @@ async def _files(run: ArchiveRun, http_get, page: bytes, base: str) -> list[byte
             body="Land Court",
             interval_env="LAND_MIN_INTERVAL",
             headers=html_headers(),
-            citation_for=lambda file_url, text: neutral_citation(text),
+            citation_for=lambda file_url, text: court_citation(file_url, text, ("ZALCC", "ZALC"), "Land Court"),
         )
         if payload:
             blobs.append(payload)

@@ -134,7 +134,7 @@ async def _sca_archive():
     detail = store.runs["sca"].detail
     assert "criminal" in detail
     assert "years " in detail
-    assert store.checkpoints["sca"][0].startswith("za-archive-1")
+    assert store.checkpoints["sca"][0].startswith("za-archive-2")
 
 
 def test_saved_comptrib_pages_skip_merger_approval_letters():
@@ -201,7 +201,7 @@ async def _resume():
     first = await load_wave(store, region="za", only=[source], live=True, http_get=get, on=ON)
     assert first["sources"][0]["documents"] == 1
     cursor = store.checkpoints["sca"][0]
-    assert cursor.startswith("za-archive-1")
+    assert cursor.startswith("za-archive-2")
     assert cursor.split("\n")[1] == "0"
     downloaded = [url for url in calls if "/send/" in url]
     assert len(downloaded) == 1

@@ -13,7 +13,8 @@ from urllib.parse import unquote
 from agents.zenas.pool.adapters.za_archive import ArchiveRun, accept_pdf, polite_get
 from agents.zenas.pool.adapters.za_case_common import (
     absolute_url,
-    neutral_citation,
+    header_case_number,
+    own_citation,
     parse_case_blob,
 )
 from agents.zenas.pool.adapters.za_common import html_headers
@@ -42,12 +43,16 @@ def judgment_pdfs(page: bytes, base: str = INDEX) -> list[str]:
 
 
 def _citation(url: str, text: str) -> str:
-    found = neutral_citation(text) or neutral_citation(unquote(url))
+    # The CAC also hosts the Constitutional Court judgments on its appeals.
+    found = own_citation(text, ("ZACAC", "ZACC"), url=url)
     if found:
         return found
     match = _CASE_NO.search(unquote(url))
     if match:
         return f"CAC {match.group(1)}"
+    number = re.match(r"(\d+)\s*/\s*CAC", header_case_number(text))
+    if number:
+        return f"CAC {number.group(1)}"
     return ""
 
 

@@ -278,54 +278,112 @@ def made_up_questions(library: list[dict[str, str]] | None = None, *, region: st
     return rows
 
 
-def _verbatim_quote(text: str) -> str:
-    """A sentence copied from the stored judgment, short enough to score, still the court's words.
+# Where the court's own words start: paragraph [1], or "1. The ..." in older judgments.
+_FIRST_PARAGRAPH = (
+    re.compile(r"(?m)^[ \t]*\[[ \t]*1[ \t]*\]"),
+    re.compile(r"(?m)^[ \t]*1\.?[ \t]+[A-Z][a-z]+[ \t]+[a-z]"),
+)
+# Header lines: court names, captions, case numbers, dates, parties and their roles.
+_HEADER_START = re.compile(
+    r"^\W*(?:coram|before|heard|delivered|decided|date|dates|case\s*(?:no|number)|cac\s+case|ct\s+case|"
+    r"neutral\s+citation|in\s+the\s+(?:matter|appeal|high|supreme|labour|land|tax|competition|constitutional)|"
+    r"judgment|order|summary|reportable|of\s+interest|revised|signature|counsel|attorneys?|for\s+the\s+"
+    r"(?:applicant|appellant|respondent|plaintiff|defendant|state)|held\s+at|republic\s+of|reasons|"
+    r"this\s+judgment\s+(?:was|has\s+been)\s+handed|heard\s+on|judges?\b)",
+    re.I,
+)
+_PARTY_ROLE = re.compile(
+    r"\b(?:applicants?|appellants?|respondents?|plaintiffs?|defendants?|excipients?|intervenors?|"
+    r"amicus\s+curiae|(?:acquiring|target)\s+firms?)\s*$",
+    re.I,
+)
+_DATE_ONLY = re.compile(r"^\W*\d{1,2}(?:st|nd|rd|th)?\s+[A-Za-z]+,?\s+\d{4}\W*$")
+_CASE_NUMBER = re.compile(r"\b(?:[A-Z]{1,6}\s?)?\d{1,6}\s?/\s?(?:[A-Z]{2,5}\s?/\s?)?[A-Za-z]{0,3}\s?\d{2,4}\b")
+_PARAGRAPH_MARK = re.compile(r"^(?:\[\s*\d+\s*\]|\(?\d{1,3}[.)])\s+")
+_SENTENCE_END = re.compile(r"(?<=[.])\s+(?=[\[(\"\u201cA-Z0-9])")
+_BYLINE = re.compile(r"(circuit judge|district judge|per curiam|justice[.:]?$|after stat\w* the facts)", re.I)
+# "KRIEGLER J:" and "MOJAPELO AJA (Ponnan JA concurring):" open a judgment; they are not the court's reasoning.
+_JUDGE_OPENING = re.compile(r"^[A-Z][A-Z'\u2019 -]+\s(?:A?J|A?JA|JP|DJP|AJP|CJ|DCJ|P)\b")
 
-    Skip judge bylines and sentences that personal-information masking would alter, because
-    rule-card cleaning runs quotes through that mask before cite-check. Keep the historic
-    20-character floor so short court holdings still become library quotes.
+
+def _header_line(line: str) -> bool:
+    """A line from a court header or caption, never a quote."""
+    text = " ".join(line.split())
+    if not text:
+        return True
+    letters = [ch for ch in text if ch.isalpha()]
+    if len(letters) >= 3 and sum(ch.isupper() for ch in letters) >= 0.7 * len(letters):
+        return True
+    if _HEADER_START.search(text) or _PARTY_ROLE.search(text) or _DATE_ONLY.match(text):
+        return True
+    if re.fullmatch(r"[\W\d_]+", text):
+        return True
+    words = text.split()
+    if len(words) < 4 and not text.endswith((".", ",", ";", ":")):
+        return True
+    if len(words) < 10 and _CASE_NUMBER.search(text) and not text.endswith("."):
+        return True
+    return False
+
+
+def _judgment_body(text: str) -> str:
+    """The judgment from its first numbered paragraph on; the whole text when unnumbered."""
+    body = (text or "").replace(chr(13), chr(10))
+    starts = [found.start() for pattern in _FIRST_PARAGRAPH for found in [pattern.search(body)] if found]
+    return body[min(starts):] if starts else body
+
+
+def library_passage(text: str, *, limit: int = 4000) -> str:
+    """The text Zenas reads for a library case: the judgment body, whitespace folded, header left out."""
+    return " ".join(_judgment_body(text).split())[:limit]
+
+
+def _sentence_ok(sentence: str) -> bool:
+    words = sentence.split()
+    if not 5 <= len(words) <= 60 or not 25 <= len(sentence) <= 320:
+        return False
+    if not sentence.endswith(".") or re.search(r"(?:[;,]\s\(?[a-z]|\s\(?\d{1,2})[.)]$", sentence) or not (sentence[0].isupper() or sentence[0] in "\"\u201c("):
+        return False
+    letters = [ch for ch in sentence if ch.isalpha()]
+    if not letters or sum(ch.islower() for ch in letters) < 0.6 * len(letters):
+        return False
+    return not (_BYLINE.search(sentence) or _JUDGE_OPENING.match(sentence) or _HEADER_START.search(sentence) or _PARTY_ROLE.search(sentence.rstrip(".")))
+
+
+def _verbatim_quote(text: str, *, limit: int = 4000) -> str:
+    """A whole sentence of the court's own reasoning, word for word from the stored judgment.
+
+    The quote comes from the judgment body (paragraph [1] on), never from the court
+    header, the caption, case numbers, dates, or party and role lines. A sentence is
+    taken only from consecutive non-header lines, so it is a whitespace-folded copy
+    of the judgment, and it must sit in ``library_passage(text)``. Sentences that
+    personal-information masking would alter are skipped, because rule-card
+    cleaning runs quotes through that mask before cite-check. No sentence: "",
+    and that case is left out of the library rather than scored on a header.
     """
-    _skip = re.compile(
-        r"(circuit judge|district judge|per curiam|justice[.:]?$|after stat\w* the facts)",
-        re.I,
-    )
     try:
         from agents.zenas.core.engine import _clean_piece
     except Exception:  # pragma: no cover
         _clean_piece = None  # type: ignore
 
-    normalized = text.replace(chr(13), chr(10))
-    candidates: list[str] = []
-    for piece in normalized.split(chr(10)):
-        line = piece.strip()
-        if len(line) < 20 or _skip.search(line):
+    passage = library_passage(text, limit=limit)
+    blocks: list[list[str]] = [[]]
+    for line in _judgment_body(text).split(chr(10)):
+        if _header_line(line):
+            if blocks[-1]:
+                blocks.append([])
             continue
-        end = line.find(". ")
-        if end >= 20:
-            sentence = line[: end + 1]
-            if sentence in text and not _skip.search(sentence):
-                candidates.append(sentence)
-        if line.endswith(".") and 20 <= len(line) <= 400 and line in text:
-            candidates.append(line)
-        elif len(line) >= 40 and line[:240] in text:
-            candidates.append(line[:240])
-    for sentence in candidates:
-        if _clean_piece is None:
-            return sentence
-        if _clean_piece(sentence, []) == sentence:
-            return sentence
-    # fall back: any substring that survives cleaning
-    body = " ".join(normalized.split())
-    for width in (120, 90, 70):
-        for i in range(0, max(0, len(body) - width)):
-            chunk = body[i : i + width]
-            if _skip.search(chunk):
+        blocks[-1].append(line)
+    for block in blocks:
+        joined = " ".join(" ".join(block).split())
+        for raw in _SENTENCE_END.split(joined):
+            sentence = _PARAGRAPH_MARK.sub("", raw.strip()).strip()
+            if not _sentence_ok(sentence) or sentence not in passage:
                 continue
-            if _clean_piece is not None and _clean_piece(chunk, []) != chunk:
+            if _clean_piece is not None and _clean_piece(sentence, []) != sentence:
                 continue
-            if chunk in text or chunk in body:
-                return chunk
-    return candidates[0] if candidates else ""
+            return sentence
+    return ""
 
 
 def _made_up_box(region: str) -> tuple[str, str, str, str]:
@@ -353,7 +411,7 @@ def _passages_for(documents: list[dict[str, str]], item: dict[str, str]) -> list
 
 _LIBRARY_SQL = """
 SELECT DISTINCT ON (document_id)
-       citation, title, left(text, 1200) AS text
+       citation, title, left(text, 12000) AS text
 FROM zenas_pool.documents
 WHERE kind = 'case'
   AND jurisdiction = $1
@@ -396,8 +454,9 @@ async def load_case_library(conn: Any, *, region: str) -> list[dict[str, str]]:
     for row in rows:
         citation = " ".join(_row_text(row, "citation").split())
         name = " ".join(_row_text(row, "title").split())
-        text = _row_text(row, "text")
-        quote = _verbatim_quote(text)
+        raw = _row_text(row, "text")
+        quote = _verbatim_quote(raw)
+        text = library_passage(raw)
         if not citation or not name or not quote or quote not in text:
             continue
         documents.append({"name": name, "citation": citation, "quote": quote, "text": text})

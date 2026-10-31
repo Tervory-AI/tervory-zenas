@@ -14,7 +14,7 @@ from urllib.parse import unquote
 from agents.zenas.pool.adapters.za_archive import ArchiveRun, accept_pdf, polite_get
 from agents.zenas.pool.adapters.za_case_common import (
     absolute_url,
-    neutral_citation,
+    own_citation,
     parse_case_blob,
 )
 from agents.zenas.pool.adapters.za_common import html_headers
@@ -79,7 +79,7 @@ def siu_pdf(page: bytes, base: str) -> str:
 
 
 def _citation(url: str, text: str) -> str:
-    found = neutral_citation(text)
+    found = own_citation(text, ("ZAST",), url=url)
     if found:
         return found
     name = unquote(url)

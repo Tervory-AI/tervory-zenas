@@ -13,7 +13,8 @@ from agents.zenas.pool.adapters.za_archive import ArchiveRun, accept_pdf, limit_
 from agents.zenas.pool.adapters.za_case_common import (
     absolute_url,
     env_int,
-    neutral_citation,
+    header_case_number,
+    own_citation,
     parse_case_blob,
 )
 from agents.zenas.pool.adapters.za_common import html_headers
@@ -28,6 +29,8 @@ _CASE = re.compile(
 _IT = re.compile(r"\b(it|vat)-(\d+)", re.I)
 _BARE = re.compile(r"(tcit|tcvat|it|vat)(\d{2,})", re.I)
 _ZATC = re.compile(r"(20\d{2})-zatc", re.I)
+_DRJ_YEAR = re.compile(r"drj-tc-((?:19|20)\d{2})-", re.I)
+_DRJ_CASE = re.compile(r"(?:tc-?it|tc-?vat|sarstc)-?(?:(it|vat|adm|mprd)-)?(\d{4,6})\b", re.I)
 
 
 def year_urls(page: bytes, base: str = INDEX) -> list[str]:
@@ -70,7 +73,7 @@ def _band_span(url: str) -> tuple[int, int]:
 
 
 def _citation(url: str, text: str) -> str:
-    found = neutral_citation(text)
+    found = own_citation(text, ("ZATC",), url=url)
     if found:
         return found
     kind = _IT.search(url)
@@ -80,6 +83,15 @@ def _citation(url: str, text: str) -> str:
     bare = _BARE.search(url)
     if bare and year:
         return f"{bare.group(1).upper()} {bare.group(2)} [{year.group(1)}] ZATC"
+    # Older file names: lapd-drj-tc-2010-08-tcit12441-..., legal-drj-tc-2026-04-sarstc-it-77151-adm-...
+    band = _DRJ_YEAR.search(url)
+    number = _DRJ_CASE.search(url)
+    if band and number:
+        kind = (number.group(1) or "IT").upper()
+        return f"{kind} {number.group(2)} [{band.group(1)}] ZATC"
+    printed = header_case_number(text)
+    if printed:
+        return f"Tax Court {printed}"
     return ""
 
 

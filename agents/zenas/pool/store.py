@@ -294,6 +294,17 @@ class Store(Protocol):
     async def stored_bytes(self) -> int: ...
 
 
+def url_replaces(doc: LegalDocument) -> bool:
+    """A South African judgment file holds one judgment, so a new document from
+    the same source and file replaces an open one stored under another citation.
+
+    The citation is the document's identity. When a parser fix changes the
+    citation it reads from a file (the first neutral citation in the body was
+    often a case the judgment cites), the old row must close, not stay beside it.
+    """
+    return doc.jurisdiction == "za" and doc.kind == "case" and bool((doc.url or "").strip())
+
+
 def _require_source(source: SourceSpec | None, doc: LegalDocument) -> SourceSpec:
     if source is None:
         raise LicenceError("record the source and its terms before storing text")
@@ -360,6 +371,18 @@ class MemoryStore:
             old = self.docs[version_id]
             old.effective_to = plan.close_on
             old.status = "superseded"
+        if url_replaces(doc):
+            for item in self.docs.values():
+                if (
+                    item.source_id == doc.source_id
+                    and item.jurisdiction == doc.jurisdiction
+                    and item.kind == doc.kind
+                    and item.url == doc.url
+                    and item.id != doc.id
+                    and item.effective_to is None
+                ):
+                    item.effective_to = on
+                    item.status = "superseded"
         self.docs[doc.version_id] = doc
         for chunk in chunks:
             if chunk.jurisdiction != doc.jurisdiction:
@@ -706,6 +729,21 @@ class PostgresStore:
                     for chunk in chunks
                 ],
             )
+            if url_replaces(doc):
+                await self._conn.execute(
+                    """
+                    UPDATE zenas_pool.documents
+                    SET effective_to = $1, status = 'superseded'
+                    WHERE source_id = $2 AND jurisdiction = $3 AND kind = $4 AND url = $5
+                      AND document_id <> $6 AND effective_to IS NULL
+                    """,
+                    on,
+                    doc.source_id,
+                    doc.jurisdiction,
+                    doc.kind,
+                    doc.url,
+                    doc.id,
+                )
         return True
 
     async def record_link(self, source_id: str, url: str, reason: str) -> None:
