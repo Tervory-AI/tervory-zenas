@@ -618,6 +618,13 @@ def pdf_text(blob: bytes, *, max_pages: int | None = None) -> str:
     return spaced_pdf_text(blob)
 
 
+def pdf_text_or_none(blob: bytes) -> str | None:
+    """The PDF's text, "" for a PDF with no text layer, None for a file that will not open."""
+    from agents.zenas.pool.pdf_spacing import pdf_text_or_none as spaced
+
+    return spaced(blob)
+
+
 def case_bytes(
     *,
     citation: str,

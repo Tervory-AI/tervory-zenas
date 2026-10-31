@@ -478,7 +478,10 @@ def test_special_tribunal_and_rules_and_gazette_rss():
 
 
 async def _rest():
-    pdf = tiny_pdf("The commercial contract is set aside. Special Tribunal GP 1/2021.")
+    pdf = tiny_pdf(
+        "The commercial contract is set aside. Special Tribunal GP 1/2021."
+        + " The applicant seeks review of the contract award and the tribunal considers each ground." * 6
+    )
     rules_pdf = tiny_pdf(
         "Rule 1. Purpose. The purpose of these rules is to promote access to the courts for commercial matters today."
     )
@@ -557,7 +560,10 @@ def test_special_tribunal_loads_judgments_from_a_host_that_406s_html_accept_for_
     monkeypatch: pytest.MonkeyPatch,
 ):
     """Mimics justice.gov.za: the listing is HTML, a PDF asked for as text/html is a 406."""
-    pdf = tiny_pdf("The contract is reviewed and set aside. Special Tribunal GP 1/2021.")
+    pdf = tiny_pdf(
+        "The contract is reviewed and set aside. Special Tribunal GP 1/2021."
+        + " The applicant seeks review of the contract award and the tribunal considers each ground." * 6
+    )
     pdf_accepts: list[str] = []
 
     async def get(url, headers):

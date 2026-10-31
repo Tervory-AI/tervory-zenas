@@ -15,7 +15,9 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from agents.zenas.pool.adapters.za_archive import MARKER  # noqa: E402
 from agents.zenas.pool.adapters.za_special_tribunal import (  # noqa: E402
+    CURSOR_TAG,
     SIU,
     SpecialTribunalAdapter,
     _citation,
@@ -26,6 +28,10 @@ from agents.zenas.pool.adapters.za_special_tribunal import (  # noqa: E402
     judgment_date,
     siu_matter,
 )
+from agents.zenas.pool.textutil import document_id_for  # noqa: E402
+
+# Real judgments run to pages; a fixture needs at least MIN_WORDS (50) words to count as text.
+REASONS = " ".join(["The applicant seeks review of the contract award and the tribunal considers it."] * 6)
 
 
 def tiny_pdf(text: str | None) -> bytes:
@@ -34,8 +40,9 @@ def tiny_pdf(text: str | None) -> bytes:
         stream = b"q 10 0 0 10 0 0 cm 0 0 1 1 re f Q\n"
         resources = b""
     else:
-        safe = text.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
-        stream = f"BT /F1 10 Tf 36 120 Td ({safe}) Tj ET\n".encode()
+        lines = [line.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)") for line in text.split("\n")]
+        shown = " ".join(f"({line}) Tj 0 -14 Td" for line in lines)
+        stream = f"BT /F1 10 Tf 36 760 Td {shown} ET\n".encode()
         resources = b" /Resources << /Font << /F1 5 0 R >> >>"
     objects = [
         b"<< /Type /Catalog /Pages 2 0 R >>",
@@ -118,12 +125,20 @@ def test_case_citation_normalises_siu_and_justice_forms():
         "Special Tribunal 11107/2014"
     )
     assert _citation("https://x/a.pdf", "No case number here") == ""
+    # Case number plus the judgment date, so two judgments in one case do not share an id.
+    assert _citation(
+        "https://x/ST-Judgment-GP-09-2025.pdf", "IN THE SPECIAL TRIBUNAL\nDate of judgment: 23 April 2025\n"
+    ) == "Special Tribunal GP 9/2025 (2025-04-23)"
+    # The judgment's own neutral citation comes first.
+    assert _citation(
+        "https://x/ST-Judgment-GP-09-2025.pdf", "[2025] ZAST 91\nIN THE SPECIAL TRIBUNAL\nDate of judgment: 23 April 2025\n"
+    ) == "[2025] ZAST 91"
 
 
 def test_judgment_date_reads_labelled_lines_not_the_first_number():
     # parse_date(text[:800]) gives up on "Act 74 of 1996"; these do not.
-    preamble = "ESTABLISHED IN TERMS OF SECTION 2(1) OF ACT 74 OF 1996 "
-    assert judgment_date(preamble + "Date of hearing: 10 October 2022 Date of order: 13 October 2022") == date(
+    preamble = "ESTABLISHED IN TERMS OF SECTION 2(1) OF ACT 74 OF 1996\n"
+    assert judgment_date(preamble + "Date of hearing: 10 October 2022\nDate of order: 13 October 2022") == date(
         2022, 10, 13
     )
     assert judgment_date(preamble + "Date of Judgment:    18 March 2022") == date(2022, 3, 18)
@@ -134,6 +149,21 @@ def test_judgment_date_reads_labelled_lines_not_the_first_number():
     assert judgment_date(preamble + "nothing labelled 5 May 2020") is None
     signed = preamble + "6. There is no order as to costs.\nJUDGE L MODIBA\nMEMBER OF THE SPECIAL TRIBUNAL\n \n15 March 2022"
     assert judgment_date(signed) == date(2022, 3, 15)
+    stacked = preamble + "\nDate of hearing:\nDate of judgment:\n1 May 2026\n26 August 2026\n"
+    assert judgment_date(stacked) == date(2026, 8, 26)
+    assert judgment_date(preamble + "\nDate of judgment: Reserved\nDate of hearing: 1 May 2026\n") is None
+    assert judgment_date("Case no: GP 1/2026\nDate of hearing: 1 May 2026\n") is None
+    quoted = (
+        preamble + "\nIn Smith the court said, in the judgment delivered on 12 March 2019, that it was so.\n"
+        "JUDGE L MODIBA\nMEMBER OF THE SPECIAL TRIBUNAL\n26 August 2026"
+    )
+    assert judgment_date(quoted) == date(2026, 8, 26)
+    assert judgment_date(preamble + "\nset aside on the date of order of the High Court, 3 March 2019\n") is None
+    assert judgment_date(preamble + "\nan update of delivery: 3 March 2025\n") is None
+    assert judgment_date(preamble + "\nCounsel for the applicant: Adv Raj\n3 March 2026") is None
+    assert judgment_date(preamble + "\nDate of judgment: 1st of September 2026\n") == date(2026, 9, 1)
+    body = preamble + "\n" + "word " * 600 + "\ninterest from date of judgment: 5 May 2021\n" + "word " * 400
+    assert judgment_date(body) is None  # the order's text, not its header or signature
     # A settlement "DATED 25 July 2022" is not the order's date.
     assert judgment_date(preamble + "The settlement agreement DATED 25 July 2022 is made an Order.\nJUDGE") is None
     assert judgment_date(preamble, "https://x/ST-Judgment-MP-03-2021-13Oct2022.pdf") == date(2022, 10, 13)
@@ -155,9 +185,9 @@ def test_siu_pages_beyond_the_first_load_with_case_numbers_dates_and_scans_skipp
     text_pdf = tiny_pdf(
         "IN THE SPECIAL TRIBUNAL ESTABLISHED IN TERMS OF ACT 74 OF 1996 "
         "The contract is reviewed and set aside. The date and time for hand-down is deemed to be "
-        "10h00 on 26 August 2026."
+        "10h00 on 26 August 2026. " + REASONS
     )
-    undated_pdf = tiny_pdf("The award of the tender is reviewed and set aside with costs.")
+    undated_pdf = tiny_pdf("The award of the tender is reviewed and set aside with costs. " + REASONS)
     scan = tiny_pdf(None)
     up = "https://www.siu.org.za/wp-content/uploads/2026/"
     matters = {
@@ -193,8 +223,8 @@ def test_siu_pages_beyond_the_first_load_with_case_numbers_dates_and_scans_skipp
     assert f"{SIU}2/" in seen and f"{SIU}3/" in seen
     rows = sorted((json.loads(blob) for blob in blobs), key=lambda row: row["citation"])
     assert [(row["citation"], row["date"], row["title"]) for row in rows] == [
-        ("Special Tribunal 11107/2014", "2026-08-26", "Judgment in the matter of SIU vs Alpha"),
-        ("Special Tribunal GP 3/2025", "2025-06-05", "Judgment in the matter of SIU vs Gamma"),
+        ("Special Tribunal 11107/2014 (2026-08-26)", "2026-08-26", "Judgment in the matter of SIU vs Alpha"),
+        ("Special Tribunal GP 3/2025 (2025-06-05)", "2025-06-05", "Judgment in the matter of SIU vs Gamma"),
     ]
     note = json.dumps(adapter.load_note())
     assert "no text layer" in note
@@ -202,8 +232,8 @@ def test_siu_pages_beyond_the_first_load_with_case_numbers_dates_and_scans_skipp
 
 def test_justice_judgment_date_comes_from_the_date_of_judgment_line():
     pdf = tiny_pdf(
-        "IN THE SPECIAL TRIBUNAL ESTABLISHED IN TERMS OF ACT 74 OF 1996 The contract is set aside. "
-        "Date of hearing: Not applicable. Date of judgment: 7 September 2022"
+        "IN THE SPECIAL TRIBUNAL ESTABLISHED IN TERMS OF ACT 74 OF 1996\nThe contract is set aside.\n"
+        "Date of hearing: 1 September 2022\nDate of judgment: 7 September 2022\n" + REASONS
     )
 
     async def get(url, headers):
@@ -216,5 +246,152 @@ def test_justice_judgment_date_comes_from_the_date_of_judgment_line():
     blobs = asyncio.run(SpecialTribunalAdapter().fetch(get))
     assert len(blobs) == 1
     row = json.loads(blobs[0])
-    assert row["citation"] == "Special Tribunal GP 3/2022"
+    assert row["citation"] == "Special Tribunal GP 3/2022 (2022-09-07)"
     assert row["date"] == "2022-09-07"
+
+
+# --- Review of #502 ------------------------------------------------------------
+
+def _justice_and_siu(pdfs: dict[str, bytes], matters: dict[str, bytes], listings: dict[str, bytes], justice: bytes):
+    seen: list[str] = []
+
+    async def get(url, headers):
+        seen.append(url)
+        if url.endswith("/jdgm.html"):
+            return justice
+        if url in listings:
+            return listings[url]
+        for slug, page in matters.items():
+            if url.rstrip("/").endswith(slug):
+                return page
+        name = url.rsplit("/", 1)[-1]
+        if name in pdfs:
+            return pdfs[name]
+        return b""
+
+    return get, seen
+
+
+def test_an_old_finished_checkpoint_is_read_again_and_tagged():
+    """B1: before st-v2 every SIU PDF was marked 'not a judgment'; resuming that cursor must not skip them."""
+    up = "https://www.siu.org.za/wp-content/uploads/2026/"
+    pdfs = {
+        "a.pdf": tiny_pdf("IN THE SPECIAL TRIBUNAL\n" + REASONS),
+        "b.pdf": tiny_pdf("IN THE SPECIAL TRIBUNAL\n" + REASONS),
+    }
+    matters = {
+        "judgment-a": matter_html("Judgment in the matter of SIU vs A", "GP 1/2026", "02/03/2026", f"{up}a.pdf"),
+        "judgment-b": matter_html("Judgment in the matter of SIU vs B", "GP 2/2025", "04/05/2025", f"{up}b.pdf"),
+    }
+    listings = {SIU: listing_html(["judgment-a"], [2]), f"{SIU}2/": listing_html(["judgment-b"], [1])}
+    get, seen = _justice_and_siu(pdfs, matters, listings, b"<html></html>")
+    from agents.zenas.pool.adapters.za_archive import url_key
+
+    old = "\n".join([MARKER, "1", "siu", "0", "2", ",".join(sorted([url_key(f"{up}a.pdf"), url_key(f"{up}b.pdf")]))])
+    adapter = SpecialTribunalAdapter()
+    blobs, cursor = asyncio.run(adapter.fetch_bulk(get, resume=old))
+    rows = sorted(json.loads(blob)["date"] for blob in blobs)
+    assert rows == ["2025-05-04", "2026-03-02"]
+    assert f"{SIU}2/" in seen
+    assert cursor.endswith("\n" + CURSOR_TAG)
+    # The new cursor is honoured: a second run skips both as unchanged and reads only page 1.
+    seen.clear()
+    again, _ = asyncio.run(SpecialTribunalAdapter().fetch_bulk(get, resume=cursor))
+    assert again == []
+    assert f"{SIU}2/" not in seen
+
+
+def test_two_judgments_in_one_case_get_two_ids_and_one_judgment_on_both_sites_gets_one():
+    """B2: GP 09/2025 has judgments of 23 Apr 2025 and 3 Dec 2025; a ZAST citation wins on either site."""
+    up = "https://www.siu.org.za/wp-content/uploads/2025/"
+    shared = tiny_pdf("[2025] ZAST 91\nIN THE SPECIAL TRIBUNAL\nCASE NO: GP 12/2025\nDate of judgment: 9 June 2025\n" + REASONS)
+    pdfs = {
+        "smart-safety.pdf": tiny_pdf("IN THE SPECIAL TRIBUNAL\n" + REASONS),
+        "absa.pdf": tiny_pdf("IN THE SPECIAL TRIBUNAL\n" + REASONS),
+        "shared.pdf": shared,
+        "ST-Judgment-GP-12-2025.pdf": shared,
+    }
+    matters = {
+        "judgment-smart": matter_html("Ex parte SIU v Smart Safety PPE", "GP09/2025", "23/04/2025", f"{up}smart-safety.pdf"),
+        "judgment-absa": matter_html("Ex parte SIU v Absa Bank", "GP09/2025", "03/12/2025", f"{up}absa.pdf"),
+        "judgment-shared": matter_html("Judgment in the matter of SIU vs C", "GP12/2025", "09/06/2025", f"{up}shared.pdf"),
+    }  # fmt: skip
+    listings = {SIU: listing_html(list(matters), [])}
+    justice = b'<a href="jdm/ST-Judgment-GP-12-2025.pdf">j</a>'
+    get, _seen = _justice_and_siu(pdfs, matters, listings, justice)
+    blobs = asyncio.run(SpecialTribunalAdapter().fetch(get))
+    rows = [json.loads(blob) for blob in blobs]
+    ids = {document_id_for("special-tribunal", row["citation"]) for row in rows}
+    citations = sorted(row["citation"] for row in rows)
+    assert citations == [
+        "Special Tribunal GP 9/2025 (2025-04-23)",
+        "Special Tribunal GP 9/2025 (2025-12-03)",
+        "[2025] ZAST 91",
+        "[2025] ZAST 91",
+    ]
+    assert len(ids) == 3  # two in GP 9/2025, and one for the judgment listed on both sites
+
+
+def test_without_a_judgment_date_the_hearing_date_is_not_stored():
+    """B3: the adapter's date reader is final; parse_date(text[:800]) would take 'Date of hearing'."""
+    pdf = tiny_pdf("IN THE SPECIAL TRIBUNAL\nCase no: GP 1/2026\nDate of hearing: 1 May 2026\n" + REASONS)
+
+    async def get(url, headers):
+        if url.endswith("/jdgm.html"):
+            return b'<a href="jdm/ST-Judgment-GP-01-2026.pdf">j</a>'
+        return pdf if url.endswith(".pdf") else b"<html></html>"
+
+    rows = [json.loads(blob) for blob in asyncio.run(SpecialTribunalAdapter().fetch(get))]
+    assert [(row["citation"], row["date"]) for row in rows] == [("Special Tribunal GP 1/2026", "")]
+
+
+def test_stamps_cut_off_files_and_bad_matter_pages_are_counted_not_stored():
+    """A CamScanner stamp is no text; a cut-off PDF is unreadable and retried; matter-page failures are counted."""
+    up = "https://www.siu.org.za/wp-content/uploads/2026/"
+    whole = tiny_pdf("IN THE SPECIAL TRIBUNAL\n" + REASONS)
+    pdfs = {"stamp.pdf": tiny_pdf("Scanned with CamScanner"), "cut.pdf": whole[: len(whole) // 2]}
+    matters = {
+        "judgment-stamp": matter_html("Judgment in the matter of SIU vs Stamp", "GP 4/2024", "01/02/2026", f"{up}stamp.pdf"),
+        "judgment-cut": matter_html("Judgment in the matter of SIU vs Cut", "GP 5/2024", "01/02/2026", f"{up}cut.pdf"),
+        "judgment-nopdf": b"<h1>Judgment in the matter of SIU vs None</h1><p>No download yet.</p>",
+    }  # fmt: skip
+    listings = {SIU: listing_html([*matters, "judgment-missing"], [])}
+    get, _seen = _justice_and_siu(pdfs, matters, listings, b"<html></html>")
+    adapter = SpecialTribunalAdapter()
+    blobs, cursor = asyncio.run(adapter.fetch_bulk(get))
+    assert blobs == []
+    skips = adapter.load_note()["skips"]
+    assert skips["no text layer"] == 1
+    assert skips["unreadable pdf"] == 1
+    assert skips["no pdf on matter page"] == 1
+    assert skips["matter page error"] == 1  # the empty body for judgment-missing
+    from agents.zenas.pool.adapters.za_archive import url_key
+
+    assert url_key(f"{up}stamp.pdf") in cursor
+    assert url_key(f"{up}cut.pdf") not in cursor  # retried next run
+
+
+def test_a_4xx_is_not_retried_but_a_5xx_still_is(monkeypatch: pytest.MonkeyPatch):
+    import io
+    import urllib.error
+    from email.message import Message
+
+    from agents.zenas.pool.adapters.za_archive import polite_get
+
+    calls: list[int] = []
+
+    def failing(code):
+        async def get(url, headers):
+            calls.append(code)
+            raise urllib.error.HTTPError(url, code, "x", Message(), io.BytesIO(b""))
+
+        return get
+
+    got = asyncio.run(polite_get(failing(404), "https://www.siu.org.za/gone/", {}, "TRIBUNAL_MIN_INTERVAL"))
+    assert got.error and calls == [404]
+    calls.clear()
+    asyncio.run(polite_get(failing(503), "https://www.siu.org.za/busy/", {}, "TRIBUNAL_MIN_INTERVAL"))
+    assert calls == [503, 503, 503]
+    calls.clear()
+    asyncio.run(polite_get(failing(429), "https://www.siu.org.za/slow/", {}, "TRIBUNAL_MIN_INTERVAL"))
+    assert calls == [429, 429, 429]

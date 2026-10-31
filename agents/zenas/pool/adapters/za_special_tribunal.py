@@ -37,6 +37,10 @@ from agents.zenas.pool.model import LegalDocument, SourceSpec
 
 JUSTICE = "https://www.justice.gov.za/tribunal/jdgm.html"
 SIU = "https://www.siu.org.za/special-tribunal-judgements/"
+# Special-tribunal checkpoints carry this tag. Not the shared za_archive MARKER, which would re-walk every ZA archive.
+CURSOR_TAG = "st-v2"
+# Fewer real words than this is a scan with a stamp ("Scanned with CamScanner"), not a text layer.
+MIN_WORDS = 50
 _HREF = re.compile(r"""href=["']([^"']+)["']""", re.I)
 _FILE = re.compile(r"ST[-_\s]?Judgment[-_\s]?([A-Za-z]+)-(\d+)-(\d{4})", re.I)
 _SIU_NO = re.compile(r"\b(gp|ec|wc|kzn|kn|fs|lp|mp|nw)\s*0*(\d+)[_\-](20\d{2})", re.I)
@@ -104,22 +108,31 @@ _FULL_MONTHS = {
 _CASE_NO = re.compile(r"\bcase\s+(?:no|number)\.?\s*:?\s*([A-Za-z]{0,3}\s*/?\s*\d+\s*/\s*\d{4})\b", re.I)
 _CASE_PARTS = re.compile(r"^\s*([A-Za-z]{2,3})?\s*/?\s*0*(\d+)\s*[/_-]\s*(\d{4})\s*$")
 _DAY_MONTH_YEAR = re.compile(
-    r"\b(\d{1,2})(?:st|nd|rd|th)?\s+(?:day\s+of\s+)?([A-Za-z]{3,9})\.?,?\s+(\d{4})\b"
+    r"\b(\d{1,2})(?:st|nd|rd|th)?\s+(?:day\s+)?(?:of\s+)?([A-Za-z]{3,9})\.?,?\s+(\d{4})\b"
 )
 _YMD = re.compile(r"\b(\d{4})[/-](\d{1,2})[/-](\d{1,2})\b")
 _DMY = re.compile(r"\b(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})\b")
-# Strongest first. "Date of hearing" is not the judgment date and is not listed.
+# Strongest first. Each is a label at the start of a line; its value is the rest of
+# that line, or (labels stacked above their values) the matching line below.
+# "Date of hearing" / "Heard on" is never the judgment date and is not listed.
 _DATE_LABELS = (
-    re.compile(r"date\s+of\s+(?:judg[e]?ment|order|delivery)\s*[:\-]?", re.I),
-    re.compile(r"(?:judg[e]?ment|order)\s+(?:delivered|handed\s+down)\s*(?:on)?\s*[:\-]?", re.I),
-    re.compile(r"hand[\s-]*down\s+is\s+deemed\s+to\s+be\b", re.I),
-    re.compile(r"delivery\s+is\s+deemed\s+to\s+be\b", re.I),
-    re.compile(r"(?:^|\n)\s*date\s*:", re.I),
-    re.compile(r"\bdate\s+held\s*:", re.I),
+    re.compile(r"\s*date\s+of\s+(?:judg(?:e)?ment|order|delivery|hand[\s-]*down)\b\s*[:\-]?", re.I),
+    re.compile(r"\s*(?:judg(?:e)?ment|order)\s+(?:delivered|handed\s+down)\b\s*(?:on\b)?\s*[:\-]?", re.I),
+    re.compile(r"\s*date\s*:", re.I),
+    re.compile(r"\s*date\s+held\s*:", re.I),
 )
+# The hand-down sentence, anywhere on a line of the header: "... is deemed to be 13h30 on 26 August 2026."
+_DEEMED = re.compile(r"\b(?:hand[\s-]*down|delivery)\s+is\s+deemed\s+to\s+be\b", re.I)
+# Any label line, including the ones never used (hearing), so a stack of labels can be counted.
+_ANY_LABEL = re.compile(
+    r"\s*(?:date\b[^:\n]{0,30}|heard(?:\s+on)?|(?:judg(?:e)?ment|order)\s+(?:delivered|handed\s+down)(?:\s+on)?)\s*:",
+    re.I,
+)
+_HEAD = 2000
+_TAIL = 1500
 _FILE_LONG = re.compile(r"(?<![0-9])(\d{1,2})([A-Za-z]{3,9})(\d{4})(?![0-9])")
 # A date alone on the last line, under the judge's signature ("MEMBER OF THE SPECIAL TRIBUNAL\n15 March 2022").
-_SIGNED_DATE = re.compile(r"(?:tribunal|judge|j)\s*\n\s*((?:\d{1,2}\s+[A-Za-z]{3,9}\s+\d{4})|(?:\d{1,4}[/.-]\d{1,2}[/.-]\d{1,4}))\s*$", re.I)
+_SIGNED_DATE = re.compile(r"\b(?:tribunal|judge|j)\.?\s*\n\s*((?:\d{1,2}\s+[A-Za-z]{3,9}\s+\d{4})|(?:\d{1,4}[/.-]\d{1,2}[/.-]\d{1,4}))\s*$", re.I)
 _FILE_DIGITS = re.compile(r"(?<![0-9])(\d{2})(\d{2})(20\d{2})(?![0-9])")
 
 
@@ -172,13 +185,52 @@ def date_from_name(url: str) -> date | None:
     return None
 
 
+def _label_value(lines: list[str], index: int, label: re.Pattern) -> str | None:
+    """The value for the label on lines[index]: the rest of its line, else the matching line below a stack of labels."""
+    match = label.match(lines[index])
+    rest = lines[index][match.end() :].strip()
+    if rest:
+        return rest
+    start = index
+    while start > 0 and (above := _ANY_LABEL.match(lines[start - 1])) and not lines[start - 1][above.end() :].strip():
+        start -= 1
+    end = index
+    while end + 1 < len(lines) and (below := _ANY_LABEL.match(lines[end + 1])) and not lines[end + 1][below.end() :].strip():
+        end += 1
+    target = end + 1 + (index - start)
+    if target >= len(lines) or _ANY_LABEL.match(lines[target]):
+        return None
+    return lines[target]
+
+
+def _segments(text: str) -> list[list[str]]:
+    """Header and signature block, as non-blank lines. Footnotes and reasons are not read."""
+    text = text or ""
+    pieces = [text] if len(text) <= _HEAD + _TAIL else [text[:_HEAD], text[-_TAIL:]]
+    return [[line for line in piece.split("\n") if line.strip()] for piece in pieces]
+
+
 def judgment_date(text: str, url: str = "") -> date | None:
-    """The date the judgment or order was given, read from labelled lines, else the file name."""
+    """The date the judgment or order was given, from labelled lines in the header or
+    signature block, the hand-down line, a date alone under the signature, else the file name."""
+    segments = _segments(text)
     for label in _DATE_LABELS:
-        for match in label.finditer(text or ""):
-            found = date_in(text[match.end() : match.end() + 80])
-            if found:
-                return found
+        for lines in segments:
+            for index, line in enumerate(lines):
+                if not label.match(line):
+                    continue
+                value = _label_value(lines, index, label)
+                found = date_in(value) if value else None
+                if found:
+                    return found
+    for lines in segments:
+        for index, line in enumerate(lines):
+            match = _DEEMED.search(line)
+            if match:
+                tail = line[match.end() :] + (" " + lines[index + 1] if index + 1 < len(lines) else "")
+                found = date_in(tail[:120])
+                if found:
+                    return found
     signed = _SIGNED_DATE.search((text or "")[-400:])
     if signed:
         found = date_in(signed.group(1))
@@ -197,10 +249,14 @@ def case_citation(case_no: str) -> str:
     return f"Special Tribunal {prefix} {number}" if prefix else f"Special Tribunal {number}"
 
 
-def _citation(url: str, text: str) -> str:
-    found = own_citation(text, ("ZAST",), url=url)
-    if found:
-        return found
+def _dated(citation: str, when: date | None) -> str:
+    """'Special Tribunal GP 9/2025 (2025-04-23)': one case has several judgments (interim, final)."""
+    if not citation:
+        return ""
+    return f"{citation} ({when.isoformat()})" if when else citation
+
+
+def _case_from_name_or_text(url: str, text: str) -> str:
     name = unquote(url)
     match = _FILE.search(name)
     if match:
@@ -212,6 +268,23 @@ def _citation(url: str, text: str) -> str:
     if match:
         return case_citation(match.group(1))
     return ""
+
+
+def cite(url: str, text: str, *, case_no: str = "", when: date | None = None) -> str:
+    """[YYYY] ZAST N when the judgment carries one; else case number + judgment date; else the bare case number.
+
+    The same judgment on justice.gov.za and SIU then gets one id, and two judgments
+    in one case get two.
+    """
+    found = own_citation(text, ("ZAST",), url=url)
+    if found:
+        return found
+    case = case_citation(case_no) or _case_from_name_or_text(url, text)
+    return _dated(case, when)
+
+
+def _citation(url: str, text: str) -> str:
+    return cite(url, text, when=judgment_date(text, url))
 
 
 def _chunks(html: str) -> list[str]:
@@ -265,18 +338,20 @@ def _justice_date(url: str, text: str) -> date | None:
     return judgment_date(text, url)
 
 
-def _siu_citation(facts: dict):
-    def citation_for(url: str, text: str) -> str:
-        return case_citation(facts.get("case_no") or "") or _citation(url, text)
-
-    return citation_for
-
-
 def _siu_date(facts: dict):
     def date_for(url: str, text: str) -> date | None:
         return judgment_date(text) or facts.get("date") or date_from_name(url)
 
     return date_for
+
+
+def _siu_citation(facts: dict):
+    when_for = _siu_date(facts)
+
+    def citation_for(url: str, text: str) -> str:
+        return cite(url, text, case_no=facts.get("case_no") or "", when=when_for(url, text))
+
+    return citation_for
 
 
 class SpecialTribunalAdapter:
@@ -293,7 +368,11 @@ class SpecialTribunalAdapter:
         return blobs
 
     async def fetch_bulk(self, http_get, *, resume: str = "") -> tuple[list[bytes], str]:
-        self.run = ArchiveRun(resume)
+        # A checkpoint from before CURSOR_TAG marked every SIU PDF "not a judgment" and
+        # stored justice PDFs without dates; reading it would skip them for ever.
+        if not (resume or "").endswith("\n" + CURSOR_TAG):
+            resume = ""
+        self.run = ArchiveRun(resume[: -len(CURSOR_TAG) - 1] if resume else "")
         run = self.run
         blobs: list[bytes] = []
         justice = await polite_get(http_get, JUSTICE, html_headers(), "TRIBUNAL_MIN_INTERVAL")
@@ -313,6 +392,7 @@ class SpecialTribunalAdapter:
                     headers=pdf_headers(),
                     citation_for=_citation,
                     date_for=_justice_date,
+                    min_words=MIN_WORDS,
                 )
                 if payload:
                     blobs.append(payload)
@@ -342,10 +422,12 @@ class SpecialTribunalAdapter:
                         run.mark(matter)
                         continue
                     if matter_page.error or not matter_page.body:
+                        run.skip("matter page error")
                         continue
                     facts = siu_matter(matter_page.body, matter)
                     pdf = facts["pdf"]
                     if not pdf:
+                        run.skip("no pdf on matter page")
                         continue
                     payload = await accept_pdf(
                         run,
@@ -357,6 +439,7 @@ class SpecialTribunalAdapter:
                         headers=pdf_headers(),
                         citation_for=_siu_citation(facts),
                         date_for=_siu_date(facts),
+                        min_words=MIN_WORDS,
                     )
                     if payload:
                         blobs.append(payload)
@@ -366,7 +449,7 @@ class SpecialTribunalAdapter:
                 page_no += 1
                 listing_url = nxt
         run.finish()
-        return blobs, run.cursor()
+        return blobs, run.cursor() + "\n" + CURSOR_TAG
 
     def parse(self, blob: bytes, source: SourceSpec) -> list[LegalDocument]:
         return parse_case_blob(blob, source)
