@@ -66,6 +66,7 @@ def _with_legal_notice(text: str) -> str:
 _RULE_PROMPT = """Build a rule card from these passages only. Reply with JSON:
 {{"elements":[{{"id":"","test":"","citation":"","quote":""}}],"exceptions":[],"defences":[],"remedies":[],"decision_table":[]}}
 Every quote must be copied from a passage. Do not add law. Do not include client facts.
+Quote whole sentences that contain no dates, ID numbers, phone numbers, email addresses or street addresses. Those are masked before a quote is checked, so a quote that contains one cannot be verified.
 
 Question: {question}
 
