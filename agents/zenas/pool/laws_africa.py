@@ -42,7 +42,16 @@ def live_sources(sources):
 @asynccontextmanager
 async def _run_lock(store):
     conn = getattr(store, "_conn", None)
-    if conn is not None:
+    session = getattr(conn, "session", None)
+    if session is not None:
+        # A per-statement job connection: lock and unlock on one held checkout.
+        async with session() as held:
+            await held.execute("SELECT pg_advisory_lock($1)", _LOCK_ID)
+            try:
+                yield
+            finally:
+                await held.execute("SELECT pg_advisory_unlock($1)", _LOCK_ID)
+    elif conn is not None:
         # Session lock coordinates the room and scheduled process. It is released
         # on process/connection death, without a persistent running flag.
         await conn.execute("SELECT pg_advisory_lock($1)", _LOCK_ID)

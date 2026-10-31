@@ -162,8 +162,14 @@ async def begin_load(
     live: bool,
     http_get,
     snapshots: dict[str, list[bytes]] | None,
+    open_job_store: Callable[[], AbstractAsyncContextManager[Store]] | None = None,
 ) -> dict:
     """Start one load and return at once.
+
+    ``open_store`` is the request store. The load itself runs on
+    ``open_job_store`` when given: a store that borrows a connection per
+    statement, so a long load does not hold one of the room's few request
+    connections (or one open transaction) for its whole run.
 
     The answer is {"ok": true, "status": "running"}, or "already running" when
     this source already has a job. The running row is written before the task
@@ -186,9 +192,11 @@ async def begin_load(
                 when=datetime.now(timezone.utc),
             )
 
+        job_opener = open_job_store or open_store
+
         async def runner() -> None:
             try:
-                async with open_store() as job_store:
+                async with job_opener() as job_store:
                     bind_store(job_store, region)
                     await _load_one(
                         job_store,
@@ -201,7 +209,7 @@ async def begin_load(
             except Exception as exc:
                 log.warning("load failed for %s: %s", source.source_id, type(exc).__name__)
                 try:
-                    async with open_store() as job_store:
+                    async with job_opener() as job_store:
                         bind_store(job_store, region)
                         await job_store.record_run(
                             source.source_id,
@@ -307,11 +315,13 @@ def register_routes(
     live: bool = True,
     http_get=None,
     snapshots: dict[str, list[bytes]] | None = None,
+    open_job_store: Callable[[], AbstractAsyncContextManager[Store]] | None = None,
 ) -> None:
     """Add /pool/status and /pool/sources/{id}/load to an existing app (the Zenas room).
 
     `open_store` yields a store bound to this box for one request; `region` is
     read per request, so a missing or unknown TANK_REGION answers 409.
+    `open_job_store` yields the store a load runs on (see ``begin_load``).
     """
 
     @app.get("/pool/status")
@@ -338,4 +348,5 @@ def register_routes(
             live=live,
             http_get=http_get,
             snapshots=snapshots,
+            open_job_store=open_job_store,
         )

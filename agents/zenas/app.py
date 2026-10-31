@@ -26,6 +26,7 @@ if _CHASSIS.is_dir() and str(_CHASSIS) not in sys.path:
 
 from agents.zenas.pool.api import interrupt_abandoned_loads  # noqa: E402
 from agents.zenas.pool.api import register_routes as register_pool_routes  # noqa: E402
+from agents.zenas.pool.checkout import PerStatement  # noqa: E402
 from agents.zenas.pool.catalogue import CATALOGUE  # noqa: E402
 from agents.zenas.pool.region import RegionError, assert_box_region
 from agents.zenas.core.law_pool import bind_law_pool  # noqa: E402
@@ -279,8 +280,21 @@ async def _pool_store():
         yield store
 
 
+@asynccontextmanager
+async def _pool_job_store():
+    """The store a long job runs on: a load or a case conversion.
+
+    It borrows a pooled connection per statement (``PerStatement``), so the job
+    holds none of the room's three request connections between statements and
+    each row commits as it is written. Requests keep using ``_pool_store``.
+    """
+    async with _pool_store():
+        pass  # the schema is applied once, on a short request checkout
+    yield PostgresStore(PerStatement(app.state.pool), home_region=_box_region())
+
+
 # Feeds switchboard: pool status and "Load now" per source (Tank proxies /v1/zenas/pool/*).
-register_pool_routes(app, _pool_store, _box_region)
+register_pool_routes(app, _pool_store, _box_region, open_job_store=_pool_job_store)
 
 from agents.zenas.core.regulation_api import register_routes as register_regulation_routes  # noqa: E402
 
@@ -1032,7 +1046,7 @@ async def post_cases_convert(body: ConvertIn) -> dict[str, Any]:
 
     async def runner() -> None:
         ladder = await _ready()
-        async with _pool_store() as pool:
+        async with _pool_job_store() as pool:
             await convert_cases(pool, ladder, _model(HEARTBEAT_TENANT), region=box)
 
     started = await begin_convert(box, runner)

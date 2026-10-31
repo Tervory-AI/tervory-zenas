@@ -56,6 +56,7 @@ def test_load_refuses_unknown_and_other_region_sources() -> None:
 
 def test_the_zenas_room_registers_the_pool_routes() -> None:
     app_py = (ROOT / "agents" / "zenas" / "app.py").read_text(encoding="utf-8")
-    assert "register_pool_routes(app, _pool_store, _box_region)" in app_py
+    assert "register_pool_routes(app, _pool_store, _box_region, open_job_store=_pool_job_store)" in app_py
+    assert "PostgresStore(PerStatement(app.state.pool)" in app_py
     assert "await interrupt_abandoned_loads(store)" in app_py
     assert "app.router.lifespan_context = _room_lifespan" in app_py
