@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import http.client
 import logging
 import re
 from collections import Counter
@@ -43,7 +44,7 @@ from agents.zenas.pool.adapters.za_case_common import (
     pdf_text,
     slug_title,
 )
-from agents.zenas.pool.adapters.za_common import pause, reject_credential_url
+from agents.zenas.pool.adapters.za_common import pause, pdf_headers, reject_credential_url
 
 log = logging.getLogger(__name__)
 
@@ -331,7 +332,12 @@ async def polite_get(
     *,
     pause_default: str | None = None,
 ) -> Fetch:
-    """One request at a time. Three tries on a network error, then back off. No SAFLII."""
+    """One request at a time. Three tries on a network error, then back off. No SAFLII.
+
+    A body cut off mid-transfer (http.client.IncompleteRead, or any other
+    http.client.HTTPException) is a network error too. It is not an OSError,
+    so before this it escaped and ended the whole load as "error".
+    """
     if "saflii.org" in url.lower():
         return Fetch(error=True)
     reject_credential_url(url)
@@ -339,7 +345,7 @@ async def polite_get(
     for _attempt in range(3):
         try:
             body = await http_get(url, headers)
-        except OSError:
+        except (OSError, http.client.HTTPException):
             last_error = True
             await _rest(interval_env, pause_default)
             continue
@@ -356,6 +362,18 @@ async def _rest(interval_env: str, pause_default: str | None) -> None:
         await case_pause(interval_env)
         return
     await pause(interval_env, pause_default)
+
+
+def file_headers(headers: dict[str, str] | None) -> dict[str, str]:
+    """The caller's headers with a PDF Accept, for fetching one judgment file.
+
+    Adapters hand over the headers they used for the HTML listing. IIS hosts such
+    as www.justice.gov.za negotiate on Accept and answer a PDF asked for with
+    ``Accept: text/html`` with HTTP 406, so the Accept is always replaced here.
+    """
+    merged = {key: value for key, value in (headers or {}).items() if key.lower() != "accept"}
+    merged["Accept"] = pdf_headers()["Accept"]
+    return merged
 
 
 async def accept_pdf(
@@ -389,7 +407,7 @@ async def accept_pdf(
         run.stopped = True
         return b""
     run.downloaded += 1
-    got = await polite_get(http_get, url, headers, interval_env)
+    got = await polite_get(http_get, url, file_headers(headers), interval_env)
     if got.challenge:
         run.skip("challenge page")
         run.mark(url)

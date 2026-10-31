@@ -1,0 +1,51 @@
+[
+ {
+  "source": "CAC 108/CAC/Mar11 Phutuma Networks v Telkom, p2",
+  "page": 1,
+  "pypdf": " \n[1] This is an appeal against an order m ade by the Competition Tribunal \n(‘the tribunal’).  On the 21 st January 2010 the appellant lodged a ",
+  "pdfium": "[1] This is an appeal against an order made by the Competition Tribunal \n(‘the tribunal’). On the 21st January 2010 the appellant lodged a",
+  "needle": "m ade"
+ },
+ {
+  "source": "CAC 108/CAC/Mar11 Phutuma Networks v Telkom, p2",
+  "page": 1,
+  "pypdf": "[1] This is an appeal against an order m ade by the Competition Tribunal \n(‘the tribunal’).  On the 21 st January 2010 the appellant lodged a \ncomplaint against the respondent  with the Competition Commission  ",
+  "pdfium": "[1] This is an appeal against an order made by the Competition Tribunal \n(‘the tribunal’). On the 21st January 2010 the appellant lodged a \ncomplaint against the respondent with the Competition Commission",
+  "needle": "21 st"
+ },
+ {
+  "source": "[2026] ZACAC 5 Life Healthcare v Mediclinic",
+  "page": 7,
+  "pypdf": "s  8(1)(d)(iii); and /or that Mediclinic  is otherwise engaging in exclusionary conduct  \nwhere the anti -competitive conduct is not outweighed by any alleged efficiency \nbenefits in contravention of s 8(i)(c). Life alleges that Mediclinic is seeking to foreclose ",
+  "pdfium": "s 8(1)(d)(iii); and/or that Mediclinic is otherwise engaging in exclusionary conduct\nwhere the anti-competitive conduct is not outweighed by any alleged efficiency \nbenefits in contravention of s 8(i)(c). Life alleges that Mediclinic is seeking to foreclose",
+  "needle": "anti -competitive"
+ },
+ {
+  "source": "[2026] ZACAC 5 Life Healthcare v Mediclinic",
+  "page": 6,
+  "pypdf": "[3] It was common cause that there is a category of in -hospital patients who are \nacute patients, such as emergency patients 1 and crash landers. 2 Both acute and \nchronic inpatients receive treatment whilst confined to a hospital. The decision as to ",
+  "pdfium": "[3] It was common cause that there is a category of in-hospital patients who are \nacute patients, such as emergency patients1 and crash landers.2 Both acute and \nchronic inpatients receive treatment whilst confined to a hospital. The decision as to",
+  "needle": "patients 1"
+ },
+ {
+  "source": "CAC judgment (Sasol piped gas)",
+  "page": 35,
+  "pypdf": "process which must have regard to both the language used and to context. \n48  The  definition of \"Minister\" was substituted by S. 1 (g) of Act No. 18 of 2018 to mean \"The Minister \nresponsible for the administration of the Act\" ",
+  "pdfium": "process which must have regard to both the language used and to context. \n48 Thedefinition of \"Minister\" was substituted by S. 1 (g) of Act No. 18 of 2018 to mean \"The Minister \nresponsible for the administration of the Act\"",
+  "needle": "The  definition"
+ },
+ {
+  "source": "CAC judgment (SGB-Cape joint venture)",
+  "page": 2,
+  "pypdf": "Cape (referred to collectively as “the respondents”). The three JV ’s are Tedoc SGB-\nCape Joint Venture, (“the Tedoc JV”), Superfecta SGB -Cape Joint Venture (“the \nSuperfecta JV) and Mtsweni SGB -Cape Joint Venture (“the Mtsweni JV”). The ",
+  "pdfium": "Cape (referred to collectively as “the respondents”). The three JV’s are Tedoc SGB-Cape Joint Venture, (“the Tedoc JV”), Superfecta SGB-Cape Joint Venture (“the \nSuperfecta JV) and Mtsweni SGB-Cape Joint Venture (“the Mtsweni JV”). The",
+  "needle": "SGB -Cape"
+ },
+ {
+  "source": "[2026] ZACAC 3",
+  "page": 40,
+  "pypdf": "arguments and evidence presented at the hearing. That risk in the present matter is \nborne out by the disconnection between the evidence led, the argument presented vis-\nà-vis the reasons given by the Tribunal.  ",
+  "pdfium": "arguments and evidence presented at the hearing. That risk in the present matter is \nborne out by the disconnection between the evidence led, the argument presented vis-à-vis the reasons given by the Tribunal.",
+  "needle": "vis-"
+ }
+]

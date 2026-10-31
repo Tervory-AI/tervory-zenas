@@ -79,3 +79,26 @@ def test_load_timeout_can_be_set(monkeypatch: pytest.MonkeyPatch) -> None:
     assert main.zenas_timeout("pool/sources/sca/load") == 300
     monkeypatch.setenv("ZENAS_LOAD_TIMEOUT", "nonsense")
     assert main.zenas_timeout("/pool/sources/sca/load/") == main.ZENAS_LOAD_TIMEOUT_DEFAULT
+
+
+def test_selftest_run_gets_the_long_timeout(room: _Room, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Fifty questions through the answer path outlast 60 seconds; the caller must get the score, not a 503."""
+    monkeypatch.delenv("ZENAS_SELFTEST_TIMEOUT", raising=False)
+    body = json.dumps({"home_region": "za"}).encode()
+    resp = asyncio.run(main.zenas_proxy("selftest", _request("POST", "/v1/zenas/selftest", body)))
+    assert resp.status_code == 200
+    assert room.timeouts == [main.ZENAS_SELFTEST_TIMEOUT_DEFAULT]
+    assert main.ZENAS_SELFTEST_TIMEOUT_DEFAULT > main.ZENAS_LOAD_TIMEOUT_DEFAULT
+
+
+def test_reading_selftest_scores_keeps_sixty_seconds() -> None:
+    assert main.zenas_timeout("selftest") == 60
+    assert main.zenas_timeout("selftest", "GET") == 60
+    assert main.zenas_timeout("selftest/extra", "POST") == 60
+
+
+def test_selftest_timeout_can_be_set(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("ZENAS_SELFTEST_TIMEOUT", "1200")
+    assert main.zenas_timeout("selftest", "POST") == 1200
+    monkeypatch.setenv("ZENAS_SELFTEST_TIMEOUT", "-5")
+    assert main.zenas_timeout("/selftest/", "post") == main.ZENAS_SELFTEST_TIMEOUT_DEFAULT

@@ -29,7 +29,13 @@ from agents.zenas.pool.adapters.za_official import (
 )
 from agents.zenas.pool.adapters.za_sars_taxcourt import case_urls, year_urls
 from agents.zenas.pool.adapters.za_sca_jdownloads import category_urls, send_url, summary_sends
-from agents.zenas.pool.adapters.za_special_tribunal import justice_pdfs, siu_matter_urls, siu_pdf
+from agents.zenas.pool.adapters.za_archive import file_headers
+from agents.zenas.pool.adapters.za_special_tribunal import (
+    SpecialTribunalAdapter,
+    justice_pdfs,
+    siu_matter_urls,
+    siu_pdf,
+)
 from agents.zenas.pool.adapters import get_adapter
 from agents.zenas.pool.bulk import load_wave
 from agents.zenas.pool.catalogue import CATALOGUE
@@ -533,3 +539,40 @@ def test_pdf_text_round_trip():
     text = pdf_text(tiny_pdf("[2026] ZASCA 12 Alpha Shipping commercial appeal."))
     assert "[2026] ZASCA 12" in text
     assert pdf_text(b"not a pdf") == ""
+
+
+# --- Special Tribunal: justice.gov.za 406s a PDF asked for as text/html -------
+
+
+def test_file_headers_replace_any_accept_and_keep_the_rest():
+    out = file_headers({"accept": "text/html", "User-Agent": "UA", "X-Other": "1"})
+    assert out["Accept"].startswith("application/pdf")
+    assert "accept" not in out
+    assert out["User-Agent"] == "UA"
+    assert out["X-Other"] == "1"
+    assert file_headers(None)["Accept"].startswith("application/pdf")
+
+
+def test_special_tribunal_loads_judgments_from_a_host_that_406s_html_accept_for_pdfs(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """Mimics justice.gov.za: the listing is HTML, a PDF asked for as text/html is a 406."""
+    pdf = tiny_pdf("The contract is reviewed and set aside. Special Tribunal GP 1/2021.")
+    pdf_accepts: list[str] = []
+
+    async def get(url, headers):
+        accept = (headers or {}).get("Accept", "")
+        if url.endswith("/jdgm.html"):
+            return b'<a href="jdm/ST-Judgment-GP-01-2021-18Oct2022.pdf">j</a>'
+        if url.endswith(".pdf"):
+            pdf_accepts.append(accept)
+            if "application/pdf" not in accept and "*/*" not in accept:
+                raise FetchNotConfigured("HTTP 406 from www.justice.gov.za")
+            return pdf
+        return b"<html></html>"
+
+    monkeypatch.setenv("TRIBUNAL_MIN_INTERVAL", "0")
+    adapter = SpecialTribunalAdapter()
+    blobs = asyncio.run(adapter.fetch(get))
+    assert len(blobs) == 1
+    assert pdf_accepts and all(a.startswith("application/pdf") for a in pdf_accepts)

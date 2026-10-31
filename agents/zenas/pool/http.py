@@ -5,6 +5,8 @@ from __future__ import annotations
 import asyncio
 import email.utils
 import gzip
+import ssl
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -83,6 +85,119 @@ def _decode(raw: bytes, encoding: str) -> bytes:
     return raw
 
 
+# Some hosts (www.siu.org.za, which lists newer Special Tribunal judgments) send
+# their certificate without the intermediate that signed it. Browsers fill the
+# gap from the certificate's Authority Information Access "CA Issuers" URL;
+# Python does not, so the request fails with "unable to get local issuer
+# certificate". This does what a browser does. The fetched certificate is only a
+# chain link: it must be a CA and not self-signed, partial chains stay off, so
+# the chain must still end at a system root, and the host name is still checked.
+_UNABLE_TO_GET_ISSUER = 20  # X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT_LOCALLY
+_ISSUER_MAX_BYTES = 64 * 1024
+_ISSUER_CONTEXTS: dict[str, ssl.SSLContext] = {}
+_ISSUER_LOCK = threading.Lock()
+
+
+def missing_issuer(exc: BaseException) -> bool:
+    """True when TLS verification failed only because the server left out its intermediate."""
+    reason = getattr(exc, "reason", exc)
+    return (
+        isinstance(reason, ssl.SSLCertVerificationError)
+        and getattr(reason, "verify_code", 0) == _UNABLE_TO_GET_ISSUER
+    )
+
+
+def issuer_urls(leaf_pem: str) -> list[str]:
+    """The http(s) CA Issuers URLs a certificate names for its own issuer."""
+    from cryptography import x509
+    from cryptography.x509.oid import AuthorityInformationAccessOID
+
+    cert = x509.load_pem_x509_certificate(leaf_pem.encode("ascii"))
+    try:
+        aia = cert.extensions.get_extension_for_class(x509.AuthorityInformationAccess).value
+    except x509.ExtensionNotFound:
+        return []
+    return [
+        item.access_location.value
+        for item in aia
+        if item.access_method == AuthorityInformationAccessOID.CA_ISSUERS
+        and isinstance(item.access_location, x509.UniformResourceIdentifier)
+        and item.access_location.value.lower().startswith(("http://", "https://"))
+    ]
+
+
+def intermediate_pem(raw: bytes) -> str:
+    """One CA certificate that is not self-signed, as PEM. Anything else raises ValueError.
+
+    A self-signed certificate is refused so a fetched file can never act as a root.
+    """
+    from cryptography import x509
+    from cryptography.hazmat.primitives.serialization import Encoding
+
+    if raw.lstrip().startswith(b"-----BEGIN"):
+        cert = x509.load_pem_x509_certificate(raw)
+    else:
+        cert = x509.load_der_x509_certificate(raw)
+    if cert.issuer == cert.subject:
+        raise ValueError("self-signed issuer refused")
+    try:
+        basic = cert.extensions.get_extension_for_class(x509.BasicConstraints).value
+    except x509.ExtensionNotFound:
+        raise ValueError("issuer is not a CA") from None
+    if not basic.ca:
+        raise ValueError("issuer is not a CA")
+    return cert.public_bytes(Encoding.PEM).decode("ascii")
+
+
+def chain_context(intermediates: list[str]) -> ssl.SSLContext:
+    """System roots, plus the given intermediates as untrusted chain links."""
+    context = ssl.create_default_context()
+    context.verify_flags &= ~getattr(ssl, "VERIFY_X509_PARTIAL_CHAIN", 0)
+    context.load_verify_locations(cadata="".join(intermediates))
+    return context
+
+
+def _fetch_issuer(url: str) -> bytes:
+    request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+    with urllib.request.urlopen(request, timeout=30) as response:
+        raw = response.read(_ISSUER_MAX_BYTES + 1)
+    if len(raw) > _ISSUER_MAX_BYTES:
+        raise ValueError("issuer certificate too large")
+    return raw
+
+
+def issuer_context(host: str, port: int = 443) -> ssl.SSLContext | None:
+    """A verifying context that adds the issuer this host left out, or None."""
+    key = f"{host}:{port}"
+    with _ISSUER_LOCK:
+        if key in _ISSUER_CONTEXTS:
+            return _ISSUER_CONTEXTS[key]
+    try:
+        # Read unverified only to learn the issuer URL. The request itself is
+        # verified with the context built below.
+        leaf = ssl.get_server_certificate((host, port), timeout=30)
+        pems: list[str] = []
+        for url in issuer_urls(leaf)[:2]:
+            try:
+                pems.append(intermediate_pem(_fetch_issuer(url)))
+            except (OSError, ValueError):
+                continue
+    except (OSError, ValueError):
+        return None
+    if not pems:
+        return None
+    context = chain_context(pems)
+    with _ISSUER_LOCK:
+        _ISSUER_CONTEXTS[key] = context
+    return context
+
+
+def _known_context(url: str) -> ssl.SSLContext | None:
+    parts = urlsplit(url)
+    with _ISSUER_LOCK:
+        return _ISSUER_CONTEXTS.get(f"{parts.hostname}:{parts.port or 443}")
+
+
 class _NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
         return None
@@ -98,14 +213,31 @@ async def urllib_get(url: str, headers: dict[str, str] | None = None, *, retry: 
     _reject_credential_url(url)
     outgoing = request_headers(headers)
 
-    def _once() -> bytes:
+    def _open(context: ssl.SSLContext | None) -> bytes:
         request = urllib.request.Request(url, headers=outgoing)
+        handlers: list[urllib.request.BaseHandler] = []
+        if context is not None:
+            handlers.append(urllib.request.HTTPSHandler(context=context))
+        if not redirects:
+            handlers.append(_NoRedirect())
+        open_url = urllib.request.build_opener(*handlers).open if handlers else urllib.request.urlopen
+        with open_url(request, timeout=60) as response:
+            raw = response.read()
+            encoding = response.headers.get("Content-Encoding") or ""
+            return _decode(raw, encoding)
+
+    def _once() -> bytes:
         try:
-            open_url = urllib.request.urlopen if redirects else urllib.request.build_opener(_NoRedirect()).open
-            with open_url(request, timeout=60) as response:
-                raw = response.read()
-                encoding = response.headers.get("Content-Encoding") or ""
-                return _decode(raw, encoding)
+            try:
+                return _open(_known_context(url))
+            except urllib.error.URLError as exc:
+                if isinstance(exc, urllib.error.HTTPError) or not missing_issuer(exc):
+                    raise
+                parts = urlsplit(url)
+                context = issuer_context(parts.hostname or "", parts.port or 443)
+                if context is None:
+                    raise
+                return _open(context)
         except urllib.error.HTTPError as exc:
             if not retry:
                 raise

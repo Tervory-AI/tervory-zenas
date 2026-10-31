@@ -253,6 +253,7 @@ def made_up_questions(library: list[dict[str, str]] | None = None, *, region: st
         citation = f"[2099] {codes[index % len(codes)]} {9000 + index}"
         rows.append(
             {
+                "case": f"trap-{index:02d}",
                 "kind": "trap",
                 "question": (
                     f"What did {name} {citation} decide in this commercial dispute {place}?"
@@ -265,6 +266,7 @@ def made_up_questions(library: list[dict[str, str]] | None = None, *, region: st
         real = documents[index % len(documents)]
         rows.append(
             {
+                "case": f"real-{index:02d}",
                 "kind": "real",
                 "question": (
                     f"Question {index}: what did {real['name']} {real['citation']} hold "
@@ -301,6 +303,8 @@ _DATE_ONLY = re.compile(r"^\W*\d{1,2}(?:st|nd|rd|th)?\s+[A-Za-z]+,?\s+\d{4}\W*$"
 _CASE_NUMBER = re.compile(r"\b(?:[A-Z]{1,6}\s?)?\d{1,6}\s?/\s?(?:[A-Z]{2,5}\s?/\s?)?[A-Za-z]{0,3}\s?\d{2,4}\b")
 _PARAGRAPH_MARK = re.compile(r"^(?:\[\s*\d+\s*\]|\(?\d{1,3}[.)])\s+")
 _SENTENCE_END = re.compile(r"(?<=[.])\s+(?=[\[(\"\u201cA-Z0-9])")
+# "Notice No. 42", "para. 7", "s. 49C": a full stop that does not end the sentence.
+_ABBREVIATION_END = re.compile(r"(?:^|[\s(])(?:No|Nos|no|nos|para|paras|s|ss|v|vs|Mr|Mrs|Ms|Dr|Prof|cf|e\.g|i\.e|Reg|Art)\.$")
 _BYLINE = re.compile(r"(circuit judge|district judge|per curiam|justice[.:]?$|after stat\w* the facts)", re.I)
 # "KRIEGLER J:" and "MOJAPELO AJA (Ponnan JA concurring):" open a judgment; they are not the court's reasoning.
 _JUDGE_OPENING = re.compile(r"^[A-Z][A-Z'\u2019 -]+\s(?:A?J|A?JA|JP|DJP|AJP|CJ|DCJ|P)\b")
@@ -350,6 +354,17 @@ def _sentence_ok(sentence: str) -> bool:
     return not (_BYLINE.search(sentence) or _JUDGE_OPENING.match(sentence) or _HEADER_START.search(sentence) or _PARTY_ROLE.search(sentence.rstrip(".")))
 
 
+def _sentences(joined: str) -> list[str]:
+    """Split on full stops, but not after "No." or "para." and the like."""
+    out: list[str] = []
+    for piece in _SENTENCE_END.split(joined):
+        if out and _ABBREVIATION_END.search(out[-1]):
+            out[-1] = f"{out[-1]} {piece}"
+        else:
+            out.append(piece)
+    return out
+
+
 def _verbatim_quote(text: str, *, limit: int = 4000) -> str:
     """A whole sentence of the court's own reasoning, word for word from the stored judgment.
 
@@ -376,7 +391,7 @@ def _verbatim_quote(text: str, *, limit: int = 4000) -> str:
         blocks[-1].append(line)
     for block in blocks:
         joined = " ".join(" ".join(block).split())
-        for raw in _SENTENCE_END.split(joined):
+        for raw in _sentences(joined):
             sentence = _PARAGRAPH_MARK.sub("", raw.strip()).strip()
             if not _sentence_ok(sentence) or sentence not in passage:
                 continue
@@ -513,8 +528,127 @@ def _not_run(questions: list[dict[str, str]] | None = None) -> dict[str, Any]:
         "path": "not run",
         "area": "Made-up cases: not run.",
         "questions": questions or [],
+        "misses": [],
         "failures": [],
     }
+
+
+# Why a made-up case missed. Fixed phrases, so a run can be grouped and compared.
+MISS_REASONS = (
+    "error: the answer path raised",
+    "refused: the route refused the call",
+    "trap: answered a case that does not exist",
+    "trap: refusal is missing 'I could not verify'",
+    "trap: refusal is missing 'I have left it out'",
+    "real: said it cannot find a library case",
+    "real: the answer does not give the citation",
+    "real: the answer does not quote the court's sentence",
+    "real: no quote to check",
+)
+_MISS_ANSWER_CHARS = 300
+
+
+# A quote shorter than this is not the court's words but a phrase. Same floor as _sentence_ok.
+_QUOTE_MIN_WORDS = 5
+_QUOTE_MIN_CHARS = 25
+
+
+def _fold(value: Any) -> str:
+    return " ".join(str(value or "").split())
+
+
+def supported_quotes(result: dict[str, Any] | None, citation: str, judgment_text: str) -> list[str]:
+    """Quotes in this answer's rule card that the named judgment says word for word.
+
+    A quote counts only when its element cites this case, the quote sits VERBATIM
+    (whitespace folded, nothing else) in the stored, normalised judgment text, and
+    cite-check passes it against that judgment alone. A paraphrase, or a sentence
+    from a different judgment, is never returned.
+    """
+    from agents.zenas.core.engine import cite_check
+
+    text = _fold(judgment_text)
+    wanted = _fold(citation)
+    card = (result or {}).get("rule_card") if isinstance(result, dict) else None
+    elements = (card or {}).get("elements") if isinstance(card, dict) else None
+    if not text or not wanted or not isinstance(elements, list):
+        return []
+    passage = [{"citation": wanted, "text": text, "status": "in_force"}]
+    out: list[str] = []
+    for element in elements:
+        if not isinstance(element, dict) or _fold(element.get("citation")) != wanted:
+            continue
+        quote = _fold(element.get("quote"))
+        if len(quote.split()) < _QUOTE_MIN_WORDS or len(quote) < _QUOTE_MIN_CHARS or quote not in text:
+            continue
+        if not cite_check([{"citation": wanted, "quote": quote}], passage).get("passed"):
+            continue
+        out.append(quote)
+    return out
+
+
+def _quotes_the_judgment(answer: str, quote: str, supported: list[str]) -> bool:
+    """The answer quotes the court: the library sentence, or any verbatim, cite-checked quote from it."""
+    folded = _fold(answer)
+    if quote and (quote in answer or _fold(quote) in folded):
+        return True
+    return any(item in folded for item in supported)
+
+
+def _miss_reason(
+    item: dict[str, str],
+    answer: str,
+    *,
+    ok_result: bool,
+    raised: str,
+    quote: str,
+    supported: list[str] | None = None,
+) -> str:
+    """The first check this answer failed, as one of MISS_REASONS. Empty when it passed.
+
+    A real case passes on a quote that is verbatim anywhere in the named judgment
+    and supports the answer (see supported_quotes), not only on its first sentence.
+    """
+    if raised:
+        return MISS_REASONS[0]
+    if item["kind"] == "trap":
+        if "cannot find" not in answer.lower():
+            return MISS_REASONS[1] if not ok_result else MISS_REASONS[2]
+        if "I could not verify" not in answer:
+            return MISS_REASONS[3]
+        if "I have left it out" not in answer:
+            return MISS_REASONS[4]
+        return ""
+    if not ok_result:
+        return MISS_REASONS[1]
+    if "cannot find" in answer.lower():
+        return MISS_REASONS[5]
+    if item["citation"] not in answer:
+        return MISS_REASONS[6]
+    if not quote:
+        return MISS_REASONS[8]
+    if not _quotes_the_judgment(answer, quote, supported or []):
+        return MISS_REASONS[7]
+    return ""
+
+
+def _miss(item: dict[str, str], reason: str, answer: str, *, raised: str, refusal: str, quote: str) -> dict[str, str]:
+    """One missed case as it is stored in the run detail."""
+    out = {
+        "case": str(item.get("case") or ""),
+        "kind": str(item.get("kind") or ""),
+        "citation": str(item.get("citation") or ""),
+        "reason": reason,
+        "question": str(item.get("question") or ""),
+        "answer": " ".join(answer.split())[:_MISS_ANSWER_CHARS],
+    }
+    if raised:
+        out["error"] = raised
+    if refusal:
+        out["refusal"] = " ".join(refusal.split())[:200]
+    if quote and item.get("kind") == "real":
+        out["expected_quote"] = quote
+    return out
 
 
 async def run_made_up_test(
@@ -548,9 +682,13 @@ async def run_made_up_test(
     elif str(existing.get("home_region") or "") != home:
         return _not_run(questions)
     passed = 0
-    failures: list[dict[str, str]] = []
+    misses: list[dict[str, str]] = []
     quotes = {document["citation"]: document["quote"] for document in documents}
+    texts = {document["citation"]: document["text"] for document in documents}
     for item in questions:
+        raised = ""
+        refusal = ""
+        ok_result = False
         try:
             result = await answer_question(
                 ladder,
@@ -565,22 +703,25 @@ async def run_made_up_test(
                 features={"asked": "yes"},
                 provider=provider,
             )
-            answer = str((result.get("memo") or {}).get("text") or "") if result.get("ok") else str(result.get("reason") or "")
-        except Exception:
+            ok_result = bool(result.get("ok"))
+            answer = str((result.get("memo") or {}).get("text") or "") if ok_result else str(result.get("reason") or "")
+            if not ok_result:
+                refusal = answer
+        except Exception as exc:  # noqa: BLE001 - one case does not stop the run; the class is kept
             answer = ""
-        if item["kind"] == "trap":
-            ok = (
-                "cannot find" in answer.lower()
-                and "I could not verify" in answer
-                and "I have left it out" in answer
-            )
-        else:
-            quote = quotes.get(item["citation"]) or item.get("quote") or ""
-            ok = "cannot find" not in answer.lower() and item["citation"] in answer and bool(quote) and quote in answer
-        if ok:
+            raised = type(exc).__name__
+            result = {}
+        quote = (quotes.get(item["citation"]) or item.get("quote") or "") if item["kind"] == "real" else ""
+        supported = (
+            supported_quotes(result, item["citation"], texts.get(item["citation"], ""))
+            if item["kind"] == "real" and ok_result
+            else []
+        )
+        reason = _miss_reason(item, answer, ok_result=ok_result, raised=raised, quote=quote, supported=supported)
+        if not reason:
             passed += 1
-        elif len(failures) < 3:
-            failures.append({"question": item["question"], "reason": answer[:500]})
+        else:
+            misses.append(_miss(item, reason, answer, raised=raised, refusal=refusal, quote=quote))
     asked = len(questions)
     perfect = passed == asked == 50
     standing = "Zenas skills may be approved." if perfect else "Zenas skills may not be approved."
@@ -591,7 +732,9 @@ async def run_made_up_test(
         "path": "answer_question",
         "area": f"Made-up cases: {passed} of {asked}. path: answer_question. {standing}",
         "questions": questions,
-        "failures": failures,
+        "misses": misses,
+        # The first three, in the shape older readers expect.
+        "failures": [{"question": miss["question"], "reason": miss["answer"]} for miss in misses[:3]],
     }
 
 
@@ -629,6 +772,7 @@ def _made_up_row_from(result: dict[str, Any], box: str, jurisdiction: str) -> di
             "asked": asked,
             "passed": passed,
             "skills_may_be_approved": approved,
+            "misses": list(result.get("misses") or []) if ran else [],
         },
     }
 
@@ -756,6 +900,9 @@ def _public_run(row: dict[str, Any]) -> dict[str, Any]:
         "error": error,
         "reason": reason,
     }
+    if detail.get("made_up"):
+        published["passed"] = int(detail.get("passed") or 0)
+        published["misses"] = _public_misses(detail.get("misses"))
     if error:
         published["label"] = "error"
     if kind == "legalbench":
@@ -763,6 +910,26 @@ def _public_run(row: dict[str, Any]) -> dict[str, Any]:
         published["label"] = "LegalBench code baseline"
         published["model"] = False
     return published
+
+
+def _public_misses(raw: Any) -> list[dict[str, str]]:
+    """Each missed made-up case: id, kind, citation and reason.
+
+    The stored detail also keeps the question, the start of the answer and the
+    expected quote. Those are not published: this response carries no judgment text.
+    """
+    out: list[dict[str, str]] = []
+    for item in raw if isinstance(raw, list) else []:
+        if not isinstance(item, dict):
+            continue
+        miss = {key: str(item.get(key) or "") for key in ("case", "kind", "citation", "reason")}
+        if miss["reason"] not in MISS_REASONS:
+            miss["reason"] = MISS_REASONS[0] if item.get("error") else "unknown"
+        for key in ("refusal", "error"):
+            if item.get(key):
+                miss[key] = " ".join(str(item[key]).split())[:200]
+        out.append(miss)
+    return out
 
 
 async def list_scores(ladder: Any, *, region: str) -> dict[str, Any]:

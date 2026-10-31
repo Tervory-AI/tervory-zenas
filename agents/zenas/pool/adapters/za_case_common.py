@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import asyncio
 import html
-import io
 import json
 import os
 import re
@@ -609,20 +608,14 @@ def slug_title(url: str) -> str:
 def pdf_text(blob: bytes, *, max_pages: int | None = None) -> str:
     """The whole PDF. A file that is not a PDF yields nothing. Pages are not cut.
 
+    Word spacing is checked against the glyph positions (see pool/pdf_spacing.py),
+    so justified judgments do not store "m ade" or "21 st".
     ``max_pages`` is accepted so older callers still run. It is not applied.
     """
     del max_pages
-    if not blob.startswith(b"%PDF"):
-        return ""
-    from pypdf import PdfReader
-    from pypdf.errors import PdfReadError
+    from agents.zenas.pool.pdf_spacing import pdf_text as spaced_pdf_text
 
-    try:
-        reader = PdfReader(io.BytesIO(blob))
-        parts = [(page.extract_text() or "") for page in reader.pages]
-    except (PdfReadError, OSError, ValueError, KeyError, TypeError):
-        return ""
-    return "\n".join(part for part in parts if part).strip()
+    return spaced_pdf_text(blob)
 
 
 def case_bytes(

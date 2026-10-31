@@ -4,6 +4,10 @@ justice.gov.za/tribunal/jdgm.html is the historic PDF list. Affidavits and
 schedules are skipped. siu.org.za/special-tribunal-judgements/ is the newer
 list: each matter page links to one PDF under wp-content/uploads. Other SIU
 pages (NLC, Eskom, High Court) are not followed.
+
+PDFs are asked for with a PDF Accept: justice.gov.za (IIS) answers HTTP 406 to
+a PDF requested as text/html. www.siu.org.za leaves its TLS intermediate out;
+agents.zenas.pool.http fills it in from the certificate, as a browser does.
 """
 
 from __future__ import annotations
@@ -17,7 +21,7 @@ from agents.zenas.pool.adapters.za_case_common import (
     own_citation,
     parse_case_blob,
 )
-from agents.zenas.pool.adapters.za_common import html_headers
+from agents.zenas.pool.adapters.za_common import html_headers, pdf_headers
 from agents.zenas.pool.model import LegalDocument, SourceSpec
 
 JUSTICE = "https://www.justice.gov.za/tribunal/jdgm.html"
@@ -137,7 +141,7 @@ class SpecialTribunalAdapter:
                     title="",
                     body="Special Tribunal",
                     interval_env="TRIBUNAL_MIN_INTERVAL",
-                    headers=html_headers(),
+                    headers=pdf_headers(),
                     citation_for=_citation,
                 )
                 if payload:
@@ -179,7 +183,7 @@ class SpecialTribunalAdapter:
                         title="",
                         body="Special Tribunal",
                         interval_env="TRIBUNAL_MIN_INTERVAL",
-                        headers=html_headers(),
+                        headers=pdf_headers(),
                         citation_for=_citation,
                     )
                     if payload:

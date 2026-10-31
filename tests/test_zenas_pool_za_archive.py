@@ -251,3 +251,36 @@ async def _challenge(caplog: pytest.LogCaptureFixture):
     assert "http" not in detail
     cursor = store.checkpoints["sca"][0]
     assert cursor.split("\n")[1] == "0"
+
+
+def test_a_cut_off_download_is_retried_and_does_not_end_the_load():
+    """comptrib on ZA, 31 Oct: IncompleteRead mid-PDF ended the whole load as "error"."""
+    import http.client
+
+    from agents.zenas.pool.adapters.za_archive import polite_get
+
+    calls: list[str] = []
+
+    async def flaky(url, headers):
+        calls.append(url)
+        if len(calls) == 1:
+            raise http.client.IncompleteRead(b"x" * 10, 20)
+        return b"%PDF-1.4 whole"
+
+    got = asyncio.run(polite_get(flaky, "https://www.comptrib.co.za/a.pdf", {}, "COMPTRIB_MIN_INTERVAL"))
+    assert got.body == b"%PDF-1.4 whole"
+    assert not got.error
+    assert len(calls) == 2
+
+
+def test_a_download_cut_off_every_time_is_an_error_not_a_crash():
+    import http.client
+
+    from agents.zenas.pool.adapters.za_archive import polite_get
+
+    async def always_cut(url, headers):
+        raise http.client.IncompleteRead(b"", 5)
+
+    got = asyncio.run(polite_get(always_cut, "https://www.comptrib.co.za/b.pdf", {}, "COMPTRIB_MIN_INTERVAL"))
+    assert got.error
+    assert got.body == b""
