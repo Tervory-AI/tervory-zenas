@@ -473,10 +473,13 @@ async def build_rule_card(
     if problem:
         return _refuse(problem)
     cost = float(called["result"]["cost_usd"])
+    # A card drafted by a build-only model (the ChatGPT sign-in, build-*) belongs to the
+    # build tenant that asked, so no client lookup can reuse it, and it cannot be approved.
+    build_only = str(called["result"].get("model") or "").strip().lower().startswith("build-")
     row = await ladder.add_rule_card(
         {
             "region": box,
-            "tenant_id": None,
+            "tenant_id": tenant_id if build_only else None,
             "jurisdiction": jurisdiction,
             "question": built["question"],
             "elements": built["elements"],
@@ -543,6 +546,8 @@ async def approve_rule_card(
         return _refuse("no such rule card")
     if card.get("status") == "stale":
         return _refuse("this rule card is stale")
+    if str(card.get("model_used") or "").strip().lower().startswith("build-"):
+        return _refuse("this rule card was drafted by a build-only model and cannot be approved")
     statements = [
         {"citation": element.get("citation"), "quote": element.get("quote")}
         for element in card.get("elements") or []

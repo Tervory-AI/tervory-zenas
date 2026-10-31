@@ -1254,3 +1254,37 @@ def test_policy_rows_are_additive() -> None:
         assert f"'{model}'" in policy
         assert f"'{scope}'" in policy
     assert "ON CONFLICT DO NOTHING" in policy
+
+
+class BuildModel(Model):
+    """The build-only ChatGPT sign-in (docs/ops/CHATGPT-BUILD-MODEL.md)."""
+
+    async def complete(self, messages, *, task_type: str, provider: str) -> dict:
+        result = await super().complete(messages, task_type=task_type, provider=provider)
+        return {**result, "model": "build-chatgpt", "cost_usd": 0}
+
+
+@pytest.mark.asyncio
+async def test_a_build_model_card_never_reaches_another_tenant_and_cannot_be_approved() -> None:
+    ladder = LadderMemory()
+    await ladder.register_tenant(TENANT_A, "us-east")
+    await ladder.register_tenant(TENANT_B, "us-east")
+    first = await build_rule_card(
+        ladder, None, BuildModel(json.dumps(CARD_JSON)), tenant_id=TENANT_A, home_region="us-east",
+        box_region="us-east", jurisdiction="us", question=QUESTION, passages=[PASSAGE],
+    )
+    assert first["ok"] is True
+    assert [str(row.get("tenant_id")) for row in ladder.rule_cards] == [TENANT_A]
+    refused = await approve_rule_card(
+        ladder, tenant_id=TENANT_A, home_region="us-east", box_region="us-east",
+        card_id=first["rule_card"]["id"], reviewer="Ada Counsel", admission_no="12345",
+        jurisdiction="us", passages=[PASSAGE],
+    )
+    assert refused["ok"] is False
+    assert "build-only" in refused["reason"]
+    other = Model(json.dumps(CARD_JSON))
+    second = await build_rule_card(
+        ladder, None, other, tenant_id=TENANT_B, home_region="us-east",
+        box_region="us-east", jurisdiction="us", question=QUESTION, passages=[PASSAGE],
+    )
+    assert second["ok"] is True and second["reused"] is False and other.calls == 1
