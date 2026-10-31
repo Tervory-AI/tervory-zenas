@@ -971,7 +971,7 @@ async def post_answer(body: AnswerIn) -> dict[str, Any]:
         tank=app.state.tank,
         pool=getattr(app.state, "law_pool", None),
     )
-    if result.get("reason") == "could not verify":
+    if str(result.get("reason") or "").startswith("could not verify"):
         return result
     _fail(result)
     return result

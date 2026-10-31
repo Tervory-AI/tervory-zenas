@@ -20,6 +20,10 @@ check(askRefusal(500, { detail: "token sk-live-abc" }).message === ASK_ERROR, "n
 
 check(presentAnswer({ ok: false, reason: "could not verify" }, "m1").kind === "unverified", "could not verify is unverified");
 check(presentAnswer({ ok: false, reason: "could not verify" }, "m1").message === ASK_UNVERIFIED, "unverified message");
+check(
+  presentAnswer({ ok: false, reason: "could not verify I could not verify Imaginary v Nobody, so I have left it out. I cannot find it." }, "m1").kind === "unverified",
+  "could not verify with a named case is unverified",
+);
 
 const review = presentAnswer({ ok: true, state: "in_review", memo: { text: "secret draft", citations: ["s 1"] }, cost_usd: 0.2 }, "m1");
 check(review.kind === "in_review" && review.message === ASK_IN_REVIEW, "in review shows the waiting message");

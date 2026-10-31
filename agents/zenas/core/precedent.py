@@ -356,12 +356,12 @@ def _norm_cite(citation: str) -> str:
     return " ".join((citation or "").split()).lower()
 
 
-def drop_unverified_cases(answer: str, known: list[str]) -> str:
-    """Remove a case name or neutral citation that is not in this library.
+def unverified_cases(answer: str, known: list[str]) -> list[str]:
+    """Case names and neutral citations in this text that are not in this library.
 
-    A name beside a library citation stays. A short form matches a library case
-    name party by party. The client's own matter stays when it is passed in
-    among the known names. A true miss keeps the sentence the lawyer sees.
+    A name beside a library citation is known. A short form matches a library case
+    name party by party. The client's own matter is known when it is passed in
+    among the known names.
     """
     text = answer or ""
     library = [" ".join(item.split()) for item in known if " ".join(str(item).split())]
@@ -401,14 +401,26 @@ def drop_unverified_cases(answer: str, known: list[str]) -> str:
                 missing.append(name)
         elif not name_known(name):
             missing.append(name)
+    return list(dict.fromkeys(missing))
+
+
+def unverified_note(name: str) -> str:
+    """The sentence the lawyer sees for a case that is not in the library."""
+    return f"I could not verify {name}, so I have left it out. I cannot find it."
+
+
+def drop_unverified_cases(answer: str, known: list[str]) -> str:
+    """Remove a case name or neutral citation that is not in this library.
+
+    A true miss keeps the sentence the lawyer sees.
+    """
+    text = answer or ""
+    missing = unverified_cases(text, known)
     if not missing:
         return text
     cleaned = text
-    for name in sorted(dict.fromkeys(missing), key=len, reverse=True):
+    for name in sorted(missing, key=len, reverse=True):
         cleaned = cleaned.replace(name, "")
     cleaned = " ".join(cleaned.split())
-    notes = [
-        f"I could not verify {name}, so I have left it out. I cannot find it."
-        for name in dict.fromkeys(missing)
-    ]
+    notes = [unverified_note(name) for name in missing]
     return " ".join([cleaned, *notes]).strip()

@@ -44,7 +44,13 @@ from agents.zenas.core.matters import consider
 from agents.zenas.core.review import review_positions
 from agents.zenas.core.review_switch import card_servable, review_required
 from agents.zenas.core.scope_rules import NOT_YET, REFUSED, classify, ruled
-from agents.zenas.core.precedent import draft_label, drop_unverified_cases, rules_are_draft
+from agents.zenas.core.precedent import (
+    draft_label,
+    drop_unverified_cases,
+    rules_are_draft,
+    unverified_cases,
+    unverified_note,
+)
 from agents.zenas.core.selftest import is_holdout
 from agents.zenas.core.citation_sources import cited_sources, public_source_url
 
@@ -110,6 +116,37 @@ def _refuse(reason: str, **extra: Any) -> dict[str, Any]:
     body: dict[str, Any] = {"ok": False, "reason": reason}
     body.update(extra)
     return body
+
+
+COULD_NOT_VERIFY = "could not verify"
+
+
+def _known_names(passages: list[dict[str, Any]], features: dict[str, Any] | None = None) -> list[str]:
+    """Citations, titles and text of the supplied passages, plus the client's own matter."""
+    names: list[str] = []
+    for item in passages or []:
+        for key in ("citation", "text", "title", "name"):
+            value = " ".join(str(item.get(key) or "").split())
+            if value:
+                names.append(value)
+    if isinstance(features, dict):
+        client_matter = " ".join(str(features.get("client_matter") or "").split())
+        if client_matter:
+            names.append(client_matter)
+    return names
+
+
+def _could_not_verify(
+    question: str,
+    passages: list[dict[str, Any]],
+    features: dict[str, Any] | None = None,
+    **extra: Any,
+) -> dict[str, Any]:
+    """Refuse with "could not verify". A case the question names that is not in the
+    passages gets the sentence the lawyer sees, so the refusal says which case is missing."""
+    missing = unverified_cases(question, _known_names(passages, features))
+    reason = " ".join([COULD_NOT_VERIFY, *(unverified_note(name) for name in missing)])
+    return _refuse(reason, **extra)
 
 
 def _box(box_region: str) -> str:
@@ -1760,12 +1797,12 @@ async def answer_question(
             kind=None,
         )
     if not passages:
-        return _refuse("could not verify", delivered=False)
+        return _could_not_verify(question, passages, features, delivered=False)
     require_links = bool(getattr(pool, "requires_source_links", False))
     if require_links:
         passages = [passage for passage in passages if public_source_url(passage.get("url"))]
         if not passages:
-            return _refuse("could not verify", delivered=False)
+            return _could_not_verify(question, passages, features, delivered=False)
     built = await build_rule_card(
         ladder,
         tank,
@@ -1781,14 +1818,14 @@ async def answer_question(
     if not built.get("ok"):
         return {**built, "delivered": False}
     if not built.get("reused") and not (built.get("cite") or {}).get("passed"):
-        return _refuse("could not verify", delivered=False, cite=built.get("cite"))
+        return _could_not_verify(question, passages, features, delivered=False, cite=built.get("cite"))
     card = built["rule_card"]
     review_on = await review_required(ladder, region=_box(box_region))
     if not card_servable(
         {"status": "lawyer_approved" if card.get("status") == "lawyer_approved" else "draft", "active": card.get("active")},
         review_on=review_on,
     ):
-        return _refuse("could not verify", delivered=False)
+        return _could_not_verify(question, passages, features, delivered=False)
     applied = await apply_law(
         ladder,
         model,
@@ -1805,18 +1842,9 @@ async def answer_question(
         return {**applied, "delivered": False}
     fresh = await ladder.get_rule_card(str(card["id"]), region=_box(box_region), tenant_id=tenant_id)
     if fresh is None:
-        return _refuse("could not verify", delivered=False)
+        return _could_not_verify(question, passages, features, delivered=False)
     memo = compose_memo(fresh, applied["elements"])
-    known_names: list[str] = []
-    for item in passages:
-        for key in ("citation", "text", "title", "name"):
-            value = " ".join(str(item.get(key) or "").split())
-            if value:
-                known_names.append(value)
-    if isinstance(features, dict):
-        client_matter = " ".join(str(features.get("client_matter") or "").split())
-        if client_matter:
-            known_names.append(client_matter)
+    known_names = _known_names(passages, features)
     if matter_id:
         matter_row = await store.get_matter(str(tenant_id), str(matter_id))
         if matter_row is not None:
@@ -1835,10 +1863,10 @@ async def answer_question(
     memo_cites = [str(item) for item in memo.get("citations") or []]
     known = {str(item.get("citation") or "") for item in statements}
     if not checked.get("passed") or any(item not in known for item in memo_cites):
-        return _refuse("could not verify", delivered=False, cite=checked)
+        return _could_not_verify(question, passages, features, delivered=False, cite=checked)
     sources = cited_sources(statements, checked, passages, memo_cites, require_links=require_links)
     if sources is None:
-        return _refuse("could not verify", delivered=False, cite=checked)
+        return _could_not_verify(question, passages, features, delivered=False, cite=checked)
     memo["sources"] = sources
     memo["text"] = _with_legal_notice(memo["text"])
     state = "in_review" if review_on else "released"
