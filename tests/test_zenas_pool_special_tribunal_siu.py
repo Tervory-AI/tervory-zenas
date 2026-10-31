@@ -525,3 +525,28 @@ async def _rekey_postgres(url: str) -> None:
     finally:
         await conn.execute("DROP SCHEMA IF EXISTS zenas_pool CASCADE")
         await conn.close()
+
+
+# --- Review of #502, round 3 ---------------------------------------------------
+
+
+def test_a_dash_after_a_label_needs_a_date_and_nothing_else():
+    """D4: ':' takes anything after it; a dash, or no separator, only a date (and a time)."""
+    head = "IN THE SPECIAL TRIBUNAL\nCASE NO: GP 1/2026\n"
+    for prose in (
+        "the registrar's\ndate-stamped copy of 3 March 2019 was filed.\n",
+        "relies on the\ndate of order - 3 March 2019 - of the High Court.\n",
+        "As was confirmed in the\njudgment delivered on 12 March 2019.\nThat case is distinguishable.\n",
+    ):
+        assert judgment_date(head + prose + _SIGNED) == date(2026, 8, 26), prose
+    assert judgment_date(head + "Date of judgment \u2013 26 August 2026\n") == date(2026, 8, 26)
+    assert judgment_date(head + "Date of judgment \u2014 26 August 2026\n") == date(2026, 8, 26)
+    assert judgment_date(head + "Judgment delivered on 26 August 2026 at 10h00\n") == date(2026, 8, 26)
+    assert judgment_date(head + "Date of judgment: 26 August 2026, electronically\n") == date(2026, 8, 26)
+
+
+def test_a_stack_needs_exactly_as_many_dates_as_labels():
+    """D5: a two-day hearing puts three dates under two labels; position no longer says which is which."""
+    stack = "IN THE SPECIAL TRIBUNAL\nDate of hearing:\nDate of judgment:\n1 May 2026\n2 May 2026\n26 August 2026\n"
+    assert judgment_date(stack) is None
+    assert judgment_date(stack + "Reasons." + _SIGNED) == date(2026, 8, 26)

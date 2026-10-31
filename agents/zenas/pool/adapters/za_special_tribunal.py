@@ -112,11 +112,12 @@ _DAY_MONTH_YEAR = re.compile(
 )
 _YMD = re.compile(r"\b(\d{4})[/-](\d{1,2})[/-](\d{1,2})\b")
 _DMY = re.compile(r"\b(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})\b")
-# Strongest first. Each is a label at the start of a line. It counts only when a ':' or
-# '-' follows it, or when the rest of the line is a date and nothing else: PDF text is
-# hard-wrapped, so prose ("relies on the\ndate of order of the High Court, 3 March 2019")
-# can start a line too. The value is the rest of the line, or (labels stacked above their
-# values) the matching line below.
+# Strongest first. Each is a label at the start of a line. After a ':' anything may
+# follow. After a dash (-, en or em dash), or with nothing between label and value, the
+# rest of the line must be a date and nothing else: PDF text is hard-wrapped, so prose
+# ("relies on the\ndate of order - 3 March 2019 - of the High Court", "the registrar's\n
+# date-stamped copy of 3 March 2019") can start a line too. The value is the rest of the
+# line, or (labels stacked above their values) the matching line below.
 # "Date of hearing" / "Heard on" is never the judgment date and is not listed.
 _DATE_LABELS = (
     re.compile(r"\s*date\s+of\s+(?:judg(?:e)?ment|order|delivery|hand[\s-]*down)\b", re.I),
@@ -124,11 +125,22 @@ _DATE_LABELS = (
     re.compile(r"\s*date\b", re.I),
     re.compile(r"\s*date\s+held\b", re.I),
 )
+_DASHES = ("-", "\u2013", "\u2014")
+# A date and nothing else, optionally with the time of hand-down: "26 August 2026 at 10h00".
 _ONLY_DATE = re.compile(
     r"\s*(?:(?:this|the)\s+)?(?:\d{1,2}(?:st|nd|rd|th)?\s+(?:day\s+)?(?:of\s+)?[A-Za-z]{3,9}\.?,?\s+\d{4}"
-    r"|\d{4}[/-]\d{1,2}[/-]\d{1,2}|\d{1,2}[/.-]\d{1,2}[/.-]\d{4})\s*\.?\s*",
+    r"|\d{4}[/-]\d{1,2}[/-]\d{1,2}|\d{1,2}[/.-]\d{1,2}[/.-]\d{4})"
+    r"(?:\s*(?:at\s+)?\d{1,2}\s*[h:.]\s*\d{2}\s*\.?)?\s*\.?\s*",
     re.I,
 )
+# A line that stops mid-sentence ("As was confirmed in the"): the next line continues prose.
+_WRAPPED = re.compile(r"\b(?:the|a|an|of|in|on|and|or|that|which|by|to|its|this|from|with|as|at|for)\s*$")
+
+
+def _only_date(text: str) -> bool:
+    return bool(_ONLY_DATE.fullmatch(text) and date_in(text))
+
+
 # The hand-down sentence, anywhere on a line of the header: "... is deemed to be 13h30 on 26 August 2026."
 _DEEMED = re.compile(r"\b(?:hand[\s-]*down|delivery)\s+is\s+deemed\s+to\s+be\b", re.I)
 # Any label line, including the ones never used (hearing), so a stack of labels can be counted.
@@ -198,17 +210,22 @@ def _label_value(lines: list[str], index: int, label: re.Pattern) -> str | None:
 
     "Date of judgment: 26 August 2026" or "Judgment delivered on 26 August 2026" give the
     rest of the line. A bare "Date of judgment:" in a stack of N empty labels takes its
-    value by position, but only when the N lines after the stack are all dates; any other
-    layout (a Coram line in between, a missing value) gives None rather than a guess.
+    value by position, but only when exactly N date lines follow the stack (the N lines are
+    dates and the line after them is not); any other layout (a Coram line in between, a
+    missing value, a two-day hearing) gives None rather than a guess.
     """
     match = label.match(lines[index])
     if not match:
         return None
     rest = lines[index][match.end() :].strip()
-    if rest[:1] in (":", "-"):
+    if rest[:1] == ":":
         rest = rest[1:].strip()
-    elif not (rest and _ONLY_DATE.fullmatch(rest) and date_in(rest)):
-        return None  # prose that happens to start a line, or a bare label without ':'
+    else:
+        if rest[:1] in _DASHES:
+            rest = rest[1:].strip()
+        # Without a ':' only a date may follow, and not as the end of a wrapped sentence.
+        wrapped = index > 0 and _WRAPPED.search(lines[index - 1])
+        return rest if _only_date(rest) and not wrapped else None
     if rest:
         return rest
     start = index
@@ -217,8 +234,13 @@ def _label_value(lines: list[str], index: int, label: re.Pattern) -> str | None:
     end = index
     while end + 1 < len(lines) and (below := _ANY_LABEL.match(lines[end + 1])) and not lines[end + 1][below.end() :].strip():
         end += 1
-    values = lines[end + 1 : end + 1 + (end - start + 1)]
-    if len(values) != end - start + 1 or not all(date_in(value) for value in values):
+    count = end - start + 1
+    values = lines[end + 1 : end + 1 + count]
+    if len(values) != count or not all(date_in(value) for value in values):
+        return None
+    # Exactly N dates: a further date line (a two-day hearing) means the values do not line up.
+    after = end + 1 + count
+    if after < len(lines) and _only_date(lines[after]):
         return None
     return values[index - start]
 
