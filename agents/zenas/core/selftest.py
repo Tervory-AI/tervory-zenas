@@ -562,7 +562,8 @@ def supported_quotes(result: dict[str, Any] | None, citation: str, judgment_text
 
     A quote counts only when its element cites this case, the quote sits VERBATIM
     (whitespace folded, nothing else) in the stored, normalised judgment text, and
-    cite-check passes it against that judgment alone. A paraphrase, or a sentence
+    cite-check passes it against that judgment alone. A quote shown masked counts
+    only when the exact unmasked words it was built from are in that judgment. A paraphrase, or a sentence
     from a different judgment, is never returned.
     """
     from agents.zenas.core.engine import cite_check
@@ -579,9 +580,14 @@ def supported_quotes(result: dict[str, Any] | None, citation: str, judgment_text
         if not isinstance(element, dict) or _fold(element.get("citation")) != wanted:
             continue
         quote = _fold(element.get("quote"))
-        if len(quote.split()) < _QUOTE_MIN_WORDS or len(quote) < _QUOTE_MIN_CHARS or quote not in text:
+        sha = str(element.get("quote_sha") or "")
+        if len(quote.split()) < _QUOTE_MIN_WORDS or len(quote) < _QUOTE_MIN_CHARS:
             continue
-        if not cite_check([{"citation": wanted, "quote": quote}], passage).get("passed"):
+        # A masked quote (a date shown as [Date]) counts only through its fingerprint:
+        # the exact unmasked words must be in this judgment (engine.masked_quote_in_source).
+        if quote not in text and not sha:
+            continue
+        if not cite_check([{"citation": wanted, "quote": quote, "quote_sha": sha}], passage).get("passed"):
             continue
         out.append(quote)
     return out

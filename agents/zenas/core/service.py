@@ -587,7 +587,7 @@ async def approve_rule_card(
     if str(card.get("model_used") or "").strip().lower().startswith("build-"):
         return _refuse("this rule card was drafted by a build-only model and cannot be approved")
     statements = [
-        {"citation": element.get("citation"), "quote": element.get("quote")}
+        {"citation": element.get("citation"), "quote": element.get("quote"), "quote_sha": element.get("quote_sha")}
         for element in card.get("elements") or []
     ]
     checked = cite_check(statements, passages)
@@ -1856,7 +1856,7 @@ async def answer_question(
     if str(jurisdiction or "") == "za" and rules_are_draft():
         memo["text"] = f"{memo['text']}\n{draft_label()}".strip()
     statements = [
-        {"citation": element.get("citation"), "quote": element.get("quote")}
+        {"citation": element.get("citation"), "quote": element.get("quote"), "quote_sha": element.get("quote_sha")}
         for element in fresh.get("elements") or []
         if element.get("citation")
     ]

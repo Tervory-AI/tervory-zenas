@@ -233,6 +233,35 @@ def quote_in_source(quote: str, source: str) -> bool:
     return folded in fold_for_quote(source)
 
 
+# A placeholder the personal-information mask writes into a quote ("[Date]", "[Party A]", "[ID_1]").
+_MASK_TOKEN = re.compile(r"(\[(?:Party [A-Z0-9]+|[A-Z][A-Za-z]*(?:_\d+)?)\])")
+
+
+def quote_sha(text: str) -> str:
+    """Fingerprint of the court's exact words, kept when the shown quote is masked."""
+    return hashlib.sha256(fold_for_quote(text).encode("utf-8")).hexdigest()
+
+
+def masked_quote_in_source(quote: str, sha: str, source: str) -> bool:
+    """A masked quote matches only the exact court words it was verified from.
+
+    The quote was checked unmasked, word for word, when the card was built, and
+    the fingerprint of those words was kept. Here a span of the source must have
+    that same fingerprint AND mask to the quote shown. A different date, number
+    or name gives a different fingerprint, so it fails.
+    """
+    folded = fold_for_quote(quote)
+    if not sha or not folded or not _MASK_TOKEN.search(folded):
+        return False
+    parts = _MASK_TOKEN.split(folded)
+    pattern = "".join("(.{1,160}?)" if index % 2 else re.escape(part) for index, part in enumerate(parts))
+    for found in re.finditer(pattern, fold_for_quote(source)):
+        words = found.group(0)
+        if quote_sha(words) == sha and fold_for_quote(_clean_piece(words, [])) == folded:
+            return True
+    return False
+
+
 def _detect_candidates() -> list[Path]:
     here = Path(__file__).resolve()
     found = [
@@ -450,8 +479,10 @@ def cite_check(statements: list[dict[str, Any]], passages: list[dict[str, Any]])
         folded = fold_for_quote(quote)
         hits = citation_hits(citation, passages)
         matched = None
+        sha = str(statement.get("quote_sha") or "")
         for hit in hits:
-            if folded and quote_in_source(quote, str(hit.get("text") or "")):
+            source = str(hit.get("text") or "")
+            if folded and (quote_in_source(quote, source) or masked_quote_in_source(quote, sha, source)):
                 if str(hit.get("status") or "") != "superseded":
                     matched = hit
                     break
@@ -487,14 +518,18 @@ def parse_json_object(raw: str) -> dict[str, Any]:
     return data
 
 
-def _clean_piece(value: str, secrets: list[str]) -> str:
+def _strip_secrets(value: str, secrets: list[str]) -> str:
     text = value or ""
     for secret in secrets:
         needle = _fold_space(secret)
         if len(needle) >= 8:
             text = text.replace(secret, "")
             text = re.sub(re.escape(needle), "", text, flags=re.IGNORECASE)
-    masked = str(pii_detect(text).get("text") or "")
+    return text
+
+
+def _clean_piece(value: str, secrets: list[str]) -> str:
+    masked = str(pii_detect(_strip_secrets(value, secrets)).get("text") or "")
     return _fold_space(masked)
 
 
@@ -536,25 +571,27 @@ def card_from_proposal(
 ) -> dict[str, Any]:
     hidden = [item for item in (secrets or []) if item]
     elements: list[dict[str, Any]] = []
+    verified: list[dict[str, str]] = []
     for index, raw in enumerate(proposal.get("elements") or []):
         if not isinstance(raw, dict):
             continue
         citation = str(raw.get("citation") or "")
-        quote = _clean_piece(str(raw.get("quote") or ""), hidden)
+        # The court's words are checked UNMASKED, word for word; only then masked for output.
+        words = _fold_space(_strip_secrets(str(raw.get("quote") or ""), hidden))
+        quote = _clean_piece(words, [])
         test = _clean_piece(str(raw.get("test") or ""), hidden)
         element_id = str(raw.get("id") or f"e{index + 1}")
-        elements.append(
-            {
-                "id": element_id,
-                "test": test,
-                "citation": citation,
-                "quote": quote,
-            }
-        )
-    check = cite_check(
-        [{"citation": item["citation"], "quote": item["quote"]} for item in elements],
-        passages,
-    )
+        element = {
+            "id": element_id,
+            "test": test,
+            "citation": citation,
+            "quote": quote,
+        }
+        if quote != words:
+            element["quote_sha"] = quote_sha(words)
+        elements.append(element)
+        verified.append({"citation": citation, "quote": words})
+    check = cite_check(verified, passages)
     sources: list[dict[str, str]] = []
     for element, result in zip(elements, check["results"]):
         element["doc_id"] = result["doc_id"]
