@@ -42,7 +42,7 @@ from agents.zenas.pool.catalogue import CATALOGUE  # noqa: E402
 TENANT = "00000000-0000-0000-0000-000000000010"
 OTHER = "00000000-0000-0000-0000-000000000011"
 KEY = bytes(range(32))
-SCOPE = ROOT / "tank" / "skills" / "zenas.scope" / "1.2.0"
+SCOPE = ROOT / "tank" / "skills" / "zenas.scope" / "1.2.1"
 PII = ROOT / "tank" / "skills" / "zenas.pii" / "1.0.0"
 NDA = "Draft a mutual NDA under Delaware law in the United States."
 
