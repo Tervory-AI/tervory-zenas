@@ -110,7 +110,7 @@ def test_cite_check_1_1_0_keeps_every_1_0_2_case():
     pkgs = _packages()
     old, new = pkgs[("zenas.cite_check", "1.0.2")], pkgs[("zenas.cite_check", "1.1.0")]
     assert {skala.evidence_hash(c) for c in old.cases} <= {skala.evidence_hash(c) for c in new.cases}
-    assert len(new.cases) == len(old.cases) + 6
+    assert len(new.cases) == len(old.cases) + 7
     assert "allow_masked=True" in (new.path / "run.py").read_text(encoding="utf-8")
 
 
@@ -272,7 +272,7 @@ def test_recheck_without_a_length_fails_closed():
 
 
 def test_build_reports_a_pass_only_when_the_stored_form_rechecks(monkeypatch):
-    monkeypatch.setattr(engine, "masked_quote_in_source", lambda *args: False)
+    monkeypatch.setattr(engine, "masked_quote_in_source", lambda *args, **kwargs: False)
     card = _card(DATED)
     assert card["cite"]["passed"] is False and card["cite"]["results"][0]["quote_match"] is False
 
@@ -400,3 +400,106 @@ def test_cite_check_1_1_0_has_a_must_refuse_case_for_an_oversize_quote_len():
                                         for s in c["input"]["statements"])]
     assert oversize and all(c["must_refuse"] is True and c["expected"] == {"passed": False, "blocked": True}
                             for c in oversize)
+
+
+# Absolute bounds and a per-call work budget (round-4 review point 1).
+def _cite_110():
+    return _load(ROOT / "tank" / "skills" / "zenas.cite_check" / "1.1.0" / "run.py", "cite_check_110_budget")
+
+
+def _no_scan(eng, *args, **kwargs):
+    calls = []
+    real = eng._quote_starts
+    try:
+        eng._quote_starts = lambda *a: calls.append(a) or real(*a)
+        return eng.masked_quote_in_source(*args, **kwargs), calls
+    finally:
+        eng._quote_starts = real
+
+
+def test_bounds_are_named_and_identical_in_both_engines():
+    for name in ("MASK_TOKEN_MAX_COUNT", "MASKED_QUOTE_MAX_CHARS", "MASKED_SCAN_BUDGET",
+                 "MASKED_WINDOW_COST", "MASKED_CLEAN_COST"):
+        assert getattr(engine, name) == getattr(SHARED, name)
+    assert engine.MASK_TOKEN_MAX_COUNT == 8 and engine.MASKED_QUOTE_MAX_CHARS == 2048
+
+
+@pytest.mark.parametrize("eng_name", ["room", "tank"])
+def test_400_placeholders_at_the_bound_are_refused_in_under_a_second(eng_name):
+    eng = engine if eng_name == "room" else SHARED
+    quote = "[Date]" * 400
+    started = time.monotonic()
+    result, calls = _no_scan(eng, quote, "0" * 64, 256 * 400, OVERSIZE_TEXT)
+    assert result is False and calls == []
+    # Too many placeholders is refused on its own, even with a short quote_len.
+    result, calls = _no_scan(eng, "[Date] " * 9, "0" * 64, 100, OVERSIZE_TEXT[:5000])
+    assert result is False and calls == []
+    assert time.monotonic() - started < 1
+    # Eight placeholders are still scanned.
+    result, calls = _no_scan(eng, "[Date] " * 8, "0" * 64, 100, OVERSIZE_TEXT[:5000])
+    assert result is False and calls
+
+
+@pytest.mark.parametrize("eng_name", ["room", "tank"])
+def test_quote_len_over_2048_is_refused_without_a_scan(eng_name):
+    eng = engine if eng_name == "room" else SHARED
+    quote = "[Date] " * 8 + "and " * 200
+    result, calls = _no_scan(eng, quote, "0" * 64, 2049, OVERSIZE_TEXT[:20000])
+    assert result is False and calls == []
+    result, calls = _no_scan(eng, quote, "0" * 64, 2048, OVERSIZE_TEXT[:20000])
+    assert result is False and calls
+
+
+def test_100_statements_of_4_placeholders_through_cite_check_1_1_0_take_under_2_s():
+    statement = {"citation": PHONE_CITE, "quote": "[Date]" * 4, "quote_sha": "0" * 64, "quote_len": 1024}
+    payload = {"statements": [dict(statement) for _ in range(100)],
+               "passages": [{"doc_id": "w", "version_id": "v", "citation": PHONE_CITE, "text": OVERSIZE_TEXT,
+                             "status": "effective"}]}
+    import asyncio
+
+    started = time.monotonic()
+    result = asyncio.run(_cite_110().run(payload, None))
+    assert time.monotonic() - started < 2
+    assert result["passed"] is False and result["blocked"] is True
+    assert not any(row["quote_match"] for row in result["results"])
+
+
+@pytest.mark.parametrize("eng_name", ["room", "tank"])
+def test_true_phone_quote_still_passes_and_fails_closed_once_the_budget_is_spent(eng_name, monkeypatch):
+    eng = engine if eng_name == "room" else SHARED
+    card = _card(PHONE_QUOTE, PHONE_PASSAGES, PHONE_CITE, eng=eng)
+    statement = eng.cite_statement(card["elements"][0])
+    assert "[PHONE_1]" in statement["quote"]
+    assert eng.cite_check([statement], PHONE_PASSAGES, allow_masked=True)["passed"] is True
+    # Through cite_check 1.1.0 too, after 100 costly statements on another passage.
+    import asyncio
+
+    noise = {"citation": "[2025] ZAWCHC 99", "quote": "[Date]" * 4, "quote_sha": "0" * 64, "quote_len": 1024}
+    passages = PHONE_PASSAGES + [{"doc_id": "n", "version_id": "v", "citation": "[2025] ZAWCHC 99",
+                                  "text": OVERSIZE_TEXT, "status": "effective"}]
+    if eng_name == "tank":
+        result = asyncio.run(_cite_110().run({"statements": [statement], "passages": passages}, None))
+        assert result["passed"] is True
+    # An empty budget never passes a masked statement, and is shared within one call.
+    assert eng.masked_quote_in_source(statement["quote"], statement["quote_sha"], statement["quote_len"],
+                                      PHONE_TEXT, budget=[0]) is False
+    started = time.monotonic()
+    rows = eng.cite_check([dict(noise) for _ in range(100)] + [statement], passages, allow_masked=True)["results"]
+    assert time.monotonic() - started < 2
+    assert not any(row["quote_match"] for row in rows[:-1])
+    assert rows[-1]["quote_match"] is False  # spent by the noise: fails closed, never passes
+    monkeypatch.setattr(eng, "MASKED_SCAN_BUDGET", 10)
+    rows = eng.cite_check([statement], PHONE_PASSAGES, allow_masked=True)["results"]
+    assert rows[0]["quote_match"] is False
+    # Unmasked quotes are not budgeted.
+    plain = {"citation": PHONE_CITE, "quote": PHONE_QUOTE}
+    assert eng.cite_check([plain], PHONE_PASSAGES, allow_masked=True)["passed"] is True
+
+
+def test_cite_check_1_1_0_has_a_must_refuse_case_for_too_many_placeholders():
+    path = ROOT / "tank" / "skills" / "zenas.cite_check" / "1.1.0" / "evals" / "cases.jsonl"
+    cases = [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
+    many = [c for c in cases if any(len(engine.MASK_TOKEN.findall(str(s.get("quote") or ""))) > 8
+                                    for s in c["input"]["statements"])]
+    assert many and all(c["must_refuse"] is True and c["expected"] == {"passed": False, "blocked": True}
+                        for c in many)

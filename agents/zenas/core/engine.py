@@ -244,6 +244,24 @@ MASK_TOKEN = re.compile(r"(\[(?:Party [A-Z0-9]+|[A-Z][A-Za-z]*(?:_[A-Z][A-Za-z]*
 # are far shorter; a longer span fails closed. It bounds the caller's quote_len.
 MASK_TOKEN_MAX_CHARS = 256
 
+# Caller-supplied masked quotes are bounded in absolute terms too, so adding
+# placeholders or statements cannot buy more scan work:
+# - MASK_TOKEN_MAX_COUNT: most placeholders one masked quote may carry. A real card
+#   quote is one court sentence with a date or a number or two; more fails closed.
+# - MASKED_QUOTE_MAX_CHARS: longest exact court words (quote_len) a masked quote may
+#   stand for. Card quotes are a sentence or two; a longer one fails closed.
+# - MASKED_SCAN_BUDGET: work units one cite_check(..., allow_masked=True) call may spend
+#   on masked rechecks, across all statements and passages. Each candidate window costs
+#   MASKED_WINDOW_COST plus its length (the slice and the hash), and each mask check of
+#   a window whose fingerprint matched costs MASKED_CLEAN_COST per character (the
+#   detector is far slower than sha256). About 1 s of work. Once it is spent,
+#   every remaining masked statement fails closed; nothing passes on an empty budget.
+MASK_TOKEN_MAX_COUNT = 8
+MASKED_QUOTE_MAX_CHARS = 2048
+MASKED_SCAN_BUDGET = 1_000_000_000
+MASKED_WINDOW_COST = 512
+MASKED_CLEAN_COST = 1000
+
 
 def _sha_folded(folded: str) -> str:
     return hashlib.sha256(folded.encode("utf-8")).hexdigest()
@@ -271,7 +289,15 @@ def _quote_starts(text: str, head: str):
     yield from range(len(text))
 
 
-def masked_quote_in_source(quote: str, sha: str, length: Any, source: str) -> bool:
+def masked_quote_in_source(
+    quote: str,
+    sha: str,
+    length: Any,
+    source: str,
+    *,
+    budget: list[int] | None = None,
+    folded_source: str | None = None,
+) -> bool:
     """A masked quote matches only the exact court words it was verified from.
 
     The quote was checked unmasked, word for word, when the card was built, and the
@@ -286,7 +312,14 @@ def masked_quote_in_source(quote: str, sha: str, length: Any, source: str) -> bo
     1.1.0), so it is bounded first: a placeholder stands for at most
     MASK_TOKEN_MAX_CHARS characters, and a length longer than the quote's literal
     words plus that much per placeholder cannot be the words shown, so it fails
-    closed before any scan.
+    closed before any scan. So do more than MASK_TOKEN_MAX_COUNT placeholders and a
+    length over MASKED_QUOTE_MAX_CHARS.
+
+    budget is a one-item list of work units left, shared by every call in one
+    cite_check (a fresh MASKED_SCAN_BUDGET when omitted). The scan stops and fails
+    closed when it would overspend, and the list is left at 0, so later masked
+    statements in the same call fail too. folded_source, when given, is
+    fold_for_quote(source), so a caller can fold each passage once.
     """
     folded = fold_for_quote(quote)
     try:
@@ -296,13 +329,22 @@ def masked_quote_in_source(quote: str, sha: str, length: Any, source: str) -> bo
     if not sha or not folded or size <= 0 or not MASK_TOKEN.search(folded):
         return False
     tokens = MASK_TOKEN.findall(folded)
+    if len(tokens) > MASK_TOKEN_MAX_COUNT or size > MASKED_QUOTE_MAX_CHARS:
+        return False
     literal = len(folded) - sum(len(token) for token in tokens)
     if size > literal + MASK_TOKEN_MAX_CHARS * len(tokens):
         return False
+    left = budget if budget is not None else [MASKED_SCAN_BUDGET]
     parts = MASK_TOKEN.split(folded)
     head, tail = parts[0], parts[-1]
-    text = fold_for_quote(source)
+    text = fold_for_quote(source) if folded_source is None else folded_source
+    window_cost = MASKED_WINDOW_COST + size
+    clean_cost = MASKED_CLEAN_COST * size
     for start in _quote_starts(text, head):
+        if left[0] < window_cost:
+            left[0] = 0
+            return False
+        left[0] -= window_cost
         window = text[start : start + size]
         if len(window) < size:
             break
@@ -310,6 +352,10 @@ def masked_quote_in_source(quote: str, sha: str, length: Any, source: str) -> bo
             continue
         if _sha_folded(window) != sha:
             continue
+        if left[0] < clean_cost:
+            left[0] = 0
+            return False
+        left[0] -= clean_cost
         if fold_for_quote(_clean_piece(window, [])) == folded:
             return True
     return False
@@ -548,9 +594,18 @@ def cite_check(
 
     allow_masked (off by default, so approved Skala versions keep their behaviour):
     a quote shown masked ("[Date]") also matches when the exact words it was built
-    from (quote_sha, quote_len) are in the source and mask to it.
+    from (quote_sha, quote_len) are in the source and mask to it. Those rechecks share
+    one MASKED_SCAN_BUDGET for the whole call, and each passage is folded once.
     """
     results: list[dict[str, Any]] = []
+    budget = [MASKED_SCAN_BUDGET]
+    folded_texts: dict[str, str] = {}
+
+    def folded_text(source: str) -> str:
+        if source not in folded_texts:
+            folded_texts[source] = fold_for_quote(source)
+        return folded_texts[source]
+
     for statement in statements:
         citation = str(statement.get("citation") or "")
         quote = str(statement.get("quote") or "")
@@ -561,7 +616,11 @@ def cite_check(
         size = statement.get("quote_len") if allow_masked else None
         for hit in hits:
             source = str(hit.get("text") or "")
-            if folded and (quote_in_source(quote, source) or (sha and masked_quote_in_source(quote, sha, size, source))):
+            if folded and (
+                folded in folded_text(source)
+                or (sha and masked_quote_in_source(quote, sha, size, source, budget=budget,
+                                                   folded_source=folded_text(source)))
+            ):
                 if str(hit.get("status") or "") != "superseded":
                     matched = hit
                     break
