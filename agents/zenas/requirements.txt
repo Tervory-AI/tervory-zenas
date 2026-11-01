@@ -13,3 +13,7 @@ pypdfium2==5.14.0
 # challenge. The loader fetches those pages in Chromium. A challenge page is
 # refused and never stored. No key.
 patchright==1.64.3
+# Staged contract-assembly dependencies, matching the existing test/assembler pins.
+# Installing these preserves the current service and regional compose configuration.
+Mako==1.4.2
+docxtpl==0.20.2
