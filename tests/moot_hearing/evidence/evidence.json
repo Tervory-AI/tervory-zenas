@@ -1,0 +1,26 @@
+{
+  "label": "local actual UI with domain-backed offline transport; no live auth/models; Postgres tested separately",
+  "checks": [
+    "human draft survives AI/human handover",
+    "stale judge projection cannot return to counsel",
+    "two distinct human counsel and human judge",
+    "human judge question/floor/ruling",
+    "founder publish",
+    "375/1440 no horizontal overflow"
+  ],
+  "screenshots": [
+    "operator-active-1440.png",
+    "respondent-active-1440.png",
+    "judge-active-1440.png",
+    "operator-1440.png",
+    "respondent-1440.png",
+    "judge-1440.png",
+    "operator-active-375.png",
+    "respondent-active-375.png",
+    "judge-active-375.png",
+    "operator-375.png",
+    "respondent-375.png",
+    "judge-375.png"
+  ],
+  "page_errors": []
+}

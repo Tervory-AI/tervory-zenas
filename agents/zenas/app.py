@@ -300,6 +300,11 @@ from agents.zenas.core.regulation_api import register_routes as register_regulat
 
 register_regulation_routes(app, _pool_store, _store, _box_region)
 
+from agents.zenas.core.moot.hearing_api import register_routes as register_hearing_routes  # noqa: E402
+
+register_hearing_routes(app, lambda: app.state.pool, _store, _box_region, lambda: app.state.tank)
+
+
 _inner_lifespan = app.router.lifespan_context
 
 

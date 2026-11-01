@@ -43,6 +43,9 @@ async def published_matches(pool: Any, tenant_id: UUID, region: str, match_id: U
         }
         if not match["published"] or _OFFLINE.search(json.dumps([match, body])):
             continue
+        runs = match["runs"]
+        if isinstance(runs, list) and runs and isinstance(runs[0], dict):
+            match["cost_usd"] = runs[0].get("cost_usd")
         # A nonempty stored problem is mandatory; watch_payload must never load a fixture.
         matches.append(watch_payload(match, body))
     return matches
