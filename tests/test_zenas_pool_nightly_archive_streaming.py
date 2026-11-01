@@ -165,3 +165,27 @@ def test_the_nights_memory_does_not_grow_with_the_number_of_judgments(monkeypatc
     assert len(kept) == 240
     # Held judgments would add 160 x ~50 KB = ~8 MB.
     assert large - small < 2_000_000, (small, large)
+
+
+@pytest.mark.asyncio
+async def test_cancelled_nightly_flushes_acknowledged_archive_cursor(monkeypatch):
+    """A source budget expires between files: keep even the last partial batch."""
+    store = MemoryStore(home_region="za")
+    _Walk.urls = _urls(3)
+    fetched = []
+    getter = _getter(fetched)
+    stored = asyncio.Event()
+
+    async def get(url, headers):
+        if len(fetched) == 1:
+            stored.set()
+            await asyncio.Event().wait()
+        return await getter(url, headers)
+
+    task = asyncio.create_task(_night(store, get))
+    await asyncio.wait_for(stored.wait(), timeout=1)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert _seen(store) == {url_key(_Walk.urls[0])}
+    assert await store.instrument_count(SOURCE.source_id) == 1

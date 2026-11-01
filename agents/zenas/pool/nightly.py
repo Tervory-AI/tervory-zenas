@@ -30,6 +30,10 @@ _OFFICIAL_STATUTES = frozenset({"govza-acts", "govza-regulations"})
 # The US scheduler allows two hours for the entire night. A progressing bulk
 # archive must also yield; its no-progress watchdog alone cannot bound it.
 _US_COURTLISTENER_SECONDS = 30 * 60
+# ZA's existing scheduler also allows two hours. With 17 live catalogue
+# sources, five minutes each leaves thirty-five minutes for remaining jobs.
+# A slow early source must not starve every court archive later in the list.
+_ZA_SOURCE_SECONDS = 5 * 60
 
 
 def packaged_snapshots(region: str) -> dict[str, list[bytes]]:
@@ -119,6 +123,21 @@ async def run_nightly(
 
 
 async def _update_nightly_source(store: Store, source, **kwargs) -> None:
+    if kwargs["region"] == "za" and kwargs["live"] and kwargs["snapshots"] is None:
+        window = asyncio.timeout(_ZA_SOURCE_SECONDS)
+        try:
+            async with window:
+                await _update_source(store, source, **kwargs)
+        except TimeoutError:
+            if not window.expired():
+                raise
+            await store.record_source(source)
+            await store.record_run(
+                source.source_id, status="stalled",
+                detail="nightly source time budget reached; the next run retries from the saved checkpoint",
+                documents=await store.instrument_count(source.source_id), when=kwargs["when"],
+            )
+        return
     bounded = (
         kwargs["region"] == "us-east" and source.source_id == "courtlistener"
         and kwargs["live"] and kwargs["snapshots"] is None
@@ -492,7 +511,7 @@ async def _live_archive(
             when=when,
         )
         return True
-    except Exception:
+    except (Exception, asyncio.CancelledError):
         # The judgments already stored stay; the next night resumes after them.
         await stream.keep_progress()
         raise
@@ -563,8 +582,28 @@ async def _update_official(
     resume = await store.get_checkpoint(source.source_id)
     if resume.startswith("snap:"):
         resume = ""
+    from agents.zenas.pool.adapters.za_govza import streaming
+
+    inserted = 0
+    received = 0
+
+    async def save_file(payload: bytes, cursor: str) -> None:
+        nonlocal inserted, received
+        errors = adapter.report.errors
+        added = await ingest_snapshot(
+            store, source, [payload], on=on, embedder=embedder, index=index, region=region,
+        )
+        if adapter.report.errors > errors:
+            raise ValueError("gov.za file could not be parsed; checkpoint preserved")
+        # A cancelled/failed ingest may have stored a prefix of its sections.
+        # It must not acknowledge the PDF; replay is idempotent on the next run.
+        await store.set_checkpoint(source.source_id, cursor, await store.stored_bytes())
+        inserted += added
+        received += 1
+
     try:
-        blobs, cursor = await adapter.fetch_bulk(http_get, resume=resume)
+        with streaming(save_file):
+            blobs, cursor = await adapter.fetch_bulk(http_get, resume=resume)
     except RateLimited as exc:
         await store.record_source(source)
         await store.record_run(
@@ -585,9 +624,8 @@ async def _update_official(
             when=when,
         )
         return
-    inserted = 0
     if blobs:
-        inserted = await ingest_snapshot(
+        inserted += await ingest_snapshot(
             store,
             source,
             list(blobs),
@@ -600,7 +638,7 @@ async def _update_official(
         await store.record_source(source)
     detail = adapter.feeds_detail()
     errors = int(getattr(adapter.report, "errors", 0) or 0)
-    if not blobs and errors == 0:
+    if not blobs and not received and errors == 0:
         detail = f"{detail}; unchanged"
     status = "error" if errors and inserted == 0 else "ok"
     await store.set_checkpoint(source.source_id, cursor, await store.stored_bytes())
