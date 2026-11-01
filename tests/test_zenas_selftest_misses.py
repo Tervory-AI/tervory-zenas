@@ -92,8 +92,11 @@ def test_misses_are_stored_and_returned(monkeypatch):
     assert made["passed"] == 44
     assert [m["case"] for m in made["misses"]] == ["trap-00", "trap-01", "trap-02", "real-00", "real-01", "real-02"]
     assert all(m["reason"] in selftest.MISS_REASONS for m in made["misses"])
-    # The public run carries no judgment text and no answer.
-    assert all("expected_quote" not in m and "answer" not in m for m in made["misses"])
+    # The public run carries the redacted diagnostics (never the raw stored "answer" key).
+    assert all("answer" not in m for m in made["misses"])
+    real01 = next(m for m in made["misses"] if m["case"] == "real-01")
+    assert real01["answer_excerpt"] == "CAC 108 held that the appeal fails."
+    assert real01["expected_quote"] == QUOTE
 
     stored = next(row for row in ladder.selftests if row["detail"].get("made_up"))
     assert len(stored["detail"]["misses"]) == 6

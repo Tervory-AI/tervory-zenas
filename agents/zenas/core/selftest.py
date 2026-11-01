@@ -10,6 +10,7 @@ from __future__ import annotations
 import hashlib
 import os
 import re
+import urllib.parse
 from collections import defaultdict
 from typing import Any
 
@@ -545,7 +546,209 @@ MISS_REASONS = (
     "real: the answer does not quote the court's sentence",
     "real: no quote to check",
 )
-_MISS_ANSWER_CHARS = 300
+_MISS_ANSWER_CHARS = 1200
+_MISS_PIECE_CHARS = 300
+_MISS_QUOTES = 6
+
+
+# Secrets never reach a miss record. Values of these env names are cut out before
+# the PII mask runs, and these shapes are cut out wherever they appear.
+_SECRET_ENV = re.compile(r"(KEY|TOKEN|SECRET|PASSWORD|PASSWD|DSN|DATABASE_URL|CREDENTIAL|PRIVATE)", re.IGNORECASE)
+class _UrlWithCredential:
+    """A URL that carries a credential parameter is cut whole. The URL is matched
+    once as a whole run and the keyword looked up in a callback, so a long run of
+    "http://http://…" costs linear time (one pattern with \\S*key=\\S* backtracked
+    to the end of the run from every "http")."""
+
+    _RUN = re.compile(r"(?i)\bhttps?://\S+")
+    _KEY = re.compile(r"(?i)(?:api_key|token|password|secret|[?&]key)=")
+
+    def sub(self, repl: str, text: str) -> str:
+        return self._RUN.sub(lambda m: repl if self._KEY.search(m.group(0)) else m.group(0), text)
+
+
+# A secret value: a quoted value up to its closing quote (or the end of the line),
+# else a run without spaces, quotes or separators.
+_SECRET_VALUE = r"(?:\"[^\"\n]*\"?|'[^'\n]*'?|[^\s\"',;}]+)"
+_SECRET_SHAPES = (
+    # PEM private-key blocks first: they span lines, and the text is not folded yet.
+    re.compile(r"-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----[\s\S]*?(?:-----END [A-Z0-9 ]*PRIVATE KEY-----|\Z)"),
+    # \b and 20+ so prose such as "risk-assessment" is not cut (real keys are far longer).
+    re.compile(r"\bsk-[A-Za-z0-9_-]{20,}"),
+    # Prefixes in any case: "SK_LIVE_" or "Sk_Live_" on a real body is still the key.
+    re.compile(r"\b(?i:sk|rk|pk)_(?i:live|test)_[A-Za-z0-9]{8,}"),
+    re.compile(r"\b(?i:github_pat_)[A-Za-z0-9_]{20,}"),
+    re.compile(r"\bAIza[0-9A-Za-z_-]{30,}"),
+    re.compile(r"\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}"),
+    re.compile(r"\b(?:gh[pousr]_[A-Za-z0-9]{20,}|AKIA[0-9A-Z]{16}|xox[abprs]-[A-Za-z0-9-]{10,})\b"),
+    # Laravel Sanctum / Coolify API tokens: "<id>|<40+ chars>".
+    re.compile(r"\b\d+\|[A-Za-z0-9]{40,}\b"),
+    re.compile(r"(?i)\bauthorization\b[\"']?\s*[:=]\s*[\"']?(?:bearer|token|basic|digest)?\s*[A-Za-z0-9._~+/=|-]{8,}[\"']?"),
+    re.compile(r"(?i)\bbearer\s+[A-Za-z0-9._~+/=|-]{8,}"),
+    # The scheme starts where its run starts and is bounded: linear time on "a-a-a-…".
+    re.compile(r"(?i)(?<![a-z0-9+.-])[a-z][a-z0-9+.-]{0,30}://[^\s/@:]+:[^\s/@]+@\S+"),
+    _UrlWithCredential(),
+    # key = value, key: value and JSON "key": "value" for identifier-style keys: a
+    # quoted key, an api/access key name (api_key, X-Api-Key, aws_secret_access_key),
+    # or secret/token/password joined to another word (client_secret, access_token,
+    # secret_key). A quoted value is cut up to its closing quote, spaces and all.
+    re.compile(
+        # A key starts where an identifier run starts (never mid-run) and is bounded,
+        # so a long run such as "a_a_a_…" costs linear time, not quadratic.
+        r"(?i)(?:[\"'][a-z0-9_-]{0,60}(?:api[_-]?key|secret|token|password|passwd)[a-z0-9_-]{0,60}[\"']"
+        r"|(?<![a-z0-9_-])[a-z0-9_-]{0,60}(?:api[_-]?key|secret[_-]?access[_-]?key|access[_-]?key[_-]?id)[a-z0-9_-]{0,60}"
+        r"|(?<![a-z0-9_-])[a-z0-9_-]{0,60}[_-](?:secret|token|password|passwd)[a-z0-9_-]{0,60}"
+        # secret_key, TOKEN_V2, PASSWORD_SALT: an underscore key is an identifier, cut with
+        # any suffix. A hyphen is how prose joins words ("token-holder", "Secret-ballot:"),
+        # so a hyphenated key needs a credential suffix (secret-key, token-value).
+        r"|(?<![a-z0-9_-])(?:secret|token|password|passwd)"
+        r"(?:_[a-z0-9_-]{1,60}|-(?:key|value|token|secret|string|hash)(?![a-z0-9])))"
+        r"\s*[=:]\s*" + _SECRET_VALUE
+    ),
+    # A bare word ("The secret: the parties agreed", "token: R500 was paid") is legal
+    # text unless the value looks like a credential: 8+ characters, no spaces, a digit.
+    re.compile(
+        r"(?i)\b(?:secret|token|password|passwd)\s*[=:]\s*([\"']?)"
+        r"(?=[^\s\"',;}]{0,200}[0-9])[^\s\"',;}]{8,}\1"
+    ),
+    # Long hex runs (R2/HMAC secrets, digests) carry no legal meaning in an answer.
+    re.compile(r"\b[0-9A-Fa-f]{32,}\b"),
+)
+QUOTE_CHECKS = (
+    "supported, in the answer",
+    "supported, not in the answer",
+    "too short to be a quote",
+    "not verbatim in the stored judgment text",
+    "cite-check failed",
+)
+_QUOTED = re.compile(r"[“\"]([^”\"]{10,800})[”\"]")
+
+
+def _env_secrets() -> list[str]:
+    return [
+        value.strip()
+        for name, value in os.environ.items()
+        if _SECRET_ENV.search(name) and len(value.strip()) >= 8
+    ]
+
+
+def _cut_plain_shapes(text: str) -> str:
+    for shape in _SECRET_SHAPES:
+        text = shape.sub("[redacted]", text)
+    return text
+
+
+# A run without spaces that holds a %XX escape: "key%3Dsk_live_…", "1%7C…",
+# "Authorization%3A%20Bearer%20…". The escapes hide the boundaries the shapes need.
+_URL_ENCODED = re.compile(r"(?<!\S)\S*%[0-9A-Fa-f]{2}\S*")  # whole runs only: linear time
+
+
+def _cut_shapes(text: str) -> str:
+    """The secret shapes over the text, and over the URL-decoded form of every run
+    that holds %XX escapes. A run whose decoded form holds a secret is replaced by
+    the decoded run with that secret cut; other runs are left exactly as they were."""
+    text = _cut_plain_shapes(text)
+
+    def decoded(match: re.Match[str]) -> str:
+        run = match.group(0)
+        plain = run
+        for _ in range(8):  # multiply-encoded values too, until nothing changes
+            step = urllib.parse.unquote(plain)
+            if step == plain:
+                break
+            plain = step
+        cut = _cut_plain_shapes(plain)
+        return cut if cut != plain else run
+
+    return _URL_ENCODED.sub(decoded, text)
+
+
+def _cut_secrets(value: Any) -> str:
+    """Secrets only: the shapes above and this process's secret env values. No PII mask."""
+    text = _cut_shapes(str(value or ""))
+    for secret in _env_secrets():
+        folded = " ".join(secret.split())
+        text = text.replace(secret, "")
+        text = re.sub(re.escape(folded), "", text, flags=re.IGNORECASE)
+    return " ".join(text.split())
+
+
+def _citation_text(value: Any) -> str:
+    """A citation keeps its case number ('GP 09/2025'): only secrets are cut, not PII."""
+    return _bounded(_cut_secrets(value), 80)
+
+
+def _diagnostic_text(value: Any) -> str:
+    """Model or library text made safe for a miss record: secrets cut, then the
+    existing PII redaction (engine._clean_piece, the same mask as rule cards)."""
+    from agents.zenas.core.engine import _clean_piece
+
+    return _clean_piece(_cut_shapes(str(value or "")), _env_secrets())
+
+
+def _bounded(text: str, limit: int) -> str:
+    return text if len(text) <= limit else text[: max(0, limit - 1)].rstrip() + "…"
+
+
+def _answer_excerpt(masked: str, limit: int = _MISS_ANSWER_CHARS) -> str:
+    """The whole (masked) answer when short. Otherwise its start plus every quoted
+    passage with a little context, so the quoted sentence(s) are always visible."""
+    if len(masked) <= limit:
+        return masked
+    windows = [(0, min(len(masked), 240))]
+    for match in _QUOTED.finditer(masked):
+        windows.append((max(0, match.start() - 60), min(len(masked), match.end() + 60)))
+    merged: list[list[int]] = []
+    for start, end in sorted(windows):
+        if merged and start <= merged[-1][1]:
+            merged[-1][1] = max(merged[-1][1], end)
+        else:
+            merged.append([start, end])
+    out = " … ".join(masked[start:end] for start, end in merged)
+    if merged[-1][1] < len(masked):
+        out += " …"
+    return _bounded(out, limit)
+
+
+def _quote_checks(
+    result: dict[str, Any] | None,
+    citation: str,
+    judgment_text: str,
+    answer: str,
+    supported: list[str],
+) -> dict[str, Any]:
+    """Why each rule-card quote did or did not count. Reuses supported_quotes'
+    verdict, so it never disagrees with the score; only explains it."""
+    card = (result or {}).get("rule_card") if isinstance(result, dict) else None
+    elements = (card or {}).get("elements") if isinstance(card, dict) else None
+    wanted = _fold(citation)
+    text = _fold(judgment_text)
+    folded_answer = _fold(answer)
+    quotes: list[dict[str, str]] = []
+    others: list[str] = []
+    for element in elements if isinstance(elements, list) else []:
+        if not isinstance(element, dict):
+            continue
+        cited = _fold(element.get("citation"))
+        if cited != wanted:
+            if cited and cited not in others:
+                others.append(cited)
+            continue
+        quote = _fold(element.get("quote"))
+        if quote in supported:
+            check = "supported, in the answer" if quote in folded_answer else "supported, not in the answer"
+        elif len(quote.split()) < _QUOTE_MIN_WORDS or len(quote) < _QUOTE_MIN_CHARS:
+            check = "too short to be a quote"
+        elif quote not in text:
+            check = "not verbatim in the stored judgment text"
+        else:
+            check = "cite-check failed"
+        quotes.append({"quote": _bounded(_diagnostic_text(quote), _MISS_PIECE_CHARS), "check": check})
+    return {
+        "quotes": quotes[:_MISS_QUOTES],
+        "other_citations": [_citation_text(item) for item in others[:_MISS_QUOTES]],
+        "library_chars": len(text),
+    }
 
 
 # A quote shorter than this is not the court's words but a phrase. Same floor as _sentence_ok.
@@ -632,22 +835,39 @@ def _miss_reason(
     return ""
 
 
-def _miss(item: dict[str, str], reason: str, answer: str, *, raised: str, refusal: str, quote: str) -> dict[str, str]:
-    """One missed case as it is stored in the run detail."""
-    out = {
+def _miss(
+    item: dict[str, str],
+    reason: str,
+    answer: str,
+    *,
+    raised: str,
+    refusal: str,
+    quote: str,
+    checks: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """One missed case as it is stored in the run detail.
+
+    Platform-tenant test data, but every piece of model or library text is passed
+    through _diagnostic_text (secrets cut, then the PII mask) and bounded.
+    """
+    masked = _diagnostic_text(answer)
+    out: dict[str, Any] = {
         "case": str(item.get("case") or ""),
         "kind": str(item.get("kind") or ""),
         "citation": str(item.get("citation") or ""),
         "reason": reason,
-        "question": str(item.get("question") or ""),
-        "answer": " ".join(answer.split())[:_MISS_ANSWER_CHARS],
+        "question": _bounded(_diagnostic_text(item.get("question")), _MISS_PIECE_CHARS),
+        "answer": _answer_excerpt(masked),
+        "answer_chars": len(masked),
     }
     if raised:
         out["error"] = raised
     if refusal:
-        out["refusal"] = " ".join(refusal.split())[:200]
+        out["refusal"] = _bounded(_diagnostic_text(refusal), 200)
     if quote and item.get("kind") == "real":
-        out["expected_quote"] = quote
+        out["expected_quote"] = _bounded(_diagnostic_text(quote), _MISS_PIECE_CHARS)
+    if checks:
+        out.update(checks)
     return out
 
 
@@ -721,7 +941,12 @@ async def run_made_up_test(
         if not reason:
             passed += 1
         else:
-            misses.append(_miss(item, reason, answer, raised=raised, refusal=refusal, quote=quote))
+            checks = (
+                _quote_checks(result, item["citation"], texts.get(item["citation"], ""), answer, supported)
+                if item["kind"] == "real" and ok_result
+                else None
+            )
+            misses.append(_miss(item, reason, answer, raised=raised, refusal=refusal, quote=quote, checks=checks))
     asked = len(questions)
     perfect = passed == asked == 50
     standing = "Zenas skills may be approved." if perfect else "Zenas skills may not be approved."
@@ -872,7 +1097,8 @@ async def run_selftest(
 
 
 def _public_run(row: dict[str, Any]) -> dict[str, Any]:
-    """Scores only. No judgment text, no matter, no document body.
+    """Scores, and for made-up runs the redacted miss records (see _public_misses).
+    No matter, no client text, no full judgment body.
 
     A LegalBench row is a code baseline. The label is on the response so a
     reader does not take the percentage for a model score.
@@ -912,22 +1138,48 @@ def _public_run(row: dict[str, Any]) -> dict[str, Any]:
     return published
 
 
-def _public_misses(raw: Any) -> list[dict[str, str]]:
-    """Each missed made-up case: id, kind, citation and reason.
+def _public_misses(raw: Any) -> list[dict[str, Any]]:
+    """Each missed made-up case with enough to diagnose it.
 
-    The stored detail also keeps the question, the start of the answer and the
-    expected quote. Those are not published: this response carries no judgment text.
+    id, kind, citation and reason, plus the question, an excerpt of the answer that
+    keeps its quoted sentence(s), the expected quote, and why each rule-card quote
+    did or did not count. Every text field is passed through the PII redaction
+    again here (older rows were stored before it), with secrets cut first, and
+    bounded. No full judgment body is ever returned.
     """
-    out: list[dict[str, str]] = []
+    out: list[dict[str, Any]] = []
     for item in raw if isinstance(raw, list) else []:
         if not isinstance(item, dict):
             continue
-        miss = {key: str(item.get(key) or "") for key in ("case", "kind", "citation", "reason")}
+        miss: dict[str, Any] = {key: str(item.get(key) or "") for key in ("case", "kind", "citation", "reason")}
         if miss["reason"] not in MISS_REASONS:
             miss["reason"] = MISS_REASONS[0] if item.get("error") else "unknown"
-        for key in ("refusal", "error"):
+        if item.get("error"):
+            miss["error"] = _bounded(_diagnostic_text(item["error"]), 200)
+        if item.get("refusal"):
+            miss["refusal"] = _bounded(_diagnostic_text(item["refusal"]), 200)
+        for key, limit in (("question", _MISS_PIECE_CHARS), ("expected_quote", _MISS_PIECE_CHARS)):
             if item.get(key):
-                miss[key] = " ".join(str(item[key]).split())[:200]
+                miss[key] = _bounded(_diagnostic_text(item[key]), limit)
+        if item.get("answer"):
+            miss["answer_excerpt"] = _answer_excerpt(_diagnostic_text(item["answer"]))
+        if isinstance(item.get("answer_chars"), int):
+            miss["answer_chars"] = item["answer_chars"]
+        if isinstance(item.get("library_chars"), int):
+            miss["library_chars"] = item["library_chars"]
+        quotes = item.get("quotes")
+        if isinstance(quotes, list):
+            miss["quotes"] = [
+                {
+                    "quote": _bounded(_diagnostic_text(row.get("quote")), _MISS_PIECE_CHARS),
+                    "check": str(row.get("check") or "") if row.get("check") in QUOTE_CHECKS else "unknown",
+                }
+                for row in quotes[:_MISS_QUOTES]
+                if isinstance(row, dict)
+            ]
+        others = item.get("other_citations")
+        if isinstance(others, list):
+            miss["other_citations"] = [_citation_text(row) for row in others[:_MISS_QUOTES]]
         out.append(miss)
     return out
 
