@@ -599,12 +599,45 @@ class _BudgetUsed(Exception):
         self.message = message
 
 
+class _CapSourceBlob(bytes):
+    """Original archive bytes plus their successfully fetched machine-source URL.
+
+    This is transport provenance, not a frontend_url inserted into source JSON.
+    The ordinary JSON text_payloads path preserves bytes subclasses unchanged.
+    Plain saved bytes have no fetch provenance and gain no guessed link.
+    """
+    source_url: str
+
+    def __new__(cls, payload: bytes, source_url: str) -> _CapSourceBlob:
+        value = super().__new__(cls, payload)
+        value.source_url = source_url
+        return value
+
+
+def _cap_source_url(url: str) -> bool:
+    try:
+        parsed = urlsplit(url)
+        return (parsed.scheme == "https" and parsed.hostname == "static.case.law" and parsed.port in (None, 443)
+                and not parsed.username and not parsed.password and not parsed.query and not parsed.fragment
+                and parsed.path.endswith(".json"))
+    except ValueError:
+        return False
+
+
 class CapAdapter(_CaseAdapter):
     source_id = "cap"
     reason = (
         "Caselaw Access Project bulk data is unrestricted as of 2024-03-01. "
         "Load now reads a small public volume from static.case.law."
     )
+
+    def parse(self, blob: bytes, source: SourceSpec) -> list[LegalDocument]:
+        documents = super().parse(blob, source)
+        if isinstance(blob, _CapSourceBlob) and _cap_source_url(blob.source_url):
+            for document in documents:
+                if not document.url:
+                    document.url = blob.source_url  # The actual JSON source, not a case frontend.
+        return documents
 
     async def fetch(self, http_get) -> list[bytes]:
         blobs, _cursor = await self.fetch_bulk(http_get)
@@ -622,7 +655,8 @@ class CapAdapter(_CaseAdapter):
                 break
             href = match.group(1)
             url = href if href.startswith("http") else urljoin(_CAP_LIST, href)
-            if "static.case.law" not in url:
+            if not _cap_source_url(url):
                 continue
-            blobs.append(await http_get(url, json_headers))
+            payload = await http_get(url, json_headers)
+            blobs.append(_CapSourceBlob(payload, url))
         return blobs, ""
