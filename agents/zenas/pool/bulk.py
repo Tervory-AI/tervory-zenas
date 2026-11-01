@@ -7,6 +7,7 @@ Run with ``python -m agents.zenas.pool.bulk``. The compose service is
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 import shutil
 from collections import Counter
@@ -14,6 +15,7 @@ from datetime import date, datetime, timezone
 
 from agents.zenas.pool.adapters import get_adapter
 from agents.zenas.pool.adapters.courtlistener_bulk import BulkStalled
+from agents.zenas.pool.adapters.za_archive import ArchiveRun, streaming
 from agents.zenas.pool.catalogue import sources_for_region
 from agents.zenas.pool.config import current_region
 from agents.zenas.pool.embed import Embedder, NoOpEmbedder, NoOpVectorIndex, VectorIndex, live_backends
@@ -28,7 +30,11 @@ from agents.zenas.pool.region import RegionError, assert_source_region, bind_sto
 from agents.zenas.pool.status import pool_status
 from agents.zenas.pool.store import Store, key_is_set
 
+log = logging.getLogger(__name__)
+
 DISK_CAP_DEFAULT = 40 * 1024 * 1024 * 1024
+# An archive walk saves its cursor and the running row's detail this often.
+STREAM_SAVE_EVERY = 10
 
 
 def disk_cap_bytes(cap: int | None = None) -> int:
@@ -213,13 +219,19 @@ async def load_source(
             on=on, when=when, embedder=embedder, index=index, cap=cap, data_dir=data_dir,
         )
 
+    stream = _ArchiveStream(
+        store, source, region=region, on=on, when=when,
+        embedder=embedder, index=index, cap=cap, data_dir=data_dir,
+    )
     try:
         adapter = get_adapter(source)
         resume = await store.get_checkpoint(source.source_id)
         if resume.startswith("snap:"):
             resume = ""
-        blobs, next_cursor = await _live_blobs(adapter, http_get, resume)
+        with streaming(stream):
+            blobs, next_cursor = await _live_blobs(adapter, http_get, resume)
     except RateLimited as exc:
+        await stream.keep_progress()
         await store.record_source(source)
         await store.record_run(
             source.source_id,
@@ -237,6 +249,7 @@ async def load_source(
         )
         return False
     except (FetchNotConfigured, LicenceError) as exc:
+        await stream.keep_progress()
         await store.record_source(source)
         await store.record_run(
             source.source_id,
@@ -246,10 +259,27 @@ async def load_source(
             when=when,
         )
         return False
+    except Exception:
+        # The judgments already stored stay; the next Load resumes after them.
+        await stream.keep_progress()
+        raise
+
+    if stream.capped:
+        await stream.keep_progress()
+        await store.record_source(source)
+        await store.record_run(
+            source.source_id,
+            status="disk_cap",
+            detail=f"pool disk cap {cap} bytes",
+            documents=await store.instrument_count(source.source_id),
+            when=when,
+        )
+        return True
 
     note = _load_note(adapter)
     skips: Counter[str] = Counter(note.get("skips") or {})
-    inserted = 0
+    skips.update(stream.skips)
+    inserted = stream.inserted
     for blob in blobs:
         if _over_cap(await store.stored_bytes(), len(blob), cap, data_dir):
             await store.record_source(source)
@@ -323,6 +353,96 @@ def _load_note(adapter) -> dict:
     except Exception:  # noqa: BLE001 — a note never fails a load
         return {}
     return value if isinstance(value, dict) else {}
+
+
+class _ArchiveStream:
+    """Stores each judgment a court-archive walk reads, as it is read.
+
+    Before this the walk held every judgment (up to ZENAS_ZA_ARCHIVE_MAX, 2000
+    by default) in memory and stored none until the whole walk ended: counts
+    sat still for hours, memory grew with every file in a 2 GB room, and a
+    restart threw the whole walk away because the cursor was saved only at
+    the end. Now each judgment is stored at once, and every STREAM_SAVE_EVERY
+    files the cursor is saved and the running row says how far the walk is.
+    """
+
+    def __init__(
+        self,
+        store: Store,
+        source: SourceSpec,
+        *,
+        region: str,
+        on: date,
+        when: datetime,
+        embedder: Embedder,
+        index: VectorIndex,
+        cap: int,
+        data_dir: str,
+        heartbeat: bool = True,
+    ) -> None:
+        self.store = store
+        self.source = source
+        self.region = region
+        self.on = on
+        self.when = when
+        self.embedder = embedder
+        self.index = index
+        self.cap = cap
+        self.data_dir = data_dir
+        self.inserted = 0
+        self.read = 0
+        self.skips: Counter[str] = Counter()
+        self.capped = False
+        self.run: ArchiveRun | None = None
+        # The nightly runs outside a Load's task: it keeps its row untouched
+        # until the night's outcome, so no stale 'running' row is left behind.
+        self.heartbeat = heartbeat
+        self._unsaved = 0
+
+    async def __call__(self, run: ArchiveRun, payload: bytes) -> bool:
+        self.run = run
+        if _over_cap(await self.store.stored_bytes(), len(payload), self.cap, self.data_dir):
+            self.capped = True
+            run.stopped = True
+            return False
+        self.inserted += await ingest_snapshot(
+            self.store,
+            self.source,
+            [payload],
+            on=self.on,
+            embedder=self.embedder,
+            index=self.index,
+            region=self.region,
+            skips=self.skips,
+        )
+        self.read += 1
+        self._unsaved += 1
+        if self._unsaved >= STREAM_SAVE_EVERY:
+            await self.save()
+            if not self.heartbeat:
+                return True
+            await self.store.record_run(
+                self.source.source_id,
+                status="running",
+                detail=f"read {self.read} judgment(s) so far; {load_detail(self.inserted, self.skips)}",
+                documents=await self.store.instrument_count(self.source.source_id),
+                when=self.when,
+            )
+        return True
+
+    async def save(self) -> None:
+        """Save the walk's cursor. Every URL it names is stored or was skipped."""
+        if self.run is None:
+            return
+        self._unsaved = 0
+        await self.store.set_checkpoint(self.source.source_id, self.run.cursor(), await self.store.stored_bytes())
+
+    async def keep_progress(self) -> None:
+        """Save the cursor when a walk ends early. Never raises over the real error."""
+        try:
+            await self.save()
+        except Exception as exc:  # noqa: BLE001 — the load's own outcome is recorded by the caller
+            log.warning("cursor save failed for %s: %s", self.source.source_id, type(exc).__name__)
 
 
 async def _live_blobs(adapter, http_get, resume: str) -> tuple[list[bytes], str]:

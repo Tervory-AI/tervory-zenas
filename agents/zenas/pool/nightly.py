@@ -443,9 +443,14 @@ async def _live_archive(
 ) -> bool:
     """Resume a ZA court archive. Other sources keep the ordinary live fetch.
 
-    bulk.py imports urllib_get from this module, so this does not call back into bulk.
+    The walk streams like a Load (bulk._ArchiveStream): each judgment is
+    stored as it is read and the cursor is saved every few files and on an
+    early exit, so a night that dies keeps what it read and memory stays flat.
+    bulk.py imports urllib_get from this module, so bulk is imported here,
+    inside the function.
     """
-    from agents.zenas.pool.adapters.za_archive import ZA_ARCHIVE_SOURCES, feed_detail
+    from agents.zenas.pool.adapters.za_archive import ZA_ARCHIVE_SOURCES, feed_detail, streaming
+    from agents.zenas.pool.bulk import _ArchiveStream, disk_cap_bytes
     from agents.zenas.pool.http import RateLimited
 
     if source.source_id not in ZA_ARCHIVE_SOURCES:
@@ -453,12 +458,20 @@ async def _live_archive(
     adapter = get_adapter(source)
     if not hasattr(adapter, "fetch_bulk"):
         return False
+    cap = disk_cap_bytes()
+    stream = _ArchiveStream(
+        store, source, region=region, on=on, when=when, embedder=embedder, index=index,
+        cap=cap, data_dir=os.environ.get("DATA_DIR", ".") or ".",
+        heartbeat=False,
+    )
     try:
         resume = await store.get_checkpoint(source.source_id)
         if resume.startswith("snap:"):
             resume = ""
-        blobs, cursor = await adapter.fetch_bulk(http_get, resume=resume)
+        with streaming(stream):
+            blobs, cursor = await adapter.fetch_bulk(http_get, resume=resume)
     except RateLimited as exc:
+        await stream.keep_progress()
         await store.record_source(source)
         await store.record_run(
             source.source_id,
@@ -469,11 +482,27 @@ async def _live_archive(
         )
         return True
     except (FetchNotConfigured, LicenceError) as exc:
+        await stream.keep_progress()
         await store.record_source(source)
         await store.record_run(
             source.source_id,
             status="not_configured",
             detail=str(exc),
+            documents=await store.instrument_count(source.source_id),
+            when=when,
+        )
+        return True
+    except Exception:
+        # The judgments already stored stay; the next night resumes after them.
+        await stream.keep_progress()
+        raise
+    if stream.capped:
+        await stream.keep_progress()
+        await store.record_source(source)
+        await store.record_run(
+            source.source_id,
+            status="disk_cap",
+            detail=f"pool disk cap {cap} bytes",
             documents=await store.instrument_count(source.source_id),
             when=when,
         )
@@ -488,8 +517,10 @@ async def _live_archive(
         if isinstance(loaded, dict):
             note = loaded
     skips: Counter[str] = Counter(note.get("skips") or {})
+    skips.update(stream.skips)
+    inserted = stream.inserted
     if blobs:
-        inserted = await ingest_snapshot(
+        inserted += await ingest_snapshot(
             store,
             source,
             list(blobs),
@@ -500,7 +531,6 @@ async def _live_archive(
             skips=skips,
         )
     else:
-        inserted = 0
         await store.record_source(source)
     if cursor:
         await store.set_checkpoint(source.source_id, cursor, await store.stored_bytes())

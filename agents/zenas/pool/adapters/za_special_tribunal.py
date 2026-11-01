@@ -414,7 +414,7 @@ class SpecialTribunalAdapter:
         # stored justice PDFs without dates; reading it would skip them for ever.
         if not (resume or "").endswith("\n" + CURSOR_TAG):
             resume = ""
-        self.run = ArchiveRun(resume[: -len(CURSOR_TAG) - 1] if resume else "")
+        self.run = ArchiveRun(resume[: -len(CURSOR_TAG) - 1] if resume else "", tag=CURSOR_TAG)
         run = self.run
         blobs: list[bytes] = []
         justice = await polite_get(http_get, JUSTICE, html_headers(), "TRIBUNAL_MIN_INTERVAL")
@@ -491,7 +491,7 @@ class SpecialTribunalAdapter:
                 page_no += 1
                 listing_url = nxt
         run.finish()
-        return blobs, run.cursor() + "\n" + CURSOR_TAG
+        return blobs, run.cursor()
 
     def parse(self, blob: bytes, source: SourceSpec) -> list[LegalDocument]:
         return parse_case_blob(blob, source)

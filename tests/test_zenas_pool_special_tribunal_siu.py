@@ -550,3 +550,56 @@ def test_a_stack_needs_exactly_as_many_dates_as_labels():
     stack = "IN THE SPECIAL TRIBUNAL\nDate of hearing:\nDate of judgment:\n1 May 2026\n2 May 2026\n26 August 2026\n"
     assert judgment_date(stack) is None
     assert judgment_date(stack + "Reasons." + _SIGNED) == date(2026, 8, 26)
+
+
+def test_a_rate_limited_streamed_walk_keeps_the_tag_and_the_next_load_fetches_only_the_rest(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """#518 streams each judgment and saves the cursor mid-walk; that cursor must keep st-v2."""
+    from agents.zenas.pool import bulk
+    from agents.zenas.pool.bulk import load_wave
+    from agents.zenas.pool.catalogue import CATALOGUE
+    from agents.zenas.pool.http import RateLimited
+    from agents.zenas.pool.store import MemoryStore
+
+    monkeypatch.setenv("TRIBUNAL_MIN_INTERVAL", "0")
+    monkeypatch.setattr(bulk, "STREAM_SAVE_EVERY", 2)
+    source = next(item for item in CATALOGUE if item.source_id == "special-tribunal")
+    names = [f"ST-Judgment-GP-{i}-2020.pdf" for i in range(1, 7)]
+    justice = ("<html>" + "".join(f'<a href="jdm/{n}">{n}</a>' for n in names) + "</html>").encode()
+
+    def getter(calls: list[str], limit_at: int | None = None):
+        async def get(url, headers):
+            calls.append(url)
+            if url.endswith("/jdgm.html"):
+                return justice
+            name = url.rsplit("/", 1)[-1]
+            if name in names:
+                if limit_at is not None and sum(c.endswith(".pdf") for c in calls) == limit_at:
+                    raise RateLimited("www.justice.gov.za", 5)
+                i = names.index(name) + 1
+                return tiny_pdf(f"IN THE SPECIAL TRIBUNAL\nCASE NO: GP {i}/2020\nDate of judgment: {i} March 2021\n" + REASONS)
+            return b"<html></html>"
+
+        return get
+
+    async def go():
+        store = MemoryStore()
+        first: list[str] = []
+        await load_wave(store, region="za", only=[source], live=True, http_get=getter(first, limit_at=5), on=date(2026, 11, 1))
+        assert store.runs["special-tribunal"].last_status == "rate_limited"
+        assert len(store.docs) == 4
+        cursor = store.checkpoints["special-tribunal"][0]
+        assert cursor.startswith(MARKER)
+        assert cursor.endswith("\n" + CURSOR_TAG)
+        stored = {url for url in first if url.endswith(".pdf")}
+        again: list[str] = []
+        await load_wave(store, region="za", only=[source], live=True, http_get=getter(again), on=date(2026, 11, 2))
+        fetched = [url for url in again if url.endswith(".pdf")]
+        assert len(fetched) == 2
+        assert not set(fetched) & (stored - {first[-1]})
+        assert len(store.docs) == 6
+        assert store.runs["special-tribunal"].last_status == "ok"
+        assert store.checkpoints["special-tribunal"][0].endswith("\n" + CURSOR_TAG)
+
+    asyncio.run(go())
