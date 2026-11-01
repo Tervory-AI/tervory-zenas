@@ -115,12 +115,20 @@ PDF_CASE_ADAPTERS = frozenset(
 )
 
 
+# Left out of the default set, and never written, until #502 settles their text.
+# A dry run may still name them with --source.
+WAIT_FOR_502 = frozenset({"special-tribunal"})
+WAIT_FOR_502_MESSAGE = "special-tribunal is not re-normalised with --apply yet: wait for #502"
+
+
 def pdf_case_sources(region: str = "za", only: list[str] | None = None) -> list[SourceSpec]:
-    """ZA case sources whose adapters store text read from a PDF."""
+    """ZA case sources whose adapters store text read from a PDF. Without ``only``,
+    the sources in WAIT_FOR_502 are left out."""
     return [
         source
         for source in sources_for_region(region)
-        if source.adapter in PDF_CASE_ADAPTERS and (not only or source.source_id in only)
+        if source.adapter in PDF_CASE_ADAPTERS
+        and (source.source_id in only if only else source.source_id not in WAIT_FOR_502)
     ]
 
 
@@ -281,6 +289,8 @@ async def _main(argv: list[str] | None = None) -> dict:
     args = _parser().parse_args(argv)
     if args.apply and args.dry_run:
         raise SystemExit("choose --apply or --dry-run, not both")
+    if args.apply and WAIT_FOR_502.intersection(args.source):
+        raise SystemExit(WAIT_FOR_502_MESSAGE)
     from agents.zenas.pool.config import current_region
 
     region = current_region()
