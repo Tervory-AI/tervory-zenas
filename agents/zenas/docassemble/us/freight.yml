@@ -1,7 +1,0 @@
-initial: True
-code: |
-  assembly_jurisdiction = "us"
-  assembly_template = "freight"
----
-include:
-  - docassemble.zenas:data/questions/assembly.yml

@@ -1,7 +1,7 @@
 # Zenas room for the South Africa region. Deploy this file as its own Coolify
 # resource on the SA server (Base Directory /agents/zenas, Compose Location
-# /docker-compose.za.yml). The room keeps its gateway corridor and gains a
-# private Docassemble-only network. The corridor is created by the root stack.
+# /docker-compose.za.yml). The room keeps its gateway corridor, created by the
+# root stack. Contracts are assembled inside agent-zenas.
 # The room gets its Tank key and its own database login only.
 # No model keys: those live only in the ZA Tank stack (litellm).
 
@@ -36,9 +36,6 @@ services:
       ZENAS_SMTP_ALERT_ADDRESSES: ${ZENAS_SMTP_ALERT_ADDRESSES:-}
       TANK_KEY: ${TANK_KEY:-}
       HERMES_URL: http://hermes:8000
-      DOCASSEMBLE_REGION: za
-      DOCASSEMBLE_URL: http://docassemble
-      DOCASSEMBLE_API_KEY: ${DOCASSEMBLE_API_KEY:-}
       ZENAS_PII_KEY: ${ZENAS_PII_KEY:-}
       ZENAS_MATTER_SHARING: ${ZENAS_MATTER_SHARING:-region}
       DATA_DIR: /data
@@ -46,7 +43,6 @@ services:
       - za_agent_data:/data
     networks:
       - gw
-      - assembly
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
       interval: 10s
@@ -95,9 +91,6 @@ volumes:
   za_agent_data:
 
 networks:
-  assembly:
-    external: true
-    name: tervory-zenas-assembly
   gw:
     external: true
     name: tervory-gw-zenas

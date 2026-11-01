@@ -388,9 +388,3 @@ async def test_draft_and_review_skill_evals() -> None:
             if not ok:
                 failed.append(f"{name} {case['name']}: {why}")
     assert not failed, "\n".join(failed)
-
-
-@pytest.fixture(autouse=True)
-def offline_docassemble(monkeypatch):
-    from zenas_docassemble.api_stub import install
-    return install(monkeypatch)

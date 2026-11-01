@@ -1,6 +1,6 @@
 # Zenas. Deploy this file as its own Coolify resource.
 # Build context is agents/ (the parent of this file), because the chassis lives there.
-# The room uses its existing gateway and a private Docassemble-only network.
+# The room uses its existing gateway. Contracts are assembled inside agent-zenas.
 # The server network already exists: docker network create tervory-gw-zenas
 
 services:
@@ -31,9 +31,6 @@ services:
       LEGISCAN_API_KEY: ${LEGISCAN_API_KEY:-}
       TANK_KEY: ${TANK_KEY_ZENAS:-}
       HERMES_URL: http://hermes:8000
-      DOCASSEMBLE_REGION: us-east
-      DOCASSEMBLE_URL: http://docassemble
-      DOCASSEMBLE_API_KEY: ${DOCASSEMBLE_API_KEY:-}
       # Fail closed: no default region. Compose refuses to start without it.
       TANK_REGION: ${TANK_REGION:?TANK_REGION is required (us-east or za)}
       ZENAS_PII_KEY: ${ZENAS_PII_KEY:-}
@@ -42,7 +39,6 @@ services:
       - agent_zenas_data:/data
     networks:
       - gw
-      - assembly
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
       interval: 10s
@@ -85,9 +81,6 @@ volumes:
   agent_zenas_data:
 
 networks:
-  assembly:
-    external: true
-    name: tervory-zenas-assembly
   gw:
     external: true
     name: tervory-gw-zenas

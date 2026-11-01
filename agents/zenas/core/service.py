@@ -39,7 +39,7 @@ from agents.zenas.core.engine import (
 )
 from agents.zenas.core.docx_redline import docx_bytes
 from agents.zenas.core.drafting import TEMPLATES, select_prior
-from agents.zenas.core.docassemble import DocassembleClient
+from agents.zenas.core.assembly import Assembler, AssemblyUnavailable
 from agents.zenas.core.matters import consider
 from agents.zenas.core.review import review_positions
 from agents.zenas.core.review_switch import card_servable, review_required
@@ -1411,6 +1411,9 @@ async def ladder_metrics(
     return {"ok": True, **summary}
 
 
+_ASSEMBLY_REGION_REFUSED = "Refused. A clause or prior matter for this draft does not belong to this region."
+
+
 def _draft_gate(text: str, jurisdiction: str | None, template: str) -> dict[str, Any]:
     decision = classify(text or "", jurisdiction if jurisdiction in ("us", "za", "both") else None)
     if decision.get("criminal") or decision.get("reason") == NOT_YET:
@@ -1585,9 +1588,12 @@ async def draft_contract(
         rows = [row for row in rows if row.get("region") == box
                 and row.get("jurisdiction") in {local_jurisdiction, "both"}]
         prior = select_prior(rows, template, terms)
-    assembler = assembler or DocassembleClient(box)
-    assembled = await assembler.assemble(template=template, jurisdiction=jurisdiction,
-                                         clauses=clauses, terms=terms, prior=prior)
+    assembler = assembler or Assembler(box)
+    try:
+        assembled = await assembler.assemble(template=template, jurisdiction=jurisdiction,
+                                             clauses=clauses, terms=terms, prior=prior)
+    except AssemblyUnavailable:
+        return _refuse(_ASSEMBLY_REGION_REFUSED)
     if not assembled.get("ok"):
         return assembled
     sentences = list(assembled["sentences"])
@@ -1610,8 +1616,11 @@ async def draft_contract(
         _apply_revision(sentences, str(called["result"]["content"]), differing)
         model_calls = 1
         cost = float(called["result"]["cost_usd"])
-    finished = await assembler.finish(template=template, jurisdiction=jurisdiction,
-                                      assembled={**assembled, "sentences": sentences}, notice=_LEGAL_NOTICE)
+    try:
+        finished = await assembler.finish(template=template, jurisdiction=jurisdiction,
+                                          assembled={**assembled, "sentences": sentences}, notice=_LEGAL_NOTICE)
+    except AssemblyUnavailable:
+        return _refuse(_ASSEMBLY_REGION_REFUSED)
     text = finished["text"]
     document_id = None
     if matter_id:

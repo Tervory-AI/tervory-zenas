@@ -1,7 +1,0 @@
-initial: True
-code: |
-  assembly_jurisdiction = "za"
-  assembly_template = "cross_border_agency"
----
-include:
-  - docassemble.zenas:data/questions/assembly.yml
