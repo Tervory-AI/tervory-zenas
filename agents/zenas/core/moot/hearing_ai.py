@@ -49,7 +49,7 @@ def validate_turn(state: dict[str, Any], payload: Any) -> dict[str, Any]:
         raise hearing.HearingError("invalid_turn")
     problem = state["problem"]
     kind = payload.get("kind")
-    fields = ("kind", "text", "target", "authority_ids", "order", "reasons", "responds_to", "issue_index")
+    fields = ("kind", "text", "target", "authority_ids", "order", "reasons", "responds_to", "issue_index", "decision")
     result = {k: payload[k] for k in fields if k in payload}
     if kind != "direction":
         result["reasoning"] = validate(problem, payload.get("reasoning"))
@@ -116,7 +116,7 @@ class AIExecutor:
         state = started.state
         context = hearing.ai_context(state, actor, token)
         task = "moot.judge" if state["floor"] == "judge" else "moot.counsel"
-        instructions = REASONING_INSTRUCTIONS + "\nReturn a JSON turn only. Counsel kind=submission. Judge kind=question (target applicant/respondent), direction or ruling. Include text, authority_ids and reasoning. Ruling also includes order and reasons. Answer the pending question with responds_to equal to its turn number. Never include a source outside supplied authorities. reasoning schema: facts=[{id,position:sourced|contested|assumed,relevance}], rules=[{authority_id,court_weight,application}], comparisons=[{authority_id,similarities:[fact_id],differences:[{fact_id,explanation}],legal_significance}], opposing_argument:string,response:string,uncertainty:[string],conclusion:string. A judge may set issue_index to a supplied issue index."
+        instructions = REASONING_INSTRUCTIONS + "\nReturn a JSON turn only. Counsel kind=submission. Judge kind=question (target applicant/respondent), direction or ruling. Include text, authority_ids and reasoning. Ruling also includes order, reasons and decision (applicant/respondent/uncertain); never force a decision when evidence is insufficient, and never rule before both sides have submitted. Answer the pending question with responds_to equal to its turn number. Never include a source outside supplied authorities. reasoning schema: facts=[{id,position:sourced|contested|assumed,relevance}], rules=[{authority_id,court_weight,application}], comparisons=[{authority_id,similarities:[fact_id],differences:[{fact_id,explanation}],legal_significance}], opposing_argument:string,response:string,uncertainty:[string],conclusion:string. A judge may set issue_index to a supplied issue index."
         messages = [{"role": "system", "content": instructions}, {"role": "user", "content": json.dumps(context)}]
         call = asyncio.create_task(self.tank.route(actor.tenant_id, task, messages))
         watch = asyncio.create_task(self._watch(actor, hearing_id, token, state["revision"]))

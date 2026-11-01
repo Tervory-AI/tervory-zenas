@@ -594,6 +594,17 @@ CREATE TABLE IF NOT EXISTS agent_zenas.moot_hearing_learning (
     created_at timestamptz NOT NULL DEFAULT now(),
     PRIMARY KEY(tenant_id, hearing_id, turn_number)
 );
+CREATE TABLE IF NOT EXISTS agent_zenas.moot_hearing_pairs (
+    id uuid PRIMARY KEY,
+    tenant_id uuid NOT NULL,
+    region text NOT NULL CHECK (region IN ('us-east', 'za')),
+    owner_id text NOT NULL,
+    first_hearing uuid NOT NULL REFERENCES agent_zenas.moot_hearings(id),
+    second_hearing uuid NOT NULL REFERENCES agent_zenas.moot_hearings(id),
+    created_at timestamptz NOT NULL DEFAULT now(),
+    UNIQUE(tenant_id, first_hearing),
+    UNIQUE(tenant_id, second_hearing)
+);
 
 -- BEGIN GENERATED AGENT MEMORY (hermes/record_schema.py)
 CREATE TABLE IF NOT EXISTS agent_zenas.memory_records (

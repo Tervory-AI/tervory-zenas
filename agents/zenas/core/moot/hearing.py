@@ -122,6 +122,7 @@ def create(hearing_id: str, actor: Actor, problem: dict[str, Any], seats: dict[s
         "floor": "applicant", "current_issue": 0, "pending_question": None,
         "transcript": [], "citations": [], "receipts": [], "pending_ai": None,
         "ai_attempts": [], "ruling": None, "published": False,
+        "fairness_pair_id": None, "counsel_seats": {"applicant": "counsel_a", "respondent": "counsel_b"}, "first_side": "applicant",
     }
 
 
@@ -216,6 +217,10 @@ def _receipt(value: Any) -> dict[str, Any]:
     ledger_id = _uuid(value.get("ledger_id"))
     cost = value.get("cost_usd")
     _require(cost is None or (type(cost) in (int, float) and 0 <= cost < float("inf")), "invalid_receipt")
+    settings = value.get("settings_hash")
+    if settings is not None:
+        import re
+        _require(isinstance(settings, str) and bool(re.fullmatch(r"[0-9a-f]{64}", settings)), "invalid_receipt")
     return {"ledger_id": ledger_id, "cost_usd": cost,
             "model": _text(value.get("model"), maximum=300),
             "settings_hash": value.get("settings_hash")}
@@ -275,7 +280,9 @@ def turn(state: dict[str, Any], actor: Actor, revision: int, payload: dict[str, 
         order = _text(payload.get("order"), maximum=4000)
         reasons = payload.get("reasons")
         _require(isinstance(reasons, list) and 0 < len(reasons) <= 100, "invalid_reasons")
-        out["ruling"] = {"order": order, "reasons": [_text(r) for r in reasons],
+        decision = payload.get("decision", "uncertain")
+        _require(decision in (*SIDES, "uncertain"), "invalid_decision")
+        out["ruling"] = {"decision": decision, "order": order, "reasons": [_text(r) for r in reasons],
                          "authority_ids": entry["authority_ids"], "text": text}
         out["phase"] = "closed"
         out["pending_question"] = None
@@ -285,7 +292,7 @@ def turn(state: dict[str, Any], actor: Actor, revision: int, payload: dict[str, 
     return _finish(out)
 
 
-def view(state: dict[str, Any], actor: Actor, seat: str | None = None) -> dict[str, Any]:
+def view(state: dict[str, Any], actor: Actor, seat: str | None = None, *, pair_complete: bool = False) -> dict[str, Any]:
     """Projection is positive-list only; counsel never receives the internal problem."""
     authorize(state, actor)
     if seat is not None:
@@ -302,6 +309,9 @@ def view(state: dict[str, Any], actor: Actor, seat: str | None = None) -> dict[s
         out["seats"] = {s: {"kind": c["kind"], "epoch": c["epoch"]} for s, c in out["seats"].items()}
         for entry in out["transcript"]:
             entry.pop("actor_id", None)
+    out["fairness_pair_id"] = state.get("fairness_pair_id")
+    out["counsel_seats"] = deepcopy(state.get("counsel_seats", {}))
+    out["first_side"] = state.get("first_side", "applicant")
     out["my_seats"] = [s for s, c in state["seats"].items() if c["kind"] == "human" and c["user_id"] == actor.user_id]
     out["problem"] = {k: deepcopy(problem[k]) for k in ("title", "facts", "issues", "fact_records")}
     out["problem"]["authorities"] = [{k: deepcopy(a[k]) for k in ("id", "name", "quote", "source_url", "weight", "court", "paragraph") if k in a} for a in problem["authorities"]]
@@ -315,7 +325,7 @@ def view(state: dict[str, Any], actor: Actor, seat: str | None = None) -> dict[s
         out["problem"]["bench_notes"] = deepcopy(problem["bench_notes"])
     out["cost_usd"] = measured_cost(state)
     out["receipts"] = [{k: r.get(k) for k in ("ledger_id", "cost_usd", "seat", "turn", "discarded")} for r in state["receipts"]]
-    if state["phase"] == "closed" or state["published"]:
+    if (state["phase"] == "closed" or state["published"]) and (not state.get("fairness_pair_id") or pair_complete):
         out["reveal"] = problem["real_holding"]
     return out
 
@@ -327,6 +337,7 @@ def ai_context(state: dict[str, Any], actor: Actor, token: str) -> dict[str, Any
     context = view(state, actor, p["seat"])
     # Deliberation must not aim at the actual holding. Even an AI judge receives
     # sources/issues, never private bench notes that might encode that outcome.
+    context["ai_seat"] = state.get("counsel_seats", {}).get(p["seat"], "judge")
     context["problem"].pop("bench_notes", None)
     context.pop("reveal", None)
     context.pop("receipts", None)

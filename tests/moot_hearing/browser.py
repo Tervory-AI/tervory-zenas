@@ -49,7 +49,7 @@ class Boundary:
         self.ai_calls = 0
 
     def present(self, actor, seat=None):
-        projection = hearing.view(self.state, actor, seat)
+        projection = hearing.view(self.state, actor, seat, pair_complete=bool(getattr(self, "states", {})) and all(s["phase"] == "closed" for s in getattr(self, "states", {}).values()))
         projection["pending_ai"] = None
         projection["last_ai_resolution"] = None
         return {"hearing": projection, "operator": actor == OWNER}
@@ -88,6 +88,59 @@ class Boundary:
             return await route.fulfill(json=self.present(actor, seat))
         except hearing.HearingError as exc:
             return await route.fulfill(status=409 if exc.code == "stale_revision" else 403, json={"error": exc.code})
+
+
+class PairedBoundary(Boundary):
+    """Domain-backed offline AI turn doubles; does not exercise a provider."""
+    def __init__(self):
+        self.state = hearing.create(str(uuid4()), OWNER, deepcopy(PROBLEM), {s: {"kind": "ai"} for s in hearing.SEATS})
+        self.state = hearing.change(self.state, OWNER, 0, "lock", {})
+        self.states = {self.state["id"]: self.state}
+        self.requests = {}; self.calls = []
+
+    async def route(self, route, actor):
+        from agents.zenas.core.moot.fairness import pair, evidence
+        request = route.request
+        path = urlsplit(request.url).path.removeprefix("/api/zenas/moot/").split("/")
+        seat = parse_qs(urlsplit(request.url).query).get("seat", [None])[0]
+        try:
+            if request.method == "GET" and path == ["hearings"]:
+                return await route.fulfill(json={"hearings": [{"id": s["id"], "title": s["problem"]["title"], "phase": s["phase"], "first_side": s["first_side"]} for s in self.states.values()]})
+            if path[0] != "hearings": return await super().route(route, actor)
+            self.state = self.states[path[1]]
+            if request.method == "GET":
+                if len(path) == 3:
+                    first, second = list(self.states.values())
+                    return await route.fulfill(json={"fairness": {**evidence(first, second), "pair_id": first["fairness_pair_id"]}})
+                return await route.fulfill(json=self.present(actor, seat))
+            body = request.post_data_json; action = path[-1]
+            if body["request_id"] not in self.requests:
+                if action == "start" and not self.state["fairness_pair_id"]:
+                    self.state, second = pair(self.state, actor, body["revision"], str(uuid4()), str(uuid4()))
+                    self.states[second["id"]] = second
+                    self.state = hearing.change(self.state, actor, self.state["revision"], "start", {})
+                elif action == "ai":
+                    self.calls.append((self.state["id"], self.state["floor"]))
+                    token = str(uuid4())
+                    self.state = hearing.claim_ai(self.state, actor, self.state["revision"], token)
+                    self.state = hearing.mark_ai_started(self.state, actor, self.state["revision"], token)
+                    heard = {t["seat"] for t in self.state["transcript"] if t["kind"] == "submission"}
+                    payload = {"kind": "submission", "text": "Independent supported argument", "authority_ids": []}
+                    if self.state["floor"] == "judge":
+                        if len(heard) == 1: payload.update(kind="direction", target=next(s for s in hearing.SIDES if s not in heard))
+                        else: payload.update(kind="ruling", order="Independent order", reasons=["Source reasoning"], decision="applicant")
+                    self.state = hearing.turn(self.state, actor, self.state["revision"], payload, ai_token=token,
+                        receipt={"ledger_id": str(uuid4()), "cost_usd": 0.002, "model": "offline-browser-double"})
+                elif action == "publish":
+                    for ident, state in self.states.items():
+                        self.states[ident] = hearing.change(state, actor, state["revision"], "publish", {})
+                    self.state = self.states[path[1]]
+                else: self.state = hearing.change(self.state, actor, body["revision"], action, body["payload"])
+                self.states[self.state["id"]] = self.state
+                self.requests[body["request_id"]] = True
+            return await route.fulfill(json=self.present(actor, seat))
+        except hearing.HearingError as exc:
+            return await route.fulfill(status=409, json={"error": exc.code})
 
 
 def port():
@@ -178,13 +231,37 @@ async def capture(base, output):
                     await page.screenshot(path=str(output / filename), full_page=True)
                     files.append(filename)
                 for context in contexts: await context.close()
+                paired = PairedBoundary()
+                context = await browser.new_context(viewport={"width": width, "height": 1000})
+                await context.route("**/api/zenas/moot/**", lambda route: paired.route(route, OWNER))
+                page = await context.new_page()
+                page.on("pageerror", lambda error: errors.append(str(error)))
+                await page.goto(base)
+                await page.get_by_role("combobox", name=re.compile(r"^The hearing")).select_option(paired.state["id"])
+                await page.get_by_role("button", name="Start hearing", exact=True).click()
+                await page.get_by_role("button", name="Publish paired hearings", exact=True).wait_for(timeout=15000)
+                await page.wait_for_function("Array.from(document.querySelectorAll('button')).some(b => b.textContent === 'Publish paired hearings' && !b.disabled)", timeout=15000)
+                assert len(paired.states) == 2 and all(s["phase"] == "closed" for s in paired.states.values())
+                first, second = list(paired.states.values())
+                assert [s for ident, s in paired.calls if ident == first["id"]] == ["applicant", "judge", "respondent", "judge"]
+                assert [s for ident, s in paired.calls if ident == second["id"]] == ["respondent", "judge", "applicant", "judge"]
+                assert "The model settings have not been verified." in await page.locator("body").inner_text()
+                await page.get_by_role("button", name="Publish paired hearings", exact=True).click()
+                await page.get_by_role("link", name="Public watch page", exact=True).wait_for()
+                assert all(s["published"] for s in paired.states.values())
+                assert await page.get_by_role("combobox", name=re.compile(r"^The hearing")).input_value() == second["id"]
+                assert await page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+                filename = f"paired-{width}.png"
+                await page.screenshot(path=str(output / filename), full_page=True); files.append(filename)
+                await context.close()
+
         finally:
             await browser.close()
     assert not errors, errors
     (output / "evidence.json").write_text(json.dumps({"label": "local actual UI with domain-backed offline transport; no live auth/models; Postgres tested separately",
         "checks": ["human draft survives AI/human handover", "stale judge projection cannot return to counsel", "two distinct human counsel and human judge",
-                   "human judge question/floor/ruling", "founder publish", "375/1440 no horizontal overflow"], "screenshots": files, "page_errors": errors}, indent=2) + "\n")
-    print("Passed both viewport journeys; twelve screenshots; no model or production calls")
+                   "human judge question/floor/ruling", "founder publish", "paired run auto-progression and swapped speaking order", "missing settings remain unverified", "paired publication", "375/1440 no horizontal overflow"], "screenshots": files, "page_errors": errors}, indent=2) + "\n")
+    print("Passed both viewport journeys; fourteen screenshots; no model or production calls")
 
 
 def main():

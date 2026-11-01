@@ -67,6 +67,28 @@ async def test_actual_room_turn_retry_is_idempotent_and_privacy_is_projected(mon
         assert saved["transcript"][0]["reasoning"]["opposing_argument"]
 
 
+@pytest.mark.asyncio
+async def test_ai_counsel_start_creates_swapped_pair_atomically(monkeypatch, pg_store):
+    app = application(monkeypatch, pg_store)
+    seats = {seat: {"kind": "ai"} for seat in HUMANS}
+    state = await pg_store.create(OWNER, str(uuid4()), problem(), seats)
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+        lock = await client.post(f"/moot/hearings/{state['id']}/lock?home_region=us-east", headers=headers(),
+            json={"request_id": str(uuid4()), "revision": 0, "payload": {}})
+        assert lock.status_code == 200
+        body = {"request_id": str(uuid4()), "revision": 1, "payload": {}}
+        path = f"/moot/hearings/{state['id']}/start?home_region=us-east"
+        first = await client.post(path, headers=headers(), json=body)
+        repeat = await client.post(path, headers=headers(), json=body)
+        assert first.status_code == repeat.status_code == 200
+        assert first.json()["hearing"]["phase"] == "hearing"
+        result = await client.get(f"/moot/hearings/{state['id']}/fairness?home_region=us-east", headers=headers())
+        report = result.json()["fairness"]
+        assert report["status"] == "incomplete"
+        secondary = await pg_store.load(OWNER, report["second_hearing"])
+        assert secondary["phase"] == "locked" and secondary["floor"] == "respondent"
+
+
 def transported(path, body):
     import json
     import subprocess
@@ -103,3 +125,44 @@ async def test_actual_workspace_transport_accepts_create_commands_and_preserves_
             assert response.status_code == 200, response.text
             state = response.json()["hearing"]
         assert len(state["transcript"]) == 1
+
+
+@pytest.mark.asyncio
+async def test_paired_human_judge_reveal_waits_for_both_durable_closures_on_reads_and_retries(monkeypatch, pg_store):
+    from agents.zenas.core.moot import hearing
+    from .test_store import complete_ai, transition
+    app = application(monkeypatch, pg_store)
+    seats = {seat: {"kind": "ai"} for seat in HUMANS}
+    seats["judge"] = {"kind": "human", "user_id": HUMANS["judge"].user_id}
+    first = await pg_store.create(OWNER, str(uuid4()), problem(), seats)
+    first = await pg_store.mutate(OWNER, first["id"], str(uuid4()), 0, "lock", {}, transition("lock"))
+    start = {"request_id": str(uuid4()), "revision": first["revision"], "payload": {}}
+    first = await pg_store.create_pair(OWNER, first["id"], start["request_id"], start["revision"], start=True)
+    report = await pg_store.fairness(OWNER, first["id"])
+    second = await pg_store.load(OWNER, report["second_hearing"])
+    holding = first["problem"]["real_holding"]
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+        for index, state in enumerate((first, second)):
+            if index:
+                state = await pg_store.create_pair(OWNER, state["id"], str(uuid4()), state["revision"], start=True)
+            state = await complete_ai(pg_store, state, "uncertain", stop_before_ruling=True)
+            body = {"request_id": str(uuid4()), "revision": state["revision"], "payload": {
+                "kind": "ruling", "text": "Independent reasoned judgment", "order": "Independent order", "reasons": ["Source reasoning"],
+                "authority_ids": ["case-1"], "reasoning": trace(), "decision": "uncertain"}}
+            path = f"/moot/hearings/{state['id']}/turn?home_region=us-east&seat=judge"
+            for _ in range(2):
+                response = await client.post(path, headers=headers(HUMANS["judge"]), json=body)
+                assert response.status_code == 200, response.text
+                assert (holding in response.text) is bool(index)
+            forged = await client.post(path, headers=headers(HUMANS["judge"]), json={**body, "pair_complete": True})
+            assert forged.status_code == 422
+            for ident in (first["id"], second["id"]):
+                for actor, role in ((HUMANS["judge"], "judge"), (OWNER, "judge"), (OWNER, "applicant")):
+                    response = await client.get(f"/moot/hearings/{ident}?home_region=us-east&seat={role}", headers=headers(actor))
+                    assert response.status_code == 200
+                    assert (holding in response.text) is bool(index)
+            retry = await client.post(f"/moot/hearings/{first['id']}/start?home_region=us-east", headers=headers(), json=start)
+            assert retry.status_code == 200 and (holding in retry.text) is bool(index)
+        # A pure/domain projection has no proof of partner completion and fails closed.
+        closed = await pg_store.load(OWNER, first["id"])
+        assert "reveal" not in hearing.view(closed, HUMANS["judge"], "judge")
