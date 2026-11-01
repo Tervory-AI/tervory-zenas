@@ -1,0 +1,65 @@
+{
+  "label": "local offline transport; actual Moot routes; no live journey claim",
+  "captures": [
+    {
+      "file": "empty-index-1440.png",
+      "http_status": 200,
+      "readiness_status": 200
+    },
+    {
+      "file": "empty-detail-1440.png",
+      "http_status": 404,
+      "readiness_status": 200
+    },
+    {
+      "file": "unavailable-index-1440.png",
+      "http_status": 200,
+      "readiness_status": 503
+    },
+    {
+      "file": "unavailable-detail-1440.png",
+      "http_status": 200,
+      "readiness_status": 503
+    },
+    {
+      "file": "malformed-index-1440.png",
+      "http_status": 200,
+      "readiness_status": 502
+    },
+    {
+      "file": "malformed-detail-1440.png",
+      "http_status": 200,
+      "readiness_status": 502
+    },
+    {
+      "file": "empty-index-375.png",
+      "http_status": 200,
+      "readiness_status": 200
+    },
+    {
+      "file": "empty-detail-375.png",
+      "http_status": 404,
+      "readiness_status": 200
+    },
+    {
+      "file": "unavailable-index-375.png",
+      "http_status": 200,
+      "readiness_status": 503
+    },
+    {
+      "file": "unavailable-detail-375.png",
+      "http_status": 200,
+      "readiness_status": 503
+    },
+    {
+      "file": "malformed-index-375.png",
+      "http_status": 200,
+      "readiness_status": 502
+    },
+    {
+      "file": "malformed-detail-375.png",
+      "http_status": 200,
+      "readiness_status": 502
+    }
+  ]
+}
