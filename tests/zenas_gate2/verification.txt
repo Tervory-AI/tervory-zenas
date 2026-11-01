@@ -1,0 +1,278 @@
+$ env PYTHONPATH=.:tank:agents/_chassis /home/ammosync/.codex/za-readiness-20261101/venv/bin/pytest -q tests/test_zenas_eur_lex.py tests/test_zenas_pool_corpus.py tests/test_zenas_pool_licence.py tests/test_zenas_gate2_event_scope.py tests/zenas_regulation_alerts/test_alerts.py --allow-hosts=127.0.0.1,::1,localhost --allow-unix-socket
+........................................................................ [ 73%]
+..........................                                               [100%]
+================= quarantine (2 entries, tests/quarantine.txt) =================
+   not collected  tests/test_room_seal.py::test_no_room_service_would_leak_when_coolify_deploys_it[agents/zenas/docker-compose.docassemble.yml]  [xfail] waits on Docassemble's removal in a separate PR (contract drafting moves into agent-zenas), not test drift: this compose file has no raw-compose marker, so in Coolify's normal mode the Docassemble service joins Coolify's internet-facing app network as well as the internal assembly network. Delete this entry in the PR that removes the file
+   not collected  tests/test_room_seal.py::test_no_room_service_would_leak_when_coolify_deploys_it[agents/zenas/docker-compose.docassemble.za.yml]  [xfail] waits on Docassemble's removal in a separate PR (contract drafting moves into agent-zenas), not test drift: this compose file has no raw-compose marker, so in Coolify's normal mode the Docassemble service joins Coolify's internet-facing app network as well as the internal assembly network. Delete this entry in the PR that removes the file
+98 passed in 9.34s
+
+exit_code=0
+
+$ node --test tests/live_page_sources.test.cjs
+TAP version 13
+# Subtest: Moot index reads published room matches through Tank, with US home and no cache
+ok 1 - Moot index reads published room matches through Tank, with US home and no cache
+  ---
+  duration_ms: 277.351722
+  type: 'test'
+  ...
+# Subtest: Moot transport bounds a hung read and preserves caller cancellation
+ok 2 - Moot transport bounds a hung read and preserves caller cancellation
+  ---
+  duration_ms: 10158.236235
+  type: 'test'
+  ...
+# Subtest: Moot reader distinguishes empty, malformed, and unavailable replies without leaking details
+ok 3 - Moot reader distinguishes empty, malformed, and unavailable replies without leaking details
+  ---
+  duration_ms: 547.658537
+  type: 'test'
+  ...
+# Subtest: Moot pages reserve the empty and missing states for successful reads
+ok 4 - Moot pages reserve the empty and missing states for successful reads
+  ---
+  duration_ms: 325.942869
+  type: 'test'
+  ...
+# Subtest: Moot readiness distinguishes failures from healthy empty without returning match content
+ok 5 - Moot readiness distinguishes failures from healthy empty without returning match content
+  ---
+  duration_ms: 220.399983
+  type: 'test'
+  ...
+# Subtest: Moot validates every rendered field and excludes private/offline content
+ok 6 - Moot validates every rendered field and excludes private/offline content
+  ---
+  duration_ms: 592.446764
+  type: 'test'
+  ...
+# Subtest: Moot detail calls the real reader and refuses private, fixture, missing, and invalid matches
+ok 7 - Moot detail calls the real reader and refuses private, fixture, missing, and invalid matches
+  ---
+  duration_ms: 331.846288
+  type: 'test'
+  ...
+# Subtest: public Autumbra renders product description without fixture data or internal terms
+ok 8 - public Autumbra renders product description without fixture data or internal terms
+  ---
+  duration_ms: 5.055496
+  type: 'test'
+  ...
+# Subtest: founder Autumbra renders existing unavailable states for failed and incomplete room replies
+ok 9 - founder Autumbra renders existing unavailable states for failed and incomplete room replies
+  ---
+  duration_ms: 238.387267
+  type: 'test'
+  ...
+# Subtest: shield reads reject explicit offline boards and taps use the actual room without a fixture fallback
+ok 10 - shield reads reject explicit offline boards and taps use the actual room without a fixture fallback
+  ---
+  duration_ms: 6.418485
+  type: 'test'
+  ...
+# Subtest: feed review displays supplied feed and state label and never serializes the raw series id
+ok 11 - feed review displays supplied feed and state label and never serializes the raw series id
+  ---
+  duration_ms: 31.101024
+  type: 'test'
+  ...
+# Subtest: ZA public reads use the existing regional connection and never fall back to Boston
+ok 12 - ZA public reads use the existing regional connection and never fall back to Boston
+  ---
+  duration_ms: 59.983206
+  type: 'test'
+  ...
+# Subtest: missing ZA connection returns nothing and makes no request
+ok 13 - missing ZA connection returns nothing and makes no request
+  ---
+  duration_ms: 53.471733
+  type: 'test'
+  ...
+# Subtest: US public read keeps its existing endpoint
+ok 14 - US public read keeps its existing endpoint
+  ---
+  duration_ms: 45.377399
+  type: 'test'
+  ...
+# Subtest: canonical Moot redirect preserves the ZA query
+ok 15 - canonical Moot redirect preserves the ZA query
+  ---
+  duration_ms: 3.99918
+  type: 'test'
+  ...
+1..15
+# tests 15
+# suites 0
+# pass 15
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 13271.104818
+
+exit_code=0
+
+$ workspace/node_modules/.bin/tsc --noEmit --incremental false -p workspace/tsconfig.json
+
+exit_code=0
+
+$ /home/ammosync/.codex/za-readiness-20261101/venv/bin/ruff check --select E9,F agents/zenas/pool/adapters/eur_lex.py agents/zenas/pool/adapters/__init__.py agents/zenas/pool/catalogue.py tank/event_bus.py tests/test_zenas_eur_lex.py tests/test_zenas_gate2_event_scope.py
+All checks passed!
+
+exit_code=0
+
+$ git diff --check origin/main
+
+exit_code=0
+
+$ env PYTHONPATH=.:tank:agents/_chassis /home/ammosync/.codex/za-readiness-20261101/venv/bin/pytest -q tests/test_moot_published_regions.py tests/test_moot_1a.py --disable-socket --allow-unix-socket
+.................................                                        [100%]
+================= quarantine (2 entries, tests/quarantine.txt) =================
+   not collected  tests/test_room_seal.py::test_no_room_service_would_leak_when_coolify_deploys_it[agents/zenas/docker-compose.docassemble.yml]  [xfail] waits on Docassemble's removal in a separate PR (contract drafting moves into agent-zenas), not test drift: this compose file has no raw-compose marker, so in Coolify's normal mode the Docassemble service joins Coolify's internet-facing app network as well as the internal assembly network. Delete this entry in the PR that removes the file
+   not collected  tests/test_room_seal.py::test_no_room_service_would_leak_when_coolify_deploys_it[agents/zenas/docker-compose.docassemble.za.yml]  [xfail] waits on Docassemble's removal in a separate PR (contract drafting moves into agent-zenas), not test drift: this compose file has no raw-compose marker, so in Coolify's normal mode the Docassemble service joins Coolify's internet-facing app network as well as the internal assembly network. Delete this entry in the PR that removes the file
+33 passed in 1.01s
+exit_code=0
+
+$ /home/ammosync/.codex/za-readiness-20261101/venv/bin/ruff check --select E9,F agents/zenas/app.py tests/test_moot_published_regions.py
+All checks passed!
+exit_code=0
+
+$ git diff --check origin/main
+
+exit_code=0
+
+$ env PYTHONPATH=.:tank:agents/_chassis /home/ammosync/.codex/za-readiness-20261101/venv/bin/pytest -q tests/test_tank_homes_key.py tests/test_moot_published_regions.py --disable-socket --allow-unix-socket
+........................................................................ [ 75%]
+........................                                                 [100%]
+=============================== warnings summary ===============================
+tank/main.py:750
+  /workspace/codex-zenas-gate2/tank/main.py:750: DeprecationWarning:
+          on_event is deprecated, use lifespan event handlers instead.
+
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+
+    @app.on_event("startup")
+
+../../home/ammosync/.codex/za-readiness-20261101/venv/lib/python3.12/site-packages/fastapi/applications.py:4723
+../../home/ammosync/.codex/za-readiness-20261101/venv/lib/python3.12/site-packages/fastapi/applications.py:4723
+../../home/ammosync/.codex/za-readiness-20261101/venv/lib/python3.12/site-packages/fastapi/applications.py:4723
+../../home/ammosync/.codex/za-readiness-20261101/venv/lib/python3.12/site-packages/fastapi/applications.py:4723
+../../home/ammosync/.codex/za-readiness-20261101/venv/lib/python3.12/site-packages/fastapi/applications.py:4723
+  /home/ammosync/.codex/za-readiness-20261101/venv/lib/python3.12/site-packages/fastapi/applications.py:4723: DeprecationWarning:
+          on_event is deprecated, use lifespan event handlers instead.
+
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+
+    return self.router.on_event(event_type)  # ty: ignore[deprecated]
+
+tank/main.py:804
+  /workspace/codex-zenas-gate2/tank/main.py:804: DeprecationWarning:
+          on_event is deprecated, use lifespan event handlers instead.
+
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+
+    @app.on_event("shutdown")
+
+../../home/ammosync/.codex/za-readiness-20261101/venv/lib/python3.12/site-packages/pydantic/_internal/_fields.py:192
+  /home/ammosync/.codex/za-readiness-20261101/venv/lib/python3.12/site-packages/pydantic/_internal/_fields.py:192: UserWarning: Field name "register" in "TriggerWriteArgs" shadows an attribute in parent "TriggerCheckArgs"
+    warnings.warn(
+
+tank/agent_skills.py:531
+  /workspace/codex-zenas-gate2/tank/agent_skills.py:531: DeprecationWarning:
+          on_event is deprecated, use lifespan event handlers instead.
+
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+
+    @router.on_event("startup")
+
+tank/skala_intake.py:71
+  /workspace/codex-zenas-gate2/tank/skala_intake.py:71: DeprecationWarning:
+          on_event is deprecated, use lifespan event handlers instead.
+
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+
+    @app.on_event("startup")
+
+tank/skala_intake.py:77
+  /workspace/codex-zenas-gate2/tank/skala_intake.py:77: DeprecationWarning:
+          on_event is deprecated, use lifespan event handlers instead.
+
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+
+    @app.on_event("shutdown")
+
+tank/skala_revalidation.py:192
+  /workspace/codex-zenas-gate2/tank/skala_revalidation.py:192: DeprecationWarning:
+          on_event is deprecated, use lifespan event handlers instead.
+
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+
+    @app.on_event("startup")
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+================= quarantine (2 entries, tests/quarantine.txt) =================
+   not collected  tests/test_room_seal.py::test_no_room_service_would_leak_when_coolify_deploys_it[agents/zenas/docker-compose.docassemble.yml]  [xfail] waits on Docassemble's removal in a separate PR (contract drafting moves into agent-zenas), not test drift: this compose file has no raw-compose marker, so in Coolify's normal mode the Docassemble service joins Coolify's internet-facing app network as well as the internal assembly network. Delete this entry in the PR that removes the file
+   not collected  tests/test_room_seal.py::test_no_room_service_would_leak_when_coolify_deploys_it[agents/zenas/docker-compose.docassemble.za.yml]  [xfail] waits on Docassemble's removal in a separate PR (contract drafting moves into agent-zenas), not test drift: this compose file has no raw-compose marker, so in Coolify's normal mode the Docassemble service joins Coolify's internet-facing app network as well as the internal assembly network. Delete this entry in the PR that removes the file
+96 passed, 12 warnings in 2.57s
+exit_code=0
+
+$ /home/ammosync/.codex/za-readiness-20261101/venv/bin/ruff check --select E9,F tank/main.py tests/test_tank_homes_key.py tests/test_moot_published_regions.py
+All checks passed!
+exit_code=0
+
+$ git diff --check origin/main
+tests/zenas_gate2/verification.txt:149: trailing whitespace.
++  /workspace/codex-zenas-gate2/tank/main.py:750: DeprecationWarning:
+tests/zenas_gate2/verification.txt:151: trailing whitespace.
++
+tests/zenas_gate2/verification.txt:154: trailing whitespace.
++
+tests/zenas_gate2/verification.txt:162: trailing whitespace.
++  /home/ammosync/.codex/za-readiness-20261101/venv/lib/python3.12/site-packages/fastapi/applications.py:4723: DeprecationWarning:
+tests/zenas_gate2/verification.txt:164: trailing whitespace.
++
+tests/zenas_gate2/verification.txt:167: trailing whitespace.
++
+tests/zenas_gate2/verification.txt:171: trailing whitespace.
++  /workspace/codex-zenas-gate2/tank/main.py:804: DeprecationWarning:
+tests/zenas_gate2/verification.txt:173: trailing whitespace.
++
+tests/zenas_gate2/verification.txt:176: trailing whitespace.
++
+tests/zenas_gate2/verification.txt:184: trailing whitespace.
++  /workspace/codex-zenas-gate2/tank/agent_skills.py:531: DeprecationWarning:
+tests/zenas_gate2/verification.txt:186: trailing whitespace.
++
+tests/zenas_gate2/verification.txt:189: trailing whitespace.
++
+tests/zenas_gate2/verification.txt:193: trailing whitespace.
++  /workspace/codex-zenas-gate2/tank/skala_intake.py:71: DeprecationWarning:
+tests/zenas_gate2/verification.txt:195: trailing whitespace.
++
+tests/zenas_gate2/verification.txt:198: trailing whitespace.
++
+tests/zenas_gate2/verification.txt:202: trailing whitespace.
++  /workspace/codex-zenas-gate2/tank/skala_intake.py:77: DeprecationWarning:
+tests/zenas_gate2/verification.txt:204: trailing whitespace.
++
+tests/zenas_gate2/verification.txt:207: trailing whitespace.
++
+tests/zenas_gate2/verification.txt:211: trailing whitespace.
++  /workspace/codex-zenas-gate2/tank/skala_revalidation.py:192: DeprecationWarning:
+tests/zenas_gate2/verification.txt:213: trailing whitespace.
++
+tests/zenas_gate2/verification.txt:216: trailing whitespace.
++
+exit_code=2
+
+The preceding whitespace check detected trailing spaces in captured third-party deprecation warnings. Log line endings were normalized; no product code changed.
+
+$ git diff --check origin/main
+exit_code=0

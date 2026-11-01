@@ -1116,7 +1116,11 @@ class MootEditIn(BaseModel):
 async def get_moot_published(home_region: str, match_id: UUID | None = None) -> dict[str, Any]:
     from agents.zenas.core.moot.published import published_matches
 
-    if home_region != "us-east" or _box_region() != "us-east":
+    try:
+        box = _box_region()
+    except HTTPException:
+        raise HTTPException(status_code=403, detail="region mismatch") from None
+    if home_region not in {"us-east", "za"} or home_region != box:
         raise HTTPException(status_code=403, detail="region mismatch")
     try:
         matches = await published_matches(app.state.pool, UUID(HEARTBEAT_TENANT), home_region, match_id)
