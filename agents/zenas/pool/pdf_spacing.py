@@ -157,11 +157,19 @@ def tidy(text: str) -> str:
 
 def pdf_text(blob: bytes) -> str:
     """The whole PDF as text. A file that is not a PDF yields nothing."""
+    return pdf_text_or_none(blob) or ""
+
+
+def pdf_text_or_none(blob: bytes) -> str | None:
+    """Like pdf_text, but None when the file cannot be read as a PDF (cut off, malformed).
+
+    "" means the PDF opened and has no text layer (a scan). None means it did not open.
+    """
     if not blob.startswith(b"%PDF"):
-        return ""
+        return None
     plain = _pypdf_pages(blob)
     if plain is None:
-        return ""
+        return None
     geometry = _pdfium_pages(blob)
     if geometry is not None and len(geometry) != len(plain):
         geometry = None
