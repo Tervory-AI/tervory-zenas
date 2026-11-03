@@ -366,8 +366,10 @@ def test_templates_and_copies_and_policy() -> None:
     for path in ("/tenants", "/clauses", "/playbooks", "/drafts", "/contract-reviews"):
         assert path in app
     ci = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
-    assert "push:" in ci
-    assert "branches: [main]" in ci
+    # CI gates every change before main: on the PR and in the merge queue (no push run
+    # on main since 3 Nov; the queue tests the exact commit that lands).
+    assert "pull_request:" in ci
+    assert "merge_group:" in ci
 
 
 @pytest.mark.asyncio
