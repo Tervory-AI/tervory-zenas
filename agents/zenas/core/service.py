@@ -173,12 +173,16 @@ async def _gate(tank: Any, *, tenant_id: str, text: str, jurisdiction: str | Non
         decision = classify(text or "", jurisdiction if jurisdiction in ("us", "za", "both") else None)
         stopped = bool(decision.get("criminal") or not decision.get("in_scope"))
         return {"stopped": stopped, "scope": decision}
-    return await consider(
-        tank,
-        tenant_id=str(tenant_id),
-        text=text or "",
-        jurisdiction=jurisdiction,
-    )
+    try:
+        return await consider(
+            tank,
+            tenant_id=str(tenant_id),
+            text=text or "",
+            jurisdiction=jurisdiction,
+        )
+    except Exception as exc:
+        return {"stopped": True, "scope": {"reason": "unavailable"}, "failure": exception_failure(exc)}
+
 
 
 class ModelAdapter:
@@ -382,6 +386,7 @@ async def _passages_from_pool(
     as_at: str | None,
     level: str | None,
     kind: str | None,
+    failures: list[dict[str, Any]] | None = None,
 ) -> list[dict[str, Any]]:
     if pool is None:
         return []
@@ -432,16 +437,18 @@ async def _passages_from_pool(
         # at question time (the bulk Content API is not on this plan).
         from agents.zenas.pool.adapters.laws_africa_kb import za_passages
 
-        failures: list[dict[str, Any]] = []
+        kb_failures: list[dict[str, Any]] = []
         try:
-            remote = await za_passages(query, failures=failures)
+            remote = await za_passages(query, failures=kb_failures)
         except Exception as exc:
-            failures.append(exception_failure(exc))
+            kb_failures.append(exception_failure(exc))
             remote = []
-        if failures:
+        if kb_failures:
+            if failures is not None:
+                failures.extend(kb_failures)
             for local in passages:
                 local["retrieval_fallback"] = "library"
-                local["retrieval_failure"] = failures[0]
+                local["retrieval_failure"] = kb_failures[0]
         for item in remote:
             key = "kb:" + item["doc_id"] + "#" + item["path"] + "|" + item["text"][:64]
             if key in seen:
@@ -1813,10 +1820,12 @@ async def answer_question(
     gate = await _gate(tank, tenant_id=tenant_id, text=question, jurisdiction=jurisdiction)
     if gate["stopped"]:
         reason = str((gate.get("scope") or {}).get("reason") or "Not in scope.")
-        return _refuse(reason, scope=gate.get("scope"), delivered=False)
+        return _refuse(reason, scope=gate.get("scope"), delivered=False,
+                       **({"failure": gate["failure"]} if gate.get("failure") else {}))
     prepared = prepare_prompt(question, home_region=home_region, provider=provider)
     if not prepared["ok"]:
         return _refuse(prepared["reason"] or IDENTIFIER_REFUSED, delivered=False)
+    retrieval_failures: list[dict[str, Any]] = []
     if not passages:
         passages = await _passages_from_pool(
             pool,
@@ -1826,14 +1835,17 @@ async def answer_question(
             as_at=None,
             level=None,
             kind=None,
+            failures=retrieval_failures,
         )
     if not passages:
-        return _could_not_verify(question, passages, features, delivered=False)
+        return _could_not_verify(question, passages, features, delivered=False,
+                                 **({"failure": retrieval_failures[0]} if retrieval_failures else {}))
     require_links = bool(getattr(pool, "requires_source_links", False))
     if require_links:
         passages = [passage for passage in passages if public_source_url(passage.get("url"))]
         if not passages:
-            return _could_not_verify(question, passages, features, delivered=False)
+            return _could_not_verify(question, passages, features, delivered=False,
+                                 **({"failure": retrieval_failures[0]} if retrieval_failures else {}))
     built = await build_rule_card(
         ladder,
         tank,
@@ -1856,7 +1868,8 @@ async def answer_question(
         {"status": "lawyer_approved" if card.get("status") == "lawyer_approved" else "draft", "active": card.get("active")},
         review_on=review_on,
     ):
-        return _could_not_verify(question, passages, features, delivered=False)
+        return _could_not_verify(question, passages, features, delivered=False,
+                                 **({"failure": retrieval_failures[0]} if retrieval_failures else {}))
     applied = await apply_law(
         ladder,
         model,
@@ -1873,7 +1886,8 @@ async def answer_question(
         return {**applied, "delivered": False}
     fresh = await ladder.get_rule_card(str(card["id"]), region=_box(box_region), tenant_id=tenant_id)
     if fresh is None:
-        return _could_not_verify(question, passages, features, delivered=False)
+        return _could_not_verify(question, passages, features, delivered=False,
+                                 **({"failure": retrieval_failures[0]} if retrieval_failures else {}))
     memo = compose_memo(fresh, applied["elements"])
     known_names = _known_names(passages, features)
     if matter_id:
@@ -1931,6 +1945,7 @@ async def answer_question(
         document_id = document["id"]
     return {
         "ok": True,
+        **({"failure": retrieval_failures[0]} if retrieval_failures else {}),
         "memo": memo,
         "rule_card": _public_card(fresh),
         "reviewed": False,
