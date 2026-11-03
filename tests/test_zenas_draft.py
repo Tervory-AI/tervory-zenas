@@ -400,7 +400,7 @@ async def test_draft_and_review_skill_evals() -> None:
 async def test_new_draft_slots_require_approved_clauses(template, slots):
     assert TEMPLATES[template] == slots
     layout = ROOT / "agents/zenas/core/templates" / (template + ".md")
-    assert layout.read_text() == "\n\n".join("${ paragraphs['" + slot + "'] }" for slot in slots) + "\n"
+    assert layout.read_text() == "\n\n".join("${ paragraphs['" + slot + "'] }" for slot in slots)
     store, ladder, model = MemoryStore(), LadderMemory(), Model("{}")
     await store.register_tenant(TENANT_A, "us-east")
     await ladder.register_tenant(TENANT_A, "us-east")
