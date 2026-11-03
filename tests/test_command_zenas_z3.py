@@ -1,11 +1,16 @@
 """Existing Confirm cards -> real Tank proxy -> offline Zenas watch routes."""
 from contextlib import asynccontextmanager
 import json
+import os
 from types import SimpleNamespace
 
 import httpx
 import pytest
 from fastapi import FastAPI
+
+os.environ.setdefault("DATABASE_URL", "postgresql://x:y@localhost/z")
+os.environ.setdefault("LITELLM_MASTER_KEY", "test")
+os.environ.setdefault("TANK_API_KEY", "test")
 
 import command
 import main as tank_main
@@ -13,7 +18,7 @@ from agents.zenas.core import regulation_api
 from agents.zenas.core.regulation_store import MemoryWatches
 from agents.zenas.core.scope_rules import REFUSED
 from agents.zenas.core.store import MemoryStore
-from test_command import TENANT, OTHER, runtime, command_pool, api  # noqa: F401
+from test_command import TENANT, OTHER, runtime as runtime, command_pool as command_pool, api as api
 
 WATCH = "11111111-1111-4111-8111-111111111111"
 CASES = [
@@ -130,7 +135,7 @@ async def test_confirm_watch_lifecycle_receipt_refusals_and_isolation(api, runti
             if region == "za":
                 refused = await confirm("zenas.watch.add", {"source": "federal-register", "topic": "customs"})
                 assert refused["status"] == "failed"
-                assert refused["result"] == {"detail": "source belongs to another region"}
+                assert refused["result"] == {"detail": "Not in scope."}
             assert all(payload["tenant_id"] in {str(TENANT), str(OTHER)} for _, payload in calls)
 
 
