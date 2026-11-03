@@ -247,3 +247,59 @@ async def test_other_content_errors_do_not_disable_later_nights(monkeypatch):
         await nightly.run_nightly(store, region="za", live=True, only=["laws-africa"], http_get=refused, **BACKENDS)
     assert len(calls) == 2
     assert await store.get_checkpoint(nightly._CONTENT_PLAN_CHECKPOINT) == ""
+
+
+@pytest.mark.asyncio
+async def test_every_live_za_adapter_gets_the_same_five_minute_cap(monkeypatch):
+    from agents.zenas.pool.laws_africa import live_sources
+    from datetime import datetime, timezone
+    clock = Clock()
+
+    async def slow(store, source, **kwargs):
+        clock.advance(300)
+        check_deadline()
+        raise AssertionError("expired source continued")
+
+    monkeypatch.setattr(nightly, "_update_source", slow)
+    for source in live_sources(sources_for_region("za")):
+        clock.now = 0
+        store = MemoryStore(home_region="za")
+        await nightly._update_nightly_source(store, source, region="za", live=True, snapshots=None,
+                                             on=date(2026, 11, 3), when=datetime.now(timezone.utc),
+                                             _clock=clock, **BACKENDS)
+        assert clock.now == 300
+        assert store.runs[source.source_id].last_status == "stalled"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("custom", [False, True])
+async def test_default_content_transport_is_preserved_under_deadline_wrapper(monkeypatch, custom):
+    from agents.zenas.pool import bulk
+    store = MemoryStore(home_region="za")
+    seen = []
+    monkeypatch.setenv("LAWS_AFRICA_API_TOKEN", "placeholder")
+
+    async def supplied(url, headers):
+        raise AssertionError("no HTTP in this transport-selection test")
+
+    async def load(store, source, **kwargs):
+        seen.append(kwargs["http_get"])
+
+    monkeypatch.setattr(bulk, "load_source", load)
+    await nightly.run_nightly(store, region="za", live=True, only=["laws-africa"],
+                              **({"http_get": supplied} if custom else {}), **BACKENDS)
+    assert len(seen) == 1
+    assert (seen[0] is nightly.urllib_get) is (not custom)
+
+
+@pytest.mark.asyncio
+async def test_main_deadline_also_bounds_setup_and_returns_zero(monkeypatch, capsys):
+    monkeypatch.setattr(nightly, "current_region", lambda: "za")
+    monkeypatch.setattr(nightly, "_ZA_RUN_SECONDS", 0.01)
+
+    async def blocked_setup(region, deadline):
+        await asyncio.Event().wait()
+
+    monkeypatch.setattr(nightly, "_night_main", blocked_setup)
+    assert await asyncio.wait_for(nightly._main(), 1) is None
+    assert json.loads(capsys.readouterr().out) == {"region": "za", "deadline_reached": True}
