@@ -14,6 +14,7 @@ import urllib.parse
 from collections import defaultdict
 from typing import Any
 
+from agents.zenas.core.answer_failures import exception_failure, safe_failure, route_failure
 from agents.zenas.core.engine import cite_check, code_finding, compose_memo, decide_without_model
 from agents.zenas.core.legalbench import legalbench_scores
 from agents.zenas.core.scope_rules import classify
@@ -245,7 +246,7 @@ _MADE_UP_LIBRARY = (
 
 def made_up_questions(library: list[dict[str, str]] | None = None, *, region: str = "za") -> list[dict[str, str]]:
     """Fifty questions. Forty name cases that are not in the library."""
-    documents = [item for item in (library or _MADE_UP_LIBRARY) if item.get("name") and item.get("citation")]
+    documents = _library_documents(library or list(_MADE_UP_LIBRARY))
     place = "in South Africa" if str(region or "").strip().lower() == "za" else "in the United States"
     rows: list[dict[str, str]] = []
     codes = ("ZASCA", "ZAGPJHC", "ZAWCHC", "ZACC", "ZAFSHC")
@@ -263,8 +264,7 @@ def made_up_questions(library: list[dict[str, str]] | None = None, *, region: st
                 "citation": citation,
             }
         )
-    for index in range(10):
-        real = documents[index % len(documents)]
+    for index, real in enumerate(documents[:10]):
         rows.append(
             {
                 "case": f"real-{index:02d}",
@@ -306,7 +306,7 @@ _PARAGRAPH_MARK = re.compile(r"^(?:\[\s*\d+\s*\]|\(?\d{1,3}[.)])\s+")
 _SENTENCE_END = re.compile(r"(?<=[.])\s+(?=[\[(\"\u201cA-Z0-9])")
 # "Notice No. 42", "para. 7", "s. 49C": a full stop that does not end the sentence.
 _ABBREVIATION_END = re.compile(r"(?:^|[\s(])(?:No|Nos|no|nos|para|paras|s|ss|v|vs|Mr|Mrs|Ms|Dr|Prof|cf|e\.g|i\.e|Reg|Art)\.$")
-_BYLINE = re.compile(r"(circuit judge|district judge|per curiam|justice[.:]?$|after stat\w* the facts)", re.I)
+_BYLINE = re.compile(r"(circuit judge|district judge|tribunal member|per curiam|justice[.:]?$|after stat\w* the facts)", re.I)
 # "KRIEGLER J:" and "MOJAPELO AJA (Ponnan JA concurring):" open a judgment; they are not the court's reasoning.
 _JUDGE_OPENING = re.compile(r"^[A-Z][A-Z'\u2019 -]+\s(?:A?J|A?JA|JP|DJP|AJP|CJ|DCJ|P)\b")
 
@@ -343,14 +343,19 @@ def library_passage(text: str, *, limit: int = 4000) -> str:
     return " ".join(_judgment_body(text).split())[:limit]
 
 
+_SHORT_WORDS = frozenset("a i am an as at be by do go he if in is it me my no of on or so to up us we ex de ad ab et en la le du el un per".split())
+
+
 def _sentence_ok(sentence: str) -> bool:
     words = sentence.split()
-    if not 5 <= len(words) <= 60 or not 25 <= len(sentence) <= 320:
+    if not 8 <= len(words) <= 60 or not 25 <= len(sentence) <= 320:
         return False
     if not sentence.endswith(".") or re.search(r"(?:[;,]\s\(?[a-z]|\s\(?\d{1,2})[.)]$", sentence) or not (sentence[0].isupper() or sentence[0] in "\"\u201c("):
         return False
     letters = [ch for ch in sentence if ch.isalpha()]
     if not letters or sum(ch.islower() for ch in letters) < 0.6 * len(letters):
+        return False
+    if any(word not in _SHORT_WORDS for word in re.findall(r"\b[a-z]{1,2}\b", sentence)):
         return False
     return not (_BYLINE.search(sentence) or _JUDGE_OPENING.match(sentence) or _HEADER_START.search(sentence) or _PARTY_ROLE.search(sentence.rstrip(".")))
 
@@ -366,7 +371,7 @@ def _sentences(joined: str) -> list[str]:
     return out
 
 
-def _verbatim_quote(text: str, *, limit: int = 4000) -> str:
+def judgment_sentences(text: str, *, limit: int = 4000) -> list[str]:
     """A whole sentence of the court's own reasoning, word for word from the stored judgment.
 
     The quote comes from the judgment body (paragraph [1] on), never from the court
@@ -390,6 +395,7 @@ def _verbatim_quote(text: str, *, limit: int = 4000) -> str:
                 blocks.append([])
             continue
         blocks[-1].append(line)
+    quotes: list[str] = []
     for block in blocks:
         joined = " ".join(" ".join(block).split())
         for raw in _sentences(joined):
@@ -398,8 +404,12 @@ def _verbatim_quote(text: str, *, limit: int = 4000) -> str:
                 continue
             if _clean_piece is not None and _clean_piece(sentence, []) != sentence:
                 continue
-            return sentence
-    return ""
+            quotes.append(sentence)
+    return list(dict.fromkeys(quotes))
+
+
+def _verbatim_quote(text: str, *, limit: int = 4000) -> str:
+    return next(iter(judgment_sentences(text, limit=limit)), "")
 
 
 def _made_up_box(region: str) -> tuple[str, str, str, str]:
@@ -476,7 +486,7 @@ async def load_case_library(conn: Any, *, region: str) -> list[dict[str, str]]:
         if not citation or not name or not quote or quote not in text:
             continue
         documents.append({"name": name, "citation": citation, "quote": quote, "text": text})
-    return documents
+    return _library_documents(documents)
 
 
 def _tank_model() -> tuple[Any, Any]:
@@ -497,6 +507,9 @@ def _tank_model() -> tuple[Any, Any]:
         async def complete(self, messages: list[dict[str, str]], *, task_type: str, provider: str) -> dict[str, Any]:
             del provider
             data = await client.route(_PLATFORM, task_type, messages)
+            failed = route_failure(data)
+            if failed is not None:
+                return failed
             return {
                 "content": str(data.get("content") or ""),
                 "cost_usd": float(data.get("cost_usd") or 0),
@@ -511,13 +524,20 @@ def _tank_model() -> tuple[Any, Any]:
 
 def _library_documents(library: list[dict[str, str]] | None) -> list[dict[str, str]]:
     documents: list[dict[str, str]] = []
+    citations: set[str] = set()
+    names: set[str] = set()
     for item in library or []:
         name = " ".join(str(item.get("name") or "").split())
         citation = " ".join(str(item.get("citation") or "").split())
-        quote = " ".join(str(item.get("quote") or "").split())
         text = str(item.get("text") or "")
-        if name and citation and quote and quote in text:
-            documents.append({"name": name, "citation": citation, "quote": quote, "text": text})
+        if classify(name + " " + text).get("criminal"):
+            continue
+        quote = _verbatim_quote(text, limit=len(text))
+        if not name or not citation or not quote or citation.casefold() in citations or name.casefold() in names:
+            continue
+        citations.add(citation.casefold())
+        names.add(name.casefold())
+        documents.append({"name": name, "citation": citation, "quote": quote, "text": text})
     return documents
 
 
@@ -752,7 +772,7 @@ def _quote_checks(
 
 
 # A quote shorter than this is not the court's words but a phrase. Same floor as _sentence_ok.
-_QUOTE_MIN_WORDS = 5
+_QUOTE_MIN_WORDS = 8
 _QUOTE_MIN_CHARS = 25
 
 
@@ -761,41 +781,69 @@ def _fold(value: Any) -> str:
 
 
 def supported_quotes(result: dict[str, Any] | None, citation: str, judgment_text: str) -> list[str]:
-    """Quotes in this answer's rule card that the named judgment says word for word.
-
-    A quote counts only when its element cites this case, the quote sits VERBATIM
-    (whitespace folded, nothing else) in the stored, normalised judgment text, and
-    cite-check passes it against that judgment alone. A paraphrase, or a sentence
-    from a different judgment, is never returned.
-    """
-    from agents.zenas.core.engine import cite_check
-
-    text = _fold(judgment_text)
-    wanted = _fold(citation)
-    card = (result or {}).get("rule_card") if isinstance(result, dict) else None
-    elements = (card or {}).get("elements") if isinstance(card, dict) else None
-    if not text or not wanted or not isinstance(elements, list):
+    """Body sentences in the answer, plus checked rule-card sentences for diagnostics."""
+    if not isinstance(result, dict) or not judgment_text or not citation:
         return []
-    passage = [{"citation": wanted, "text": text, "status": "in_force"}]
-    out: list[str] = []
-    for element in elements:
-        if not isinstance(element, dict) or _fold(element.get("citation")) != wanted:
-            continue
-        quote = _fold(element.get("quote"))
-        if len(quote.split()) < _QUOTE_MIN_WORDS or len(quote) < _QUOTE_MIN_CHARS or quote not in text:
-            continue
-        if not cite_check([{"citation": wanted, "quote": quote}], passage).get("passed"):
-            continue
-        out.append(quote)
-    return out
+    sentences = judgment_sentences(judgment_text, limit=len(judgment_text))
+    answer = _fold((result.get("memo") or {}).get("text"))
+    elements = (result.get("rule_card") or {}).get("elements") or []
+    card_quotes = {_fold(element.get("quote")) for element in elements if isinstance(element, dict)
+                   and _fold(element.get("citation")) == _fold(citation)}
+    return [sentence for sentence in sentences if sentence in answer or sentence in card_quotes]
 
 
 def _quotes_the_judgment(answer: str, quote: str, supported: list[str]) -> bool:
     """The answer quotes the court: the library sentence, or any verbatim, cite-checked quote from it."""
     folded = _fold(answer)
-    if quote and (quote in answer or _fold(quote) in folded):
+    if quote and _sentence_ok(quote) and (quote in answer or _fold(quote) in folded):
         return True
     return any(item in folded for item in supported)
+
+
+def _quote_misattributed(result: dict[str, Any], citation: str, judgment_text: str,
+                        known_citations: list[str]) -> bool:
+    """A correct citation elsewhere cannot excuse giving the court's words to another case."""
+    sentences = judgment_sentences(judgment_text, limit=len(judgment_text))
+    elements = (result.get("rule_card") or {}).get("elements") or []
+    expected = _fold(citation).casefold()
+    for element in elements:
+        if not isinstance(element, dict):
+            continue
+        cited = _fold(element.get("citation"))
+        quote = _fold(element.get("quote"))
+        if cited and cited.casefold() != expected and any(sentence in quote for sentence in sentences):
+            return True
+
+    answer = _fold((result.get("memo") or {}).get("text"))
+    # Known citations cover the library/card. The expected citation's numeric
+    # shape also catches an invented case number; neutral/report citations can
+    # identify a different court even when it is absent from both.
+    named = [citation, *known_citations,
+             *(str(element.get("citation") or "") for element in elements if isinstance(element, dict))]
+    patterns = [re.escape(_fold(item)) for item in named if _fold(item)]
+    patterns.append("".join(r"\d+" if part.isdecimal() else re.escape(part)
+                            for part in re.split(r"(\d+)", _fold(citation))))
+    patterns.append(r"\[\d{4}\]\s+[A-Z]{2,12}\s+\d+")
+    patterns.append(r"(?:\d+\s+)?(?:[A-Z]{2,12}|[A-Z]\.)(?:\s+(?:[A-Z][a-z]+\.|\d+d))*\s+\d+")
+    mentions = [match for pattern in patterns
+                for match in re.finditer(r"(?<!\w)(?:" + pattern + r")(?!\w)", answer)]
+    for sentence in sentences:
+        for quote in re.finditer(re.escape(sentence), answer):
+            before = [match for match in mentions if match.end() <= quote.start()]
+            after = [match for match in mentions if match.start() >= quote.end()]
+            if before:
+                nearest = max(before, key=lambda match: (match.end(), -match.start()))
+                between = answer[nearest.end():quote.start()]
+                if (len(between) <= 160 and not re.search(r"[.!?](?:\s|$)", between)
+                        and _fold(nearest[0]).casefold() != expected):
+                    return True
+            if after:
+                nearest = min(after, key=lambda match: (match.start(), -match.end()))
+                between = answer[quote.end():nearest.start()]
+                if (re.fullmatch(r"[”\"'\s(,:—-]*", between)
+                        and _fold(nearest[0]).casefold() != expected):
+                    return True
+    return False
 
 
 def _miss_reason(
@@ -806,6 +854,7 @@ def _miss_reason(
     raised: str,
     quote: str,
     supported: list[str] | None = None,
+    misattributed: bool = False,
 ) -> str:
     """The first check this answer failed, as one of MISS_REASONS. Empty when it passed.
 
@@ -826,8 +875,10 @@ def _miss_reason(
         return MISS_REASONS[1]
     if "cannot find" in answer.lower():
         return MISS_REASONS[5]
-    if item["citation"] not in answer:
+    if not re.search(re.escape(item["citation"]) + r"(?![A-Za-z0-9])", answer):
         return MISS_REASONS[6]
+    if misattributed:
+        return MISS_REASONS[7]
     if not quote:
         return MISS_REASONS[8]
     if not _quotes_the_judgment(answer, quote, supported or []):
@@ -888,7 +939,7 @@ async def run_made_up_test(
     """
     del store
     documents = _library_documents(library)
-    if ladder is None or model is None or not documents:
+    if ladder is None or model is None or len(documents) < 10:
         return _not_run()
     home, box, jurisdiction, provider = _made_up_box(region)
     from agents.zenas.core.service import answer_question
@@ -909,6 +960,7 @@ async def run_made_up_test(
         raised = ""
         refusal = ""
         ok_result = False
+        failure: dict[str, Any] = {}
         try:
             result = await answer_question(
                 ladder,
@@ -923,6 +975,10 @@ async def run_made_up_test(
                 features={"asked": "yes"},
                 provider=provider,
             )
+            failure = safe_failure(result.get("failure"))
+            retrieval = result.get("retrieval")
+            if not failure and isinstance(retrieval, dict):
+                failure = safe_failure(retrieval.get("failure"))
             ok_result = bool(result.get("ok"))
             answer = str((result.get("memo") or {}).get("text") or "") if ok_result else str(result.get("reason") or "")
             if not ok_result:
@@ -930,6 +986,7 @@ async def run_made_up_test(
         except Exception as exc:  # noqa: BLE001 - one case does not stop the run; the class is kept
             answer = ""
             raised = type(exc).__name__
+            failure = exception_failure(exc)
             result = {}
         quote = (quotes.get(item["citation"]) or item.get("quote") or "") if item["kind"] == "real" else ""
         supported = (
@@ -937,7 +994,11 @@ async def run_made_up_test(
             if item["kind"] == "real" and ok_result
             else []
         )
-        reason = _miss_reason(item, answer, ok_result=ok_result, raised=raised, quote=quote, supported=supported)
+        misattributed = item["kind"] == "real" and ok_result and _quote_misattributed(
+            result, item["citation"], texts.get(item["citation"], ""), list(texts),
+        )
+        reason = _miss_reason(item, answer, ok_result=ok_result, raised=raised, quote=quote,
+                              supported=supported, misattributed=misattributed)
         if not reason:
             passed += 1
         else:
@@ -946,7 +1007,10 @@ async def run_made_up_test(
                 if item["kind"] == "real" and ok_result
                 else None
             )
-            misses.append(_miss(item, reason, answer, raised=raised, refusal=refusal, quote=quote, checks=checks))
+            miss = _miss(item, reason, answer, raised=raised, refusal=refusal, quote=quote, checks=checks)
+            if failure:
+                miss["failure"] = failure
+            misses.append(miss)
     asked = len(questions)
     perfect = passed == asked == 50
     standing = "Zenas skills may be approved." if perfect else "Zenas skills may not be approved."
@@ -1154,6 +1218,9 @@ def _public_misses(raw: Any) -> list[dict[str, Any]]:
         miss: dict[str, Any] = {key: str(item.get(key) or "") for key in ("case", "kind", "citation", "reason")}
         if miss["reason"] not in MISS_REASONS:
             miss["reason"] = MISS_REASONS[0] if item.get("error") else "unknown"
+        failure = safe_failure(item.get("failure"))
+        if failure:
+            miss["failure"] = failure
         if item.get("error"):
             miss["error"] = _bounded(_diagnostic_text(item["error"]), 200)
         if item.get("refusal"):

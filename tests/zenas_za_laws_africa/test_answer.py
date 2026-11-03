@@ -22,6 +22,12 @@ TENANT = "00000000-0000-0000-0000-0000000000a1"
 @pytest.mark.asyncio
 async def test_za_civil_answer_uses_ingested_section_and_preserves_link_in_saved_memo(monkeypatch, clock_and_token):
     monkeypatch.setenv("ZENAS_REVIEW", "off")
+    # The Knowledge Base is unavailable in this test; the ingested library remains usable.
+    async def unavailable(query, *, failures=None):
+        if failures is not None:
+            failures.append({"exception": "ReadError"})
+        return []
+    monkeypatch.setattr("agents.zenas.pool.adapters.laws_africa_kb.za_passages", unavailable)
     work = json.loads((RECORDINGS / "works-1.json").read_text())["results"][0]
 
     async def get(url, headers):
@@ -77,6 +83,7 @@ async def test_za_civil_answer_uses_ingested_section_and_preserves_link_in_saved
     assert result["cost_usd"] == 0
     source_link, = result["memo"]["sources"]
     assert source_link == {"citation": passage["citation"], "quote": passage["text"], "url": passage["url"]}
+    assert result["retrieval"] == {"fallback": "library", "failure": {"exception": "ReadError"}}
     assert cite_check([source_link], passages)["passed"]
     assert "Zenas provides legal information, not legal advice." in result["memo"]["text"]
     saved = await matters.get_document(TENANT, result["document_id"])

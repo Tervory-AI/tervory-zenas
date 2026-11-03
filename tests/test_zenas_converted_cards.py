@@ -129,7 +129,7 @@ async def test_failed_build_once_for_three_cases_and_no_retry_until_pool_changes
         async def complete(self, *args, **kwargs):
             result = await super().complete(*args, **kwargs)
             if raises:
-                raise RuntimeError("fixture failure")
+                raise RuntimeError("placeholder gateway failure")
             return result.replace(LAW, "Unsupported quote")
     ladder, pool, model = LadderMemory(), Pool("za"), BadModel()
     rows = await cases(ladder)
@@ -142,7 +142,8 @@ async def test_failed_build_once_for_three_cases_and_no_retry_until_pool_changes
     failures = [run for run in ladder.runs if run["kind"] == "converted_card_failed"]
     assert len(failures) == 1
     if raises:
-        assert any(record.exc_info for record in caplog.records)
+        # The model boundary returns unavailable; no exception or raw message escapes.
+        assert not any(record.exc_info for record in caplog.records)
     pool.version = "v2"
     for row in rows:
         await _link_converted_card(pool, ladder, model, row, region="za")

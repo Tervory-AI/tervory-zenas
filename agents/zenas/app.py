@@ -124,6 +124,10 @@ class _TankModel:
     async def complete(self, messages: list[dict[str, str]], *, task_type: str, provider: str) -> dict[str, Any]:
         del provider
         data = await self.tank.route(self.tenant_id, task_type, messages)
+        from agents.zenas.core.answer_failures import route_failure
+        failed = route_failure(data)
+        if failed is not None:
+            return failed
         return {
             "content": str(data.get("content") or ""),
             "cost_usd": float(data.get("cost_usd") or 0),

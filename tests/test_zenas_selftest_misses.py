@@ -9,6 +9,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
+from zenas_z5_fixtures import distinct_library, recite
+
 from agents.zenas.core import selftest  # noqa: E402
 from agents.zenas.core.ladder_store import LadderMemory  # noqa: E402
 
@@ -22,7 +24,7 @@ DOC = {
 TRAP_OK = "I cannot find that case. I could not verify it, so I have left it out."
 
 
-def _fake(answers):
+def _fake(answers, documents=None):
     """answer_question stand-in: answers by question number, in order asked."""
     calls = {"n": 0}
 
@@ -32,7 +34,7 @@ def _fake(answers):
         got = answers(index, question)
         if isinstance(got, Exception):
             raise got
-        return got
+        return recite(got, documents or [DOC], index)
 
     return answer_question
 
@@ -62,7 +64,7 @@ def _answers(index, question):
 def _run(monkeypatch):
     monkeypatch.setattr("agents.zenas.core.service.answer_question", _fake(_answers))
     ladder = LadderMemory()
-    return asyncio.run(selftest.run_made_up_test(ladder, ladder, object(), library=[DOC], region="za"))
+    return asyncio.run(selftest.run_made_up_test(ladder, ladder, object(), library=distinct_library([DOC]), region="za"))
 
 
 def test_every_miss_has_a_case_id_and_reason(monkeypatch):
@@ -80,14 +82,14 @@ def test_every_miss_has_a_case_id_and_reason(monkeypatch):
     assert by_case["real-01"]["reason"] == "real: the answer does not quote the court's sentence"
     assert by_case["real-01"]["expected_quote"] == QUOTE
     assert by_case["real-02"]["reason"] == "real: the answer does not give the citation"
-    assert by_case["real-01"]["citation"] == "CAC 108"
+    assert by_case["real-01"]["citation"] == "placeholder-citation-1"
     assert len(result["failures"]) == 3  # the older shape is kept
 
 
 def test_misses_are_stored_and_returned(monkeypatch):
     monkeypatch.setattr("agents.zenas.core.service.answer_question", _fake(_answers))
     ladder = LadderMemory()
-    out = asyncio.run(selftest.run_selftest(ladder, region="za", library=[DOC], model=object()))
+    out = asyncio.run(selftest.run_selftest(ladder, region="za", library=distinct_library([DOC]), model=object()))
     made = next(run for run in out["runs"] if str(run["area"]).startswith("Made-up"))
     assert made["passed"] == 44
     assert [m["case"] for m in made["misses"]] == ["trap-00", "trap-01", "trap-02", "real-00", "real-01", "real-02"]
@@ -95,7 +97,7 @@ def test_misses_are_stored_and_returned(monkeypatch):
     # The public run carries the redacted diagnostics (never the raw stored "answer" key).
     assert all("answer" not in m for m in made["misses"])
     real01 = next(m for m in made["misses"] if m["case"] == "real-01")
-    assert real01["answer_excerpt"] == "CAC 108 held that the appeal fails."
+    assert real01["answer_excerpt"] == "placeholder-citation-1 held that the appeal fails."
     assert real01["expected_quote"] == QUOTE
 
     stored = next(row for row in ladder.selftests if row["detail"].get("made_up"))
@@ -113,7 +115,7 @@ def test_a_clean_run_has_no_misses(monkeypatch):
 
     monkeypatch.setattr("agents.zenas.core.service.answer_question", _fake(all_pass))
     ladder = LadderMemory()
-    result = asyncio.run(selftest.run_made_up_test(ladder, ladder, object(), library=[DOC], region="za"))
+    result = asyncio.run(selftest.run_made_up_test(ladder, ladder, object(), library=distinct_library([DOC]), region="za"))
     assert result["passed"] == 50 and result["misses"] == []
 
 
@@ -166,9 +168,9 @@ def _real_run(monkeypatch, real_answer, library):
     def answers(index, question):
         return _memo(TRAP_OK) if index < 40 else real_answer(index, question)
 
-    monkeypatch.setattr("agents.zenas.core.service.answer_question", _fake(answers))
+    monkeypatch.setattr("agents.zenas.core.service.answer_question", _fake(answers, library))
     ladder = LadderMemory()
-    return asyncio.run(selftest.run_made_up_test(ladder, ladder, object(), library=library, region="za"))
+    return asyncio.run(selftest.run_made_up_test(ladder, ladder, object(), library=distinct_library(library), region="za"))
 
 
 def test_verbatim_holding_mid_judgment_passes(monkeypatch):
@@ -196,14 +198,15 @@ def test_quote_from_a_different_judgment_fails(monkeypatch):
     other = "The parties must notify every intermediate merger before it is implemented."
 
     def answer(index, question):
-        if "CAC 108" in question:
+        if (index - 40) % 2 == 0:
             # Cited as CAC 108, but the words are CAC 200's.
             return _card_answer("CAC 108", other, memo_text=f"CAC 108: “{other}”")
         return _card_answer("CAC 200", OTHER_DOC["quote"])
 
     result = _real_run(monkeypatch, answer, [LONG_DOC, OTHER_DOC])
     reasons = {m["citation"]: m["reason"] for m in result["misses"]}
-    assert reasons == {"CAC 108": "real: the answer does not quote the court's sentence"}
+    assert len(reasons) == 5
+    assert set(reasons.values()) == {"real: the answer does not quote the court's sentence"}
     assert result["passed"] == 45
 
 
@@ -218,6 +221,29 @@ def test_quote_attributed_to_another_case_fails(monkeypatch):
 
     result = _real_run(monkeypatch, answer, [LONG_DOC])
     assert result["passed"] == 40
+
+
+def test_correct_memo_does_not_override_wrong_card_attribution(monkeypatch):
+    def answer(index, question):
+        return {
+            "ok": True,
+            "memo": {"text": f"CAC 108: “{HOLDING}”"},
+            "rule_card": {"elements": [
+                {"citation": "CAC 108", "quote": HOLDING},
+                {"citation": "CAC 200", "quote": HOLDING},
+            ]},
+        }
+
+    result = _real_run(monkeypatch, answer, [LONG_DOC])
+    assert result["passed"] == 40
+    assert not result["skills_may_be_approved"]
+
+
+def test_wrong_memo_attribution_fails_even_with_correct_card(monkeypatch):
+    for memo in (f"CAC 108. CAC 200: “{HOLDING}”", f"CAC 108. “{HOLDING}” (CAC 200)"):
+        result = _real_run(monkeypatch, lambda i, q: _card_answer("CAC 108", HOLDING, memo_text=memo), [LONG_DOC])
+        assert result["passed"] == 40
+        assert not result["skills_may_be_approved"]
 
 
 def test_card_quote_not_in_the_answer_fails(monkeypatch):
