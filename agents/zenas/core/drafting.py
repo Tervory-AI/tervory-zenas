@@ -13,6 +13,8 @@ _PLACEHOLDER = re.compile(r"\{([a-z0-9_]+)\}")
 
 # Slot order only. The words of each clause come from the library the caller passes.
 TEMPLATES: dict[str, tuple[str, ...]] = {
+    "sla": ("parties", "services", "service_levels", "credits", "term"),
+    "letter": ("parties", "subject", "facts", "request"),
     "nda": ("parties", "confidentiality", "term", "return"),
     "supply": ("parties", "goods", "price", "delivery"),
     "distribution": ("parties", "territory", "term", "termination"),
