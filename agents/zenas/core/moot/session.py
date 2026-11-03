@@ -1,4 +1,4 @@
-"""Text match runners: AI-AI (fairness), student-AI, student-student. Fixtures only."""
+"""Run one speaking order with run_one_order and project public matches with watch_payload."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ from agents.zenas.core.moot.problem import counsel_bundle
 
 Mode = Literal["ai_ai", "student_ai", "student_student"]
 
-# Stub unit cost per turn (fixture receipts only — not a live price).
+# Stub cost per counsel or judge turn used by run_one_order; not a live price.
 _STUB_COST_PER_TURN = 0.001
 
 
