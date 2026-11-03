@@ -1,3 +1,4 @@
+# coolify: raw compose
 # Zenas. Deploy this file as its own Coolify resource.
 # Build context is agents/ (the parent of this file), because the chassis lives there.
 # The room uses its existing gateway. Contracts are assembled inside agent-zenas.
@@ -13,6 +14,7 @@ services:
     cpus: 0.5
     environment:
       AGENT_NAME: zenas
+      ZENAS_BRAIN_ENABLED: ${ZENAS_BRAIN_ENABLED:-false}
       R2_BUCKET: tervory-zenas
       R2_ACCOUNT_ID: ${R2_ACCOUNT_ID:-}
       R2_ACCESS_KEY_ID_ZENAS: ${R2_ACCESS_KEY_ID_ZENAS:-}
@@ -47,6 +49,66 @@ services:
     expose:
       - "8000"
 
+  zenas-brain:
+    profiles: [brain]
+    build:
+      context: ../..
+      dockerfile: agents/rig/Dockerfile.brain
+    command: [uvicorn, "brain.standby:app", --host, "0.0.0.0", --port, "8001", --no-access-log]
+    restart: unless-stopped
+    mem_limit: 2g
+    cpus: 1
+    pids_limit: 128
+    read_only: true
+    tmpfs: [/tmp:rw,noexec,nosuid,nodev,size=32m]
+    environment:
+      BRAIN_ROOM: zenas
+      TANK_REGION: us-east
+      TANK_URL: http://tank:8000
+      TANK_KEY: ${TANK_KEY_ZENAS:-}
+      HERMES_URL: http://hermes:8000
+      ZENAS_URL: http://agent-zenas:8000
+      ZENAS_SANDBOX_URL: http://zenas-sandbox:8002
+      SANDBOX_KEY: ${SANDBOX_KEY_ZENAS:-}
+      DATA_DIR: /data
+    volumes: [zenas_brain_data:/data]
+    networks: [gw, sandbox]
+    depends_on:
+      zenas-sandbox:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+
+  zenas-sandbox:
+    profiles: [brain]
+    build:
+      context: ../..
+      dockerfile: agents/base/Dockerfile.sandbox
+    restart: unless-stopped
+    mem_limit: 512m
+    cpus: 0.5
+    pids_limit: 64
+    environment:
+      BRAIN_ROOM: zenas
+      SANDBOX_KEY: ${SANDBOX_KEY_ZENAS:-}
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=32m
+      - /work:rw,nosuid,nodev,size=128m,uid=1000,gid=1000,mode=0700
+    networks: [sandbox]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8002/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+
   # One-shot US pool load. Not started with the room.
   # docker compose --profile load run --rm pool-loader
   # nice and a 2g cap keep Tank and the agents ahead of a bulk load.
@@ -78,9 +140,15 @@ services:
     entrypoint: ["nice", "-n", "19", "python", "-m", "agents.zenas.pool.bulk"]
 
 volumes:
+  zenas_brain_data:
+    name: tervory-zenas-us-brain-data
   agent_zenas_data:
+    external: true
+    name: r7qzm460bc4scnskurlowbvn_agent-zenas-data
 
 networks:
+  sandbox:
+    internal: true
   gw:
     external: true
     name: tervory-gw-zenas
