@@ -800,6 +800,52 @@ def _quotes_the_judgment(answer: str, quote: str, supported: list[str]) -> bool:
     return any(item in folded for item in supported)
 
 
+def _quote_misattributed(result: dict[str, Any], citation: str, judgment_text: str,
+                        known_citations: list[str]) -> bool:
+    """A correct citation elsewhere cannot excuse giving the court's words to another case."""
+    sentences = judgment_sentences(judgment_text, limit=len(judgment_text))
+    elements = (result.get("rule_card") or {}).get("elements") or []
+    expected = _fold(citation).casefold()
+    for element in elements:
+        if not isinstance(element, dict):
+            continue
+        cited = _fold(element.get("citation"))
+        quote = _fold(element.get("quote"))
+        if cited and cited.casefold() != expected and any(sentence in quote for sentence in sentences):
+            return True
+
+    answer = _fold((result.get("memo") or {}).get("text"))
+    # Known citations cover the library/card. The expected citation's numeric
+    # shape also catches an invented case number; neutral/report citations can
+    # identify a different court even when it is absent from both.
+    named = [citation, *known_citations,
+             *(str(element.get("citation") or "") for element in elements if isinstance(element, dict))]
+    patterns = [re.escape(_fold(item)) for item in named if _fold(item)]
+    patterns.append("".join(r"\d+" if part.isdecimal() else re.escape(part)
+                            for part in re.split(r"(\d+)", _fold(citation))))
+    patterns.append(r"\[\d{4}\]\s+[A-Z]{2,12}\s+\d+")
+    patterns.append(r"(?:\d+\s+)?(?:[A-Z]{2,12}|[A-Z]\.)(?:\s+(?:[A-Z][a-z]+\.|\d+d))*\s+\d+")
+    mentions = [match for pattern in patterns
+                for match in re.finditer(r"(?<!\w)(?:" + pattern + r")(?!\w)", answer)]
+    for sentence in sentences:
+        for quote in re.finditer(re.escape(sentence), answer):
+            before = [match for match in mentions if match.end() <= quote.start()]
+            after = [match for match in mentions if match.start() >= quote.end()]
+            if before:
+                nearest = max(before, key=lambda match: (match.end(), -match.start()))
+                between = answer[nearest.end():quote.start()]
+                if (len(between) <= 160 and not re.search(r"[.!?](?:\s|$)", between)
+                        and _fold(nearest[0]).casefold() != expected):
+                    return True
+            if after:
+                nearest = min(after, key=lambda match: (match.start(), -match.end()))
+                between = answer[quote.end():nearest.start()]
+                if (re.fullmatch(r"[”\"'\s(,:—-]*", between)
+                        and _fold(nearest[0]).casefold() != expected):
+                    return True
+    return False
+
+
 def _miss_reason(
     item: dict[str, str],
     answer: str,
@@ -808,6 +854,7 @@ def _miss_reason(
     raised: str,
     quote: str,
     supported: list[str] | None = None,
+    misattributed: bool = False,
 ) -> str:
     """The first check this answer failed, as one of MISS_REASONS. Empty when it passed.
 
@@ -830,6 +877,8 @@ def _miss_reason(
         return MISS_REASONS[5]
     if not re.search(re.escape(item["citation"]) + r"(?![A-Za-z0-9])", answer):
         return MISS_REASONS[6]
+    if misattributed:
+        return MISS_REASONS[7]
     if not quote:
         return MISS_REASONS[8]
     if not _quotes_the_judgment(answer, quote, supported or []):
@@ -942,7 +991,11 @@ async def run_made_up_test(
             if item["kind"] == "real" and ok_result
             else []
         )
-        reason = _miss_reason(item, answer, ok_result=ok_result, raised=raised, quote=quote, supported=supported)
+        misattributed = item["kind"] == "real" and ok_result and _quote_misattributed(
+            result, item["citation"], texts.get(item["citation"], ""), list(texts),
+        )
+        reason = _miss_reason(item, answer, ok_result=ok_result, raised=raised, quote=quote,
+                              supported=supported, misattributed=misattributed)
         if not reason:
             passed += 1
         else:
