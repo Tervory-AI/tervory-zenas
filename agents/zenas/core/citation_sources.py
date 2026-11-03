@@ -6,6 +6,8 @@ import ipaddress
 from typing import Any
 from urllib.parse import parse_qsl, urlsplit
 
+from agents.zenas.core.answer_failures import safe_failure
+
 
 def public_source_url(value: Any) -> str:
     if not isinstance(value, str):
@@ -30,8 +32,8 @@ def public_source_url(value: Any) -> str:
 
 
 def cited_sources(statements: list[dict[str, Any]], checked: dict[str, Any], passages: list[dict[str, Any]],
-                  citations: list[str], *, require_links: bool) -> list[dict[str, str]] | None:
-    sources: dict[str, dict[str, str]] = {}
+                  citations: list[str], *, require_links: bool) -> list[dict[str, Any]] | None:
+    sources: dict[str, dict[str, Any]] = {}
     for statement, result in zip(statements, checked.get("results", []), strict=True):
         citation = str(statement.get("citation") or "")
         if citation not in citations:
@@ -43,6 +45,9 @@ def cited_sources(statements: list[dict[str, Any]], checked: dict[str, Any], pas
             return None
         sources.setdefault(citation, {"citation": citation, "quote": str(statement.get("quote") or ""), **({"url": url} if url else {}),
                                       **{key: str(passage[key]) for key in ("version_date", "known_from", "attribution", "licence") if passage.get(key)}})
+        if passage.get("retrieval_fallback") == "library":
+            sources[citation]["retrieval_fallback"] = "library"
+            sources[citation]["retrieval_failure"] = safe_failure(passage.get("retrieval_failure"))
     if any(citation not in sources for citation in citations):
         return None
     return [sources[citation] for citation in dict.fromkeys(citations)]
