@@ -1623,6 +1623,7 @@ async def draft_contract(
         return _refuse(_ASSEMBLY_REGION_REFUSED)
     text = finished["text"]
     document_id = None
+    state = "released" if not await review_required(store, region=box) else "draft"
     if matter_id:
         matter = await store.get_matter(str(tenant_id), str(matter_id))
         if matter is None:
@@ -1640,7 +1641,7 @@ async def draft_contract(
                     for item in sentences
                     if item.get("library")
                 ],
-                "state": "released" if not await review_required(store, region=box) else "draft",
+                "state": state,
                 "reviewed": False,
             }
         )
@@ -1659,6 +1660,8 @@ async def draft_contract(
         "model_calls": model_calls,
         "document_id": document_id,
         "docx_base64": finished["docx_base64"],
+        "state": state,
+        "legal_notice": _LEGAL_NOTICE,
     }
 
 
