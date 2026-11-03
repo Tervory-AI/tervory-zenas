@@ -105,6 +105,8 @@ async def run_nightly(
             check_deadline()
             return result
 
+        getter._nightly_upstream = upstream
+
     sources = sources_for_region(region)
     if only is not None:
         wanted = set(only)
@@ -245,9 +247,13 @@ async def _update_source(
         from agents.zenas.pool.bulk import disk_cap_bytes, load_source
         if await store.get_checkpoint(_CONTENT_PLAN_CHECKPOINT) == "not on plan":
             return
+        # Preserve the Content API client's no-redirect, single-attempt transport.
+        # A deadline wrapper must not turn its dedicated default transport into
+        # an ordinary public-URL fetch with different retry/redirect semantics.
+        content_get = urllib_get if getattr(http_get, "_nightly_upstream", None) is urllib_get else http_get
         await load_source(
             store, source, region=region, snapshots=None, on=on, when=when, live=True,
-            http_get=http_get, embedder=embedder, index=index, cap=disk_cap_bytes(),
+            http_get=content_get, embedder=embedder, index=index, cap=disk_cap_bytes(),
             data_dir=os.environ.get("DATA_DIR", ".") or ".",
         )
         from agents.zenas.pool.adapters.laws_africa_api import CONTENT_API_403
@@ -770,6 +776,21 @@ async def _main() -> None:
     region = current_region()
     # Starts before connecting or applying schema: all ZA jobs share one window.
     deadline = monotonic() + _ZA_RUN_SECONDS if region == "za" else None
+    if deadline is None:
+        await _night_main(region, deadline)
+        return
+    window = asyncio.timeout(max(0, deadline - monotonic()))
+    try:
+        async with window:
+            await _night_main(region, deadline)
+    except TimeoutError:
+        if not window.expired():
+            raise
+        # Normal completion at the process deadline, never Coolify's kill limit.
+        print(json.dumps({"region": region, "deadline_reached": True}))
+
+
+async def _night_main(region, deadline):
     dsn = os.environ.get("DATABASE_URL", "").strip()
     if not dsn:
         raise SystemExit("DATABASE_URL is not set")
