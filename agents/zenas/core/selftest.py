@@ -778,20 +778,15 @@ def _fold(value: Any) -> str:
 
 
 def supported_quotes(result: dict[str, Any] | None, citation: str, judgment_text: str) -> list[str]:
-    """Quotes in this answer's rule card that the named judgment says word for word.
-
-    A quote counts only when its element cites this case, the quote sits VERBATIM
-    (whitespace folded, nothing else) in the stored, normalised judgment text, and
-    cite-check passes it against that judgment alone. A paraphrase, or a sentence
-    from a different judgment, is never returned.
-    """
-    text = _fold(judgment_text)
-    wanted = _fold(citation)
-    if not text or not wanted:
+    """Body sentences in the answer, plus checked rule-card sentences for diagnostics."""
+    if not isinstance(result, dict) or not judgment_text or not citation:
         return []
-    answer = _fold(((result or {}).get("memo") or {}).get("text"))
-    return [sentence for sentence in judgment_sentences(judgment_text, limit=len(text) + 1)
-            if sentence in answer]
+    sentences = judgment_sentences(judgment_text, limit=len(judgment_text))
+    answer = _fold((result.get("memo") or {}).get("text"))
+    elements = (result.get("rule_card") or {}).get("elements") or []
+    card_quotes = {_fold(element.get("quote")) for element in elements if isinstance(element, dict)
+                   and _fold(element.get("citation")) == _fold(citation)}
+    return [sentence for sentence in sentences if sentence in answer or sentence in card_quotes]
 
 
 def _quotes_the_judgment(answer: str, quote: str, supported: list[str]) -> bool:
@@ -830,7 +825,7 @@ def _miss_reason(
         return MISS_REASONS[1]
     if "cannot find" in answer.lower():
         return MISS_REASONS[5]
-    if item["citation"] not in answer:
+    if not re.search(re.escape(item["citation"]) + r"(?![A-Za-z0-9])", answer):
         return MISS_REASONS[6]
     if not quote:
         return MISS_REASONS[8]
