@@ -2,6 +2,8 @@
 
 import asyncio
 import json
+import urllib.error
+from email.message import Message
 from types import SimpleNamespace
 
 import httpx
@@ -161,3 +163,50 @@ def test_diagnostics_reject_arbitrary_fields_and_messages():
     except RuntimeError as exc:
         failure = exception_failure(exc)
     assert set(failure) == {"exception", "file", "line"}
+
+
+def test_kb_http_status_survives_transport_wrapper():
+    client = object.__new__(kb.KnowledgeBaseClient)
+    client._token = "placeholder-token"
+    client._headers = {}
+
+    def post(*args):
+        raise urllib.error.HTTPError("https://api.laws.africa/placeholder", 403,
+                                     "placeholder private body", Message(), None)
+    client._post = post
+    failures = []
+    assert asyncio.run(kb.za_passages("placeholder supply agreement", client=client, failures=failures)) == []
+    assert len(failures) == 2
+    assert all(failure["exception"] == "HTTPError" and failure["http_status"] == 403 for failure in failures)
+    assert "private" not in json.dumps(failures)
+
+
+def test_kb_outage_without_library_is_a_refusal_with_diagnostics(monkeypatch):
+    async def missing(*args, **kwargs):
+        raise httpx.ReadError("placeholder private body")
+    monkeypatch.setattr(kb, "za_passages", missing)
+    class EmptyPool:
+        async def search_text(self, *args, **kwargs):
+            return []
+    result = asyncio.run(answer(Gateway(), passages=[], pool=EmptyPool()))
+    assert result["ok"] is False and result["reason"].startswith("could not verify")
+    assert result["failure"]["exception"] == "ReadError"
+
+
+def test_unexpected_raised_answer_records_only_safe_location(monkeypatch):
+    async def raised(*args, **kwargs):
+        raise RuntimeError("placeholder private prompt header response body")
+    monkeypatch.setattr("agents.zenas.core.service.answer_question", raised)
+    result = asyncio.run(selftest.run_made_up_test(LadderMemory(), model=object(), library=library()))
+    assert len(result["misses"]) == 50
+    for miss in selftest._public_misses(result["misses"]):
+        assert miss["failure"]["exception"] == "RuntimeError"
+        assert miss["failure"]["file"] == "tests/test_zenas_z5_selftest.py"
+        assert miss["failure"]["line"] > 0
+    assert "private" not in json.dumps(result)
+
+
+def test_numeric_citation_prefix_does_not_count_as_the_exact_citation():
+    reason = selftest._miss_reason({"kind": "real", "citation": CITE}, f"{CITE}0: {QUOTE}",
+                                  ok_result=True, raised="", quote=QUOTE)
+    assert reason == "real: the answer does not give the citation"
