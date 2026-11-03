@@ -1,4 +1,4 @@
-ZA nightly: stop within the 100-minute process window, resume cursors, prioritise deferred sources, and stop retrying an unavailable Laws.Africa Content API plan.
+ZA nightly: stop within the 100-minute process window, resume cursors, prioritise deferred sources, and back off for seven days when the Laws.Africa Content API is not on the plan.
 
 ## Read-only diagnosis
 
@@ -23,12 +23,14 @@ The existing reporter does not expose enabled state, frequency or a full executi
 
 ## Changes (file and line)
 
+The original implementation references below are at `d122c2d8`. Current references for the weekly-latch review fix are in the follow-up section.
+
 | File and line | Result |
 | --- | --- |
 | `.github/scripts/zenas_nightly_status.py:56`, `:81` | Validate/project the task's boolean enabled flag, frequency and ten newest execution records, using only its existing allowlisted GET paths. Keep the previous latest-execution field. Never read or emit execution output, command text or response bodies as diagnostics. |
 | `agents/zenas/pool/deadline.py:18`, `:25` | Task-local cooperative deadline checks. Budget expiry bypasses ordinary adapter error catches; ordinary Loads have no active deadline. |
 | `agents/zenas/pool/nightly.py:65`, `:160` | A live ZA wave shares a 100-minute deadline. Reserve 30 seconds for finishing/reporting, check before every source, retain the five-minute source cap, mark unvisited sources `deferred`, and prioritise persisted deferred rows next night. |
-| `agents/zenas/pool/nightly.py:248` | A Content API 403 matching the existing `CONTENT_API_403` message records `not_on_plan` once and saves a separate plan checkpoint. Later nights skip Content API sources without requests or repeated status writes. The existing content cursor is preserved. |
+| `agents/zenas/pool/nightly.py:248` | A Content API 403 matching the existing `CONTENT_API_403` message records `not_on_plan` once and saves a separate plan checkpoint. Later nights skip Content API sources for fewer than seven days without requests or repeated status writes; day seven probes again. Only a fresh 403 renews the dated pause. The existing content cursor is preserved. |
 | `agents/zenas/pool/nightly.py:734`, `:775`, `:793` | Bound later ZA jobs, including Convert, and the overall process including setup/cleanup. Deadline completion returns normally rather than reaching Coolify's kill limit. Keep US jobs unbounded as before. |
 | `agents/zenas/pool/nightly.py:573` | On interrupted court walks, retain the existing streamed checkpoint; also bind the adapter's current walk when cancellation happened during its first listing. |
 | `agents/zenas/pool/adapters/za_archive.py:321`, `:402` | Check the active deadline inside shared court archive loops and request retries. |
@@ -97,4 +99,29 @@ git config user.email codex@users.noreply.github.com
 
 Every finished file was committed separately. Each push used `git fetch origin main`, `git merge origin/main`, then `git push origin HEAD:codex/zenas-za-nightly`; all succeeded. Main updates were merged into this branch only. Main itself was never pushed or merged by this work. Prior Z3/Z4 checkouts were preserved.
 
-Claude opens the PR; the founder merges. CI's Tank job remains the full-suite test of record and is pending a PR. The local result above is a Zenas regression selection, not a full Tank CI claim. After a founder merge, the reporter can expose the still-missing task metadata; this branch has not been deployed or tested in the live nightly window. Existing deploy-on-merge rules may redeploy the Zenas room copies because code under `agents/zenas/` changed. No deployment was triggered here.
+Claude opened PR #621; the founder merges. CI's Tank job remains the full-suite test of record; the final review-fix head result is recorded in the PR body when available. The local result above is a Zenas regression selection, not a full Tank CI claim. After a founder merge, the reporter can expose the still-missing task metadata; this branch has not been deployed or tested in the live nightly window. Existing deploy-on-merge rules may redeploy the Zenas room copies because code under `agents/zenas/` changed. No deployment was triggered here.
+
+
+## Review follow-up: seven-day Content API pause
+
+- `agents/zenas/pool/nightly.py:44`: parse the recorded date and skip only for ages zero through six days. Clear expired, undated legacy, malformed or future-dated pause markers before probing, using the existing checkpoint row.
+- `agents/zenas/pool/nightly.py:139`, `:267`, `:281`: both skip sites use the date-aware check. A fresh Content API 403 stores `not on plan:YYYY-MM-DD`; any other probe outcome leaves the old pause cleared. No new table or column; the content cursor and Knowledge Base code are unchanged.
+- `tests/test_zenas_za_nightly_deadline.py:309`, `:342`, `:366`: prove day-six skip, one additional probe on day seven, renewal on a fresh 403, clearing on another error, and recovery from undated/invalid markers with the content cursor intact. The existing earlier-nights test now expects the dated marker.
+- `tests/zenas_za_laws_africa/test_sync.py:240`: reuse the recorded-response fake to prove that day six makes no request and a successful day-seven probe clears the pause and loads all 12 recorded library documents.
+
+Exact focused command, run from this checkout:
+
+```sh
+/workspace/codex-zenas-z3/.venv/bin/python -m pytest -q --disable-socket --allow-unix-socket --allow-hosts=127.0.0.1,localhost,::1 tests/test_zenas_za_nightly_deadline.py tests/test_zenas_nightly_status.py tests/test_zenas_za_nightly_budget.py tests/test_zenas_us_nightly_budget.py tests/test_zenas_pool_nightly_archive_streaming.py tests/test_zenas_govza_nightly_resume.py tests/zenas_za_laws_africa
+```
+
+**93 passed in 24.72s**, exit 0, on runtime head `938bf02b`. The initial run returned **1 failed, 92 passed in 24.45s** because the new success test seeded an unbound fake store. Binding it to ZA fixed that test setup; no production change was needed for that failure.
+
+```sh
+/workspace/codex-zenas-z3/.venv/bin/ruff check agents/zenas/pool/nightly.py tests/test_zenas_za_nightly_deadline.py tests/zenas_za_laws_africa/test_sync.py --select E9,F
+git diff --check d122c2d8...HEAD
+```
+
+Both exit 0; Ruff reports `All checks passed!`.
+
+For this follow-up: `git fetch origin` succeeded; the checkout and remote branch both started at `d122c2d8`. Finished files were committed and pushed with `git add -- <file>`, `git commit -m <file-specific message>`, and `git push origin HEAD:codex/zenas-za-nightly`. **No further merge of origin/main** was performed, as the review requested. Nothing live was changed and no workflow was dispatched. CI's final-head Tank result belongs in PR #621; the local focused result is not a full-suite claim.
