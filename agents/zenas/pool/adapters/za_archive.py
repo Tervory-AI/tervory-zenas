@@ -45,6 +45,7 @@ from collections.abc import Awaitable, Callable, Iterator
 from contextlib import contextmanager
 from urllib.parse import unquote, urlsplit
 
+from agents.zenas.pool.deadline import check_deadline
 from agents.zenas.pool.adapters.za_case_common import (
     caption_title,
     case_bytes,
@@ -317,24 +318,29 @@ class ArchiveRun:
         return f"{cursor}\n{self.tag}" if self.tag else cursor
 
     def note_year(self, year: int) -> None:
+        check_deadline()
         if 1800 <= int(year) <= 2200:
             self.years.add(int(year))
 
     def skip(self, reason: str) -> None:
+        check_deadline()
         self.skips[reason] += 1
 
     def already(self, url: str) -> bool:
+        check_deadline()
         return url_key(url) in self.seen
 
     def mark(self, url: str) -> None:
         self.seen.add(url_key(url))
 
     def place(self, scope: str, year: str, page: str) -> None:
+        check_deadline()
         self.scope = scope
         self.year = str(year or "0")
         self.page = str(page or "0")
 
     def finish(self) -> None:
+        check_deadline()
         if not self.stopped and not self.hold:
             self.finished = True
 
@@ -393,6 +399,7 @@ async def polite_get(
     reject_credential_url(url)
     last_error = False
     for _attempt in range(3):
+        check_deadline()
         try:
             body = await http_get(url, headers)
         except urllib.error.HTTPError as exc:
