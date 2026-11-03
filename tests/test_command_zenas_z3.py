@@ -131,11 +131,11 @@ async def test_confirm_watch_lifecycle_receipt_refusals_and_isolation(api, runti
                 assert status == 404 and result == {"detail": "Not in scope."}
             criminal = await confirm("zenas.watch.add", {"source": source, "topic": "criminal sentencing"})
             assert criminal["status"] == "failed"
-            assert criminal["result"] == {"detail": REFUSED}
+            assert criminal["error"] == REFUSED
             if region == "za":
                 refused = await confirm("zenas.watch.add", {"source": "federal-register", "topic": "customs"})
                 assert refused["status"] == "failed"
-                assert refused["result"] == {"detail": "Not in scope."}
+                assert refused["error"] == "Not in scope."
             assert all(payload["tenant_id"] in {str(TENANT), str(OTHER)} for _, payload in calls)
 
 
