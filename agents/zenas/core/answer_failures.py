@@ -20,7 +20,8 @@ def safe_failure(value: Any) -> dict[str, Any]:
         out["exception"] = name
     path = value.get("file")
     line = value.get("line")
-    if isinstance(path, str) and (_ROOT / path).is_file() and not Path(path).is_absolute() and ".." not in Path(path).parts:
+    if (isinstance(path, str) and re.fullmatch(r"[A-Za-z0-9_./-]{1,240}", path)
+            and not Path(path).is_absolute() and ".." not in Path(path).parts and (_ROOT / path).is_file()):
         if path.endswith(".py") and isinstance(line, int) and not isinstance(line, bool) and line > 0:
             out.update(file=path, line=line)
     status = value.get("http_status")
@@ -29,6 +30,14 @@ def safe_failure(value: Any) -> dict[str, Any]:
     if isinstance(value.get("refusal_code"), str) and value["refusal_code"] in _CODES:
         out["refusal_code"] = value["refusal_code"]
     return out
+
+
+def route_failure(data: dict[str, Any]) -> dict[str, Any] | None:
+    """Keep a structured Tank refusal across the room's response adapters."""
+    failure = safe_failure({"http_status": data.get("http_status"), "refusal_code": data.get("code")})
+    if data.get("ok") is False or data.get("status") in ("refused", "failed", "unavailable") or failure.get("refusal_code"):
+        return {"ok": False, "failure": failure}
+    return None
 
 
 def exception_failure(exc: Exception) -> dict[str, Any]:
