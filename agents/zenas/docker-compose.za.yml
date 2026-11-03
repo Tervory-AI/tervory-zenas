@@ -1,3 +1,4 @@
+# coolify: raw compose
 # Zenas room for the South Africa region. Deploy this file as its own Coolify
 # resource on the SA server (Base Directory /agents/zenas, Compose Location
 # /docker-compose.za.yml). The room keeps its gateway corridor, created by the
@@ -87,11 +88,33 @@ services:
       - gw
     entrypoint: ["nice", "-n", "19", "python", "-m", "agents.zenas.pool.bulk"]
 
+  zenas-own-model:
+    image: ghcr.io/ggml-org/llama.cpp:server@sha256:099ccff8379e3e4ea585320a82cb36ee108731be84cf89b93d1ea88bf7afb0c8
+    restart: unless-stopped
+    profiles: ["own-model"]
+    read_only: true
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 6g
+    cpus: 2
+    environment:
+      HF_TOKEN: ${HF_TOKEN:-}
+      HF_HOME: /models
+    command: ["-hf", "${HF_ORG:-invalid}/tervory-own-zenas-za:Q4_K_M", "--host", "0.0.0.0", "--port", "8080", "--ctx-size", "4096"]
+    tmpfs:
+      - /models:size=5g,mode=0700
+      - /tmp:size=64m,mode=0700
+    networks: [own_model]
+
 volumes:
   # Local to the SA server. Never replicated to the United States.
   za_agent_data:
+    name: rslmzhfmq5tf9ipx385gmu6p_za_agent_data
 
 networks:
   gw:
     external: true
     name: tervory-gw-zenas
+  own_model:
+    external: true
+    name: tervory-own-zenas-za
