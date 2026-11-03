@@ -49,7 +49,11 @@ GOVZA_SOURCE_IDS = frozenset(
     source.source_id for source in CATALOGUE
     if source.region == "za" and source.source_id.startswith("govza-")
 )
+LAWS_AFRICA_SOURCE_IDS = frozenset(
+    source.source_id for source in CATALOGUE if source.region == "za" and source.adapter == "laws-africa"
+)
 HOSTS.update({source_id: {"www.gov.za", "gov.za"} for source_id in GOVZA_SOURCE_IDS})
+HOSTS.update({source_id: HOSTS["laws-africa"] for source_id in LAWS_AFRICA_SOURCE_IDS})
 
 
 def safe_url(url, hosts):
@@ -427,7 +431,7 @@ class Sources:
 
 async def laws_africa_snapshot(conn, watch):
     """Read #382's completed local sync, never refetch or copy ZA law to Boston."""
-    from agents.zenas.pool.laws_africa import MINIMUM, _run_lock
+    from agents.zenas.pool.laws_africa import _run_lock
     from agents.zenas.pool.store import PostgresStore
 
     async with _run_lock(PostgresStore(conn, home_region="za")):
@@ -440,10 +444,10 @@ async def laws_africa_snapshot(conn, watch):
             WHERE source_id=ANY($1::text[]) AND jurisdiction='za' AND effective_to IS NULL
             ORDER BY document_id,captured_at DESC
         """,
-            ["laws-africa", *MINIMUM.values(), *sorted(GOVZA_SOURCE_IDS)],
+            [*sorted(LAWS_AFRICA_SOURCE_IDS), *sorted(GOVZA_SOURCE_IDS)],
         )
         laws_ready = bool(status and status["last_status"] == "ok")
-        rows = [row for row in rows if row["source_id"] != "laws-africa" or laws_ready]
+        rows = [row for row in rows if row["source_id"] not in LAWS_AFRICA_SOURCE_IDS or laws_ready]
         if not rows:
             raise ValueError("source_unavailable")
         return [
