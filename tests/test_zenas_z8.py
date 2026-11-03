@@ -360,10 +360,39 @@ async def test_cap_stops_at_n_cases(monkeypatch: pytest.MonkeyPatch) -> None:
     assert all(doc.text_reads == 0 for doc in docs[2:])
 
 
-def test_nightly_converts_after_the_pool_load_and_before_the_self_test() -> None:
-    text = (ROOT / "agents" / "zenas" / "pool" / "nightly.py").read_text(encoding="utf-8")
-    main = text.split("async def _main", 1)[1]
-    assert main.index("await run_nightly") < main.index("await convert_scheduled") < main.index("await run_scheduled")
+@pytest.mark.asyncio
+async def test_nightly_converts_after_the_pool_load_and_before_the_self_test(monkeypatch) -> None:
+    import asyncpg
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+    from agents.zenas.core import convert, regulations, selftest
+    from agents.zenas.pool import nightly, store
+
+    calls = []
+    connection = SimpleNamespace(close=AsyncMock())
+    monkeypatch.setenv("DATABASE_URL", "placeholder-offline")
+    monkeypatch.delenv("POOL_USE_FIXTURES", raising=False)
+    monkeypatch.setattr(asyncpg, "connect", AsyncMock(return_value=connection))
+    monkeypatch.setattr(store, "PostgresStore", lambda conn: SimpleNamespace(apply_schema=AsyncMock()))
+
+    async def load(*args, **kwargs):
+        calls.append("load")
+        return {"region": "us-east"}
+
+    def scheduled(name):
+        async def run(conn, *, region):
+            assert conn is connection and region == "us-east"
+            calls.append(name)
+            return {}
+        return run
+
+    monkeypatch.setattr(nightly, "run_nightly", load)
+    monkeypatch.setattr(regulations, "run_scheduled", scheduled("regulations"))
+    monkeypatch.setattr(convert, "run_scheduled", scheduled("convert"))
+    monkeypatch.setattr(selftest, "run_scheduled", scheduled("selftest"))
+    await nightly._night_main("us-east", None)
+    assert calls == ["load", "regulations", "convert", "selftest"]
+    connection.close.assert_awaited_once()
     job = (ROOT / "agents" / "zenas" / "core" / "convert.py").read_text(encoding="utf-8")
     assert 'task_type="zenas.case_facts"' in job
     assert "os.nice(19)" in job
