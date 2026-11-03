@@ -81,6 +81,14 @@ and TMPDIR mapped to this checkout's `.tmp`.
   cannot create a socket. This does not claim execution on the ZA host.
 - `git diff --check` passed.
 
+Volume correction after the authorized rebase onto main `f0072e8e`:
+the Zenas brain/seal run passed 175 checks and exposed two outdated assertions
+requiring names on existing room volumes. Those assertions now require main's
+unchanged Zenas declarations instead. The corrected raw-compose cases and new
+byte-for-byte volume regressions all passed (10 checks); Ruff E9/F passed.
+Direct byte comparisons against fetched main also passed for both volume sections.
+No Docker volume operations were performed.
+
 Focused command:
 
 ```sh
@@ -131,7 +139,7 @@ founder enables them.
 | `tests/test_ledger_sql_param.py:21,55,87,107,126` | Valid and hostile Zenas SQL/auth coverage. |
 | `tests/fixtures/seal_check/zenas_us_sealed.json:1` | Boston sealed fixture. |
 | `tests/fixtures/seal_check/zenas_za_sealed.json:1` | ZA sealed fixture. |
-| `tests/zenas_brain/test_brain.py:29` | 59 offline provisioning, civil, accounting, region and seal tests. |
+| `tests/zenas_brain/test_brain.py:30` | 61 offline provisioning, volume preservation, civil, accounting, region and seal tests. |
 | `docs/cursor/ROOMS.md:185,208` | Dated Boston capacity, ZA pending plan and deployment notes. |
 | `tests/zenas_brain/evidence/*:1` | Raw measurement, test, image-build and runtime evidence. |
 | `tests/zenas_brain/PR.md:1` | This review/deployment handoff. |
