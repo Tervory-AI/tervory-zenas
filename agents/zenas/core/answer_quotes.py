@@ -24,8 +24,8 @@ def named_quotation(question: str, passages: list[dict[str, Any]], citations: li
             or (title and title.casefold() in question.casefold())
         ):
             continue
-        if not any(row.get("passed") and row.get("doc_id") == passage.get("doc_id")
-                   and row.get("version_id", "") == passage.get("version_id", "")
+        if not any(row.get("resolved") and row.get("quote_match") and row.get("doc_id") == str(passage.get("doc_id") or "")
+                   and row.get("version_id", "") == str(passage.get("version_id") or "")
                    for row in checked.get("results", [])):
             continue
         text = str(passage.get("text") or "")
