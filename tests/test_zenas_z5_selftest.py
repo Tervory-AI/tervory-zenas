@@ -210,3 +210,36 @@ def test_numeric_citation_prefix_does_not_count_as_the_exact_citation():
     reason = selftest._miss_reason({"kind": "real", "citation": CITE}, f"{CITE}0: {QUOTE}",
                                   ok_result=True, raised="", quote=QUOTE)
     assert reason == "real: the answer does not give the citation"
+
+
+def test_selftest_and_room_adapters_keep_only_structured_refusal_metadata(monkeypatch):
+    from agents.zenas.app import _TankModel
+
+    class Tank:
+        def __init__(self, *args):
+            pass
+        async def route(self, *args):
+            return {"ok": False, "code": "cost_cap", "http_status": 409,
+                    "body": "placeholder private response", "headers": {"placeholder": "private"}}
+    monkeypatch.setenv("TANK_KEY", "placeholder-token")
+    monkeypatch.setenv("TANK_URL", "http://placeholder-tank")
+    monkeypatch.setattr("chassis.tank.TankClient", Tank)
+
+    async def run():
+        nightly, http = selftest._tank_model()
+        try:
+            for model in (nightly, _TankModel(Tank(), "placeholder-tenant")):
+                result = await answer(model)
+                assert result["reason"] == "unavailable"
+                assert result["failure"] == {"http_status": 409, "refusal_code": "cost_cap"}
+                assert "private" not in json.dumps(result)
+        finally:
+            await http.aclose()
+    asyncio.run(run())
+
+
+def test_criminal_question_stops_before_gateway():
+    model = Gateway(RuntimeError("placeholder gateway must not run"))
+    result = asyncio.run(answer(model, question="Defend a placeholder criminal charge in South Africa."))
+    assert result["ok"] is False and "criminal law" in result["reason"]
+    assert model.calls == 0
