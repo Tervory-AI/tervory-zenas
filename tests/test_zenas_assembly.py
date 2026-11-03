@@ -59,6 +59,9 @@ WORDING = {
     "authority": "{counterparty} may solicit orders for {party} but may not bind {party}.",
     "commission": "{party} pays {counterparty} a commission of {commission} on accepted orders.",
 }
+# Reuse existing offline wording for the new slots; never seed live clauses.
+WORDING.update({slot: WORDING["services"] for slot in
+                ("service_levels", "credits", "subject", "facts", "request")})
 TERMS = {
     "us-east": {"party": "Acme Supply LLC", "counterparty": "Riverbend Tools Inc.", "term": "two years",
                 "start_date": "1 November 2026", "days": "30", "goods": "500 hand drills",
