@@ -241,7 +241,7 @@ async def test_content_plan_pause_expires_on_day_seven_and_success_loads_library
     from datetime import timedelta
     from agents.zenas.pool import nightly
 
-    replay, store = Replay(), MemoryStore()
+    replay, store = Replay(), MemoryStore(home_region="za")
     paused = "not on plan:" + ON.isoformat()
     await store.set_checkpoint(nightly._CONTENT_PLAN_CHECKPOINT, paused, 0)
     await run_nightly(store, region="za", only=["laws-africa"], live=True,
