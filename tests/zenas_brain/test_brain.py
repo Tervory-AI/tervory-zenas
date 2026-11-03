@@ -2,6 +2,7 @@
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import sys
@@ -64,12 +65,31 @@ def test_compose_keeps_both_runtimes_off_hardened_and_box_local(region):
     own = "za" if region == "za" else "us"
     assert config["volumes"]["zenas_brain_data"]["name"] == "tervory-zenas-" + own + "-brain-data"
     assert brain["volumes"] == ["zenas_brain_data:/data"]
-    data = config["volumes"]["za_agent_data" if region == "za" else "agent_zenas_data"]
-    assert data["external"] is True and data["name"]
     if region == "za":
         assert room["environment"]["TANK_REGION"] == "za"
         assert room["environment"]["R2_BUCKET"] == "${R2_BUCKET_ZENAS_ZA:-}"
         assert "tervory-zenas-us-brain-data" not in text
+
+
+@pytest.mark.parametrize("region", FILES)
+def test_existing_volume_entries_match_main_byte_for_byte(region):
+    # Snapshots from main f0072e8e: no Git history or network needed in CI.
+    original = {
+        "us-east": "volumes:\n  agent_zenas_data:\n\n",
+        "za": "volumes:\n  # Local to the SA server. Never replicated to the United States.\n  za_agent_data:\n\n",
+    }
+    text = (ROOT / "agents/zenas" / FILES[region]).read_bytes()
+    section = text.split(b"\nvolumes:\n", 1)[1].split(b"networks:\n", 1)[0]
+    section = b"volumes:\n" + section
+    # Only the newly introduced brain volume may differ from main.
+    without_brain = re.sub(rb"(?m)^  zenas_brain_data:\n(?:    .*\n)*", b"", section)
+    assert without_brain == original[region].encode()
+    data = "za_agent_data" if region == "za" else "agent_zenas_data"
+    config = yaml.safe_load(text)
+    for service in ("agent-zenas", "pool-loader"):
+        assert config["services"][service]["volumes"] == [data + ":/data"]
+    assert config["services"]["zenas-brain"]["volumes"] == ["zenas_brain_data:/data"]
+    assert not config["services"]["zenas-sandbox"].get("volumes")
 
 
 @pytest.mark.parametrize("region", FILES)

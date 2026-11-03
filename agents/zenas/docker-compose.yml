@@ -143,8 +143,6 @@ volumes:
   zenas_brain_data:
     name: tervory-zenas-us-brain-data
   agent_zenas_data:
-    external: true
-    name: r7qzm460bc4scnskurlowbvn_agent-zenas-data
 
 networks:
   sandbox:

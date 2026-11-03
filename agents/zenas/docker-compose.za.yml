@@ -154,8 +154,6 @@ volumes:
     name: tervory-zenas-za-brain-data
   # Local to the SA server. Never replicated to the United States.
   za_agent_data:
-    external: true
-    name: ${ZENAS_ZA_DATA_VOLUME:-rslmzhfmq5tf9ipx385gmu6p_za-agent-data}
 
 networks:
   sandbox:

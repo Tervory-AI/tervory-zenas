@@ -6,10 +6,8 @@ shared health-only standby, and Base WASI sandbox. It adds no caller, task API,
 model policy, provider or paid service. Setting the room flag alone cannot start
 a brain: both services also require the Compose `brain` profile.
 
-Branch: `codex/zenas-brain`, stacked on Tiger #638 at
-`de2e8e9d99133fa75acc32a42c92d25a939bfdee`. No merge from main was performed.
-Claude can retarget after #638 merges. PR creation and merge remain with Claude
-or the founder.
+Branch: `codex/zenas-brain`, rebased once onto main after Tiger #638 merged, as
+authorized by the founder. PR creation and merge remain with Claude or the founder.
 
 ## Behavior and boundaries
 
@@ -49,15 +47,15 @@ Planned additional limits are 2.5 GiB / 1.5 CPU per box. These are limits, not
 measured usage or approval to enable a brain. No ZA SSH target or credentials
 were sought after the founder's instruction; no larger box is requested.
 
-Raw Compose preserves Boston's existing room volume using its deployed `/data`
-mount name, read without inspecting credentials. ZA's external volume default
-is derived from the existing Coolify resource ID and naming convention; its
-actual name has not been verified on ZA. `ZENAS_ZA_DATA_VOLUME` can name the
-existing volume if different. A missing external volume fails closed rather
-than creating empty room data. Existing regional bucket bindings are unchanged.
+Existing volume declarations and room/pool-loader mounts are unchanged from
+main on both boxes. A byte-for-byte regression checks the existing volume
+sections against main's snapshots. The brain mounts only `zenas_brain_data`,
+never a room volume; any future room-data access goes through existing room
+tools via Tank. No existing Docker volume was changed or inspected for this fix.
+Existing regional bucket bindings are unchanged.
 
 Setting names only were added to `.env.example`: `ZENAS_BRAIN_ENABLED`,
-`SANDBOX_KEY_ZENAS` (distinct per box), and `ZENAS_ZA_DATA_VOLUME`.
+`SANDBOX_KEY_ZENAS` (distinct per box).
 
 ## Validation
 
@@ -124,7 +122,7 @@ founder enables them.
 | --- | --- |
 | `agents/_brain/standby.py:12` | Health-only room selection, Tiger default preserved. |
 | `agents/zenas/docker-compose.yml:1,17,52,87,143` | Boston raw mode, disabled flag, brain/sandbox and local volumes. |
-| `agents/zenas/docker-compose.za.yml:1,20,57,92,153` | ZA equivalent, local key and external room-volume name. |
+| `agents/zenas/docker-compose.za.yml:1,20,57,92,153` | ZA equivalent and local key; existing room volume unchanged. |
 | `.env.example:212` | Setting names and comments. |
 | `tank/agent_skills.py:35,65,78,175` | Owning room, local region and existing civil scope before model work. |
 | `agents/base/check_brain_isolation.py:29` | Three-container regional Zenas verification. |
