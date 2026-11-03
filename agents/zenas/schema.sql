@@ -180,6 +180,17 @@ CREATE TABLE IF NOT EXISTS agent_zenas.training_pairs (
 CREATE INDEX IF NOT EXISTS training_region_tenant_idx
     ON agent_zenas.training_pairs (region, tenant_id);
 
+-- Current official-court versions handed to Tank's code-only training writer.
+CREATE TABLE IF NOT EXISTS agent_zenas.judgment_split_exports (
+    region      text NOT NULL CHECK (region IN ('us-east', 'za')),
+    source_id   text NOT NULL,
+    document_id text NOT NULL,
+    version_id  text NOT NULL,
+    status      text NOT NULL CHECK (status IN ('split', 'excluded')),
+    exported_at timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (region, version_id)
+);
+
 CREATE TABLE IF NOT EXISTS agent_zenas.ladder_runs (
     id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     region        text NOT NULL,
