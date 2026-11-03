@@ -52,6 +52,8 @@ from agents.zenas.core.precedent import (
     unverified_note,
 )
 from agents.zenas.core.selftest import is_holdout
+from agents.zenas.core.answer_failures import exception_failure, safe_failure
+from agents.zenas.core.answer_quotes import named_quotation, neutral_citations
 from agents.zenas.core.citation_sources import cited_sources, public_source_url
 
 # Whole passages, best first. A passage is never sliced to fit.
@@ -195,6 +197,10 @@ class ModelAdapter:
         if isinstance(result, str):
             cost = TOP_CALL_USD if task_type == "zenas.rule_card" else CHEAP_CALL_USD
             return {"content": result, "cost_usd": cost, "model": provider or "luna"}
+        if result.get("ok") is False or result.get("status") in ("refused", "failed", "unavailable"):
+            return {"refused": True, "failure": safe_failure({
+                "http_status": result.get("http_status"), "refusal_code": result.get("code"),
+            })}
         content = str(result.get("content") or "")
         cost = result.get("cost_usd")
         if cost is None:
@@ -219,11 +225,16 @@ async def _masked_call(
         return _refuse(prepared["reason"] or IDENTIFIER_REFUSED)
     if model is None:
         return _refuse("no model is configured")
-    result = await model.complete(
-        [{"role": "user", "content": prepared["text"]}],
-        task_type=task_type,
-        provider=provider,
-    )
+    try:
+        result = await model.complete(
+            [{"role": "user", "content": prepared["text"]}],
+            task_type=task_type,
+            provider=provider,
+        )
+    except Exception as exc:
+        return _refuse("unavailable", failure=exception_failure(exc))
+    if result.get("refused"):
+        return _refuse("unavailable", failure=result.get("failure") or {})
     return {"ok": True, "result": result, "masked": prepared["masked"]}
 
 
@@ -379,8 +390,9 @@ async def _passages_from_pool(
     day = date.fromisoformat(as_at) if as_at else None
     law = jurisdiction if jurisdiction in ("us", "za") else "us"
     chunks: list[Any] = []
-    if citation.strip() and hasattr(pool, "find_by_citation"):
-        chunks.extend(await pool.find_by_citation(citation, jurisdiction=law, as_at=day))
+    if hasattr(pool, "find_by_citation"):
+        for wanted in ([citation] if citation.strip() else neutral_citations(query)):
+            chunks.extend(await pool.find_by_citation(wanted, jurisdiction=law, as_at=day))
     search = _search_query(query)
     if query.strip() and hasattr(pool, "search_hybrid"):
         chunks.extend(await pool.search_hybrid(query, keyword_query=search, jurisdiction=law, as_at=day,
@@ -420,7 +432,17 @@ async def _passages_from_pool(
         # at question time (the bulk Content API is not on this plan).
         from agents.zenas.pool.adapters.laws_africa_kb import za_passages
 
-        for item in await za_passages(query):
+        failures: list[dict[str, Any]] = []
+        try:
+            remote = await za_passages(query, failures=failures)
+        except Exception as exc:
+            failures.append(exception_failure(exc))
+            remote = []
+        if failures:
+            for local in passages:
+                local["retrieval_fallback"] = "library"
+                local["retrieval_failure"] = failures[0]
+        for item in remote:
             key = "kb:" + item["doc_id"] + "#" + item["path"] + "|" + item["text"][:64]
             if key in seen:
                 continue
@@ -1876,6 +1898,15 @@ async def answer_question(
     sources = cited_sources(statements, checked, passages, memo_cites, require_links=require_links)
     if sources is None:
         return _could_not_verify(question, passages, features, delivered=False, cite=checked)
+    quotation = named_quotation(question, passages, memo_cites, checked)
+    if quotation:
+        reference = " ".join(piece for piece in (quotation["citation"], quotation["reference"]) if piece)
+        memo["text"] = f'{memo["text"]}\n\n“{quotation["quote"]}” ({reference})'
+        for source in sources:
+            if source["citation"] == quotation["citation"]:
+                source["quote"] = quotation["quote"]
+                if quotation["reference"]:
+                    source["reference"] = quotation["reference"]
     memo["sources"] = sources
     memo["text"] = _with_legal_notice(memo["text"])
     state = "in_review" if review_on else "released"
