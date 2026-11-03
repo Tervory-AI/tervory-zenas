@@ -210,7 +210,7 @@ def test_quote_from_a_different_judgment_fails(monkeypatch):
     assert result["passed"] == 45
 
 
-def test_verbatim_answer_passes_without_requiring_a_matching_card_element(monkeypatch):
+def test_quote_attributed_to_another_case_fails(monkeypatch):
     # The words are CAC 108's, but the card cites them to CAC 200.
     def answer(index, question):
         return {
@@ -220,7 +220,30 @@ def test_verbatim_answer_passes_without_requiring_a_matching_card_element(monkey
         }
 
     result = _real_run(monkeypatch, answer, [LONG_DOC])
-    assert result["passed"] == 50
+    assert result["passed"] == 40
+
+
+def test_correct_memo_does_not_override_wrong_card_attribution(monkeypatch):
+    def answer(index, question):
+        return {
+            "ok": True,
+            "memo": {"text": f"CAC 108: “{HOLDING}”"},
+            "rule_card": {"elements": [
+                {"citation": "CAC 108", "quote": HOLDING},
+                {"citation": "CAC 200", "quote": HOLDING},
+            ]},
+        }
+
+    result = _real_run(monkeypatch, answer, [LONG_DOC])
+    assert result["passed"] == 40
+    assert not result["skills_may_be_approved"]
+
+
+def test_wrong_memo_attribution_fails_even_with_correct_card(monkeypatch):
+    for memo in (f"CAC 108. CAC 200: “{HOLDING}”", f"CAC 108. “{HOLDING}” (CAC 200)"):
+        result = _real_run(monkeypatch, lambda i, q: _card_answer("CAC 108", HOLDING, memo_text=memo), [LONG_DOC])
+        assert result["passed"] == 40
+        assert not result["skills_may_be_approved"]
 
 
 def test_card_quote_not_in_the_answer_fails(monkeypatch):
