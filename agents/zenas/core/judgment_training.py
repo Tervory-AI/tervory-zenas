@@ -10,6 +10,7 @@ import httpx
 from agents.zenas.core.judgment_split import split_judgment
 from agents.zenas.core.store import schema_statements
 from agents.zenas.pool.adapters.za_archive import ZA_ARCHIVE_SOURCES
+from agents.zenas.pool.deadline import check_deadline
 
 _SPLIT_MAX = 500
 _ROWS = """
@@ -44,6 +45,7 @@ async def run_scheduled(conn: Any, *, region: str) -> dict[str, int]:
         timeout=60, follow_redirects=False, trust_env=False
     ) as client:
         for row in rows:
+            check_deadline()
             result = split_judgment(str(row["title"] or ""), str(row["text"] or ""))
             payload = {
                 "source_id": str(row["source_id"]),
@@ -55,6 +57,7 @@ async def run_scheduled(conn: Any, *, region: str) -> dict[str, int]:
             if result["status"] == "split":
                 payload.update(input=result["input"], output=result["output"])
             response = await client.post(url, json=payload, headers={"X-Tank-Key": key})
+            check_deadline()
             if response.status_code < 200 or response.status_code >= 300:
                 raise RuntimeError("Tank court-text writer unavailable")
             await conn.execute(
