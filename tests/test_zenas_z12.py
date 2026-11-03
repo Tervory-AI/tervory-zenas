@@ -322,20 +322,16 @@ def test_the_nightly_made_up_gate_uses_answer_question_or_says_not_run():
             }
             return {"content": json.dumps(payload), "cost_usd": 0, "model": "za-local"}
 
-    result = asyncio.run(run_made_up_test(ladder, ladder, Model(), library=[document]))
-    assert result["path"] == "answer_question"
+    # This old saved order has only a five-word sentence and one distinct case.
+    # Z5 must leave the run unscored rather than repeat it ten times for approval.
+    model = Model()
+    result = asyncio.run(run_made_up_test(ladder, ladder, model, library=[document]))
+    assert result["path"] == "not run"
     assert result["asked"] == 50
-    assert result["passed"] == 50, result["failures"]
-    assert result["skills_may_be_approved"] is True
-    assert "path: answer_question" in result["area"]
-    assert zenas_skills_may_be_approved(result) is True
-    assert len(ladder.rule_cards) == 50
-    assert all(card["region"] == "za" and card["jurisdiction"] == "za" for card in ladder.rule_cards)
-    real = [item for item in result["questions"] if item["kind"] == "real"]
-    traps = [item for item in result["questions"] if item["kind"] == "trap"]
-    assert len(real) == 10
-    assert len(traps) == 40
-    assert all(document["name"] in item["question"] and document["citation"] in item["question"] for item in real)
+    assert result["passed"] == 0
+    assert result["skills_may_be_approved"] is False
+    assert zenas_skills_may_be_approved(result) is False
+    assert model.calls == [] and ladder.rule_cards == []
 
 
 def test_one_word_in_another_sentence_does_not_taint_every_case():
