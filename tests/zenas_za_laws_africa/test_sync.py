@@ -234,3 +234,23 @@ async def test_paging_cycle_and_foreign_next_url_do_not_reach_another_host(clock
         report = await load_wave(store, region="za", only=[SOURCE], live=True, http_get=replay.get, on=ON)
         assert row(report)["last_status"] == "error"
         assert all(url.startswith(api.API) for url in replay.calls)
+
+
+@pytest.mark.asyncio
+async def test_content_plan_pause_expires_on_day_seven_and_success_loads_library(clock_and_token):
+    from datetime import timedelta
+    from agents.zenas.pool import nightly
+
+    replay, store = Replay(), MemoryStore()
+    paused = "not on plan:" + ON.isoformat()
+    await store.set_checkpoint(nightly._CONTENT_PLAN_CHECKPOINT, paused, 0)
+    await run_nightly(store, region="za", only=["laws-africa"], live=True,
+                      http_get=replay.get, on=ON + timedelta(days=6))
+    assert replay.calls == []
+    assert await store.get_checkpoint(nightly._CONTENT_PLAN_CHECKPOINT) == paused
+    report = await run_nightly(store, region="za", only=["laws-africa"], live=True,
+                               http_get=replay.get, on=ON + timedelta(days=7))
+    assert replay.calls.count(api.WORKS) == 1
+    assert row(report)["last_status"] == "ok"
+    assert row(report)["documents"] == 12
+    assert await store.get_checkpoint(nightly._CONTENT_PLAN_CHECKPOINT) == ""
