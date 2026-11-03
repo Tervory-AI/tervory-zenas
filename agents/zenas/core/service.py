@@ -52,7 +52,7 @@ from agents.zenas.core.precedent import (
     unverified_note,
 )
 from agents.zenas.core.selftest import is_holdout
-from agents.zenas.core.answer_failures import exception_failure, route_failure
+from agents.zenas.core.answer_failures import exception_failure, route_failure, safe_failure
 from agents.zenas.core.answer_quotes import named_quotation, neutral_citations
 from agents.zenas.core.citation_sources import cited_sources, public_source_url
 
@@ -385,7 +385,7 @@ async def _passages_from_pool(
     as_at: str | None,
     level: str | None,
     kind: str | None,
-    failures: list[dict[str, Any]] | None = None,
+    retrieval: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     if pool is None:
         return []
@@ -442,12 +442,10 @@ async def _passages_from_pool(
         except Exception as exc:
             kb_failures.append(exception_failure(exc))
             remote = []
-        if kb_failures:
-            if failures is not None:
-                failures.extend(kb_failures)
-            for local in passages:
-                local["retrieval_fallback"] = "library"
-                local["retrieval_failure"] = kb_failures[0]
+        if kb_failures and retrieval is not None:
+            retrieval["failure"] = safe_failure(kb_failures[0])
+            if passages:
+                retrieval["fallback"] = "library"
         for item in remote:
             key = "kb:" + item["doc_id"] + "#" + item["path"] + "|" + item["text"][:64]
             if key in seen:
@@ -1824,7 +1822,7 @@ async def answer_question(
     prepared = prepare_prompt(question, home_region=home_region, provider=provider)
     if not prepared["ok"]:
         return _refuse(prepared["reason"] or IDENTIFIER_REFUSED, delivered=False)
-    retrieval_failures: list[dict[str, Any]] = []
+    retrieval: dict[str, Any] = {}
     if not passages:
         passages = await _passages_from_pool(
             pool,
@@ -1834,17 +1832,18 @@ async def answer_question(
             as_at=None,
             level=None,
             kind=None,
-            failures=retrieval_failures,
+            retrieval=retrieval,
         )
+    retrieval_note = {"retrieval": retrieval} if retrieval else {}
     if not passages:
         return _could_not_verify(question, passages, features, delivered=False,
-                                 **({"failure": retrieval_failures[0]} if retrieval_failures else {}))
+                                 **retrieval_note)
     require_links = bool(getattr(pool, "requires_source_links", False))
     if require_links:
         passages = [passage for passage in passages if public_source_url(passage.get("url"))]
         if not passages:
             return _could_not_verify(question, passages, features, delivered=False,
-                                 **({"failure": retrieval_failures[0]} if retrieval_failures else {}))
+                                 **retrieval_note)
     built = await build_rule_card(
         ladder,
         tank,
@@ -1858,9 +1857,9 @@ async def answer_question(
         provider=provider,
     )
     if not built.get("ok"):
-        return {**built, "delivered": False}
+        return {**built, **retrieval_note, "delivered": False}
     if not built.get("reused") and not (built.get("cite") or {}).get("passed"):
-        return _could_not_verify(question, passages, features, delivered=False, cite=built.get("cite"))
+        return _could_not_verify(question, passages, features, delivered=False, cite=built.get("cite"), **retrieval_note)
     card = built["rule_card"]
     review_on = await review_required(ladder, region=_box(box_region))
     if not card_servable(
@@ -1868,7 +1867,7 @@ async def answer_question(
         review_on=review_on,
     ):
         return _could_not_verify(question, passages, features, delivered=False,
-                                 **({"failure": retrieval_failures[0]} if retrieval_failures else {}))
+                                 **retrieval_note)
     applied = await apply_law(
         ladder,
         model,
@@ -1882,11 +1881,11 @@ async def answer_question(
         tank=tank,
     )
     if not applied.get("ok"):
-        return {**applied, "delivered": False}
+        return {**applied, **retrieval_note, "delivered": False}
     fresh = await ladder.get_rule_card(str(card["id"]), region=_box(box_region), tenant_id=tenant_id)
     if fresh is None:
         return _could_not_verify(question, passages, features, delivered=False,
-                                 **({"failure": retrieval_failures[0]} if retrieval_failures else {}))
+                                 **retrieval_note)
     memo = compose_memo(fresh, applied["elements"])
     known_names = _known_names(passages, features)
     if matter_id:
@@ -1907,19 +1906,14 @@ async def answer_question(
     memo_cites = [str(item) for item in memo.get("citations") or []]
     known = {str(item.get("citation") or "") for item in statements}
     if not checked.get("passed") or any(item not in known for item in memo_cites):
-        return _could_not_verify(question, passages, features, delivered=False, cite=checked)
+        return _could_not_verify(question, passages, features, delivered=False, cite=checked, **retrieval_note)
     sources = cited_sources(statements, checked, passages, memo_cites, require_links=require_links)
     if sources is None:
-        return _could_not_verify(question, passages, features, delivered=False, cite=checked)
+        return _could_not_verify(question, passages, features, delivered=False, cite=checked, **retrieval_note)
     quotation = named_quotation(question, passages, memo_cites, checked)
     if quotation:
         reference = " ".join(piece for piece in (quotation["citation"], quotation["reference"]) if piece)
         memo["text"] = f'{memo["text"]}\n\n“{quotation["quote"]}” ({reference})'
-        for source in sources:
-            if source["citation"] == quotation["citation"]:
-                source["quote"] = quotation["quote"]
-                if quotation["reference"]:
-                    source["reference"] = quotation["reference"]
     memo["sources"] = sources
     memo["text"] = _with_legal_notice(memo["text"])
     state = "in_review" if review_on else "released"
@@ -1944,7 +1938,7 @@ async def answer_question(
         document_id = document["id"]
     return {
         "ok": True,
-        **({"failure": retrieval_failures[0]} if retrieval_failures else {}),
+        **retrieval_note,
         "memo": memo,
         "rule_card": _public_card(fresh),
         "reviewed": False,
