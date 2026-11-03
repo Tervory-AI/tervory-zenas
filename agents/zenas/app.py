@@ -1095,6 +1095,3 @@ async def get_moot_published(home_region: str, match_id: UUID | None = None) -> 
     except Exception:
         raise HTTPException(status_code=503, detail="published matches unavailable") from None
     return {"matches": matches}
-
-
-
