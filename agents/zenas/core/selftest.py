@@ -14,7 +14,7 @@ import urllib.parse
 from collections import defaultdict
 from typing import Any
 
-from agents.zenas.core.answer_failures import exception_failure, safe_failure
+from agents.zenas.core.answer_failures import exception_failure, safe_failure, route_failure
 from agents.zenas.core.engine import cite_check, code_finding, compose_memo, decide_without_model
 from agents.zenas.core.legalbench import legalbench_scores
 from agents.zenas.core.scope_rules import classify
@@ -507,6 +507,9 @@ def _tank_model() -> tuple[Any, Any]:
         async def complete(self, messages: list[dict[str, str]], *, task_type: str, provider: str) -> dict[str, Any]:
             del provider
             data = await client.route(_PLATFORM, task_type, messages)
+            failed = route_failure(data)
+            if failed is not None:
+                return failed
             return {
                 "content": str(data.get("content") or ""),
                 "cost_usd": float(data.get("cost_usd") or 0),
