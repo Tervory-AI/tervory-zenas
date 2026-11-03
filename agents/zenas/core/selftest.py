@@ -976,6 +976,9 @@ async def run_made_up_test(
                 provider=provider,
             )
             failure = safe_failure(result.get("failure"))
+            retrieval = result.get("retrieval")
+            if not failure and isinstance(retrieval, dict):
+                failure = safe_failure(retrieval.get("failure"))
             ok_result = bool(result.get("ok"))
             answer = str((result.get("memo") or {}).get("text") or "") if ok_result else str(result.get("reason") or "")
             if not ok_result:
