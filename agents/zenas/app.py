@@ -57,6 +57,7 @@ from agents.zenas.core.service import (  # noqa: E402
     extract_case_facts,
     judgment_from_pool_row,
     ladder_metrics,
+    list_playbooks,
     list_matters,
     mark_stale,
     match_matters,
@@ -866,6 +867,16 @@ async def post_playbook(body: PlaybookIn) -> dict[str, Any]:
         template=body.template,
         positions=body.positions,
     )
+    _fail(result)
+    return result
+
+
+@app.get("/playbooks")
+async def get_playbooks(tenant_id: UUID, home_region: str) -> dict[str, Any]:
+    store = _store()
+    await store.apply_schema()
+    result = await list_playbooks(store, tenant_id=str(tenant_id), home_region=home_region,
+                                  box_region=_box_region())
     _fail(result)
     return result
 
