@@ -89,7 +89,7 @@ def test_structured_paid_refusal_keeps_only_known_code():
 
 
 @pytest.mark.parametrize("error", [httpx.ReadError("placeholder body"), TimeoutError("placeholder prompt")])
-def test_kb_failure_retains_library_and_marks_sources(monkeypatch, error):
+def test_kb_failure_retains_library_and_marks_answer(monkeypatch, error):
     async def retrieve(self, *args, **kwargs):
         raise error
     monkeypatch.setattr(kb.KnowledgeBaseClient, "__init__", lambda *args, **kwargs: None)
@@ -107,8 +107,9 @@ def test_kb_failure_retains_library_and_marks_sources(monkeypatch, error):
         question=f"What did [Party A] 270.CAC .Apr25. Judgment {CITE} hold in this placeholder commercial dispute?"))
     assert result["ok"], result
     source = result["memo"]["sources"][0]
-    assert source["retrieval_fallback"] == "library"
-    assert source["retrieval_failure"]["exception"] == type(error).__name__
+    assert source == {"citation": CITE, "quote": QUOTE}
+    assert result["retrieval"]["fallback"] == "library"
+    assert result["retrieval"]["failure"]["exception"] == type(error).__name__
     assert f"“{QUOTE}” ({CITE} [1])" in result["memo"]["text"]
 
 
@@ -190,7 +191,7 @@ def test_kb_outage_without_library_is_a_refusal_with_diagnostics(monkeypatch):
             return []
     result = asyncio.run(answer(Gateway(), passages=[], pool=EmptyPool()))
     assert result["ok"] is False and result["reason"].startswith("could not verify")
-    assert result["failure"]["exception"] == "ReadError"
+    assert result["retrieval"]["failure"]["exception"] == "ReadError"
 
 
 def test_unexpected_raised_answer_records_only_safe_location(monkeypatch):
