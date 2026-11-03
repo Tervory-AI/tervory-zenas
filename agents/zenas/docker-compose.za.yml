@@ -38,6 +38,7 @@ services:
       HERMES_URL: http://hermes:8000
       ZENAS_PII_KEY: ${ZENAS_PII_KEY:-}
       ZENAS_MATTER_SHARING: ${ZENAS_MATTER_SHARING:-region}
+      ZENAS_REVIEW: ${ZENAS_REVIEW:-off}
       DATA_DIR: /data
     volumes:
       - za_agent_data:/data
