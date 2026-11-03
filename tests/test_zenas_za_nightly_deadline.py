@@ -97,7 +97,7 @@ async def test_whole_night_defers_unreached_sources_and_prioritises_them_tomorro
 
 
 @pytest.mark.asyncio
-async def test_judgment_training_and_later_jobs_share_the_run_deadline(monkeypatch):
+async def test_convert_judgment_training_and_later_jobs_share_the_run_deadline(monkeypatch):
     clock, called, report = Clock(), [], {}
 
     async def quick(conn, *, region):
@@ -112,18 +112,19 @@ async def test_judgment_training_and_later_jobs_share_the_run_deadline(monkeypat
             await asyncio.sleep(0)
 
     monkeypatch.setattr(regulations, "run_scheduled", quick)
+    monkeypatch.setattr(convert, "run_scheduled", quick)
     monkeypatch.setattr(judgment_training, "run_scheduled", splitting)
     monkeypatch.setattr(selftest, "run_scheduled", quick)
     await nightly._scheduled_jobs(None, report, region="za", deadline=6000, clock=clock)
     assert clock.now == 300
     assert report["deferred_jobs"] == ["judgment_training"]
-    assert called == ["quick", "judgment_training", "quick"]
+    assert called == ["quick", "quick", "judgment_training", "quick"]
     called.clear()
     clock.now = 5970
     report = {}
     await nightly._scheduled_jobs(None, report, region="za", deadline=6000, clock=clock)
     assert called == []
-    assert report["deferred_jobs"] == ["regulations", "judgment_training", "selftest"]
+    assert report["deferred_jobs"] == ["regulations", "convert", "judgment_training", "selftest"]
 
 
 @pytest.mark.asyncio
@@ -170,7 +171,7 @@ async def test_main_exits_normally_when_global_deadline_defers_remaining_jobs(mo
     assert clock.now < 6000
     conn.close.assert_awaited_once()
     report = json.loads(capsys.readouterr().out)
-    assert report["deferred_jobs"] == ["regulations", "judgment_training", "selftest"]
+    assert report["deferred_jobs"] == ["regulations", "convert", "judgment_training", "selftest"]
     assert report["sources"][0]["last_status"] == "deferred"
 
 
@@ -184,12 +185,12 @@ async def test_us_jobs_keep_their_original_unbounded_behaviour(monkeypatch):
         called.append(region)
         return {}
 
-    for module in (regulations, judgment_training, selftest):
+    for module in (regulations, convert, judgment_training, selftest):
         monkeypatch.setattr(module, "run_scheduled", slow)
     report = {}
     await nightly._scheduled_jobs(None, report, region="us-east", clock=clock)
-    assert called == ["us-east"] * 3
-    assert clock.now == 21000
+    assert called == ["us-east"] * 4
+    assert clock.now == 28000
     assert "deferred_jobs" not in report
 
 

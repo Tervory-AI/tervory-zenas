@@ -751,13 +751,14 @@ def main() -> None:
 
 
 async def _scheduled_jobs(conn, report, *, region, deadline=None, clock=None):
+    from agents.zenas.core.convert import run_scheduled as convert_scheduled
     from agents.zenas.core.regulations import run_scheduled as regulations_scheduled
     from agents.zenas.core.judgment_training import run_scheduled as judgment_training_scheduled
     from agents.zenas.core.selftest import run_scheduled as selftest_scheduled
 
     clock = clock or monotonic
-    for name, job in (("regulations", regulations_scheduled), ("judgment_training", judgment_training_scheduled),
-                      ("selftest", selftest_scheduled)):
+    for name, job in (("regulations", regulations_scheduled), ("convert", convert_scheduled),
+                      ("judgment_training", judgment_training_scheduled), ("selftest", selftest_scheduled)):
         if name == "regulations" and report.get("fixtures"):
             continue
         if deadline is not None:
