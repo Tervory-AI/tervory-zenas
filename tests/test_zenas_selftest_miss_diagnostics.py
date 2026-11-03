@@ -19,6 +19,8 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
+from zenas_z5_fixtures import distinct_library, recite
+
 from agents.zenas.core import selftest  # noqa: E402
 from agents.zenas.core.ladder_store import LadderMemory  # noqa: E402
 
@@ -43,11 +45,11 @@ def _run(monkeypatch, real_answer):
     async def answer_question(*args, question: str, **kwargs):
         index = calls["n"]
         calls["n"] += 1
-        return {"ok": True, "memo": {"text": TRAP_OK}} if index < 40 else real_answer(index, question)
+        return {"ok": True, "memo": {"text": TRAP_OK}} if index < 40 else recite(real_answer(index, question), [DOC], index)
 
     monkeypatch.setattr("agents.zenas.core.service.answer_question", answer_question)
     ladder = LadderMemory()
-    out = asyncio.run(selftest.run_selftest(ladder, region="za", library=[DOC], model=object()))
+    out = asyncio.run(selftest.run_selftest(ladder, region="za", library=distinct_library([DOC]), model=object()))
     made = next(run for run in out["runs"] if str(run["area"]).startswith("Made-up"))
     stored = next(row for row in ladder.selftests if row["detail"].get("made_up"))
     return made, stored["detail"]
