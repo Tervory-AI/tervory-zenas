@@ -111,19 +111,24 @@ def test_existing_nightly_command_calls_alert_job_after_sources():
 
     root = Path(__file__).resolve().parents[2]
     tree = ast.parse((root / "agents/zenas/pool/nightly.py").read_text())
-    main = next(
-        n
-        for n in tree.body
-        if isinstance(n, ast.AsyncFunctionDef) and n.name == "_main"
-    )
+    # #621: _main wraps _night_main in the ZA run window, and _night_main runs the
+    # sources (run_nightly) before _scheduled_jobs, whose first job is the alerts.
+    funcs = {n.name: n for n in tree.body if isinstance(n, ast.AsyncFunctionDef)}
     calls = [
         n
-        for n in ast.walk(main)
+        for n in ast.walk(funcs["_night_main"])
         if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
     ]
     pool_lines = [n.lineno for n in calls if n.func.id == "run_nightly"]
-    alert_lines = [n.lineno for n in calls if n.func.id == "regulations_scheduled"]
-    assert len(alert_lines) == 1 and alert_lines[0] > max(pool_lines)
+    job_lines = [n.lineno for n in calls if n.func.id == "_scheduled_jobs"]
+    assert pool_lines and len(job_lines) == 1 and job_lines[0] > max(pool_lines)
+    jobs = next(
+        n
+        for n in ast.walk(funcs["_scheduled_jobs"])
+        if isinstance(n, ast.Tuple) and n.elts and isinstance(n.elts[0], ast.Tuple)
+    )
+    names = [item.elts[1].id for item in jobs.elts]
+    assert names[0] == "regulations_scheduled" and names.count("regulations_scheduled") == 1
     for filename in (
         "agents/zenas/docker-compose.yml",
         "agents/zenas/docker-compose.za.yml",
