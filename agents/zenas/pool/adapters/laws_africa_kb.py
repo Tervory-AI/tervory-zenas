@@ -20,6 +20,7 @@ import urllib.error
 import urllib.request
 from typing import Any
 
+from agents.zenas.core.answer_failures import exception_failure
 from agents.zenas.pool.adapters.za_common import bearer_headers, laws_africa_token, reject_credential_url
 from agents.zenas.pool.licence import FetchNotConfigured
 from agents.zenas.pool.region import RegionError
@@ -109,7 +110,7 @@ def passage(result: dict[str, Any], *, code: str) -> dict[str, Any] | None:
 
 
 async def za_passages(query: str, *, client: KnowledgeBaseClient | None = None,
-                      top_k: int = 4) -> list[dict[str, Any]]:
+                      top_k: int = 4, failures: list[dict[str, Any]] | None = None) -> list[dict[str, Any]]:
     """Current principal national legislation plus judgment summaries.
 
     A Knowledge Base outage or missing token yields no passages, so the answer
@@ -117,7 +118,9 @@ async def za_passages(query: str, *, client: KnowledgeBaseClient | None = None,
     """
     try:
         client = client or KnowledgeBaseClient(region="za")
-    except (FetchNotConfigured, RegionError):
+    except (FetchNotConfigured, RegionError) as exc:
+        if failures is not None:
+            failures.append(exception_failure(exc))
         return []
     calls = (("legislation-za", {"principal": True, "repealed": False}), ("judgments-za", {}))
     found = await asyncio.gather(*(client.retrieve(code, query, top_k=top_k, filters=filters)
@@ -125,6 +128,8 @@ async def za_passages(query: str, *, client: KnowledgeBaseClient | None = None,
     passages: list[dict[str, Any]] = []
     for (code, _filters), results in zip(calls, found):
         if isinstance(results, BaseException):
+            if failures is not None and isinstance(results, Exception):
+                failures.append(exception_failure(results))
             continue
         for result in results:
             item = passage(result, code=code)
