@@ -20,6 +20,8 @@ sys.path.insert(0, str(ROOT / "agents" / "_chassis"))
 
 from agents.zenas.core.convert import _PROMPT_HEAD  # noqa: E402
 from agents.zenas.core.ladder_store import LadderMemory  # noqa: E402
+from zenas_z5_fixtures import distinct_library
+
 from agents.zenas.core.selftest import (  # noqa: E402
     load_case_library,
     run_made_up_test,
@@ -29,8 +31,8 @@ from agents.zenas.core.selftest import (  # noqa: E402
 from tank.skala import SkillPackage, zenas_approval_reason, zenas_approval_refusal, evidence_hash, package_hash  # noqa: E402
 
 _PLATFORM = "00000000-0000-0000-0000-000000000001"
-_QUOTE = "The court refuses leave to appeal."
-_TEXT = "The court refuses leave to appeal."
+_QUOTE = "The placeholder court refuses leave to appeal under this supply agreement."
+_TEXT = "The placeholder court refuses leave to appeal under this supply agreement."
 _NOT_RUN = (
     "This Zenas skill stays unapproved. The made-up-case test has not run "
     "on this box through answer_question."
@@ -132,7 +134,7 @@ _RecordingLadder.made = []
 
 
 def test_load_case_library_keeps_this_box_current_cases() -> None:
-    text = "Note.\nThe court refuses leave to appeal.\nA later sentence follows here."
+    text = "Note.\nThe placeholder court refuses leave to appeal under this supply agreement.\nA later sentence follows here."
     conn = _Rows(
         [
             {"citation": "[2024] ZASCA 10", "title": "Sample v Example", "text": text},
@@ -146,10 +148,10 @@ def test_load_case_library_keeps_this_box_current_cases() -> None:
         {
             "name": "Sample v Example",
             "citation": "[2024] ZASCA 10",
-            "quote": "The court refuses leave to appeal.",
+            "quote": "The placeholder court refuses leave to appeal under this supply agreement.",
             # The passage is the judgment body with whitespace folded, so a quote copied
             # across a PDF line break still matches it word for word.
-            "text": "Note. The court refuses leave to appeal. A later sentence follows here.",
+            "text": "Note. The placeholder court refuses leave to appeal under this supply agreement. A later sentence follows here.",
         }
     ]
     empty = asyncio.run(load_case_library(_Rows([], "us"), region="us-east"))
@@ -172,7 +174,8 @@ def test_nightly_made_up_row_uses_answer_question_through_tank(monkeypatch: pyte
 
     monkeypatch.setattr("agents.zenas.core.store.PgStore.apply_schema", _schema)
     conn = _Rows(
-        [{"citation": "[2024] ZASCA 10", "title": "Sample v Example", "text": _TEXT}],
+        [{"citation": item["citation"], "title": item["name"], "text": item["text"]}
+         for item in distinct_library([{"citation": "[2024] ZASCA 10", "name": "Sample v Example", "text": _TEXT}])],
         "za",
     )
     asyncio.run(run_scheduled(conn, region="za"))
@@ -207,7 +210,8 @@ def test_nightly_without_a_tank_key_stays_not_run(monkeypatch: pytest.MonkeyPatc
 
     monkeypatch.setattr("agents.zenas.core.store.PgStore.apply_schema", _schema)
     conn = _Rows(
-        [{"citation": "[2024] ZASCA 10", "title": "Sample v Example", "text": _TEXT}],
+        [{"citation": item["citation"], "title": item["name"], "text": item["text"]}
+         for item in distinct_library([{"citation": "[2024] ZASCA 10", "name": "Sample v Example", "text": _TEXT}])],
         "us",
     )
     asyncio.run(run_scheduled(conn, region="us-east"))
@@ -233,7 +237,7 @@ def test_the_us_box_asks_answer_question_about_its_own_library() -> None:
             return {"content": json.dumps(_card_for(content)), "cost_usd": 0, "model": "luna"}
 
     ladder = LadderMemory()
-    result = asyncio.run(run_made_up_test(ladder, ladder, Model(), library=[document], region="us-east"))
+    result = asyncio.run(run_made_up_test(ladder, ladder, Model(), library=distinct_library([document]), region="us-east"))
     assert result["path"] == "answer_question"
     assert result["area"].startswith("Made-up cases: 50 of 50.")
     assert "path: answer_question" in result["area"]
@@ -259,7 +263,7 @@ def test_a_home_on_the_other_box_does_not_invent_a_score() -> None:
         async def complete(self, messages, *, task_type: str, provider: str) -> dict:
             raise AssertionError("the model must not be called")
 
-    result = asyncio.run(run_made_up_test(ladder, ladder, Model(), library=[document], region="za"))
+    result = asyncio.run(run_made_up_test(ladder, ladder, Model(), library=distinct_library([document]), region="za"))
     assert result["path"] == "not run"
     assert result["area"] == "Made-up cases: not run."
 
