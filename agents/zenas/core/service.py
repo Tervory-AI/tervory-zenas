@@ -52,7 +52,7 @@ from agents.zenas.core.precedent import (
     unverified_note,
 )
 from agents.zenas.core.selftest import is_holdout
-from agents.zenas.core.answer_failures import exception_failure, safe_failure
+from agents.zenas.core.answer_failures import exception_failure, route_failure
 from agents.zenas.core.answer_quotes import named_quotation, neutral_citations
 from agents.zenas.core.citation_sources import cited_sources, public_source_url
 
@@ -201,10 +201,9 @@ class ModelAdapter:
         if isinstance(result, str):
             cost = TOP_CALL_USD if task_type == "zenas.rule_card" else CHEAP_CALL_USD
             return {"content": result, "cost_usd": cost, "model": provider or "luna"}
-        if result.get("ok") is False or result.get("status") in ("refused", "failed", "unavailable"):
-            return {"refused": True, "failure": safe_failure({
-                "http_status": result.get("http_status"), "refusal_code": result.get("code"),
-            })}
+        failed = route_failure(result)
+        if failed is not None:
+            return {"refused": True, "failure": failed["failure"]}
         content = str(result.get("content") or "")
         cost = result.get("cost_usd")
         if cost is None:
