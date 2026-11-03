@@ -36,8 +36,13 @@ async def run_scheduled(conn: Any, *, region: str) -> dict[str, int]:
     key = os.environ.get("TANK_KEY", "")
     if not key:
         return counts
-    url = os.environ.get("TANK_URL", "http://tank:8000").rstrip("/") + "/v1/training/zenas/court-text"
-    async with httpx.AsyncClient(timeout=60, follow_redirects=False, trust_env=False) as client:
+    url = (
+        os.environ.get("TANK_URL", "http://tank:8000").rstrip("/")
+        + "/v1/training/zenas/court-text"
+    )
+    async with httpx.AsyncClient(
+        timeout=60, follow_redirects=False, trust_env=False
+    ) as client:
         for row in rows:
             result = split_judgment(str(row["title"] or ""), str(row["text"] or ""))
             payload = {
@@ -54,9 +59,13 @@ async def run_scheduled(conn: Any, *, region: str) -> dict[str, int]:
                 raise RuntimeError("Tank court-text writer unavailable")
             await conn.execute(
                 """INSERT INTO agent_zenas.judgment_split_exports
-                (region,source_id,document_id,version_id,status) VALUES('za',$1,$2,$3,$4)
+                (region,source_id,document_id,version_id,status)
+                VALUES('za',$1,$2,$3,$4)
                 ON CONFLICT(region,version_id) DO NOTHING""",
-                row["source_id"], row["document_id"], row["version_id"], result["status"],
+                row["source_id"],
+                row["document_id"],
+                row["version_id"],
+                result["status"],
             )
             counts[result["status"]] += 1
     return counts

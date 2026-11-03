@@ -7,24 +7,47 @@ from typing import Any
 
 from agents.zenas.core.scope_rules import ruled
 
-_HEAD = re.compile(r"^\s*(?:\d+(?:\.\d+)*[.)]?\s+)?([A-Za-z][A-Za-z &/\-]{1,80})\s*:?[ \t]*$", re.I)
+_HEAD = re.compile(
+    r"^\s*(?:\d+(?:\.\d+)*[.)]?\s+)?([A-Za-z][A-Za-z &/\-]{1,80})\s*:?[ \t]*$",
+    re.IGNORECASE,
+)
 _GROUPS = {
-    "facts": frozenset({"facts", "background", "factual background", "common cause facts"}),
-    "issues": frozenset({"issue", "issues", "issues for determination", "questions for determination"}),
-    "reasoning": frozenset({"analysis", "reasoning", "discussion", "evaluation", "applicable law"}),
-    "order": frozenset({"order", "orders", "the order", "conclusion and order", "disposition"}),
+    "facts": frozenset(
+        {"facts", "background", "factual background", "common cause facts"}
+    ),
+    "issues": frozenset(
+        {"issue", "issues", "issues for determination", "questions for determination"}
+    ),
+    "reasoning": frozenset(
+        {"analysis", "reasoning", "discussion", "evaluation", "applicable law"}
+    ),
+    "order": frozenset(
+        {"order", "orders", "the order", "conclusion and order", "disposition"}
+    ),
 }
 _OUTCOMES = {
-    "upheld": re.compile(r"\b(?:appeal|application|claim|review)\s+(?:is\s+)?upheld\b", re.I),
-    "dismissed": re.compile(r"\b(?:appeal|application|claim|review)\s+(?:is\s+)?dismissed\b", re.I),
-    "set aside": re.compile(r"\bset\s+aside\b", re.I),
-    "granted": re.compile(r"\b(?:application|relief|leave|order)\s+(?:is\s+)?granted\b", re.I),
-    "refused": re.compile(r"\b(?:application|relief|leave|order)\s+(?:is\s+)?refused\b", re.I),
-    "settled": re.compile(r"\b(?:settled|settlement agreement|by agreement|consent order)\b", re.I),
+    "upheld": re.compile(
+        r"\b(?:appeal|application|claim|review)\s+(?:is\s+)?upheld\b", re.IGNORECASE
+    ),
+    "dismissed": re.compile(
+        r"\b(?:appeal|application|claim|review)\s+(?:is\s+)?dismissed\b", re.IGNORECASE
+    ),
+    "set aside": re.compile(r"\bset\s+aside\b", re.IGNORECASE),
+    "granted": re.compile(
+        r"\b(?:application|relief|leave|order)\s+(?:is\s+)?granted\b", re.IGNORECASE
+    ),
+    "refused": re.compile(
+        r"\b(?:application|relief|leave|order)\s+(?:is\s+)?refused\b", re.IGNORECASE
+    ),
+    "settled": re.compile(
+        r"\b(?:settled|settlement agreement|by agreement|consent order)\b",
+        re.IGNORECASE,
+    ),
 }
 _NO_COSTS = re.compile(
-    r"\b(?:no order (?:is made )?as to costs|each party (?:must|shall|is to) pay (?:its|their) own costs|without costs)\b",
-    re.I,
+    r"\b(?:no order (?:is made )?as to costs|"
+    r"each party (?:must|shall|is to) pay (?:its|their) own costs|without costs)\b",
+    re.IGNORECASE,
 )
 
 
@@ -38,10 +61,16 @@ def _heading(line: str) -> str | None:
 
 def outcome_label(order: str) -> dict[str, Any] | None:
     """Map an operative order only when it names exactly one supported result."""
-    found = [label for label, pattern in _OUTCOMES.items() if pattern.search(order or "")]
+    found = [
+        label for label, pattern in _OUTCOMES.items() if pattern.search(order or "")
+    ]
     if len(found) != 1:
         return None
-    costs = "without costs" if _NO_COSTS.search(order) or "cost" not in order.casefold() else "with costs"
+    costs = (
+        "without costs"
+        if _NO_COSTS.search(order) or "cost" not in order.casefold()
+        else "with costs"
+    )
     return {"outcome": found[0], "costs": costs}
 
 
@@ -70,5 +99,9 @@ def split_judgment(title: str, text: str) -> dict[str, Any]:
     return {
         "status": "split",
         "input": {"facts": cleaned["facts"], "issues": cleaned["issues"]},
-        "output": {"reasoning": cleaned["reasoning"], "order": cleaned["order"], **label},
+        "output": {
+            "reasoning": cleaned["reasoning"],
+            "order": cleaned["order"],
+            **label,
+        },
     }
