@@ -1525,6 +1525,20 @@ async def add_playbook(
     return {"ok": True, "playbook": saved}
 
 
+async def list_playbooks(
+    store: Any, *, tenant_id: str, home_region: str, box_region: str,
+) -> dict[str, Any]:
+    _home, refused = await _use_home(store, tenant_id=tenant_id, home_region=home_region, box_region=box_region)
+    if refused:
+        return refused
+    rows = await store.list_playbooks(region=_box(box_region), tenant_id=str(tenant_id))
+    return {"ok": True, "items": [
+        {"id": row["id"], "name": row["name"], "template": row["template"],
+         "positions": len(row.get("positions") or []), "created_at": row.get("created_at")}
+        for row in rows
+    ]}
+
+
 def _apply_revision(sentences: list[dict[str, Any]], proposal: str, differing: list[str]) -> None:
     try:
         parsed = parse_json_object(proposal)
