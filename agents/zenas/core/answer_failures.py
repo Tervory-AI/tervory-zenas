@@ -26,12 +26,15 @@ def safe_failure(value: Any) -> dict[str, Any]:
     status = value.get("http_status")
     if isinstance(status, int) and not isinstance(status, bool) and 100 <= status <= 599:
         out["http_status"] = status
-    if value.get("refusal_code") in _CODES:
+    if isinstance(value.get("refusal_code"), str) and value["refusal_code"] in _CODES:
         out["refusal_code"] = value["refusal_code"]
     return out
 
 
 def exception_failure(exc: Exception) -> dict[str, Any]:
+    inherited = safe_failure(getattr(exc, "failure", None))
+    if inherited:
+        return inherited
     data: dict[str, Any] = {"exception": type(exc).__name__}
     tb = exc.__traceback__
     while tb is not None:
