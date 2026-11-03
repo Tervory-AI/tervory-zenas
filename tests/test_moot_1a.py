@@ -83,10 +83,6 @@ def _match():
             "mode": "ai_ai", "runs": [run_one_order(PROBLEM, first_side="appellant")]}
 
 
-
-
-
-
 def test_counsel_bundle_never_includes_bench_notes():
     problem = PROBLEM
     for side in ("appellant", "respondent"):
@@ -97,8 +93,6 @@ def test_counsel_bundle_never_includes_bench_notes():
         assert "press_questions" not in blob
         assert "real_holding" not in blob
         assert "preferred_order" not in blob
-
-
 
 
 def test_made_up_and_nonbinding_as_binding_are_flagged():
@@ -153,14 +147,6 @@ def test_judge_questions_scale_with_strictness():
     assert any("My Lord" in q for q in sca)
 
 
-
-
-
-
-
-
-
-
 def test_gold_candidates_bucket():
     match = _match()
     rows = points_to_gold(match, when=date(2026, 10, 24))
@@ -174,8 +160,6 @@ def test_region_forms_of_address():
     us = court_style("us-east")
     assert za["judge_address"] == "My Lord"
     assert us["judge_address"] == "Your Honor"
-
-
 
 
 def test_watch_page_unpublished_returns_404_rule():
@@ -213,7 +197,7 @@ def test_policy_seeds_above_models2():
     assert i_counsel < i_models and i_judge < i_models
 
 
-def test_tank_allowlist_includes_moot_paths():
+def test_tank_refuses_retired_moot_paths():
     main = (ROOT / "tank" / "main.py").read_text(encoding="utf-8")
     # Compile the regex from source
     m = re.search(r"_ZENAS_PATH = re\.compile\(\n((?:    r\".*\"\n)+)\)", main)
