@@ -11,6 +11,8 @@ The bytes are for the ZA box. A US box raises before any request.
 
 from __future__ import annotations
 
+from agents.zenas.pool.deadline import check_deadline
+
 import asyncio
 import contextvars
 import hashlib
@@ -949,6 +951,7 @@ async def walk_index(
     files_done = 0
     blobs: list[bytes] = []
     while pages_fetched < max_pages:
+        check_deadline()
         url = index_url if page == 0 else f"{index_url}?page={page}"
         got = await polite_get(http_get, url, accept="text/html", robots=robots, report=report)
         pages_fetched += 1
@@ -963,6 +966,7 @@ async def walk_index(
         following = next_page(html, page)
         page_complete = True
         for row in rows:
+            check_deadline()
             fingerprint = _fingerprint(row)
             known = state.files.get(row.page_url)
             if isinstance(known, dict) and known.get("fingerprint") == fingerprint and known.get("sha256"):
