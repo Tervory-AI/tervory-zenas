@@ -68,10 +68,16 @@ class KnowledgeBaseClient:
             raw = await asyncio.to_thread(self._post, url, self._headers, body)
         except urllib.error.HTTPError as exc:
             code_ = exc.code
+            failure = exception_failure(exc)
+            failure["http_status"] = code_
             exc.close()
-            raise FetchNotConfigured(f"HTTP {code_} from Laws.Africa Knowledge Base {code}") from None
-        except (urllib.error.URLError, TimeoutError, OSError):
-            raise FetchNotConfigured("Laws.Africa Knowledge Base is unreachable") from None
+            unavailable = FetchNotConfigured(f"HTTP {code_} from Laws.Africa Knowledge Base {code}")
+            unavailable.failure = failure
+            raise unavailable from None
+        except (urllib.error.URLError, TimeoutError, OSError) as exc:
+            unavailable = FetchNotConfigured("Laws.Africa Knowledge Base is unreachable")
+            unavailable.failure = exception_failure(exc)
+            raise unavailable from None
         value = json.loads(raw)
         results = value.get("results") if isinstance(value, dict) else None
         return results if isinstance(results, list) else []
