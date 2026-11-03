@@ -70,7 +70,7 @@ async def test_laws_africa_minimum_act_version_link_and_outage(
             documents=0,
             when=datetime.now(timezone.utc),
         )
-        with pytest.raises(Exception, match="LAWS_AFRICA_API_TOKEN"):
+        with pytest.raises(ValueError, match="^source_unavailable$"):
             await laws_africa_snapshot(conn, watch)
     finally:
         await conn.close()
