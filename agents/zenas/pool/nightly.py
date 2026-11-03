@@ -41,6 +41,25 @@ _ZA_FINISH_SECONDS = 30
 _CONTENT_PLAN_CHECKPOINT = "laws-africa:content-api-plan"
 
 
+async def _content_plan_paused(store: Store, on: date) -> bool:
+    saved = await store.get_checkpoint(_CONTENT_PLAN_CHECKPOINT)
+    if not saved:
+        return False
+    try:
+        if not saved.startswith("not on plan:"):
+            raise ValueError
+        recorded = date.fromisoformat(saved.removeprefix("not on plan:"))
+        age = (on - recorded).days
+    except ValueError:
+        age = 7
+    if 0 <= age < 7:
+        return True
+    # Expired, future-dated and legacy undated latches must not block recovery.
+    # Clear before the probe: only a fresh Content API 403 renews the pause.
+    await store.set_checkpoint(_CONTENT_PLAN_CHECKPOINT, "", await store.stored_bytes())
+    return False
+
+
 def packaged_snapshots(region: str) -> dict[str, list[bytes]]:
     root = FIXTURES / region
     if not root.is_dir():
@@ -117,7 +136,7 @@ async def run_nightly(
         rows = await store.status_rows()
         deferred = {row["source_id"] for row in rows if row.get("last_status") == "deferred"}
         sources.sort(key=lambda source: source.source_id not in deferred)
-        if await store.get_checkpoint(_CONTENT_PLAN_CHECKPOINT) == "not on plan":
+        if await _content_plan_paused(store, day):
             sources = [source for source in sources if not is_laws_africa(source)]
     async def changed(document):
         from chassis.events import publish
@@ -245,7 +264,7 @@ async def _update_source(
         return
     if snapshots is None and live and is_laws_africa(source):
         from agents.zenas.pool.bulk import disk_cap_bytes, load_source
-        if await store.get_checkpoint(_CONTENT_PLAN_CHECKPOINT) == "not on plan":
+        if await _content_plan_paused(store, on):
             return
         # Preserve the Content API client's no-redirect, single-attempt transport.
         # A deadline wrapper must not turn its dedicated default transport into
@@ -259,7 +278,7 @@ async def _update_source(
         from agents.zenas.pool.adapters.laws_africa_api import CONTENT_API_403
         rows = await store.status_rows()
         if any(row["source_id"] == source.source_id and row.get("detail") == CONTENT_API_403 for row in rows):
-            await store.set_checkpoint(_CONTENT_PLAN_CHECKPOINT, "not on plan", await store.stored_bytes())
+            await store.set_checkpoint(_CONTENT_PLAN_CHECKPOINT, f"not on plan:{on.isoformat()}", await store.stored_bytes())
             national = next(item for item in sources_for_region("za") if item.source_id == "laws-africa")
             await store.record_source(national)
             await store.record_run(national.source_id, status="not_on_plan", detail=CONTENT_API_403,
