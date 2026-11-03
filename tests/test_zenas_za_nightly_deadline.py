@@ -2,7 +2,7 @@
 import asyncio
 import json
 from dataclasses import replace
-from datetime import date
+from datetime import date, timedelta
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 from urllib.error import HTTPError
@@ -223,7 +223,7 @@ async def test_content_403_is_recorded_once_then_skipped_on_later_nights(monkeyp
         assert row["detail"] == laws_africa_api.CONTENT_API_403
     assert len(calls) == 1
     assert recorded.count(("laws-africa", "not_on_plan")) == 1
-    assert await store.get_checkpoint(nightly._CONTENT_PLAN_CHECKPOINT) == "not on plan"
+    assert await store.get_checkpoint(nightly._CONTENT_PLAN_CHECKPOINT) == "not on plan:2026-11-01"
     assert await store.get_checkpoint("laws-africa") == ""
     assert "placeholder response" not in json.dumps(report)
 
@@ -303,3 +303,70 @@ async def test_main_deadline_also_bounds_setup_and_returns_zero(monkeypatch, cap
     monkeypatch.setattr(nightly, "_night_main", blocked_setup)
     assert await asyncio.wait_for(nightly._main(), 1) is None
     assert json.loads(capsys.readouterr().out) == {"region": "za", "deadline_reached": True}
+
+
+@pytest.mark.asyncio
+async def test_content_plan_pause_skips_day_six_and_renews_after_one_probe_on_day_seven(monkeypatch):
+    store = MemoryStore(home_region="za")
+    start = date(2026, 11, 1)
+    calls = []
+    monkeypatch.setenv("LAWS_AFRICA_API_TOKEN", "placeholder")
+
+    async def no_wait(seconds):
+        return None
+
+    monkeypatch.setattr(laws_africa_api.asyncio, "sleep", no_wait)
+
+    async def refused(url, headers):
+        calls.append(url)
+        raise HTTPError(url, 403, "placeholder", {}, None)
+
+    async def night(day):
+        return await nightly.run_nightly(store, region="za", live=True, only=["laws-africa"],
+                                         on=start + timedelta(days=day), http_get=refused, **BACKENDS)
+
+    await night(0)
+    assert len(calls) == 1
+    await night(6)
+    assert len(calls) == 1
+    assert await store.get_checkpoint(nightly._CONTENT_PLAN_CHECKPOINT) == "not on plan:2026-11-01"
+    await night(7)
+    assert len(calls) == 2
+    assert await store.get_checkpoint(nightly._CONTENT_PLAN_CHECKPOINT) == "not on plan:2026-11-08"
+    await night(13)
+    assert len(calls) == 2
+    assert store.runs["laws-africa"].last_status == "not_on_plan"
+
+
+@pytest.mark.asyncio
+async def test_expired_plan_pause_is_cleared_for_non_403_failure(monkeypatch):
+    store = MemoryStore(home_region="za")
+    await store.set_checkpoint(nightly._CONTENT_PLAN_CHECKPOINT, "not on plan:2026-11-01", 0)
+    calls = []
+    monkeypatch.setenv("LAWS_AFRICA_API_TOKEN", "placeholder")
+
+    async def no_wait(seconds):
+        return None
+
+    monkeypatch.setattr(laws_africa_api.asyncio, "sleep", no_wait)
+
+    async def refused(url, headers):
+        calls.append(url)
+        raise HTTPError(url, 401, "placeholder", {}, None)
+
+    await nightly.run_nightly(store, region="za", live=True, only=["laws-africa"],
+                              on=date(2026, 11, 8), http_get=refused, **BACKENDS)
+    assert len(calls) == 1
+    assert await store.get_checkpoint(nightly._CONTENT_PLAN_CHECKPOINT) == ""
+    assert store.runs["laws-africa"].last_status == "not_configured"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("saved", ["not on plan", "not on plan:placeholder", "not on plan:2099-01-01"])
+async def test_legacy_or_invalid_plan_pause_cannot_block_recovery(saved):
+    store = MemoryStore(home_region="za")
+    await store.set_checkpoint(nightly._CONTENT_PLAN_CHECKPOINT, saved, 0)
+    await store.set_checkpoint("laws-africa", "placeholder-cursor", 0)
+    assert await nightly._content_plan_paused(store, date(2026, 11, 8)) is False
+    assert await store.get_checkpoint(nightly._CONTENT_PLAN_CHECKPOINT) == ""
+    assert await store.get_checkpoint("laws-africa") == "placeholder-cursor"
