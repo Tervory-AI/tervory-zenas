@@ -34,7 +34,8 @@ def safe_failure(value: Any) -> dict[str, Any]:
 
 def route_failure(data: dict[str, Any]) -> dict[str, Any] | None:
     """Keep a structured Tank refusal across the room's response adapters."""
-    failure = safe_failure({"http_status": data.get("http_status"), "refusal_code": data.get("code")})
+    failure = {**safe_failure(data.get("failure")),
+               **safe_failure({"http_status": data.get("http_status"), "refusal_code": data.get("code")})}
     if data.get("ok") is False or data.get("status") in ("refused", "failed", "unavailable") or failure.get("refusal_code"):
         return {"ok": False, "failure": failure}
     return None
