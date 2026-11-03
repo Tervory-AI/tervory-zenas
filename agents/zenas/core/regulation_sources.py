@@ -50,7 +50,8 @@ GOVZA_SOURCE_IDS = frozenset(
     if source.region == "za" and source.source_id.startswith("govza-")
 )
 LAWS_AFRICA_SOURCE_IDS = frozenset(
-    source.source_id for source in CATALOGUE if source.region == "za" and source.adapter == "laws-africa"
+    source.source_id for source in CATALOGUE
+    if source.region == "za" and source.canonical_url.startswith("https://api.laws.africa/")
 )
 HOSTS.update({source_id: {"www.gov.za", "gov.za"} for source_id in GOVZA_SOURCE_IDS})
 HOSTS.update({source_id: HOSTS["laws-africa"] for source_id in LAWS_AFRICA_SOURCE_IDS})
