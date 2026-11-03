@@ -264,9 +264,21 @@ def test_a_home_on_the_other_box_does_not_invent_a_score() -> None:
     assert result["area"] == "Made-up cases: not run."
 
 
-def test_nightly_calls_the_scheduled_selftest() -> None:
-    text = (ROOT / "agents" / "zenas" / "pool" / "nightly.py").read_text(encoding="utf-8")
-    assert "await run_scheduled(conn, region=current_region())" in text
+@pytest.mark.asyncio
+@pytest.mark.parametrize("region", ["za", "us-east"])
+async def test_nightly_calls_the_scheduled_selftest(monkeypatch, region) -> None:
+    from unittest.mock import AsyncMock
+    from agents.zenas.core import convert, regulations, selftest
+    from agents.zenas.pool import nightly
+
+    scheduled = AsyncMock()
+    monkeypatch.setattr(regulations, "run_scheduled", AsyncMock(return_value={}))
+    monkeypatch.setattr(convert, "run_scheduled", AsyncMock())
+    monkeypatch.setattr(selftest, "run_scheduled", scheduled)
+    connection = object()
+    await nightly._scheduled_jobs(connection, {}, region=region,
+                                   deadline=6000 if region == "za" else None, clock=lambda: 0)
+    scheduled.assert_awaited_once_with(connection, region=region)
 
 
 def test_convert_prompt_extracts_each_issue_from_the_court_words() -> None:
