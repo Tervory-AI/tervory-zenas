@@ -1,0 +1,233 @@
+{
+ "containers": {
+  "t1": {
+   "uuid": "tankuuid",
+   "resource": "tervory-tankmain",
+   "service": "tank",
+   "name": "tank-tankuuid",
+   "networks": [
+    "tankuuid",
+    "tervory-gw-base",
+    "tervory-gw-radix"
+   ]
+  },
+  "b1": {
+   "uuid": "baseuuid",
+   "resource": "agent-base",
+   "service": "agent-base",
+   "name": "agent-base-baseuuid",
+   "networks": [
+    "tervory-gw-base"
+   ]
+  },
+  "b2": {
+   "uuid": "baseuuid",
+   "resource": "agent-base",
+   "service": "base-brain",
+   "name": "base-brain-baseuuid",
+   "networks": [
+    "tervory-gw-base",
+    "baseuuid_sandbox"
+   ]
+  },
+  "b3": {
+   "uuid": "baseuuid",
+   "resource": "agent-base",
+   "service": "base-sandbox",
+   "name": "base-sandbox-baseuuid",
+   "networks": [
+    "baseuuid_sandbox"
+   ]
+  },
+  "b4": {
+   "uuid": "baseuuid",
+   "resource": "agent-base",
+   "service": "base-browser",
+   "name": "base-browser-baseuuid",
+   "networks": [
+    "baseuuid_browser"
+   ]
+  },
+  "b5": {
+   "uuid": "baseuuid",
+   "resource": "agent-base",
+   "service": "base-browser-gateway",
+   "name": "base-browser-gateway-baseuuid",
+   "networks": [
+    "tervory-gw-base",
+    "baseuuid_browser"
+   ]
+  },
+  "r1": {
+   "uuid": "radixuuid",
+   "resource": "agent-radix",
+   "service": "agent-radix",
+   "name": "agent-radix-radixuuid",
+   "networks": [
+    "tervory-gw-radix",
+    "radixuuid_proxy-link"
+   ]
+  },
+  "r2": {
+   "uuid": "radixuuid",
+   "resource": "agent-radix",
+   "service": "egress-proxy",
+   "name": "egress-proxy-radixuuid",
+   "networks": [
+    "radixuuid_proxy-link",
+    "radixuuid_egress"
+   ]
+  },
+  "g1": {
+   "uuid": "tigeruuid",
+   "resource": "agent-tiger",
+   "service": "agent-tiger",
+   "name": "agent-tiger-tigeruuid",
+   "networks": [
+    "tervory-gw-tiger"
+   ]
+  },
+  "g2": {
+   "uuid": "tigeruuid",
+   "resource": "agent-tiger",
+   "service": "tiger-browser",
+   "name": "tiger-browser-tigeruuid",
+   "networks": [
+    "tigeruuid_browser"
+   ]
+  },
+  "g3": {
+   "uuid": "tigeruuid",
+   "resource": "agent-tiger",
+   "service": "tiger-browser-gateway",
+   "name": "tiger-browser-gateway-tigeruuid",
+   "networks": [
+    "tigeruuid_browser",
+    "tervory-gw-tiger"
+   ]
+  },
+  "rig-agent-rig": {
+   "uuid": "riguuid",
+   "service": "agent-rig",
+   "name": "riguuid-agent-rig-1",
+   "project": "riguuid",
+   "networks": [
+    "tervory-gw-rig",
+    "59f8cnpelzwsyte1atyjc4fv"
+   ]
+  },
+  "rig-rig-brain": {
+   "uuid": "riguuid",
+   "service": "rig-brain",
+   "name": "riguuid-rig-brain-1",
+   "project": "riguuid",
+   "networks": [
+    "tervory-gw-rig",
+    "riguuid_sandbox",
+    "riguuid_forge-control"
+   ]
+  },
+  "rig-rig-sandbox": {
+   "uuid": "riguuid",
+   "service": "rig-sandbox",
+   "name": "riguuid-rig-sandbox-1",
+   "project": "riguuid",
+   "networks": [
+    "riguuid_sandbox"
+   ]
+  },
+  "rig-rig-browser": {
+   "uuid": "riguuid",
+   "service": "rig-browser",
+   "name": "riguuid-rig-browser-1",
+   "project": "riguuid",
+   "networks": [
+    "riguuid_browser"
+   ]
+  },
+  "rig-rig-browser-gateway": {
+   "uuid": "riguuid",
+   "service": "rig-browser-gateway",
+   "name": "riguuid-rig-browser-gateway-1",
+   "project": "riguuid",
+   "networks": [
+    "tervory-gw-rig",
+    "riguuid_browser"
+   ]
+  },
+  "rig-forge": {
+   "uuid": "riguuid",
+   "project": "riguuid",
+   "service": "rig-forge",
+   "name": "riguuid-rig-forge-1",
+   "networks": [
+    "riguuid_forge-control",
+    "riguuid_forge-egress"
+   ]
+  },
+  "rig-forge-egress": {
+   "uuid": "riguuid",
+   "project": "riguuid",
+   "service": "rig-forge-egress",
+   "name": "riguuid-rig-forge-egress-1",
+   "networks": [
+    "riguuid_forge-egress",
+    "riguuid_forge-outbound"
+   ]
+  },
+  "agent-zenas": {
+   "uuid": "placeholder-zenas-za",
+   "resource": "agent-zenas-za",
+   "project": "placeholder-zenas-za",
+   "service": "agent-zenas",
+   "name": "placeholder-agent-zenas",
+   "networks": [
+    "tervory-gw-zenas"
+   ]
+  },
+  "zenas-brain": {
+   "uuid": "placeholder-zenas-za",
+   "resource": "agent-zenas-za",
+   "project": "placeholder-zenas-za",
+   "service": "zenas-brain",
+   "name": "placeholder-zenas-brain",
+   "networks": [
+    "tervory-gw-zenas",
+    "placeholder-zenas-za_sandbox"
+   ]
+  },
+  "zenas-sandbox": {
+   "uuid": "placeholder-zenas-za",
+   "resource": "agent-zenas-za",
+   "project": "placeholder-zenas-za",
+   "service": "zenas-sandbox",
+   "name": "placeholder-zenas-sandbox",
+   "networks": [
+    "placeholder-zenas-za_sandbox"
+   ]
+  }
+ },
+ "networks": {
+  "tankuuid": false,
+  "tervory-gw-base": false,
+  "tervory-gw-radix": true,
+  "baseuuid": false,
+  "baseuuid_sandbox": true,
+  "baseuuid_browser": true,
+  "radixuuid": true,
+  "radixuuid_proxy-link": true,
+  "radixuuid_egress": false,
+  "tigeruuid": false,
+  "tervory-gw-tiger": false,
+  "tigeruuid_browser": true,
+  "tervory-gw-rig": false,
+  "riguuid_sandbox": true,
+  "riguuid_browser": true,
+  "59f8cnpelzwsyte1atyjc4fv": false,
+  "riguuid_forge-control": true,
+  "riguuid_forge-egress": true,
+  "riguuid_forge-outbound": false,
+  "tervory-gw-zenas": false,
+  "placeholder-zenas-za_sandbox": true
+ }
+}

@@ -11,7 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from . import hearing
 from .hearing_ai import AIExecutor, validate_turn
-from .hearing_sources import edited_problem, worked_problem
+from .hearing_sources import criminal_source, edited_problem, worked_problem
 from .hearing_store import HearingStore
 
 
@@ -65,16 +65,17 @@ def register_routes(app, pool, tenant_store, box_region, tank):
         if not actor.founder:
             raise HTTPException(404, "not_found")
         # Only identifiers/titles, no outcomes, source bodies or private records.
-        sql = """SELECT w.id,d.title FROM agent_zenas.worked_matters w
+        sql = """SELECT w.id,w.jurisdiction,d.title,d.docket_number,d.nature_of_suit FROM agent_zenas.worked_matters w
             JOIN zenas_pool.documents d ON d.document_id=w.pool_doc_id AND d.version_id=w.pool_version_id
             JOIN zenas_pool.sources s ON s.source_id=d.source_id
             WHERE w.region=$1 AND (w.tenant_id=$2 OR w.tenant_id IS NULL)
             AND w.source='case' AND w.material_type='public_record' AND w.holdout=false
             AND s.region=$1 AND s.bulk_use='allowed' AND d.kind='case' AND d.status <> 'superseded'
+            AND d.appeal IS TRUE AND w.outcome IS NOT NULL AND btrim(w.outcome)<>''
             ORDER BY w.created_at DESC LIMIT 100"""
         async with pool().acquire() as conn:
             rows = await conn.fetch(sql, actor.region, UUID(actor.tenant_id))
-        return {"sources": [{"id": str(r["id"]), "title": r["title"]} for r in rows]}
+        return {"sources": [{"id": str(r["id"]), "title": r["title"]} for r in rows if not criminal_source(dict(r))]}
 
     @app.get("/moot/hearings")
     async def listing(home_region: str, x_tank_key: str = Header(default=""),
