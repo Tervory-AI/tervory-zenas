@@ -46,6 +46,8 @@ def build_problem(row: dict[str, Any], actor: Actor) -> dict[str, Any]:
         raise HearingError("not_found")
     if criminal_case(row):
         raise HearingError("civil_only")
+    if row.get("appeal") is not True:
+        raise HearingError("decided_civil_appeal_required")
     pattern = decoded(row.get("fact_pattern"))
     facts = pattern.get("facts") or pattern.get("narrative") or ""
     holding = str(row.get("outcome") or "")

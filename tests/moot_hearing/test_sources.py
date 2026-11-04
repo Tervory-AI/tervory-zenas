@@ -16,7 +16,7 @@ def row():
         "fact_pattern": {"facts": facts, "issues": ["Was notice timely?"]}, "outcome": holding,
         "text": facts + "\n" + rule + "\n" + holding, "title": "Offline civil source", "citation": "Offline v Source [2026] US 1",
         "url": "https://example.invalid/judgment", "status": "current", "pool_doc_id": "source-1", "pool_version_id": "version-1",
-        "docket_number": "1:26-cv-0001", "nature_of_suit": "civil appeal",
+        "appeal": True, "docket_number": "1:26-cv-0001", "nature_of_suit": "civil appeal",
         "element_findings": [{"basis": [{"citation": "Offline v Source [2026] US 1", "quote": rule}]}]}
 
 
@@ -50,3 +50,11 @@ def test_paragraph_is_resolved_from_source_not_trusted_from_stored_model_metadat
     r = row(); r["url"] = "javascript:alert(1)"
     with pytest.raises(HearingError, match="invalid_source_url"):
         build_problem(r, OWNER)
+
+
+@pytest.mark.parametrize("appeal", [False, None, "true", 1])
+def test_non_appeal_or_unknown_appeal_is_not_relabelled(appeal):
+    source = row()
+    source["appeal"] = appeal
+    with pytest.raises(HearingError, match="decided_civil_appeal_required"):
+        build_problem(source, OWNER)
