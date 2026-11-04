@@ -147,3 +147,12 @@ Organizer access and qualified-reviewer examples illustrate backend permissions.
 | 375 | [681:1722](https://www.figma.com/design/ZnphBOJU6657tohGLD3IzS?node-id=681-1722) | [PNG](evidence/client-pending-375.png) | Proposed |
 
 [Created node IDs, exact Proposed copy and checks](evidence/client-pending-completion.json).
+
+### client-released · Proposed
+
+| Width | Frame | Screenshot | Status |
+| --- | --- | --- | --- |
+| 1440 | [682:1692](https://www.figma.com/design/ZnphBOJU6657tohGLD3IzS?node-id=682-1692) | [PNG](evidence/client-released-1440.png) | Proposed |
+| 375 | [682:1735](https://www.figma.com/design/ZnphBOJU6657tohGLD3IzS?node-id=682-1735) | [PNG](evidence/client-released-375.png) | Proposed |
+
+[Created node IDs, exact Proposed copy and checks](evidence/client-released-completion.json).
