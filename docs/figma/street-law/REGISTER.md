@@ -120,3 +120,12 @@ Organizer access and qualified-reviewer examples illustrate backend permissions.
 | 375 | [677:1300](https://www.figma.com/design/ZnphBOJU6657tohGLD3IzS?node-id=677-1300) | [PNG](evidence/assignment-375.png) | Proposed |
 
 [Created node IDs, exact Proposed copy and checks](evidence/assignment-completion.json).
+
+### review-eligible · Proposed
+
+| Width | Frame | Screenshot | Status |
+| --- | --- | --- | --- |
+| 1440 | [678:1346](https://www.figma.com/design/ZnphBOJU6657tohGLD3IzS?node-id=678-1346) | [PNG](evidence/review-eligible-1440.png) | Proposed |
+| 375 | [678:1482](https://www.figma.com/design/ZnphBOJU6657tohGLD3IzS?node-id=678-1482) | [PNG](evidence/review-eligible-375.png) | Proposed |
+
+[Created node IDs, exact Proposed copy and checks](evidence/review-eligible-completion.json).
