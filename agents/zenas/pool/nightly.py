@@ -6,6 +6,7 @@ import asyncio
 import hashlib
 import json
 import os
+from time import monotonic
 from collections import Counter
 from datetime import date, datetime, timezone
 from pathlib import Path
@@ -13,6 +14,7 @@ from pathlib import Path
 from agents.zenas.pool.adapters import get_adapter
 from agents.zenas.pool.catalogue import sources_for_region
 from agents.zenas.pool.config import current_region
+from agents.zenas.pool.deadline import DeadlineReached, check_deadline, deadline_scope
 from agents.zenas.pool.embed import Embedder, NoOpEmbedder, NoOpVectorIndex, VectorIndex, live_backends
 from agents.zenas.pool.http import RateLimited
 from agents.zenas.pool.ingest import ingest_snapshot, version_saved
@@ -30,6 +32,32 @@ _OFFICIAL_STATUTES = frozenset({"govza-acts", "govza-regulations"})
 # The US scheduler allows two hours for the entire night. A progressing bulk
 # archive must also yield; its no-progress watchdog alone cannot bound it.
 _US_COURTLISTENER_SECONDS = 30 * 60
+# ZA's existing scheduler also allows two hours. With 17 live catalogue
+# sources, five minutes each leaves thirty-five minutes for remaining jobs.
+# A slow early source must not starve every court archive later in the list.
+_ZA_SOURCE_SECONDS = 5 * 60
+_ZA_RUN_SECONDS = 100 * 60
+_ZA_FINISH_SECONDS = 30
+_CONTENT_PLAN_CHECKPOINT = "laws-africa:content-api-plan"
+
+
+async def _content_plan_paused(store: Store, on: date) -> bool:
+    saved = await store.get_checkpoint(_CONTENT_PLAN_CHECKPOINT)
+    if not saved:
+        return False
+    try:
+        if not saved.startswith("not on plan:"):
+            raise ValueError
+        recorded = date.fromisoformat(saved.removeprefix("not on plan:"))
+        age = (on - recorded).days
+    except ValueError:
+        age = 7
+    if 0 <= age < 7:
+        return True
+    # Expired, future-dated and legacy undated latches must not block recovery.
+    # Clear before the probe: only a fresh Content API 403 renews the pause.
+    await store.set_checkpoint(_CONTENT_PLAN_CHECKPOINT, "", await store.stored_bytes())
+    return False
 
 
 def packaged_snapshots(region: str) -> dict[str, list[bytes]]:
@@ -64,6 +92,8 @@ async def run_nightly(
     embedder: Embedder | None = None,
     index: VectorIndex | None = None,
     only: list[str] | None = None,
+    deadline: float | None = None,
+    clock=None,
 ) -> dict:
     """Update every source configured for this region.
 
@@ -72,6 +102,11 @@ async def run_nightly(
     and linked, and any bytes handed in for them are not parsed.
     """
     region = region or current_region()
+    clock = clock or monotonic
+    bounded = region == "za" and live and snapshots is None
+    if bounded:
+        deadline = deadline if deadline is not None else clock() + _ZA_RUN_SECONDS
+        work_deadline = deadline - _ZA_FINISH_SECONDS
     bind_store(store, region)
     day = on or date.today()
     when = datetime.now(timezone.utc)
@@ -80,6 +115,16 @@ async def run_nightly(
     else:
         embedder, index = embedder or NoOpEmbedder(), index or NoOpVectorIndex()
     getter = http_get or urllib_get
+    if bounded:
+        upstream = getter
+
+        async def getter(url, headers):
+            check_deadline()
+            result = await upstream(url, headers)
+            check_deadline()
+            return result
+
+        getter._nightly_upstream = upstream
 
     sources = sources_for_region(region)
     if only is not None:
@@ -87,6 +132,12 @@ async def run_nightly(
         sources = [source for source in sources if source.source_id in wanted]
     if live and snapshots is None:
         sources = live_sources(sources)
+    if bounded:
+        rows = await store.status_rows()
+        deferred = {row["source_id"] for row in rows if row.get("last_status") == "deferred"}
+        sources.sort(key=lambda source: source.source_id not in deferred)
+        if await _content_plan_paused(store, day):
+            sources = [source for source in sources if not is_laws_africa(source)]
     async def changed(document):
         from chassis.events import publish
         await publish("00000000-0000-0000-0000-000000000001", "zenas.regulation.changed", document.version_id, {
@@ -94,7 +145,13 @@ async def run_nightly(
             "version_id": hashlib.sha256(document.version_id.encode()).hexdigest()})
     token = version_saved.set(changed)
     try:
-        for source in sources:
+        for position, source in enumerate(sources):
+            if bounded and clock() >= work_deadline:
+                for pending in sources[position:]:
+                    await store.record_source(pending)
+                    await store.record_run(pending.source_id, status="deferred", detail="",
+                                           documents=await store.instrument_count(pending.source_id), when=when)
+                break
             try:
                 assert_source_region(source, region)
                 await _update_nightly_source(
@@ -108,6 +165,7 @@ async def run_nightly(
                     embedder=embedder,
                     index=index,
                     region=region,
+                    **({"_deadline": work_deadline, "_clock": clock} if bounded else {}),
                 )
             except RegionError:
                 continue
@@ -119,6 +177,25 @@ async def run_nightly(
 
 
 async def _update_nightly_source(store: Store, source, **kwargs) -> None:
+    if kwargs["region"] == "za" and kwargs["live"] and kwargs["snapshots"] is None:
+        clock = kwargs.pop("_clock", monotonic)
+        deadline = min(clock() + _ZA_SOURCE_SECONDS, kwargs.pop("_deadline", float("inf")))
+        window = asyncio.timeout(max(0, deadline - clock()))
+        try:
+            async with window:
+                with deadline_scope(deadline, clock):
+                    await _update_source(store, source, **kwargs)
+                    check_deadline()
+        except (TimeoutError, DeadlineReached) as exc:
+            if isinstance(exc, TimeoutError) and not window.expired():
+                raise
+            await store.record_source(source)
+            await store.record_run(
+                source.source_id, status="stalled",
+                detail="nightly source time budget reached; the next run retries from the saved checkpoint",
+                documents=await store.instrument_count(source.source_id), when=kwargs["when"],
+            )
+        return
     bounded = (
         kwargs["region"] == "us-east" and source.source_id == "courtlistener"
         and kwargs["live"] and kwargs["snapshots"] is None
@@ -187,11 +264,25 @@ async def _update_source(
         return
     if snapshots is None and live and is_laws_africa(source):
         from agents.zenas.pool.bulk import disk_cap_bytes, load_source
+        if await _content_plan_paused(store, on):
+            return
+        # Preserve the Content API client's no-redirect, single-attempt transport.
+        # A deadline wrapper must not turn its dedicated default transport into
+        # an ordinary public-URL fetch with different retry/redirect semantics.
+        content_get = urllib_get if getattr(http_get, "_nightly_upstream", None) is urllib_get else http_get
         await load_source(
             store, source, region=region, snapshots=None, on=on, when=when, live=True,
-            http_get=http_get, embedder=embedder, index=index, cap=disk_cap_bytes(),
+            http_get=content_get, embedder=embedder, index=index, cap=disk_cap_bytes(),
             data_dir=os.environ.get("DATA_DIR", ".") or ".",
         )
+        from agents.zenas.pool.adapters.laws_africa_api import CONTENT_API_403
+        rows = await store.status_rows()
+        if any(row["source_id"] == source.source_id and row.get("detail") == CONTENT_API_403 for row in rows):
+            await store.set_checkpoint(_CONTENT_PLAN_CHECKPOINT, f"not on plan:{on.isoformat()}", await store.stored_bytes())
+            national = next(item for item in sources_for_region("za") if item.source_id == "laws-africa")
+            await store.record_source(national)
+            await store.record_run(national.source_id, status="not_on_plan", detail=CONTENT_API_403,
+                                   documents=await store.instrument_count(national.source_id), when=when)
         return
     await index_pending(store, embedder, index, region=region, source_ids=[source.source_id])
     if snapshots is None and live and source.source_id in _OFFICIAL_STATUTES:
@@ -443,9 +534,14 @@ async def _live_archive(
 ) -> bool:
     """Resume a ZA court archive. Other sources keep the ordinary live fetch.
 
-    bulk.py imports urllib_get from this module, so this does not call back into bulk.
+    The walk streams like a Load (bulk._ArchiveStream): each judgment is
+    stored as it is read and the cursor is saved every few files and on an
+    early exit, so a night that dies keeps what it read and memory stays flat.
+    bulk.py imports urllib_get from this module, so bulk is imported here,
+    inside the function.
     """
-    from agents.zenas.pool.adapters.za_archive import ZA_ARCHIVE_SOURCES, feed_detail
+    from agents.zenas.pool.adapters.za_archive import ZA_ARCHIVE_SOURCES, feed_detail, streaming
+    from agents.zenas.pool.bulk import _ArchiveStream, disk_cap_bytes
     from agents.zenas.pool.http import RateLimited
 
     if source.source_id not in ZA_ARCHIVE_SOURCES:
@@ -453,12 +549,20 @@ async def _live_archive(
     adapter = get_adapter(source)
     if not hasattr(adapter, "fetch_bulk"):
         return False
+    cap = disk_cap_bytes()
+    stream = _ArchiveStream(
+        store, source, region=region, on=on, when=when, embedder=embedder, index=index,
+        cap=cap, data_dir=os.environ.get("DATA_DIR", ".") or ".",
+        heartbeat=False,
+    )
     try:
         resume = await store.get_checkpoint(source.source_id)
         if resume.startswith("snap:"):
             resume = ""
-        blobs, cursor = await adapter.fetch_bulk(http_get, resume=resume)
+        with streaming(stream):
+            blobs, cursor = await adapter.fetch_bulk(http_get, resume=resume)
     except RateLimited as exc:
+        await stream.keep_progress()
         await store.record_source(source)
         await store.record_run(
             source.source_id,
@@ -469,11 +573,31 @@ async def _live_archive(
         )
         return True
     except (FetchNotConfigured, LicenceError) as exc:
+        await stream.keep_progress()
         await store.record_source(source)
         await store.record_run(
             source.source_id,
             status="not_configured",
             detail=str(exc),
+            documents=await store.instrument_count(source.source_id),
+            when=when,
+        )
+        return True
+    except (Exception, asyncio.CancelledError):
+        # The judgments already stored stay; the next night resumes after them.
+        # Bind the adapter's current walk even if it stopped on a listing before
+        # handing over its first judgment. Its cursor acknowledges stored URLs only.
+        if stream.run is None:
+            stream.run = getattr(adapter, "run", None)
+        await stream.keep_progress()
+        raise
+    if stream.capped:
+        await stream.keep_progress()
+        await store.record_source(source)
+        await store.record_run(
+            source.source_id,
+            status="disk_cap",
+            detail=f"pool disk cap {cap} bytes",
             documents=await store.instrument_count(source.source_id),
             when=when,
         )
@@ -488,8 +612,10 @@ async def _live_archive(
         if isinstance(loaded, dict):
             note = loaded
     skips: Counter[str] = Counter(note.get("skips") or {})
+    skips.update(stream.skips)
+    inserted = stream.inserted
     if blobs:
-        inserted = await ingest_snapshot(
+        inserted += await ingest_snapshot(
             store,
             source,
             list(blobs),
@@ -500,7 +626,6 @@ async def _live_archive(
             skips=skips,
         )
     else:
-        inserted = 0
         await store.record_source(source)
     if cursor:
         await store.set_checkpoint(source.source_id, cursor, await store.stored_bytes())
@@ -533,8 +658,28 @@ async def _update_official(
     resume = await store.get_checkpoint(source.source_id)
     if resume.startswith("snap:"):
         resume = ""
+    from agents.zenas.pool.adapters.za_govza import streaming
+
+    inserted = 0
+    received = 0
+
+    async def save_file(payload: bytes, cursor: str) -> None:
+        nonlocal inserted, received
+        errors = adapter.report.errors
+        added = await ingest_snapshot(
+            store, source, [payload], on=on, embedder=embedder, index=index, region=region,
+        )
+        if adapter.report.errors > errors:
+            raise ValueError("gov.za file could not be parsed; checkpoint preserved")
+        # A cancelled/failed ingest may have stored a prefix of its sections.
+        # It must not acknowledge the PDF; replay is idempotent on the next run.
+        await store.set_checkpoint(source.source_id, cursor, await store.stored_bytes())
+        inserted += added
+        received += 1
+
     try:
-        blobs, cursor = await adapter.fetch_bulk(http_get, resume=resume)
+        with streaming(save_file):
+            blobs, cursor = await adapter.fetch_bulk(http_get, resume=resume)
     except RateLimited as exc:
         await store.record_source(source)
         await store.record_run(
@@ -555,9 +700,8 @@ async def _update_official(
             when=when,
         )
         return
-    inserted = 0
     if blobs:
-        inserted = await ingest_snapshot(
+        inserted += await ingest_snapshot(
             store,
             source,
             list(blobs),
@@ -570,7 +714,7 @@ async def _update_official(
         await store.record_source(source)
     detail = adapter.feeds_detail()
     errors = int(getattr(adapter.report, "errors", 0) or 0)
-    if not blobs and errors == 0:
+    if not blobs and not received and errors == 0:
         detail = f"{detail}; unchanged"
     status = "error" if errors and inserted == 0 else "ok"
     await store.set_checkpoint(source.source_id, cursor, await store.stored_bytes())
@@ -606,7 +750,67 @@ def main() -> None:
     asyncio.run(_main())
 
 
+async def _scheduled_jobs(conn, report, *, region, deadline=None, clock=None):
+    from agents.zenas.core.convert import run_scheduled as convert_scheduled
+    from agents.zenas.core.regulations import run_scheduled as regulations_scheduled
+    from agents.zenas.core.judgment_training import run_scheduled as judgment_training_scheduled
+    from agents.zenas.core.selftest import run_scheduled as selftest_scheduled
+
+    clock = clock or monotonic
+    for name, job in (("regulations", regulations_scheduled), ("convert", convert_scheduled),
+                      ("judgment_training", judgment_training_scheduled), ("selftest", selftest_scheduled)):
+        if name == "regulations" and report.get("fixtures"):
+            continue
+        if deadline is not None:
+            until = min(deadline - _ZA_FINISH_SECONDS, clock() + _ZA_SOURCE_SECONDS)
+            if clock() >= until:
+                report.setdefault("deferred_jobs", []).append(name)
+                continue
+            window = asyncio.timeout(until - clock())
+            try:
+                async with window:
+                    with deadline_scope(until, clock):
+                        value = await job(conn, region=region)
+                        check_deadline()
+                if name in {"regulations", "judgment_training"}:
+                    report[name] = value
+            except (DeadlineReached, TimeoutError) as exc:
+                if isinstance(exc, TimeoutError) and not window.expired():
+                    report[name] = {"unavailable": 1}
+                else:
+                    report.setdefault("deferred_jobs", []).append(name)
+            except Exception:
+                if name == "regulations":
+                    report[name] = {"unavailable": 1}
+        else:
+            try:
+                value = await job(conn, region=region)
+                if name in {"regulations", "judgment_training"}:
+                    report[name] = value
+            except Exception:
+                if name == "regulations":
+                    report[name] = {"unavailable": 1}
+
+
 async def _main() -> None:
+    region = current_region()
+    # Starts before connecting or applying schema: all ZA jobs share one window.
+    deadline = monotonic() + _ZA_RUN_SECONDS if region == "za" else None
+    if deadline is None:
+        await _night_main(region, deadline)
+        return
+    window = asyncio.timeout(max(0, deadline - monotonic()))
+    try:
+        async with window:
+            await _night_main(region, deadline)
+    except TimeoutError:
+        if not window.expired():
+            raise
+        # Normal completion at the process deadline, never Coolify's kill limit.
+        print(json.dumps({"region": region, "deadline_reached": True}))
+
+
+async def _night_main(region, deadline):
     dsn = os.environ.get("DATABASE_URL", "").strip()
     if not dsn:
         raise SystemExit("DATABASE_URL is not set")
@@ -620,33 +824,13 @@ async def _main() -> None:
         await store.apply_schema()
         use_fixtures = os.environ.get("POOL_USE_FIXTURES", "").strip() in {"1", "true", "yes"}
         if use_fixtures:
-            report = await run_nightly(
-                store,
-                snapshots=packaged_snapshots(current_region()),
-                live=False,
-            )
+            report = await run_nightly(store, region=region, snapshots=packaged_snapshots(region), live=False)
+            report["fixtures"] = True
         else:
-            report = await run_nightly(store, live=True)
-        if not use_fixtures:
-            try:
-                from agents.zenas.core.regulations import run_scheduled as regulations_scheduled
-
-                report["regulations"] = await regulations_scheduled(conn, region=current_region())
-            except Exception:
-                # No exception text: upstream failures can contain credentials or tenant data.
-                report["regulations"] = {"unavailable": 1}
-        try:
-            from agents.zenas.core.convert import run_scheduled as convert_scheduled
-
-            await convert_scheduled(conn, region=current_region())
-        except Exception:
-            pass
-        try:
-            from agents.zenas.core.selftest import run_scheduled
-
-            await run_scheduled(conn, region=current_region())
-        except Exception:
-            pass
+            report = await run_nightly(store, region=region, live=True,
+                                       **({"deadline": deadline} if deadline is not None else {}))
+        await _scheduled_jobs(conn, report, region=region, deadline=deadline)
+        report.pop("fixtures", None)
     finally:
         await conn.close()
     print(json.dumps(report, indent=2, default=str))

@@ -23,6 +23,7 @@ from agents.zenas.pool.adapters.za_archive import (
     ArchiveRun,
     ChallengePage,
     archive_max,
+    hand_over,
     is_challenge_page,
     log_challenge,
     polite_get,
@@ -348,8 +349,7 @@ async def _consider(run: ArchiveRun, http_get, row: dict) -> bytes:
     match = re.search(r"\[((?:19|20)\d{2})\]", str(row.get("citation") or ""))
     if match:
         run.note_year(int(match.group(1)))
-    run.mark(handle_url)
-    return payload
+    return await hand_over(run, handle_url, payload)
 
 
 async def _list_year_sets(http_get) -> tuple[list[tuple[int, str]], bool]:

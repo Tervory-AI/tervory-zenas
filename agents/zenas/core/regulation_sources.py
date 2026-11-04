@@ -45,6 +45,16 @@ HOSTS = {
         "laws.africa",
     },
 }
+GOVZA_SOURCE_IDS = frozenset(
+    source.source_id for source in CATALOGUE
+    if source.region == "za" and source.source_id.startswith("govza-")
+)
+LAWS_AFRICA_SOURCE_IDS = frozenset(
+    source.source_id for source in CATALOGUE
+    if source.region == "za" and source.canonical_url.startswith("https://api.laws.africa/")
+)
+HOSTS.update({source_id: {"www.gov.za", "gov.za"} for source_id in GOVZA_SOURCE_IDS})
+HOSTS.update({source_id: HOSTS["laws-africa"] for source_id in LAWS_AFRICA_SOURCE_IDS})
 
 
 def safe_url(url, hosts):
@@ -422,31 +432,34 @@ class Sources:
 
 async def laws_africa_snapshot(conn, watch):
     """Read #382's completed local sync, never refetch or copy ZA law to Boston."""
-    from agents.zenas.pool.laws_africa import MINIMUM, _run_lock
+    from agents.zenas.pool.laws_africa import _run_lock
     from agents.zenas.pool.store import PostgresStore
 
     async with _run_lock(PostgresStore(conn, home_region="za")):
         status = await conn.fetchrow("""SELECT last_status,last_update FROM zenas_pool.updates
                                       WHERE source_id='laws-africa'""")
-        if not status or status["last_status"] != "ok":
-            raise FetchNotConfigured("LAWS_AFRICA_API_TOKEN")
         rows = await conn.fetch(
             """
-            SELECT DISTINCT ON (document_id) document_id,title,text,url,doc_date,effective_from,
+            SELECT DISTINCT ON (document_id) document_id,source_id,title,text,url,doc_date,effective_from,
                    content_hash,kind,licence FROM zenas_pool.documents
             WHERE source_id=ANY($1::text[]) AND jurisdiction='za' AND effective_to IS NULL
             ORDER BY document_id,captured_at DESC
         """,
-            ["laws-africa", *MINIMUM.values()],
+            [*sorted(LAWS_AFRICA_SOURCE_IDS), *sorted(GOVZA_SOURCE_IDS)],
         )
+        laws_ready = bool(status and status["last_status"] == "ok")
+        rows = [row for row in rows if row["source_id"] not in LAWS_AFRICA_SOURCE_IDS or laws_ready]
+        if not rows:
+            raise ValueError("source_unavailable")
         return [
             document(
-                "laws-africa",
+                r["source_id"],
                 r["document_id"],
                 r["title"],
                 r["text"],
                 r["url"],
                 r["effective_from"] or r["doc_date"],
+                version=r["content_hash"],
                 kind=r["kind"],
                 attribution=r["licence"],
             )

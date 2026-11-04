@@ -1,7 +1,8 @@
+# coolify: raw compose
 # Zenas room for the South Africa region. Deploy this file as its own Coolify
 # resource on the SA server (Base Directory /agents/zenas, Compose Location
-# /docker-compose.za.yml). The room keeps its gateway corridor and gains a
-# private Docassemble-only network. The corridor is created by the root stack.
+# /docker-compose.za.yml). The room keeps its gateway corridor, created by the
+# root stack. Contracts are assembled inside agent-zenas.
 # The room gets its Tank key and its own database login only.
 # No model keys: those live only in the ZA Tank stack (litellm).
 
@@ -16,6 +17,7 @@ services:
     environment:
       TANK_REGION: za
       AGENT_NAME: zenas
+      ZENAS_BRAIN_ENABLED: ${ZENAS_BRAIN_ENABLED:-false}
       LAWS_AFRICA_API_TOKEN: ${LAWS_AFRICA_API_TOKEN:-}
       # Founder creates Cloudflare R2 bucket tervory-zenas-za and sets this name.
       # US agent-zenas keeps R2_BUCKET: tervory-zenas unchanged.
@@ -36,17 +38,14 @@ services:
       ZENAS_SMTP_ALERT_ADDRESSES: ${ZENAS_SMTP_ALERT_ADDRESSES:-}
       TANK_KEY: ${TANK_KEY:-}
       HERMES_URL: http://hermes:8000
-      DOCASSEMBLE_REGION: za
-      DOCASSEMBLE_URL: http://docassemble
-      DOCASSEMBLE_API_KEY: ${DOCASSEMBLE_API_KEY:-}
       ZENAS_PII_KEY: ${ZENAS_PII_KEY:-}
       ZENAS_MATTER_SHARING: ${ZENAS_MATTER_SHARING:-region}
+      ZENAS_REVIEW: ${ZENAS_REVIEW:-off}
       DATA_DIR: /data
     volumes:
       - za_agent_data:/data
     networks:
       - gw
-      - assembly
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
       interval: 10s
@@ -54,6 +53,66 @@ services:
       retries: 10
     expose:
       - "8000"
+
+  zenas-brain:
+    profiles: [brain]
+    build:
+      context: ../..
+      dockerfile: agents/rig/Dockerfile.brain
+    command: [uvicorn, "brain.standby:app", --host, "0.0.0.0", --port, "8001", --no-access-log]
+    restart: unless-stopped
+    mem_limit: 2g
+    cpus: 1
+    pids_limit: 128
+    read_only: true
+    tmpfs: [/tmp:rw,noexec,nosuid,nodev,size=32m]
+    environment:
+      BRAIN_ROOM: zenas
+      TANK_REGION: za
+      TANK_URL: http://tank:8000
+      TANK_KEY: ${TANK_KEY:-}
+      HERMES_URL: http://hermes:8000
+      ZENAS_URL: http://agent-zenas:8000
+      ZENAS_SANDBOX_URL: http://zenas-sandbox:8002
+      SANDBOX_KEY: ${SANDBOX_KEY_ZENAS:-}
+      DATA_DIR: /data
+    volumes: [zenas_brain_data:/data]
+    networks: [gw, sandbox]
+    depends_on:
+      zenas-sandbox:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+
+  zenas-sandbox:
+    profiles: [brain]
+    build:
+      context: ../..
+      dockerfile: agents/base/Dockerfile.sandbox
+    restart: unless-stopped
+    mem_limit: 512m
+    cpus: 0.5
+    pids_limit: 64
+    environment:
+      BRAIN_ROOM: zenas
+      SANDBOX_KEY: ${SANDBOX_KEY_ZENAS:-}
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=32m
+      - /work:rw,nosuid,nodev,size=128m,uid=1000,gid=1000,mode=0700
+    networks: [sandbox]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8002/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
 
   # One-shot SA pool load. Not started with the room.
   # docker compose -f docker-compose.za.yml --profile load run --rm pool-loader
@@ -90,14 +149,37 @@ services:
       - gw
     entrypoint: ["nice", "-n", "19", "python", "-m", "agents.zenas.pool.bulk"]
 
+  zenas-own-model:
+    image: ghcr.io/ggml-org/llama.cpp:server@sha256:099ccff8379e3e4ea585320a82cb36ee108731be84cf89b93d1ea88bf7afb0c8
+    restart: unless-stopped
+    profiles: ["own-model"]
+    read_only: true
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 6g
+    cpus: 2
+    environment:
+      HF_TOKEN: ${HF_TOKEN:-}
+      HF_HOME: /models
+      ZENAS_OWN_MODEL_KEY: ${ZENAS_OWN_MODEL_KEY:-}
+    command: ["-hf", "${HF_ORG:-invalid}/tervory-own-zenas-za:Q4_K_M", "--host", "0.0.0.0", "--port", "8080", "--ctx-size", "4096", "--api-key", "${ZENAS_OWN_MODEL_KEY:-}"]
+    tmpfs:
+      - /models:size=5g,mode=0700
+      - /tmp:size=64m,mode=0700
+    networks: [own_model]
+
 volumes:
+  zenas_brain_data:
+    name: tervory-zenas-za-brain-data
   # Local to the SA server. Never replicated to the United States.
   za_agent_data:
 
 networks:
-  assembly:
-    external: true
-    name: tervory-zenas-assembly
+  sandbox:
+    internal: true
   gw:
     external: true
     name: tervory-gw-zenas
+  own_model:
+    external: true
+    name: tervory-own-zenas-za

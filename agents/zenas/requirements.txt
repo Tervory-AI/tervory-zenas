@@ -4,7 +4,7 @@
 eyecite==2.7.8
 # pypdf is BSD. Official ZA judgments are PDFs. The adapter extracts text and
 # does not store the PDF bytes. CI installs the same pin from tank/requirements-dev.txt.
-pypdf==6.21.2
+pypdf==6.21.4
 # pypdfium2 is Apache-2.0 or BSD-3-Clause (PDFium). It reads glyph positions with the
 # kerning applied, so pool/pdf_spacing.py can drop the spaces pypdf puts inside
 # justified words ("m ade"). Same pin as researcher/requirements.txt.
@@ -13,3 +13,7 @@ pypdfium2==5.14.0
 # challenge. The loader fetches those pages in Chromium. A challenge page is
 # refused and never stored. No key.
 patchright==1.64.3
+# Contract assembly inside agent-zenas (core/assembly.py). Mako (MIT) fills the slot
+# layouts; docxtpl (LGPL-2.1) fills core/templates/document.docx. No server, no model.
+Mako==1.4.2
+docxtpl==0.20.2

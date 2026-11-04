@@ -29,6 +29,7 @@ from agents.zenas.core.release_mask import material_type_for_pool
 from agents.zenas.core.pointers import PointerError, judgment_text, resolve_answer, resolve_pointer
 from agents.zenas.pool.adapters.za_case_common import court_identity
 from agents.zenas.pool.citations import cite_treatments
+from agents.zenas.pool.deadline import check_deadline
 from agents.zenas.core.selftest import box_jurisdiction, is_holdout
 
 log = logging.getLogger("zenas.convert")
@@ -308,7 +309,10 @@ async def _ask_all(model: Any, prompts: list[str]) -> list[Any]:
     async def one(prompt: str) -> Any:
         async with gate:
             try:
-                return await _ask_model(model, [{"role": "user", "content": prompt}])
+                check_deadline()
+                answer = await _ask_model(model, [{"role": "user", "content": prompt}])
+                check_deadline()
+                return answer
             except Exception as exc:
                 return exc
 
@@ -949,6 +953,7 @@ async def convert_cases(
     pending: list[dict[str, Any]] = []
     repaired = 0
     for case in cases:
+        check_deadline()
         if len(pending) >= cap:
             break
         existing = await ladder.worked_for_doc(region=box, pool_doc_id=case["document_id"])
@@ -959,6 +964,7 @@ async def convert_cases(
             repaired += 1
     ready: list[tuple[dict[str, Any], str, str, str]] = []
     for case in pending:
+        check_deadline()
         if case["jurisdiction"] != jurisdiction:
             continue
         material = material_type_for_pool(case["source_id"])
@@ -985,6 +991,7 @@ async def convert_cases(
     # in background mode waits in Tank's batch queue, so its calls overlap.
     answers = await _ask_all(model, [prompt for *_, prompt in ready])
     for (case, material, text, _prompt), called in zip(ready, answers):
+        check_deadline()
         if isinstance(called, BaseException):
             await _remember_failure(ladder, region=box, pool_doc_id=case["document_id"], reason="model call failed")
             continue

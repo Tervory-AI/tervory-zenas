@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from agents.zenas.pool.adapters.cases import CapAdapter, CourtListenerAdapter
 from agents.zenas.pool.adapters.ecfr import EcfrAdapter
+from agents.zenas.pool.adapters.eur_lex import EurLexAdapter
 from agents.zenas.pool.adapters.federal_register import FederalRegisterAdapter
 from agents.zenas.pool.adapters.govinfo import FrapAdapter, FrcpAdapter, FreAdapter, UsCodeAdapter
 from agents.zenas.pool.adapters.htsus import HtsusAdapter
@@ -32,6 +33,7 @@ _ADAPTERS = {
         UsCodeAdapter(),
         EcfrAdapter(),
         FederalRegisterAdapter(),
+        EurLexAdapter(),
         HtsusAdapter(),
         CourtListenerAdapter(),
         CapAdapter(),

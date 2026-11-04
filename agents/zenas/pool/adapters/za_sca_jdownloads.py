@@ -202,6 +202,7 @@ class ScaAdapter:
                         title_for=lambda file_url, text, titles=by_send: (
                             titles.get(file_url, ("", ""))[0] or text.split("\n", 1)[0][:180]
                         ),
+                        shape=lambda blob, titles=by_send: _retag(blob, titles),
                     )
                     if payload:
                         blobs.append(payload)
@@ -215,7 +216,6 @@ class ScaAdapter:
                 if nxt is None:
                     break
                 start = nxt
-        blobs = [blob for blob in (_retag(blob, by_send) for blob in blobs) if blob]
         run.finish()
         return blobs, run.cursor()
 

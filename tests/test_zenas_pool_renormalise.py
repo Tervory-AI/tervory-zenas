@@ -168,3 +168,17 @@ def test_only_court_pdf_sources():
     ids = {s.source_id for s in job.pdf_case_sources("za")}
     assert "cac" in ids and "comptrib" in ids
     assert "saflii" not in ids and "popia" not in ids
+
+
+def test_special_tribunal_waits_for_502(monkeypatch):
+    # Review of #512, point 3: left out of the default set; --apply on it is refused.
+    import pytest
+
+    default = {s.source_id for s in job.pdf_case_sources("za")}
+    assert "special-tribunal" not in default and "cac" in default
+    named = {s.source_id for s in job.pdf_case_sources("za", ["special-tribunal"])}
+    assert named == {"special-tribunal"}  # a dry run may still name it
+    monkeypatch.setenv("TANK_REGION", "za")
+    monkeypatch.setenv("DATABASE_URL", "postgresql://offline.invalid/none")
+    with pytest.raises(SystemExit, match="wait for #502"):
+        asyncio.run(job._main(["--apply", "--source", "cac", "--source", "special-tribunal"]))

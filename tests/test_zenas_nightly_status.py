@@ -29,7 +29,7 @@ def fake_api(overrides=None):
     for _, app, name, task in status.TARGETS:
         base = f"/applications/{app}"
         data[base] = Metadata(uuid=app, name=name, command="DO_NOT_PRINT")
-        data[base + "/scheduled-tasks"] = [Metadata(uuid=task, name=status.TASK_NAME, command="DO_NOT_PRINT")]
+        data[base + "/scheduled-tasks"] = [Metadata(uuid=task, name=status.TASK_NAME, enabled=True, frequency="0 2 * * *", command="DO_NOT_PRINT")]
         data[base + f"/scheduled-tasks/{task}/executions"] = [execution()]
     data.update(overrides or {})
 
@@ -54,6 +54,9 @@ def test_both_regions_exact_projection_and_no_output_reads(capsys):
     for row, (region, app, _, task) in zip(rows, status.TARGETS):
         assert row == {"region": region, "resource_uuid": app, "task_uuid": task,
                        "name": status.TASK_NAME, "metadata_status": "verified",
+                       "enabled": True, "frequency": "0 2 * * *",
+                       "executions": [{"status": "success", "started_at": "2026-10-30T02:00:00+00:00",
+                                       "finished_at": "2026-10-30T02:05:00+00:00", "exit_code": None}],
                        "last_execution": {"status": "success", "started_at": "2026-10-30T02:00:00+00:00",
                                           "finished_at": "2026-10-30T02:05:00+00:00", "exit_code": None}}
 
@@ -164,3 +167,28 @@ def test_workflow_runs_only_dedicated_read_step():
     assert check["run"] == 'test -z "$APP$ROOM$NAMES"'
     assert check["if"] == "inputs.op == 'nightly-status'"
     assert steps.index(check) < steps.index(read)
+
+
+def test_last_ten_executions_are_sorted_and_only_safe_fields_are_projected():
+    target = status.TARGETS[0]
+    base = f"/applications/{target[1]}"
+    runs = [execution(start=f"2026-10-{day:02d}T02:00:00Z", end=f"2026-10-{day:02d}T02:05:00Z")
+            for day in range(1, 13)]
+    get, _, _ = fake_api({base + f"/scheduled-tasks/{target[3]}/executions": runs})
+    row = status.region_status(get, target)
+    assert row["enabled"] is True and row["frequency"] == "0 2 * * *"
+    assert len(row["executions"]) == 10
+    assert [run["started_at"][8:10] for run in row["executions"]] == [f"{day:02d}" for day in range(12, 2, -1)]
+    assert row["last_execution"] == row["executions"][0]
+    assert "DO_NOT_PRINT" not in json.dumps(row)
+
+
+@pytest.mark.parametrize("enabled,frequency", [(None, "0 2 * * *"), ("true", "0 2 * * *"),
+                                               (True, None), (True, "0 2 * * *\nplaceholder")])
+def test_missing_or_unsafe_schedule_metadata_fails_closed(enabled, frequency):
+    target = status.TARGETS[0]
+    base = f"/applications/{target[1]}"
+    get, _, _ = fake_api({base + "/scheduled-tasks": [Metadata(uuid=target[3], name=status.TASK_NAME,
+                                                            enabled=enabled, frequency=frequency)]})
+    with pytest.raises(status.MetadataError):
+        status.region_status(get, target)

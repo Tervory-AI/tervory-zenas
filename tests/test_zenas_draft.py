@@ -352,6 +352,8 @@ def test_templates_and_copies_and_policy() -> None:
         "freight",
         "services",
         "cross_border_agency",
+        "sla",
+        "letter",
     }
     for name in ("drafting.py", "review.py", "docx_redline.py"):
         core = (ROOT / "agents" / "zenas" / "core" / name).read_bytes()
@@ -364,8 +366,10 @@ def test_templates_and_copies_and_policy() -> None:
     for path in ("/tenants", "/clauses", "/playbooks", "/drafts", "/contract-reviews"):
         assert path in app
     ci = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
-    assert "push:" in ci
-    assert "branches: [main]" in ci
+    # CI gates every change before main: on the PR and in the merge queue (no push run
+    # on main since 3 Nov; the queue tests the exact commit that lands).
+    assert "pull_request:" in ci
+    assert "merge_group:" in ci
 
 
 @pytest.mark.asyncio
@@ -390,7 +394,34 @@ async def test_draft_and_review_skill_evals() -> None:
     assert not failed, "\n".join(failed)
 
 
-@pytest.fixture(autouse=True)
-def offline_docassemble(monkeypatch):
-    from zenas_docassemble.api_stub import install
-    return install(monkeypatch)
+@pytest.mark.asyncio
+@pytest.mark.parametrize("template,slots", [
+    ("sla", ("parties", "services", "service_levels", "credits", "term")),
+    ("letter", ("parties", "subject", "facts", "request")),
+])
+async def test_new_draft_slots_require_approved_clauses(template, slots):
+    assert TEMPLATES[template] == slots
+    layout = ROOT / "agents/zenas/core/templates" / (template + ".md")
+    assert layout.read_text() == "\n\n".join("${ paragraphs['" + slot + "'] }" for slot in slots)
+    store, ladder, model = MemoryStore(), LadderMemory(), Model("{}")
+    await store.register_tenant(TENANT_A, "us-east")
+    await ladder.register_tenant(TENANT_A, "us-east")
+    scope = dict(tenant_id=TENANT_A, home_region="us-east", box_region="us-east", template=template, jurisdiction="us")
+    empty = await draft_contract(store, ladder, model, **scope)
+    assert empty["ok"] and empty["model_calls"] == 0
+    assert empty["review"] == list(slots)
+    assert [row["slot"] for row in empty["sentences"]] == list(slots)
+    assert all(row["review"] for row in empty["sentences"])
+    assert "w:ins" in _docx(empty)
+    approved = await add_approved_clause(store, **scope, kind=slots[1], text=CLAUSE,
+                                         approved_by="Ada Counsel", admission_no="12345")
+    assert approved["ok"]
+    filled = await draft_contract(store, ladder, model, **scope, terms={"term": "two years"})
+    assert filled["ok"] and filled["model_calls"] == 0
+    assert filled["library"] == [slots[1]]
+    assert "Keep the mutual NDA confidential for two years." in filled["text"]
+    refused = await add_approved_clause(store, **scope, kind="confidentiality", text=CLAUSE,
+                                        approved_by="Ada Counsel", admission_no="12345")
+    assert refused["ok"] is False
+    assert refused["reason"] == "that clause is not part of this template"
+    assert model.sent == []

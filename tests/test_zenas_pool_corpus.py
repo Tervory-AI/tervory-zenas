@@ -21,6 +21,7 @@ ON = date(2026, 10, 13)
 
 # Instruments in the saved wave, after a clean ingest.
 EXPECTED = {
+    "eur-lex": 0,
     "govinfo-uscode": 1,
     "ecfr": 4,
     "federal-register": 1,

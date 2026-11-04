@@ -17,6 +17,7 @@ from weakref import WeakKeyDictionary
 from agents.zenas.pool.adapters.laws_africa_api import API, WORKS, LawsAfricaClient, api_url, expressions, national_work, representation
 from agents.zenas.pool.adapters.za_akn import ACTS
 from agents.zenas.pool.catalogue import CATALOGUE
+from agents.zenas.pool.deadline import check_deadline
 from agents.zenas.pool.http import RateLimited
 from agents.zenas.pool.ingest import ingest_snapshot
 from agents.zenas.pool.licence import FetchNotConfigured
@@ -130,6 +131,7 @@ async def sync_source(store, source, *, region, http_get, on, when, embedder, in
                 targets = {row["language"] + "@" + row["date"]: row for row in [*targets, *current.values()]}
                 work_source = active_source
                 for key, expression in sorted(targets.items(), key=lambda item: (item[1]["date"], item[1]["language"])):
+                    check_deadline()
                     if loaded.get(key) == expression["url"]:
                         skipped["unchanged"] += 1
                         continue
@@ -167,6 +169,7 @@ async def sync_source(store, source, *, region, http_get, on, when, embedder, in
                 missing = state.get("missing", list(MINIMUM))
                 visited = state.get("visited", [])
                 while page or pending:
+                    check_deadline()
                     if not pending:
                         page = api_url(page)
                         if page in visited:
@@ -182,6 +185,7 @@ async def sync_source(store, source, *, region, http_get, on, when, embedder, in
                         page = next_page
                         await checkpoint(SOURCE_ID, {"page": page, "pending": pending, "missing": missing, "visited": visited})
                     while pending:
+                        check_deadline()
                         work = pending[0]
                         await load_work(work)
                         missing = [path for path in missing if path != work["frbr_uri"]]
@@ -189,6 +193,7 @@ async def sync_source(store, source, *, region, http_get, on, when, embedder, in
                         await checkpoint(SOURCE_ID, {"page": page, "pending": pending, "missing": missing, "visited": visited})
                 # The fixed list is a minimum, even when a listing omits an entry.
                 while missing:
+                    check_deadline()
                     frbr = missing[0]
                     work = await client.json(API + frbr.lstrip("/") + ".json")
                     if work.get("frbr_uri") != frbr:

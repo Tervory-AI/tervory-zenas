@@ -11,7 +11,10 @@ The bytes are for the ZA box. A US box raises before any request.
 
 from __future__ import annotations
 
+from agents.zenas.pool.deadline import check_deadline
+
 import asyncio
+import contextvars
 import hashlib
 import io
 import json
@@ -19,6 +22,8 @@ import logging
 import os
 import re
 from dataclasses import dataclass, field
+from collections.abc import Awaitable, Callable, Iterator
+from contextlib import contextmanager
 from datetime import date
 from urllib.parse import urlsplit, urljoin
 
@@ -40,6 +45,21 @@ MAX_PDF_PAGES = 400
 _MIN_SECTION = 40
 
 _locks: dict[str, asyncio.Lock] = {}
+
+# The nightly acknowledges each file only after all its sections are stored.
+# Other callers retain the original collected-blobs interface.
+_SINK: contextvars.ContextVar[Callable[[bytes, str], Awaitable[None]] | None] = contextvars.ContextVar(
+    "govza_sink", default=None,
+)
+
+
+@contextmanager
+def streaming(sink: Callable[[bytes, str], Awaitable[None]]) -> Iterator[None]:
+    token = _SINK.set(sink)
+    try:
+        yield
+    finally:
+        _SINK.reset(token)
 
 _PAGE_HREF = re.compile(r"""href=["']([^"']*?)\?page=(\d+)["']""", re.I)
 _TITLE_LINK = re.compile(
@@ -931,6 +951,7 @@ async def walk_index(
     files_done = 0
     blobs: list[bytes] = []
     while pages_fetched < max_pages:
+        check_deadline()
         url = index_url if page == 0 else f"{index_url}?page={page}"
         got = await polite_get(http_get, url, accept="text/html", robots=robots, report=report)
         pages_fetched += 1
@@ -945,6 +966,7 @@ async def walk_index(
         following = next_page(html, page)
         page_complete = True
         for row in rows:
+            check_deadline()
             fingerprint = _fingerprint(row)
             known = state.files.get(row.page_url)
             if isinstance(known, dict) and known.get("fingerprint") == fingerprint and known.get("sha256"):
@@ -981,18 +1003,27 @@ async def walk_index(
             digest = hashlib.sha256(pdf.body).hexdigest()
             files_done += 1
             previous = digest == (known.get("sha256") if isinstance(known, dict) else "")
-            state.files[row.page_url] = {
+            acknowledged = {
                 "sha256": digest,
                 "fingerprint": fingerprint,
                 "pdf": pdf_url,
             }
             if previous:
+                state.files[row.page_url] = acknowledged
                 continue
             text = await asyncio.to_thread(english_text, pdf.body)
             if not text.strip():
                 report.errors += 1
                 continue
-            blobs.append(_payload(tag, row, pdf_url, digest, text))
+            payload = _payload(tag, row, pdf_url, digest, text)
+            state.files[row.page_url] = acknowledged
+            sink = _SINK.get()
+            if sink is None:
+                blobs.append(payload)
+            else:
+                # The candidate cursor is durable only when the sink has
+                # ingested this PDF. Cancellation before that replays it.
+                await sink(payload, state.dump())
         if recent:
             state.page = backfill
             break

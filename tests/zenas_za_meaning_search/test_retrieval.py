@@ -204,6 +204,10 @@ async def test_meaning_answer_and_saved_memo_keep_source_date_and_attribution(mo
     assert source == {key: passage[key] for key in ("citation", "url", "version_date", "attribution", "licence")} | {"quote": passage["text"]}
     saved = await matters.get_document(tenant, result["document_id"])
     assert saved["sources"] == [source]
+    assert result["retrieval"]["fallback"] == "library"
+    assert result["retrieval"]["failure"]["exception"] == "URLError"
+    assert result["retrieval"]["failure"]["file"] == "agents/zenas/pool/adapters/laws_africa_kb.py"
+    assert result["retrieval"]["failure"]["line"] > 0
 
 
 @pytest.mark.asyncio

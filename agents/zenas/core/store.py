@@ -120,6 +120,13 @@ FROM agent_zenas.playbooks
 WHERE region = $1 AND tenant_id = $2 AND id = $3
 """.strip()
 
+PLAYBOOKS_FOR_TENANT = """
+SELECT id, region, tenant_id, name, template, positions, created_at
+FROM agent_zenas.playbooks
+WHERE region = $1 AND tenant_id = $2
+ORDER BY created_at DESC
+""".strip()
+
 READS = (
     MATTERS_FOR_TENANT,
     MATTERS_LIST,
@@ -129,6 +136,8 @@ READS = (
     CURRENT_CONSENT,
     TENANT_HOME,
     OPEN_DOCUMENTS,
+    PLAYBOOK_FOR_TENANT,
+    PLAYBOOKS_FOR_TENANT,
 )
 
 
@@ -218,6 +227,10 @@ class MemoryStore:
         saved["positions"] = list(saved.get("positions") or [])
         self.playbooks.append(saved)
         return saved
+
+    async def list_playbooks(self, *, region: str, tenant_id: str) -> list[dict[str, Any]]:
+        return [dict(row) for row in self.playbooks
+                if row["region"] == region and row["tenant_id"] == str(tenant_id)]
 
     async def get_playbook(self, *, region: str, tenant_id: str, playbook_id: str) -> dict[str, Any] | None:
         for row in self.playbooks:
@@ -590,6 +603,19 @@ class PgStore:
         saved["tenant_id"] = str(row["tenant_id"])
         saved["positions"] = list(row.get("positions") or [])
         return saved
+
+    async def list_playbooks(self, *, region: str, tenant_id: str) -> list[dict[str, Any]]:
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(PLAYBOOKS_FOR_TENANT, region, _as_uuid(tenant_id))
+        found = []
+        for row in rows:
+            data = dict(row)
+            data["id"] = str(data["id"])
+            data["tenant_id"] = str(data["tenant_id"])
+            if isinstance(data.get("positions"), str):
+                data["positions"] = json.loads(data["positions"])
+            found.append(data)
+        return found
 
     async def get_playbook(self, *, region: str, tenant_id: str, playbook_id: str) -> dict[str, Any] | None:
         async with self.pool.acquire() as conn:

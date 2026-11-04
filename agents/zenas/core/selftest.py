@@ -10,9 +10,11 @@ from __future__ import annotations
 import hashlib
 import os
 import re
+import urllib.parse
 from collections import defaultdict
 from typing import Any
 
+from agents.zenas.core.answer_failures import exception_failure, safe_failure, route_failure
 from agents.zenas.core.engine import cite_check, cite_statement, code_finding, compose_memo, decide_without_model
 from agents.zenas.core.legalbench import legalbench_scores
 from agents.zenas.core.scope_rules import classify
@@ -244,7 +246,7 @@ _MADE_UP_LIBRARY = (
 
 def made_up_questions(library: list[dict[str, str]] | None = None, *, region: str = "za") -> list[dict[str, str]]:
     """Fifty questions. Forty name cases that are not in the library."""
-    documents = [item for item in (library or _MADE_UP_LIBRARY) if item.get("name") and item.get("citation")]
+    documents = _library_documents(library or list(_MADE_UP_LIBRARY))
     place = "in South Africa" if str(region or "").strip().lower() == "za" else "in the United States"
     rows: list[dict[str, str]] = []
     codes = ("ZASCA", "ZAGPJHC", "ZAWCHC", "ZACC", "ZAFSHC")
@@ -262,8 +264,7 @@ def made_up_questions(library: list[dict[str, str]] | None = None, *, region: st
                 "citation": citation,
             }
         )
-    for index in range(10):
-        real = documents[index % len(documents)]
+    for index, real in enumerate(documents[:10]):
         rows.append(
             {
                 "case": f"real-{index:02d}",
@@ -305,7 +306,7 @@ _PARAGRAPH_MARK = re.compile(r"^(?:\[\s*\d+\s*\]|\(?\d{1,3}[.)])\s+")
 _SENTENCE_END = re.compile(r"(?<=[.])\s+(?=[\[(\"\u201cA-Z0-9])")
 # "Notice No. 42", "para. 7", "s. 49C": a full stop that does not end the sentence.
 _ABBREVIATION_END = re.compile(r"(?:^|[\s(])(?:No|Nos|no|nos|para|paras|s|ss|v|vs|Mr|Mrs|Ms|Dr|Prof|cf|e\.g|i\.e|Reg|Art)\.$")
-_BYLINE = re.compile(r"(circuit judge|district judge|per curiam|justice[.:]?$|after stat\w* the facts)", re.I)
+_BYLINE = re.compile(r"(circuit judge|district judge|tribunal member|per curiam|justice[.:]?$|after stat\w* the facts)", re.I)
 # "KRIEGLER J:" and "MOJAPELO AJA (Ponnan JA concurring):" open a judgment; they are not the court's reasoning.
 _JUDGE_OPENING = re.compile(r"^[A-Z][A-Z'\u2019 -]+\s(?:A?J|A?JA|JP|DJP|AJP|CJ|DCJ|P)\b")
 
@@ -342,14 +343,19 @@ def library_passage(text: str, *, limit: int = 4000) -> str:
     return " ".join(_judgment_body(text).split())[:limit]
 
 
+_SHORT_WORDS = frozenset("a i am an as at be by do go he if in is it me my no of on or so to up us we ex de ad ab et en la le du el un per".split())
+
+
 def _sentence_ok(sentence: str) -> bool:
     words = sentence.split()
-    if not 5 <= len(words) <= 60 or not 25 <= len(sentence) <= 320:
+    if not 8 <= len(words) <= 60 or not 25 <= len(sentence) <= 320:
         return False
     if not sentence.endswith(".") or re.search(r"(?:[;,]\s\(?[a-z]|\s\(?\d{1,2})[.)]$", sentence) or not (sentence[0].isupper() or sentence[0] in "\"\u201c("):
         return False
     letters = [ch for ch in sentence if ch.isalpha()]
     if not letters or sum(ch.islower() for ch in letters) < 0.6 * len(letters):
+        return False
+    if any(word not in _SHORT_WORDS for word in re.findall(r"\b[a-z]{1,2}\b", sentence)):
         return False
     return not (_BYLINE.search(sentence) or _JUDGE_OPENING.match(sentence) or _HEADER_START.search(sentence) or _PARTY_ROLE.search(sentence.rstrip(".")))
 
@@ -365,7 +371,7 @@ def _sentences(joined: str) -> list[str]:
     return out
 
 
-def _verbatim_quote(text: str, *, limit: int = 4000) -> str:
+def judgment_sentences(text: str, *, limit: int = 4000) -> list[str]:
     """A whole sentence of the court's own reasoning, word for word from the stored judgment.
 
     The quote comes from the judgment body (paragraph [1] on), never from the court
@@ -389,6 +395,7 @@ def _verbatim_quote(text: str, *, limit: int = 4000) -> str:
                 blocks.append([])
             continue
         blocks[-1].append(line)
+    quotes: list[str] = []
     for block in blocks:
         joined = " ".join(" ".join(block).split())
         for raw in _sentences(joined):
@@ -397,8 +404,12 @@ def _verbatim_quote(text: str, *, limit: int = 4000) -> str:
                 continue
             if _clean_piece is not None and _clean_piece(sentence, []) != sentence:
                 continue
-            return sentence
-    return ""
+            quotes.append(sentence)
+    return list(dict.fromkeys(quotes))
+
+
+def _verbatim_quote(text: str, *, limit: int = 4000) -> str:
+    return next(iter(judgment_sentences(text, limit=limit)), "")
 
 
 def _made_up_box(region: str) -> tuple[str, str, str, str]:
@@ -475,7 +486,7 @@ async def load_case_library(conn: Any, *, region: str) -> list[dict[str, str]]:
         if not citation or not name or not quote or quote not in text:
             continue
         documents.append({"name": name, "citation": citation, "quote": quote, "text": text})
-    return documents
+    return _library_documents(documents)
 
 
 def _tank_model() -> tuple[Any, Any]:
@@ -496,6 +507,9 @@ def _tank_model() -> tuple[Any, Any]:
         async def complete(self, messages: list[dict[str, str]], *, task_type: str, provider: str) -> dict[str, Any]:
             del provider
             data = await client.route(_PLATFORM, task_type, messages)
+            failed = route_failure(data)
+            if failed is not None:
+                return failed
             return {
                 "content": str(data.get("content") or ""),
                 "cost_usd": float(data.get("cost_usd") or 0),
@@ -510,13 +524,20 @@ def _tank_model() -> tuple[Any, Any]:
 
 def _library_documents(library: list[dict[str, str]] | None) -> list[dict[str, str]]:
     documents: list[dict[str, str]] = []
+    citations: set[str] = set()
+    names: set[str] = set()
     for item in library or []:
         name = " ".join(str(item.get("name") or "").split())
         citation = " ".join(str(item.get("citation") or "").split())
-        quote = " ".join(str(item.get("quote") or "").split())
         text = str(item.get("text") or "")
-        if name and citation and quote and quote in text:
-            documents.append({"name": name, "citation": citation, "quote": quote, "text": text})
+        if classify(name + " " + text).get("criminal"):
+            continue
+        quote = _verbatim_quote(text, limit=len(text))
+        if not name or not citation or not quote or citation.casefold() in citations or name.casefold() in names:
+            continue
+        citations.add(citation.casefold())
+        names.add(name.casefold())
+        documents.append({"name": name, "citation": citation, "quote": quote, "text": text})
     return documents
 
 
@@ -545,11 +566,213 @@ MISS_REASONS = (
     "real: the answer does not quote the court's sentence",
     "real: no quote to check",
 )
-_MISS_ANSWER_CHARS = 300
+_MISS_ANSWER_CHARS = 1200
+_MISS_PIECE_CHARS = 300
+_MISS_QUOTES = 6
+
+
+# Secrets never reach a miss record. Values of these env names are cut out before
+# the PII mask runs, and these shapes are cut out wherever they appear.
+_SECRET_ENV = re.compile(r"(KEY|TOKEN|SECRET|PASSWORD|PASSWD|DSN|DATABASE_URL|CREDENTIAL|PRIVATE)", re.IGNORECASE)
+class _UrlWithCredential:
+    """A URL that carries a credential parameter is cut whole. The URL is matched
+    once as a whole run and the keyword looked up in a callback, so a long run of
+    "http://http://…" costs linear time (one pattern with \\S*key=\\S* backtracked
+    to the end of the run from every "http")."""
+
+    _RUN = re.compile(r"(?i)\bhttps?://\S+")
+    _KEY = re.compile(r"(?i)(?:api_key|token|password|secret|[?&]key)=")
+
+    def sub(self, repl: str, text: str) -> str:
+        return self._RUN.sub(lambda m: repl if self._KEY.search(m.group(0)) else m.group(0), text)
+
+
+# A secret value: a quoted value up to its closing quote (or the end of the line),
+# else a run without spaces, quotes or separators.
+_SECRET_VALUE = r"(?:\"[^\"\n]*\"?|'[^'\n]*'?|[^\s\"',;}]+)"
+_SECRET_SHAPES = (
+    # PEM private-key blocks first: they span lines, and the text is not folded yet.
+    re.compile(r"-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----[\s\S]*?(?:-----END [A-Z0-9 ]*PRIVATE KEY-----|\Z)"),
+    # \b and 20+ so prose such as "risk-assessment" is not cut (real keys are far longer).
+    re.compile(r"\bsk-[A-Za-z0-9_-]{20,}"),
+    # Prefixes in any case: "SK_LIVE_" or "Sk_Live_" on a real body is still the key.
+    re.compile(r"\b(?i:sk|rk|pk)_(?i:live|test)_[A-Za-z0-9]{8,}"),
+    re.compile(r"\b(?i:github_pat_)[A-Za-z0-9_]{20,}"),
+    re.compile(r"\bAIza[0-9A-Za-z_-]{30,}"),
+    re.compile(r"\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}"),
+    re.compile(r"\b(?:gh[pousr]_[A-Za-z0-9]{20,}|AKIA[0-9A-Z]{16}|xox[abprs]-[A-Za-z0-9-]{10,})\b"),
+    # Laravel Sanctum / Coolify API tokens: "<id>|<40+ chars>".
+    re.compile(r"\b\d+\|[A-Za-z0-9]{40,}\b"),
+    re.compile(r"(?i)\bauthorization\b[\"']?\s*[:=]\s*[\"']?(?:bearer|token|basic|digest)?\s*[A-Za-z0-9._~+/=|-]{8,}[\"']?"),
+    re.compile(r"(?i)\bbearer\s+[A-Za-z0-9._~+/=|-]{8,}"),
+    # The scheme starts where its run starts and is bounded: linear time on "a-a-a-…".
+    re.compile(r"(?i)(?<![a-z0-9+.-])[a-z][a-z0-9+.-]{0,30}://[^\s/@:]+:[^\s/@]+@\S+"),
+    _UrlWithCredential(),
+    # key = value, key: value and JSON "key": "value" for identifier-style keys: a
+    # quoted key, an api/access key name (api_key, X-Api-Key, aws_secret_access_key),
+    # or secret/token/password joined to another word (client_secret, access_token,
+    # secret_key). A quoted value is cut up to its closing quote, spaces and all.
+    re.compile(
+        # A key starts where an identifier run starts (never mid-run) and is bounded,
+        # so a long run such as "a_a_a_…" costs linear time, not quadratic.
+        r"(?i)(?:[\"'][a-z0-9_-]{0,60}(?:api[_-]?key|secret|token|password|passwd)[a-z0-9_-]{0,60}[\"']"
+        r"|(?<![a-z0-9_-])[a-z0-9_-]{0,60}(?:api[_-]?key|secret[_-]?access[_-]?key|access[_-]?key[_-]?id)[a-z0-9_-]{0,60}"
+        r"|(?<![a-z0-9_-])[a-z0-9_-]{0,60}[_-](?:secret|token|password|passwd)[a-z0-9_-]{0,60}"
+        # secret_key, TOKEN_V2, PASSWORD_SALT: an underscore key is an identifier, cut with
+        # any suffix. A hyphen is how prose joins words ("token-holder", "Secret-ballot:"),
+        # so a hyphenated key needs a credential suffix (secret-key, token-value).
+        r"|(?<![a-z0-9_-])(?:secret|token|password|passwd)"
+        r"(?:_[a-z0-9_-]{1,60}|-(?:key|value|token|secret|string|hash)(?![a-z0-9])))"
+        r"\s*[=:]\s*" + _SECRET_VALUE
+    ),
+    # A bare word ("The secret: the parties agreed", "token: R500 was paid") is legal
+    # text unless the value looks like a credential: 8+ characters, no spaces, a digit.
+    re.compile(
+        r"(?i)\b(?:secret|token|password|passwd)\s*[=:]\s*([\"']?)"
+        r"(?=[^\s\"',;}]{0,200}[0-9])[^\s\"',;}]{8,}\1"
+    ),
+    # Long hex runs (R2/HMAC secrets, digests) carry no legal meaning in an answer.
+    re.compile(r"\b[0-9A-Fa-f]{32,}\b"),
+)
+QUOTE_CHECKS = (
+    "supported, in the answer",
+    "supported, not in the answer",
+    "too short to be a quote",
+    "not verbatim in the stored judgment text",
+    "cite-check failed",
+)
+_QUOTED = re.compile(r"[“\"]([^”\"]{10,800})[”\"]")
+
+
+def _env_secrets() -> list[str]:
+    return [
+        value.strip()
+        for name, value in os.environ.items()
+        if _SECRET_ENV.search(name) and len(value.strip()) >= 8
+    ]
+
+
+def _cut_plain_shapes(text: str) -> str:
+    for shape in _SECRET_SHAPES:
+        text = shape.sub("[redacted]", text)
+    return text
+
+
+# A run without spaces that holds a %XX escape: "key%3Dsk_live_…", "1%7C…",
+# "Authorization%3A%20Bearer%20…". The escapes hide the boundaries the shapes need.
+_URL_ENCODED = re.compile(r"(?<!\S)\S*%[0-9A-Fa-f]{2}\S*")  # whole runs only: linear time
+
+
+def _cut_shapes(text: str) -> str:
+    """The secret shapes over the text, and over the URL-decoded form of every run
+    that holds %XX escapes. A run whose decoded form holds a secret is replaced by
+    the decoded run with that secret cut; other runs are left exactly as they were."""
+    text = _cut_plain_shapes(text)
+
+    def decoded(match: re.Match[str]) -> str:
+        run = match.group(0)
+        plain = run
+        for _ in range(8):  # multiply-encoded values too, until nothing changes
+            step = urllib.parse.unquote(plain)
+            if step == plain:
+                break
+            plain = step
+        cut = _cut_plain_shapes(plain)
+        return cut if cut != plain else run
+
+    return _URL_ENCODED.sub(decoded, text)
+
+
+def _cut_secrets(value: Any) -> str:
+    """Secrets only: the shapes above and this process's secret env values. No PII mask."""
+    text = _cut_shapes(str(value or ""))
+    for secret in _env_secrets():
+        folded = " ".join(secret.split())
+        text = text.replace(secret, "")
+        text = re.sub(re.escape(folded), "", text, flags=re.IGNORECASE)
+    return " ".join(text.split())
+
+
+def _citation_text(value: Any) -> str:
+    """A citation keeps its case number ('GP 09/2025'): only secrets are cut, not PII."""
+    return _bounded(_cut_secrets(value), 80)
+
+
+def _diagnostic_text(value: Any) -> str:
+    """Model or library text made safe for a miss record: secrets cut, then the
+    existing PII redaction (engine._clean_piece, the same mask as rule cards)."""
+    from agents.zenas.core.engine import _clean_piece
+
+    return _clean_piece(_cut_shapes(str(value or "")), _env_secrets())
+
+
+def _bounded(text: str, limit: int) -> str:
+    return text if len(text) <= limit else text[: max(0, limit - 1)].rstrip() + "…"
+
+
+def _answer_excerpt(masked: str, limit: int = _MISS_ANSWER_CHARS) -> str:
+    """The whole (masked) answer when short. Otherwise its start plus every quoted
+    passage with a little context, so the quoted sentence(s) are always visible."""
+    if len(masked) <= limit:
+        return masked
+    windows = [(0, min(len(masked), 240))]
+    for match in _QUOTED.finditer(masked):
+        windows.append((max(0, match.start() - 60), min(len(masked), match.end() + 60)))
+    merged: list[list[int]] = []
+    for start, end in sorted(windows):
+        if merged and start <= merged[-1][1]:
+            merged[-1][1] = max(merged[-1][1], end)
+        else:
+            merged.append([start, end])
+    out = " … ".join(masked[start:end] for start, end in merged)
+    if merged[-1][1] < len(masked):
+        out += " …"
+    return _bounded(out, limit)
+
+
+def _quote_checks(
+    result: dict[str, Any] | None,
+    citation: str,
+    judgment_text: str,
+    answer: str,
+    supported: list[str],
+) -> dict[str, Any]:
+    """Why each rule-card quote did or did not count. Reuses supported_quotes'
+    verdict, so it never disagrees with the score; only explains it."""
+    card = (result or {}).get("rule_card") if isinstance(result, dict) else None
+    elements = (card or {}).get("elements") if isinstance(card, dict) else None
+    wanted = _fold(citation)
+    text = _fold(judgment_text)
+    folded_answer = _fold(answer)
+    quotes: list[dict[str, str]] = []
+    others: list[str] = []
+    for element in elements if isinstance(elements, list) else []:
+        if not isinstance(element, dict):
+            continue
+        cited = _fold(element.get("citation"))
+        if cited != wanted:
+            if cited and cited not in others:
+                others.append(cited)
+            continue
+        quote = _fold(element.get("quote"))
+        if quote in supported:
+            check = "supported, in the answer" if quote in folded_answer else "supported, not in the answer"
+        elif len(quote.split()) < _QUOTE_MIN_WORDS or len(quote) < _QUOTE_MIN_CHARS:
+            check = "too short to be a quote"
+        elif quote not in text:
+            check = "not verbatim in the stored judgment text"
+        else:
+            check = "cite-check failed"
+        quotes.append({"quote": _bounded(_diagnostic_text(quote), _MISS_PIECE_CHARS), "check": check})
+    return {
+        "quotes": quotes[:_MISS_QUOTES],
+        "other_citations": [_citation_text(item) for item in others[:_MISS_QUOTES]],
+        "library_chars": len(text),
+    }
 
 
 # A quote shorter than this is not the court's words but a phrase. Same floor as _sentence_ok.
-_QUOTE_MIN_WORDS = 5
+_QUOTE_MIN_WORDS = 8
 _QUOTE_MIN_CHARS = 25
 
 
@@ -558,48 +781,92 @@ def _fold(value: Any) -> str:
 
 
 def supported_quotes(result: dict[str, Any] | None, citation: str, judgment_text: str) -> list[str]:
-    """Quotes in this answer's rule card that the named judgment says word for word.
-
-    A quote counts only when its element cites this case, the quote sits VERBATIM
-    (whitespace folded, nothing else) in the stored, normalised judgment text, and
-    cite-check passes it against that judgment alone. A quote shown masked counts
-    only when the exact unmasked words it was built from are in that judgment. A paraphrase, or a sentence
-    from a different judgment, is never returned.
-    """
-    from agents.zenas.core.engine import cite_check
-
-    text = _fold(judgment_text)
-    wanted = _fold(citation)
-    card = (result or {}).get("rule_card") if isinstance(result, dict) else None
-    elements = (card or {}).get("elements") if isinstance(card, dict) else None
-    if not text or not wanted or not isinstance(elements, list):
+    """Body sentences in the answer, plus checked rule-card sentences for diagnostics."""
+    if not isinstance(result, dict) or not judgment_text or not citation:
         return []
-    passage = [{"citation": wanted, "text": text, "status": "in_force"}]
-    out: list[str] = []
+    sentences = judgment_sentences(judgment_text, limit=len(judgment_text))
+    answer = _fold((result.get("memo") or {}).get("text"))
+    elements = (result.get("rule_card") or {}).get("elements") or []
+    card_quotes = {_fold(element.get("quote")) for element in elements if isinstance(element, dict)
+                   and _fold(element.get("citation")) == _fold(citation)}
+    out = [sentence for sentence in sentences if sentence in answer or sentence in card_quotes]
+    passage = [{"citation": citation, "text": judgment_text, "status": "in_force"}]
     for element in elements:
-        if not isinstance(element, dict) or _fold(element.get("citation")) != wanted:
+        if not isinstance(element, dict) or _fold(element.get("citation")) != _fold(citation):
             continue
         quote = _fold(element.get("quote"))
-        sha = str(element.get("quote_sha") or "")
-        if len(quote.split()) < _QUOTE_MIN_WORDS or len(quote) < _QUOTE_MIN_CHARS:
+        # Masking can collapse a multiword date or identifier into one token.
+        # The fingerprint recheck below still requires the exact court words.
+        if not element.get("quote_sha") and (
+            len(quote.split()) < _QUOTE_MIN_WORDS or len(quote) < _QUOTE_MIN_CHARS
+        ):
             continue
-        # A masked quote (a date shown as [Date]) counts only through its fingerprint:
-        # the exact unmasked words must be in this judgment (engine.masked_quote_in_source).
-        if quote not in text and not sha:
-            continue
-        statement = {"citation": wanted, "quote": quote, "quote_sha": sha, "quote_len": element.get("quote_len")}
-        if not cite_check([statement], passage, allow_masked=True).get("passed"):
-            continue
-        out.append(quote)
+        if quote not in out and cite_check(
+            [cite_statement(element)], passage, allow_masked=True
+        ).get("passed"):
+            out.append(quote)
     return out
 
 
 def _quotes_the_judgment(answer: str, quote: str, supported: list[str]) -> bool:
     """The answer quotes the court: the library sentence, or any verbatim, cite-checked quote from it."""
     folded = _fold(answer)
-    if quote and (quote in answer or _fold(quote) in folded):
+    if quote and _sentence_ok(quote) and (quote in answer or _fold(quote) in folded):
         return True
     return any(item in folded for item in supported)
+
+
+def _quote_misattributed(result: dict[str, Any], citation: str, judgment_text: str,
+                        known_citations: list[str]) -> bool:
+    """A correct citation elsewhere cannot excuse giving the court's words to another case."""
+    sentences = judgment_sentences(judgment_text, limit=len(judgment_text))
+    elements = (result.get("rule_card") or {}).get("elements") or []
+    expected = _fold(citation).casefold()
+    for element in elements:
+        if not isinstance(element, dict):
+            continue
+        cited = _fold(element.get("citation"))
+        quote = _fold(element.get("quote"))
+        if cited and cited.casefold() != expected:
+            if any(sentence in quote for sentence in sentences):
+                return True
+            if element.get("quote_sha") and cite_check(
+                [{**cite_statement(element), "citation": citation}],
+                [{"citation": citation, "text": judgment_text, "status": "in_force"}],
+                allow_masked=True,
+            ).get("passed"):
+                return True
+
+    answer = _fold((result.get("memo") or {}).get("text"))
+    # Known citations cover the library/card. The expected citation's numeric
+    # shape also catches an invented case number; neutral/report citations can
+    # identify a different court even when it is absent from both.
+    named = [citation, *known_citations,
+             *(str(element.get("citation") or "") for element in elements if isinstance(element, dict))]
+    patterns = [re.escape(_fold(item)) for item in named if _fold(item)]
+    patterns.append("".join(r"\d+" if part.isdecimal() else re.escape(part)
+                            for part in re.split(r"(\d+)", _fold(citation))))
+    patterns.append(r"\[\d{4}\]\s+[A-Z]{2,12}\s+\d+")
+    patterns.append(r"(?:\d+\s+)?(?:[A-Z]{2,12}|[A-Z]\.)(?:\s+(?:[A-Z][a-z]+\.|\d+d))*\s+\d+")
+    mentions = [match for pattern in patterns
+                for match in re.finditer(r"(?<!\w)(?:" + pattern + r")(?!\w)", answer)]
+    for sentence in sentences:
+        for quote in re.finditer(re.escape(sentence), answer):
+            before = [match for match in mentions if match.end() <= quote.start()]
+            after = [match for match in mentions if match.start() >= quote.end()]
+            if before:
+                nearest = max(before, key=lambda match: (match.end(), -match.start()))
+                between = answer[nearest.end():quote.start()]
+                if (len(between) <= 160 and not re.search(r"[.!?](?:\s|$)", between)
+                        and _fold(nearest[0]).casefold() != expected):
+                    return True
+            if after:
+                nearest = min(after, key=lambda match: (match.start(), -match.end()))
+                between = answer[quote.end():nearest.start()]
+                if (re.fullmatch(r"[”\"'\s(,:—-]*", between)
+                        and _fold(nearest[0]).casefold() != expected):
+                    return True
+    return False
 
 
 def _miss_reason(
@@ -610,6 +877,7 @@ def _miss_reason(
     raised: str,
     quote: str,
     supported: list[str] | None = None,
+    misattributed: bool = False,
 ) -> str:
     """The first check this answer failed, as one of MISS_REASONS. Empty when it passed.
 
@@ -630,8 +898,10 @@ def _miss_reason(
         return MISS_REASONS[1]
     if "cannot find" in answer.lower():
         return MISS_REASONS[5]
-    if item["citation"] not in answer:
+    if not re.search(re.escape(item["citation"]) + r"(?![A-Za-z0-9])", answer):
         return MISS_REASONS[6]
+    if misattributed:
+        return MISS_REASONS[7]
     if not quote:
         return MISS_REASONS[8]
     if not _quotes_the_judgment(answer, quote, supported or []):
@@ -639,22 +909,39 @@ def _miss_reason(
     return ""
 
 
-def _miss(item: dict[str, str], reason: str, answer: str, *, raised: str, refusal: str, quote: str) -> dict[str, str]:
-    """One missed case as it is stored in the run detail."""
-    out = {
+def _miss(
+    item: dict[str, str],
+    reason: str,
+    answer: str,
+    *,
+    raised: str,
+    refusal: str,
+    quote: str,
+    checks: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """One missed case as it is stored in the run detail.
+
+    Platform-tenant test data, but every piece of model or library text is passed
+    through _diagnostic_text (secrets cut, then the PII mask) and bounded.
+    """
+    masked = _diagnostic_text(answer)
+    out: dict[str, Any] = {
         "case": str(item.get("case") or ""),
         "kind": str(item.get("kind") or ""),
         "citation": str(item.get("citation") or ""),
         "reason": reason,
-        "question": str(item.get("question") or ""),
-        "answer": " ".join(answer.split())[:_MISS_ANSWER_CHARS],
+        "question": _bounded(_diagnostic_text(item.get("question")), _MISS_PIECE_CHARS),
+        "answer": _answer_excerpt(masked),
+        "answer_chars": len(masked),
     }
     if raised:
         out["error"] = raised
     if refusal:
-        out["refusal"] = " ".join(refusal.split())[:200]
+        out["refusal"] = _bounded(_diagnostic_text(refusal), 200)
     if quote and item.get("kind") == "real":
-        out["expected_quote"] = quote
+        out["expected_quote"] = _bounded(_diagnostic_text(quote), _MISS_PIECE_CHARS)
+    if checks:
+        out.update(checks)
     return out
 
 
@@ -675,7 +962,7 @@ async def run_made_up_test(
     """
     del store
     documents = _library_documents(library)
-    if ladder is None or model is None or not documents:
+    if ladder is None or model is None or len(documents) < 10:
         return _not_run()
     home, box, jurisdiction, provider = _made_up_box(region)
     from agents.zenas.core.service import answer_question
@@ -696,6 +983,7 @@ async def run_made_up_test(
         raised = ""
         refusal = ""
         ok_result = False
+        failure: dict[str, Any] = {}
         try:
             result = await answer_question(
                 ladder,
@@ -710,6 +998,10 @@ async def run_made_up_test(
                 features={"asked": "yes"},
                 provider=provider,
             )
+            failure = safe_failure(result.get("failure"))
+            retrieval = result.get("retrieval")
+            if not failure and isinstance(retrieval, dict):
+                failure = safe_failure(retrieval.get("failure"))
             ok_result = bool(result.get("ok"))
             answer = str((result.get("memo") or {}).get("text") or "") if ok_result else str(result.get("reason") or "")
             if not ok_result:
@@ -717,6 +1009,7 @@ async def run_made_up_test(
         except Exception as exc:  # noqa: BLE001 - one case does not stop the run; the class is kept
             answer = ""
             raised = type(exc).__name__
+            failure = exception_failure(exc)
             result = {}
         quote = (quotes.get(item["citation"]) or item.get("quote") or "") if item["kind"] == "real" else ""
         supported = (
@@ -724,11 +1017,23 @@ async def run_made_up_test(
             if item["kind"] == "real" and ok_result
             else []
         )
-        reason = _miss_reason(item, answer, ok_result=ok_result, raised=raised, quote=quote, supported=supported)
+        misattributed = item["kind"] == "real" and ok_result and _quote_misattributed(
+            result, item["citation"], texts.get(item["citation"], ""), list(texts),
+        )
+        reason = _miss_reason(item, answer, ok_result=ok_result, raised=raised, quote=quote,
+                              supported=supported, misattributed=misattributed)
         if not reason:
             passed += 1
         else:
-            misses.append(_miss(item, reason, answer, raised=raised, refusal=refusal, quote=quote))
+            checks = (
+                _quote_checks(result, item["citation"], texts.get(item["citation"], ""), answer, supported)
+                if item["kind"] == "real" and ok_result
+                else None
+            )
+            miss = _miss(item, reason, answer, raised=raised, refusal=refusal, quote=quote, checks=checks)
+            if failure:
+                miss["failure"] = failure
+            misses.append(miss)
     asked = len(questions)
     perfect = passed == asked == 50
     standing = "Zenas skills may be approved." if perfect else "Zenas skills may not be approved."
@@ -879,7 +1184,8 @@ async def run_selftest(
 
 
 def _public_run(row: dict[str, Any]) -> dict[str, Any]:
-    """Scores only. No judgment text, no matter, no document body.
+    """Scores, and for made-up runs the redacted miss records (see _public_misses).
+    No matter, no client text, no full judgment body.
 
     A LegalBench row is a code baseline. The label is on the response so a
     reader does not take the percentage for a model score.
@@ -919,22 +1225,51 @@ def _public_run(row: dict[str, Any]) -> dict[str, Any]:
     return published
 
 
-def _public_misses(raw: Any) -> list[dict[str, str]]:
-    """Each missed made-up case: id, kind, citation and reason.
+def _public_misses(raw: Any) -> list[dict[str, Any]]:
+    """Each missed made-up case with enough to diagnose it.
 
-    The stored detail also keeps the question, the start of the answer and the
-    expected quote. Those are not published: this response carries no judgment text.
+    id, kind, citation and reason, plus the question, an excerpt of the answer that
+    keeps its quoted sentence(s), the expected quote, and why each rule-card quote
+    did or did not count. Every text field is passed through the PII redaction
+    again here (older rows were stored before it), with secrets cut first, and
+    bounded. No full judgment body is ever returned.
     """
-    out: list[dict[str, str]] = []
+    out: list[dict[str, Any]] = []
     for item in raw if isinstance(raw, list) else []:
         if not isinstance(item, dict):
             continue
-        miss = {key: str(item.get(key) or "") for key in ("case", "kind", "citation", "reason")}
+        miss: dict[str, Any] = {key: str(item.get(key) or "") for key in ("case", "kind", "citation", "reason")}
         if miss["reason"] not in MISS_REASONS:
             miss["reason"] = MISS_REASONS[0] if item.get("error") else "unknown"
-        for key in ("refusal", "error"):
+        failure = safe_failure(item.get("failure"))
+        if failure:
+            miss["failure"] = failure
+        if item.get("error"):
+            miss["error"] = _bounded(_diagnostic_text(item["error"]), 200)
+        if item.get("refusal"):
+            miss["refusal"] = _bounded(_diagnostic_text(item["refusal"]), 200)
+        for key, limit in (("question", _MISS_PIECE_CHARS), ("expected_quote", _MISS_PIECE_CHARS)):
             if item.get(key):
-                miss[key] = " ".join(str(item[key]).split())[:200]
+                miss[key] = _bounded(_diagnostic_text(item[key]), limit)
+        if item.get("answer"):
+            miss["answer_excerpt"] = _answer_excerpt(_diagnostic_text(item["answer"]))
+        if isinstance(item.get("answer_chars"), int):
+            miss["answer_chars"] = item["answer_chars"]
+        if isinstance(item.get("library_chars"), int):
+            miss["library_chars"] = item["library_chars"]
+        quotes = item.get("quotes")
+        if isinstance(quotes, list):
+            miss["quotes"] = [
+                {
+                    "quote": _bounded(_diagnostic_text(row.get("quote")), _MISS_PIECE_CHARS),
+                    "check": str(row.get("check") or "") if row.get("check") in QUOTE_CHECKS else "unknown",
+                }
+                for row in quotes[:_MISS_QUOTES]
+                if isinstance(row, dict)
+            ]
+        others = item.get("other_citations")
+        if isinstance(others, list):
+            miss["other_citations"] = [_citation_text(row) for row in others[:_MISS_QUOTES]]
         out.append(miss)
     return out
 

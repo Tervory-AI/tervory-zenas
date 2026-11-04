@@ -1,7 +1,0 @@
-initial: True
-code: |
-  assembly_jurisdiction = "us"
-  assembly_template = "sale_of_goods_cisg"
----
-include:
-  - docassemble.zenas:data/questions/assembly.yml

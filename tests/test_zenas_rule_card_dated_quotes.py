@@ -503,3 +503,14 @@ def test_cite_check_1_1_0_has_a_must_refuse_case_for_too_many_placeholders():
                                     for s in c["input"]["statements"])]
     assert many and all(c["must_refuse"] is True and c["expected"] == {"passed": False, "blocked": True}
                         for c in many)
+
+
+def test_masked_card_quote_cannot_be_attributed_to_another_case():
+    from agents.zenas.core.selftest import _quote_misattributed
+
+    card = _card(DATED)
+    wrong = "[2026] ZACAC 200"
+    element = {**card["elements"][0], "citation": wrong}
+    result = {"memo": {"text": f"{CITE}: {DATED}"}, "rule_card": {"elements": [element]}}
+    assert _quote_misattributed(result, CITE, JUDGMENT, [wrong]) is True
+    assert engine.cite_check([element], PASSAGES, allow_masked=True)["passed"] is False

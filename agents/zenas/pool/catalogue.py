@@ -22,6 +22,27 @@ _EDICT = (
 
 CATALOGUE: tuple[SourceSpec, ...] = (
     SourceSpec(
+        source_id="eur-lex",
+        name="EUR-Lex EU legislation and case-law",
+        region="us-east",
+        jurisdiction="us",
+        licence="© European Union. EUR-Lex; Commission Decision 2011/833/EU. Civil articles extracted from official text; recitals and criminal provisions omitted.",
+        terms=(
+            "Checked 2026-11-01 against the EUR-Lex legal notice. EU legal documents may be "
+            "reused commercially or non-commercially unless otherwise specified, under "
+            "Commission Decision 2011/833/EU. Acknowledge EUR-Lex/European Union, retain "
+            "source links and indicate extraction changes. Only EU legislation and case-law "
+            "text is loaded; third-party works and documents with special reuse conditions "
+            "are excluded. No editorial summaries, logos or third-party material."
+        ),
+        terms_url="https://eur-lex.europa.eu/content/legal-notice/legal-notice.html?locale=en",
+        bulk_use="allowed",
+        store_full_text=True,
+        canonical_url="https://eur-lex.europa.eu/",
+        notes="Civil trade legislation only in the initial fetch; existing US research pool and region. Plain text extracted from official legal HTML, with EUR-Lex citations retained.",
+        adapter="eur-lex",
+    ),
+    SourceSpec(
         source_id="govinfo-uscode",
         name="United States Code (GovInfo)",
         region="us-east",
