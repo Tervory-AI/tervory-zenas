@@ -102,3 +102,12 @@ Organizer access and qualified-reviewer examples illustrate backend permissions.
 | 375 | [674:955](https://www.figma.com/design/ZnphBOJU6657tohGLD3IzS?node-id=674-955) | [PNG](evidence/session-access-375.png) | Proposed |
 
 [Created node IDs, exact Proposed copy and checks](evidence/session-access-completion.json).
+
+### withdraw-access · Proposed
+
+| Width | Frame | Screenshot | Status |
+| --- | --- | --- | --- |
+| 1440 | [676:1000](https://www.figma.com/design/ZnphBOJU6657tohGLD3IzS?node-id=676-1000) | [PNG](evidence/withdraw-access-1440.png) | Proposed |
+| 375 | [676:1123](https://www.figma.com/design/ZnphBOJU6657tohGLD3IzS?node-id=676-1123) | [PNG](evidence/withdraw-access-375.png) | Proposed |
+
+[Created node IDs, exact Proposed copy and checks](evidence/withdraw-access-completion.json).
