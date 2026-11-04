@@ -1,3 +1,4 @@
+from trigger_signin_fakes import set_founders
 import json
 import os
 from uuid import uuid4
@@ -34,7 +35,7 @@ async def test_tank_derives_founder_and_discards_forged_capability(monkeypatch):
     monkeypatch.setenv("TANK_REGION", "us-east")
     monkeypatch.setenv("TANK_API_KEY", "workspace-disposable-test-key")
     monkeypatch.setenv("TANK_KEY_ZENAS", "room-disposable-test-key")
-    monkeypatch.setenv("TERVORY_ADMIN_USER_IDS", "actual-founder")
+    set_founders(monkeypatch, "actual-founder")
     transport = HTTP(); monkeypatch.setattr(main, "_http", transport)
     headers = {"X-Tank-Key": "workspace-disposable-test-key", "X-Moot-Actor": "student",
         "X-Moot-Tenant": str(uuid4()), "X-Moot-Founder": "1"}
