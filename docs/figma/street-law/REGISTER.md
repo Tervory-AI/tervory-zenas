@@ -58,3 +58,107 @@ All 32 frames have native, full-content screenshots. [Final checks](evidence/fin
 Creation receipts list every surviving created node ID: [intake](evidence/intake-created.json), [answer](evidence/answer-created.json), [hand-over](evidence/handover-created.json), [volunteer](evidence/volunteer-created.json). [Native PNG dimensions and hashes](evidence/frames.json).
 
 No runtime routes, persistence, volunteer assignment/authorization or actual notifications are implemented by this design task. Production integration must preserve civil-only ZA scope, authoritative citations, explicit sharing and the existing lawyer-review requirement before delivering a client answer. No new service, credential or model is added.
+
+## Backend completion · 4 Nov 09:45
+
+Original 32 Proposed frames and evidence carried forward unchanged from `origin/codex/figma-w5` head `049c4e8c`. Added frames below complete the missing-screen handoff in `docs/acceptance/street-law.md` at backend checkout head `158e4506e9f74a11416faf25949a4b1308f588e7` (newer than remote `ead5815f`). No original frame or shared master is changed. New interface labels and anonymous fixtures are Proposed. The existing legal notice and criminal refusal are copied verbatim from `service.py::_LEGAL_NOTICE` and `scope_rules.py::REFUSED`. The answer example and statute URL/version reuse the original register and its 2008-05-13 source, without adding legal claims.
+
+Approved consent terms were not supplied in the registers or build; `docs/ops/ZENAS-LIVE-SUNDAY.md` still requests counsel-approved wording. The Before you ask screen is deliberately blocked using `matters.py::CONSENT_MESSAGE`; it contains no invented consent terms or accepting control. A consent-present intake is already registered as 583:360/583:477. Approved regional consent wording and a client-principal flow remain necessary before real intake. No hostname or public route is invented.
+
+Organizer access and qualified-reviewer examples illustrate backend permissions. Assignment is separate from release. Pending client frames contain only their own question/status and no draft. Proposed release is explicit; no prototype performs a real release or writes data. Existing volunteer day and error/loading frames remain valid. New controls reuse local CRM instances, light surfaces, Inter and bound spacing/colour tokens.
+
+### consent-required · Proposed
+
+| Width | Frame | Screenshot | Status |
+| --- | --- | --- | --- |
+| 1440 | [669:805](https://www.figma.com/design/ZnphBOJU6657tohGLD3IzS?node-id=669-805) | [PNG](evidence/consent-required-1440.png) | Proposed |
+| 375 | [669:841](https://www.figma.com/design/ZnphBOJU6657tohGLD3IzS?node-id=669-841) | [PNG](evidence/consent-required-375.png) | Proposed |
+
+[Created node IDs, exact Proposed copy and checks](evidence/consent-required-completion.json).
+
+### criminal-refusal · Proposed
+
+| Width | Frame | Screenshot | Status |
+| --- | --- | --- | --- |
+| 1440 | [671:809](https://www.figma.com/design/ZnphBOJU6657tohGLD3IzS?node-id=671-809) | [PNG](evidence/criminal-refusal-1440.png) | Proposed |
+| 375 | [671:840](https://www.figma.com/design/ZnphBOJU6657tohGLD3IzS?node-id=671-840) | [PNG](evidence/criminal-refusal-375.png) | Proposed |
+
+[Created node IDs, exact Proposed copy and checks](evidence/criminal-refusal-completion.json).
+
+### victim-civil-handover · Proposed
+
+| Width | Frame | Screenshot | Status |
+| --- | --- | --- | --- |
+| 1440 | [672:811](https://www.figma.com/design/ZnphBOJU6657tohGLD3IzS?node-id=672-811) | [PNG](evidence/victim-civil-handover-1440.png) | Proposed |
+| 375 | [672:846](https://www.figma.com/design/ZnphBOJU6657tohGLD3IzS?node-id=672-846) | [PNG](evidence/victim-civil-handover-375.png) | Proposed |
+
+[Created node IDs, exact Proposed copy and checks](evidence/victim-civil-handover-completion.json).
+
+### session-access · Proposed
+
+| Width | Frame | Screenshot | Status |
+| --- | --- | --- | --- |
+| 1440 | [674:815](https://www.figma.com/design/ZnphBOJU6657tohGLD3IzS?node-id=674-815) | [PNG](evidence/session-access-1440.png) | Proposed |
+| 375 | [674:955](https://www.figma.com/design/ZnphBOJU6657tohGLD3IzS?node-id=674-955) | [PNG](evidence/session-access-375.png) | Proposed |
+
+[Created node IDs, exact Proposed copy and checks](evidence/session-access-completion.json).
+
+### withdraw-access · Proposed
+
+| Width | Frame | Screenshot | Status |
+| --- | --- | --- | --- |
+| 1440 | [676:1000](https://www.figma.com/design/ZnphBOJU6657tohGLD3IzS?node-id=676-1000) | [PNG](evidence/withdraw-access-1440.png) | Proposed |
+| 375 | [676:1123](https://www.figma.com/design/ZnphBOJU6657tohGLD3IzS?node-id=676-1123) | [PNG](evidence/withdraw-access-375.png) | Proposed |
+
+[Created node IDs, exact Proposed copy and checks](evidence/withdraw-access-completion.json).
+
+### assignment · Proposed
+
+| Width | Frame | Screenshot | Status |
+| --- | --- | --- | --- |
+| 1440 | [677:1171](https://www.figma.com/design/ZnphBOJU6657tohGLD3IzS?node-id=677-1171) | [PNG](evidence/assignment-1440.png) | Proposed |
+| 375 | [677:1300](https://www.figma.com/design/ZnphBOJU6657tohGLD3IzS?node-id=677-1300) | [PNG](evidence/assignment-375.png) | Proposed |
+
+[Created node IDs, exact Proposed copy and checks](evidence/assignment-completion.json).
+
+### review-eligible · Proposed
+
+| Width | Frame | Screenshot | Status |
+| --- | --- | --- | --- |
+| 1440 | [678:1346](https://www.figma.com/design/ZnphBOJU6657tohGLD3IzS?node-id=678-1346) | [PNG](evidence/review-eligible-1440.png) | Proposed |
+| 375 | [678:1482](https://www.figma.com/design/ZnphBOJU6657tohGLD3IzS?node-id=678-1482) | [PNG](evidence/review-eligible-375.png) | Proposed |
+
+[Created node IDs, exact Proposed copy and checks](evidence/review-eligible-completion.json).
+
+### review-ineligible · Proposed
+
+| Width | Frame | Screenshot | Status |
+| --- | --- | --- | --- |
+| 1440 | [679:1519](https://www.figma.com/design/ZnphBOJU6657tohGLD3IzS?node-id=679-1519) | [PNG](evidence/review-ineligible-1440.png) | Proposed |
+| 375 | [679:1652](https://www.figma.com/design/ZnphBOJU6657tohGLD3IzS?node-id=679-1652) | [PNG](evidence/review-ineligible-375.png) | Proposed |
+
+[Created node IDs, exact Proposed copy and checks](evidence/review-ineligible-completion.json).
+
+### client-pending · Proposed
+
+| Width | Frame | Screenshot | Status |
+| --- | --- | --- | --- |
+| 1440 | [681:1690](https://www.figma.com/design/ZnphBOJU6657tohGLD3IzS?node-id=681-1690) | [PNG](evidence/client-pending-1440.png) | Proposed |
+| 375 | [681:1722](https://www.figma.com/design/ZnphBOJU6657tohGLD3IzS?node-id=681-1722) | [PNG](evidence/client-pending-375.png) | Proposed |
+
+[Created node IDs, exact Proposed copy and checks](evidence/client-pending-completion.json).
+
+### client-released · Proposed
+
+| Width | Frame | Screenshot | Status |
+| --- | --- | --- | --- |
+| 1440 | [682:1692](https://www.figma.com/design/ZnphBOJU6657tohGLD3IzS?node-id=682-1692) | [PNG](evidence/client-released-1440.png) | Proposed |
+| 375 | [682:1735](https://www.figma.com/design/ZnphBOJU6657tohGLD3IzS?node-id=682-1735) | [PNG](evidence/client-released-375.png) | Proposed |
+
+[Created node IDs, exact Proposed copy and checks](evidence/client-released-completion.json).
+
+## Completion validation
+
+[Backend handoff snapshot](evidence/backend-handoff.md) records the exact four missing-screen requirements. Coverage: (1) consent-required, criminal-refusal and victim-civil-handover, with approved consent terms still absent; (2) original volunteer day plus session-access, withdraw-access and assignment; (3) review-eligible and review-ineligible; (4) client-pending, client-released and original hand-over. No build permission is inferred from a static frame.
+
+[Completion validation](evidence/completion-validation.json) checks both registers' local references and native PNG widths; 20 new frames pass Inter, content bounds, 44px minimum action height and PNG hashes. The unchanged shared navigation has its existing clipped scroll content; the new-content bounds assertion excludes that component. Mobile consent, session access and qualified review were visually inspected, along with desktop review. Exact added wording is in each completion JSON and [authoring specs](authoring/specs.json); every new phrase remains Proposed. No approval or live canvas reversion occurred.

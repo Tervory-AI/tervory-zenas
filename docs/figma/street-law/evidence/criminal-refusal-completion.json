@@ -1,0 +1,103 @@
+{
+  "frames": [
+    {
+      "id": "671:809",
+      "name": "Street Law / Civil questions only / 1440 / Proposed",
+      "slug": "criminal-refusal",
+      "width": 1440,
+      "height": 900,
+      "screenshot": "evidence/criminal-refusal-1440.png",
+      "sha256": "0a346aa80dd4fe746f58d52f058529111bcd6aaa52f1adf2b8ceeb67c98e0a6d"
+    },
+    {
+      "id": "671:840",
+      "name": "Street Law / Civil questions only / 375 / Proposed",
+      "slug": "criminal-refusal",
+      "width": 375,
+      "height": 900,
+      "screenshot": "evidence/criminal-refusal-375.png",
+      "sha256": "f30d6f13768059d6589782941966653b2b7841494366522e52986ce33ce0bf29"
+    }
+  ],
+  "createdNodeIds": [
+    "671:809",
+    "671:810",
+    "671:811",
+    "671:812",
+    "671:813",
+    "671:814",
+    "671:815",
+    "671:816",
+    "671:817",
+    "671:830",
+    "671:831",
+    "671:832",
+    "671:833",
+    "671:834",
+    "671:835",
+    "671:836",
+    "671:837",
+    "I671:837;266:3033",
+    "671:839",
+    "671:840",
+    "671:841",
+    "671:842",
+    "671:843",
+    "671:844",
+    "671:845",
+    "671:846",
+    "671:859",
+    "671:860",
+    "671:861",
+    "671:862",
+    "671:863",
+    "671:864",
+    "671:865",
+    "671:866",
+    "I671:866;266:3033",
+    "671:868"
+  ],
+  "audit": [
+    {
+      "id": "671:809",
+      "width": 1440,
+      "height": 900,
+      "editableNodes": 18,
+      "copy": [
+        "Proposed \u00b7 Not approved",
+        "Street Law \u00b7 Zenas",
+        "South Africa \u00b7 Civil questions",
+        "Civil questions only",
+        "Proposed \u00b7 Anonymous review fixture",
+        "Question refused",
+        "Refused. Zenas does not do criminal law. Ask a criminal lawyer in that jurisdiction.",
+        "Ask another question",
+        "Zenas provides legal information, not legal advice."
+      ],
+      "nonInter": [],
+      "overflow": [],
+      "smallControls": []
+    },
+    {
+      "id": "671:840",
+      "width": 375,
+      "height": 900,
+      "editableNodes": 16,
+      "copy": [
+        "Proposed \u00b7 Not approved",
+        "Street Law \u00b7 Zenas",
+        "South Africa \u00b7 Civil questions",
+        "Civil questions only",
+        "Proposed \u00b7 Anonymous review fixture",
+        "Question refused",
+        "Refused. Zenas does not do criminal law. Ask a criminal lawyer in that jurisdiction.",
+        "Ask another question",
+        "Zenas provides legal information, not legal advice."
+      ],
+      "nonInter": [],
+      "overflow": [],
+      "smallControls": []
+    }
+  ],
+  "wordingStatus": "Proposed"
+}
