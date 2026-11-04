@@ -17,8 +17,8 @@ Baseline: main `d5d3ea2e`, inspected 4 November 2026. This inventory supports
 | Established civil tools | US/ZA deadline calculations with rule citations, consent and immutable home region, tenant-owned matters/documents, review admission gates. `test_zenas_deadlines.py`, `test_zenas_deadlines_service.py`, `test_zenas_z1.py`, `test_zenas_founder_signoff.py`. |
 
 Runtime boundaries: US work stays in Boston; ZA work stays in the ZA room.
-`https://za.tervory.com` is the ZA Tank API, not a browser page. The Workspace
-selects the tenant's home-region backend. No design, legal wording, secret value,
+`https://za.tervory.com` is the ZA Tank API, not a browser page. US business pages use the US Workspace backend; founder feeds can select either
+region. ZA business checks use the protected ZA API directly. No design, legal wording, secret value,
 model call, production SQL, deployment or skill approval is supplied by this work.
 
 ## Source fix required by the offline end-to-end check
@@ -44,3 +44,10 @@ on this shared host (about 2–3 seconds under host load above 50). Their securi
 outcomes still fail closed. The assertions and approved engine behavior are not
 weakened here; final hosted CI remains the independent timing proof. Functional
 acceptance is checked separately with blocked sockets and fake external services.
+
+The broader selected database run recorded 580 passes and one unchanged
+30-second Tank-startup timeout on the loaded host. That startup check passed
+unchanged against local PostgreSQL (26.06 seconds). The first disposable server
+also lacked pg_trgm; the extension was supplied locally, without changing tests.
+The standard offline precheck leaves optional database variables unset; final
+hosted CI remains the full database-backed and timing gate.
