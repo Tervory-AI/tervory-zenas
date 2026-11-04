@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from agents.zenas.pool.fixture_bytes import read_fixture
+
 import json
 import sys
 from datetime import date
@@ -40,7 +42,7 @@ FIXTURES = ROOT / "tests" / "fixtures" / "za" / "precedent"
 
 
 def _read(name: str) -> str:
-    return (FIXTURES / name).read_text(encoding="utf-8")
+    return read_fixture(FIXTURES / name).decode("utf-8")
 
 
 def _source() -> SourceSpec:

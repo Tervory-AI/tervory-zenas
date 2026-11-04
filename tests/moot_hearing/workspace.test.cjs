@@ -15,7 +15,7 @@ function harness({ founder = true, members = ['founder', 'student'], ownMember =
     if (spec === '@/lib/tenant') return { currentTenant: async () => tenant };
     if (spec === '@/lib/admin') return { isFounder: () => founder };
     if (spec === '@/lib/workspace-origin') return { isWorkspaceOrigin: req => req.headers.get('origin') === 'https://zenas.tervory.com' };
-    if (spec === '@clerk/nextjs/server') return { auth: async () => ({ userId: tenant.userId }), clerkClient: async () => ({ organizations: { getOrganizationMembershipList: async ({ userId }) => ({
+    if (spec === '@/lib/trigger-signin') return { auth: async () => ({ userId: tenant.userId }), signinDirectory: async () => ({ organizations: { getOrganizationMembershipList: async ({ userId }) => ({
       data: (userId || members).filter(id => members.includes(id) && (ownMember || id !== tenant.userId)).map(userId => ({ publicUserData: { userId, firstName: userId } })),
     }) } }) };
     if (spec === '../../tank') return { zenas: async (url, options) => { calls.push({ url, options }); return Response.json({ hearing: { revision: 1 } }); } };

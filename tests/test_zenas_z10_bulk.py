@@ -16,6 +16,8 @@ row is in the fixture.
 
 from __future__ import annotations
 
+from agents.zenas.pool.fixture_bytes import read_fixture
+
 import asyncio
 import bz2
 import copy
@@ -67,7 +69,7 @@ def _files() -> dict[str, bytes]:
         f"bulk-data/courts-{DAY}.csv.bz2": bz2.compress((BULK / f"courts-{DAY}.csv").read_bytes()),
         f"bulk-data/dockets-{DAY}.csv": (BULK / f"dockets-{DAY}.csv").read_bytes(),
         f"bulk-data/opinion-clusters-{DAY}.csv": (BULK / f"opinion-clusters-{DAY}.csv").read_bytes(),
-        f"bulk-data/opinions-{DAY}.csv": (BULK / f"opinions-{DAY}.csv").read_bytes(),
+        f"bulk-data/opinions-{DAY}.csv": read_fixture(BULK / f"opinions-{DAY}.csv"),
         f"bulk-data/citations-{DAY}.csv": (BULK / f"citations-{DAY}.csv").read_bytes(),
         f"bulk-data/schema-{DAY}.sql": (BULK / f"schema-{DAY}.sql").read_bytes(),
     }

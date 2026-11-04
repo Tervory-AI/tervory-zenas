@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from agents.zenas.pool.fixture_bytes import read_fixture
+
 import asyncio
 import json
 import shutil
@@ -76,10 +78,10 @@ def test_seed_matches_the_schema_file() -> None:
 
 def test_saved_responses_parse_to_many_documents() -> None:
     counts = {
-        "ecfr": len(EcfrAdapter().parse((SAVED / "ecfr" / "19-cfr-141.xml").read_bytes(), _source("ecfr"))),
-        "frcp": len(FrcpAdapter().parse((SAVED / "frcp" / "uscode-2023-frcp.html").read_bytes(), _source("frcp"))),
+        "ecfr": len(EcfrAdapter().parse(read_fixture(SAVED / "ecfr" / "19-cfr-141.xml"), _source("ecfr"))),
+        "frcp": len(FrcpAdapter().parse(read_fixture(SAVED / "frcp" / "uscode-2023-frcp.html"), _source("frcp"))),
         "fre": len(FreAdapter().parse((SAVED / "fre" / "uscode-2023-fre.html").read_bytes(), _source("fre"))),
-        "frap": len(GovFrap().parse((SAVED / "frap" / "uscode-2023-frap.html").read_bytes(), _source("frap"))),
+        "frap": len(GovFrap().parse(read_fixture(SAVED / "frap" / "uscode-2023-frap.html"), _source("frap"))),
         "federal-register": len(
             FederalRegisterAdapter().parse((SAVED / "federal-register" / "19-cfr-141.json").read_bytes(), _source("federal-register"))
         ),
@@ -121,7 +123,7 @@ def test_ecfr_bulk_requests_only_parts_the_structure_lists(monkeypatch: pytest.M
     import agents.zenas.pool.adapters.ecfr as ecfr
 
     structure = (ROOT / "tests" / "fixtures" / "ecfr" / "title-15-structure.json").read_bytes()
-    saved_xml = (SAVED / "ecfr" / "19-cfr-141.xml").read_bytes()
+    saved_xml = read_fixture(SAVED / "ecfr" / "19-cfr-141.xml")
     monkeypatch.setattr(ecfr, "ECFR_TARGETS", (("15", range(730, 775)),))
     seen: list[str] = []
 
