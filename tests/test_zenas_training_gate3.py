@@ -39,6 +39,7 @@ def test_own_model_is_sealed_and_disabled_by_default():
     assert "ports" not in service and "volumes" not in service
     assert service["read_only"] is True and service["cap_drop"] == ["ALL"]
     assert service["security_opt"] == ["no-new-privileges:true"]
-    assert set(service["environment"]) == {"HF_TOKEN", "HF_HOME"}
+    assert set(service["environment"]) == {"HF_TOKEN", "HF_HOME", "ZENAS_OWN_MODEL_KEY"}
+    assert service["command"][-2:] == ["--api-key", "${ZENAS_OWN_MODEL_KEY:-}"]
     assert "@sha256:" in service["image"]
     assert compose["networks"]["own_model"]["external"] is True
