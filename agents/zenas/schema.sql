@@ -666,3 +666,21 @@ CREATE TABLE IF NOT EXISTS agent_zenas.memory_publish_log (
     published_row uuid
 );
 -- END GENERATED AGENT MEMORY
+
+-- Street Law client data never becomes public law, worked matters or training.
+CREATE TABLE IF NOT EXISTS agent_zenas.street_law_sessions (
+    tenant_id uuid NOT NULL,
+    id uuid NOT NULL,
+    data jsonb NOT NULL CHECK (jsonb_typeof(data) = 'object'),
+    PRIMARY KEY (tenant_id,id)
+);
+ALTER TABLE agent_zenas.street_law_sessions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE agent_zenas.street_law_sessions FORCE ROW LEVEL SECURITY;
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='agent_zenas'
+                   AND tablename='street_law_sessions' AND policyname='street_law_tenant') THEN
+        CREATE POLICY street_law_tenant ON agent_zenas.street_law_sessions
+        USING (tenant_id=NULLIF(current_setting('app.tenant_id',true),'')::uuid)
+        WITH CHECK (tenant_id=NULLIF(current_setting('app.tenant_id',true),'')::uuid);
+    END IF;
+END $$;
