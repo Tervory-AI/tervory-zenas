@@ -21,6 +21,21 @@ Runtime boundaries: US work stays in Boston; ZA work stays in the ZA room.
 selects the tenant's home-region backend. No design, legal wording, secret value,
 model call, production SQL, deployment or skill approval is supplied by this work.
 
+## Source fix required by the offline end-to-end check
+
+The nightly judgment splitter sends its owning room key (`TANK_KEY` in the
+ZA room), but Tank's court-text writer compared it against the Workspace key.
+The real handoff therefore returned 401 despite the transport-only test passing.
+The writer now compares only against `TANK_KEY_ZENAS` on the local Tank and
+sets the platform tenant explicitly before its RLS-scoped checkout. Previously
+the body contained no tenant, so a protected checkout would see an empty tenant
+even after fixing the key. Client tenant selection and administrative bypass
+are not accepted.
+The new `test_zenas_court_training_handoff.py` sends the real scheduled request
+through the actual Tank route and real save_pair, with only SQL replaced by a
+recording connection. It also rejects Workspace/foreign/missing keys, Boston,
+Laws.Africa and SAFLII before touching SQL. No credential value or config changes.
+
 ## Validation at the baseline
 
 The initial focused inventory run completed 217 checks successfully. Three
