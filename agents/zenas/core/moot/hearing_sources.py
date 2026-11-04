@@ -11,7 +11,7 @@ from urllib.parse import urlsplit
 
 from agents.zenas.core.pointers import _PARAGRAPH
 
-from agents.zenas.core.convert import criminal_case
+from agents.zenas.core.convert import criminal_case, criminal_record
 from agents.zenas.core.engine import cite_check, quote_in_source
 from agents.zenas.core.moot.hearing import Actor, HearingError
 from agents.zenas.core.moot.store_compat import decoded
@@ -38,14 +38,21 @@ def verified_paragraph(source: str, quote: str) -> int | None:
     return found[0] if len(found) == 1 else None
 
 
+
+def criminal_source(row: dict[str, Any]) -> bool:
+    """Reject explicit criminal metadata as well as the regional caption gate."""
+    return criminal_case(row) or criminal_record(str(row.get("docket_number") or ""), str(row.get("nature_of_suit") or ""))
+
 def build_problem(row: dict[str, Any], actor: Actor) -> dict[str, Any]:
     if row.get("region") != actor.region or row.get("source_region") != actor.region:
         raise HearingError("wrong_region")
     if (row.get("tenant_id") is not None and str(row["tenant_id"]) != actor.tenant_id
             or row.get("holdout") or row.get("source") != "case" or row.get("material_type") != "public_record"):
         raise HearingError("not_found")
-    if criminal_case(row):
+    if criminal_source(row):
         raise HearingError("civil_only")
+    if row.get("appeal") is not True:
+        raise HearingError("decided_civil_appeal_required")
     pattern = decoded(row.get("fact_pattern"))
     facts = pattern.get("facts") or pattern.get("narrative") or ""
     holding = str(row.get("outcome") or "")

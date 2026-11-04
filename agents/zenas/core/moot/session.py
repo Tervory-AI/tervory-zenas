@@ -136,6 +136,7 @@ def watch_payload(match: dict[str, Any], problem: dict[str, Any]) -> dict[str, A
     ]
     return {
         "matchId": match["match_id"],
+        "verificationStatus": "unverified",
         "published": bool(match.get("published")),
         "title": match.get("problem_title") or problem.get("title") or "",
         "region": match.get("region") or problem.get("region"),
