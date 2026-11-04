@@ -1,0 +1,69 @@
+host_memory_total_bytes=33648410624
+host_memory_used_bytes=10821517312
+host_memory_available_bytes=22826893312
+running_container=agent-zenas-r7qzm460bc4scnskurlowbvn-20261103T221316 memory_usage=71.6MiB / 2GiB mem_limit_bytes=2147483648
+running_container=59f8cnpelzwsyte1atyjc4fv-rig-brain-1 memory_usage=37.91MiB / 2GiB mem_limit_bytes=2147483648
+running_container=59f8cnpelzwsyte1atyjc4fv-agent-rig-1 memory_usage=67.52MiB / 512MiB mem_limit_bytes=536870912
+running_container=59f8cnpelzwsyte1atyjc4fv-rig-forge-egress-1 memory_usage=15.2MiB / 128MiB mem_limit_bytes=134217728
+running_container=59f8cnpelzwsyte1atyjc4fv-rig-forge-1 memory_usage=61.18MiB / 4GiB mem_limit_bytes=4294967296
+running_container=59f8cnpelzwsyte1atyjc4fv-rig-sandbox-1 memory_usage=34.41MiB / 512MiB mem_limit_bytes=536870912
+running_container=59f8cnpelzwsyte1atyjc4fv-rig-browser-1 memory_usage=37.2MiB / 2GiB mem_limit_bytes=2147483648
+running_container=59f8cnpelzwsyte1atyjc4fv-rig-browser-gateway-1 memory_usage=36.9MiB / 128MiB mem_limit_bytes=134217728
+running_container=mcp-xnmc0jkz8j9i5jh1jwanbsfv-20261103T215602 memory_usage=46.3MiB / 31.34GiB mem_limit_bytes=0
+running_container=workspace-xnmc0jkz8j9i5jh1jwanbsfv-20261103T215602 memory_usage=132.3MiB / 31.34GiB mem_limit_bytes=0
+running_container=hermes-xnmc0jkz8j9i5jh1jwanbsfv-20261103T215601 memory_usage=348.7MiB / 31.34GiB mem_limit_bytes=0
+running_container=tank-xnmc0jkz8j9i5jh1jwanbsfv-20261103T215602 memory_usage=123.2MiB / 31.34GiB mem_limit_bytes=0
+running_container=r2-backup-xnmc0jkz8j9i5jh1jwanbsfv-20261103T215602 memory_usage=21.92MiB / 512MiB mem_limit_bytes=536870912
+running_container=searxng-xnmc0jkz8j9i5jh1jwanbsfv-20261103T215601 memory_usage=106.2MiB / 31.34GiB mem_limit_bytes=0
+running_container=postgres-xnmc0jkz8j9i5jh1jwanbsfv-20261103T215601 memory_usage=268.5MiB / 31.34GiB mem_limit_bytes=0
+running_container=litellm-xnmc0jkz8j9i5jh1jwanbsfv-20261103T215601 memory_usage=538.5MiB / 31.34GiB mem_limit_bytes=0
+running_container=qdrant-xnmc0jkz8j9i5jh1jwanbsfv-20261103T215601 memory_usage=300.9MiB / 31.34GiB mem_limit_bytes=0
+running_container=redis-xnmc0jkz8j9i5jh1jwanbsfv-20261103T215601 memory_usage=4.977MiB / 31.34GiB mem_limit_bytes=0
+running_container=tiger-xnmc0jkz8j9i5jh1jwanbsfv-20261103T215602 memory_usage=155.6MiB / 31.34GiB mem_limit_bytes=0
+running_container=site-xnmc0jkz8j9i5jh1jwanbsfv-20261103T215602 memory_usage=23.19MiB / 31.34GiB mem_limit_bytes=0
+running_container=market-research-xnmc0jkz8j9i5jh1jwanbsfv-20261103T215601 memory_usage=97.39MiB / 31.34GiB mem_limit_bytes=0
+running_container=Ferry-xnmc0jkz8j9i5jh1jwanbsfv-20261103T215601 memory_usage=53.29MiB / 31.34GiB mem_limit_bytes=0
+running_container=agent-tisan-lblbn0wjaz30hhdur9l3pylg-20261103T212847 memory_usage=62.39MiB / 1GiB mem_limit_bytes=1073741824
+running_container=fro6z8xlh579owlp1wwrjr8n-agent-tiger-1 memory_usage=61.59MiB / 512MiB mem_limit_bytes=536870912
+running_container=fro6z8xlh579owlp1wwrjr8n-tiger-browser-1 memory_usage=79.67MiB / 2GiB mem_limit_bytes=2147483648
+running_container=fro6z8xlh579owlp1wwrjr8n-tiger-browser-gateway-1 memory_usage=47.17MiB / 128MiB mem_limit_bytes=134217728
+running_container=agent-market-lab-xt0vc7rnr45flw2wg3iyjpmn-20261103T203505 memory_usage=58MiB / 512MiB mem_limit_bytes=536870912
+running_container=liv4x7vshraiwnnowjv0kgfd-egress-proxy-1 memory_usage=8.984MiB / 128MiB mem_limit_bytes=134217728
+running_container=liv4x7vshraiwnnowjv0kgfd-passive-egress-1 memory_usage=44.72MiB / 128MiB mem_limit_bytes=134217728
+running_container=liv4x7vshraiwnnowjv0kgfd-agent-radix-1 memory_usage=58.31MiB / 1GiB mem_limit_bytes=1073741824
+running_container=r8aprclj8nooe9keywrp9dmb-base-brain-1 memory_usage=35.46MiB / 2GiB mem_limit_bytes=2147483648
+running_container=r8aprclj8nooe9keywrp9dmb-agent-base-1 memory_usage=51.52MiB / 512MiB mem_limit_bytes=536870912
+running_container=r8aprclj8nooe9keywrp9dmb-base-sandbox-1 memory_usage=30.23MiB / 512MiB mem_limit_bytes=536870912
+running_container=r8aprclj8nooe9keywrp9dmb-base-browser-gateway-1 memory_usage=32.33MiB / 128MiB mem_limit_bytes=134217728
+running_container=r8aprclj8nooe9keywrp9dmb-base-browser-1 memory_usage=35.28MiB / 2GiB mem_limit_bytes=2147483648
+running_container=yzq4jrwa6fipvwb7lzcx4nmo-agent-trigger-1 memory_usage=54.25MiB / 512MiB mem_limit_bytes=536870912
+running_container=yzq4jrwa6fipvwb7lzcx4nmo-trigger-languagetool-1 memory_usage=341MiB / 2GiB mem_limit_bytes=2147483648
+running_container=gbcrtd9bij6hnhrbd6ljvo1g-health-egress-proxy-1 memory_usage=10.06MiB / 128MiB mem_limit_bytes=134217728
+running_container=gbcrtd9bij6hnhrbd6ljvo1g-egress-proxy-1 memory_usage=7.969MiB / 128MiB mem_limit_bytes=134217728
+running_container=gbcrtd9bij6hnhrbd6ljvo1g-enforce-1 memory_usage=47.55MiB / 256MiB mem_limit_bytes=268435456
+running_container=gbcrtd9bij6hnhrbd6ljvo1g-health-observer-1 memory_usage=18.13MiB / 128MiB mem_limit_bytes=134217728
+running_container=coolify-sentinel memory_usage=10.7MiB / 31.34GiB mem_limit_bytes=0
+running_container=frontend-aty7tukal0rlksfpet1mzplb-20261103T111814 memory_usage=67.43MiB / 512MiB mem_limit_bytes=536870912
+running_container=celery-beat-aty7tukal0rlksfpet1mzplb-20261103T111814 memory_usage=155.1MiB / 256MiB mem_limit_bytes=268435456
+running_container=celery-worker-aty7tukal0rlksfpet1mzplb-20261103T111814 memory_usage=302.9MiB / 768MiB mem_limit_bytes=805306368
+running_container=backend-aty7tukal0rlksfpet1mzplb-20261103T111814 memory_usage=391.2MiB / 1GiB mem_limit_bytes=1073741824
+running_container=redis-aty7tukal0rlksfpet1mzplb-20261103T111814 memory_usage=7.367MiB / 31.34GiB mem_limit_bytes=0
+running_container=coolify memory_usage=470.5MiB / 31.34GiB mem_limit_bytes=0
+running_container=coolify-db memory_usage=153.6MiB / 31.34GiB mem_limit_bytes=0
+running_container=coolify-redis memory_usage=11.96MiB / 31.34GiB mem_limit_bytes=0
+running_container=kuma-socat-tunnel memory_usage=1.023MiB / 31.34GiB mem_limit_bytes=0
+running_container=uptime-kuma-m24wvavrazt3s6lovfwu2ffp memory_usage=164.7MiB / 31.34GiB mem_limit_bytes=0
+running_container=agent-ghost-nypsvvcxjpdebaa204smtqtd-20261027T121359 memory_usage=79.5MiB / 512MiB mem_limit_bytes=536870912
+running_container=ghost-browser-nypsvvcxjpdebaa204smtqtd-20261027T121359 memory_usage=94.12MiB / 1GiB mem_limit_bytes=1073741824
+running_container=agent-template-jodjyt6vsyoyhfr6axtuc8ij-20261027T104918 memory_usage=48.95MiB / 512MiB mem_limit_bytes=536870912
+running_container=chatwoot-wefornkolxs7kw194xbdyf1b memory_usage=406.3MiB / 31.34GiB mem_limit_bytes=0
+running_container=sidekiq-wefornkolxs7kw194xbdyf1b memory_usage=509.8MiB / 31.34GiB mem_limit_bytes=0
+running_container=redis-wefornkolxs7kw194xbdyf1b memory_usage=8.195MiB / 31.34GiB mem_limit_bytes=0
+running_container=coolify-proxy memory_usage=109MiB / 31.34GiB mem_limit_bytes=0
+running_container=postgres-wefornkolxs7kw194xbdyf1b memory_usage=35.1MiB / 31.34GiB mem_limit_bytes=0
+running_container=coolify-proxy-error-pages memory_usage=352KiB / 31.34GiB mem_limit_bytes=0
+container_count=64
+running_container_count=61
+container_mem_limit_sum_bytes=32078036992
+running_container_mem_limit_sum_bytes=32078036992
+unlimited_container_count=29

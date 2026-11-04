@@ -1,0 +1,4 @@
+region=us-east
+PASS pinned Hermes/license; Zenas health-only; task refusal; sandbox authentication; offline WASI scratch
+region=za
+PASS pinned Hermes/license; Zenas health-only; task refusal; sandbox authentication; offline WASI scratch

@@ -1,0 +1,6 @@
+#12 exporting config sha256:6f4b5fc494c7df8660a561d324c5040f3e83e423276517fd0515cb1eaf053211 0.0s done
+#12 exporting attestation manifest sha256:766a46ef486279522a62e606779735bd542606af5e5e075cbe3d574f7f9007aa 0.0s done
+#12 exporting manifest list sha256:4b89bb85e8819d63b9d0c7dae9fa8209e420e3ff988ebccf60ec38663fd1e4f7 0.0s done
+#12 naming to docker.io/library/codex-zenas-brain-proof:gate done
+#12 unpacking to docker.io/library/codex-zenas-brain-proof:gate 0.1s done
+#12 DONE 0.3s
