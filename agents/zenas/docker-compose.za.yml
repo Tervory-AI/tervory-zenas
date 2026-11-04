@@ -173,7 +173,6 @@ volumes:
     name: tervory-zenas-za-brain-data
   # Local to the SA server. Never replicated to the United States.
   za_agent_data:
-    name: rslmzhfmq5tf9ipx385gmu6p_za_agent_data
 
 networks:
   sandbox:
