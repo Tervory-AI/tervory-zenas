@@ -1,0 +1,194 @@
+{
+  "video-shop": {
+    "localReferences": 53,
+    "registeredScreenshots": 48,
+    "uniqueFrames": 48,
+    "missingReferences": []
+  },
+  "street-law": {
+    "localReferences": 72,
+    "registeredScreenshots": 52,
+    "uniqueFrames": 52,
+    "missingReferences": []
+  },
+  "addedStreetLawFrames": [
+    {
+      "id": "679:1519",
+      "name": "Street Law / Answer draft / 1440 / Proposed",
+      "slug": "review-ineligible",
+      "width": 1440,
+      "height": 1062,
+      "screenshot": "evidence/review-ineligible-1440.png",
+      "sha256": "75918cf634dfb617560c305129fdb44c7de6579ff4425c8bf130a04d4d8936c2"
+    },
+    {
+      "id": "679:1652",
+      "name": "Street Law / Answer draft / 375 / Proposed",
+      "slug": "review-ineligible",
+      "width": 375,
+      "height": 1275,
+      "screenshot": "evidence/review-ineligible-375.png",
+      "sha256": "8bea39cf6419bcb710aa342122c588c3d14fb4b47b1eb3285cb0e66ab2921bc5"
+    },
+    {
+      "id": "681:1690",
+      "name": "Street Law / Your question / 1440 / Proposed",
+      "slug": "client-pending",
+      "width": 1440,
+      "height": 900,
+      "screenshot": "evidence/client-pending-1440.png",
+      "sha256": "a8b47023418a7914033bee944bf77ae32e45aa5bc3a03c09c37ba9173b4fbf31"
+    },
+    {
+      "id": "681:1722",
+      "name": "Street Law / Your question / 375 / Proposed",
+      "slug": "client-pending",
+      "width": 375,
+      "height": 900,
+      "screenshot": "evidence/client-pending-375.png",
+      "sha256": "d394a2c65c7a6ebf24854d30d2b5f1c342981f95cfd496c96a928a53a19f2e41"
+    },
+    {
+      "id": "677:1171",
+      "name": "Street Law / Assign question / 1440 / Proposed",
+      "slug": "assignment",
+      "width": 1440,
+      "height": 900,
+      "screenshot": "evidence/assignment-1440.png",
+      "sha256": "5c7f267f96c8cdcd733456a20f4b8eabe756d028f79be5e83045f8acd20c7325"
+    },
+    {
+      "id": "677:1300",
+      "name": "Street Law / Assign question / 375 / Proposed",
+      "slug": "assignment",
+      "width": 375,
+      "height": 966,
+      "screenshot": "evidence/assignment-375.png",
+      "sha256": "98ee7bc5eaa50601e92b9f2d34433b5023b9842bc321ed5724814ae374b7cf13"
+    },
+    {
+      "id": "676:1000",
+      "name": "Street Law / Withdraw volunteer access / 1440 / Proposed",
+      "slug": "withdraw-access",
+      "width": 1440,
+      "height": 900,
+      "screenshot": "evidence/withdraw-access-1440.png",
+      "sha256": "93549ffa6144e37f68a9b36aa0d4cd5384a91cce9680b63de9d48b77059c5ad2"
+    },
+    {
+      "id": "676:1123",
+      "name": "Street Law / Withdraw volunteer access / 375 / Proposed",
+      "slug": "withdraw-access",
+      "width": 375,
+      "height": 900,
+      "screenshot": "evidence/withdraw-access-375.png",
+      "sha256": "7faea9bf06a9bed956135b714b70abb2a4b1b57be6194e73effda2e54913140f"
+    },
+    {
+      "id": "678:1346",
+      "name": "Street Law / Review answer / 1440 / Proposed",
+      "slug": "review-eligible",
+      "width": 1440,
+      "height": 1165,
+      "screenshot": "evidence/review-eligible-1440.png",
+      "sha256": "7356a6b8c733f78eb2f7154d2dfd4659349136da3a6ec4bc2156499a0f4d6044"
+    },
+    {
+      "id": "678:1482",
+      "name": "Street Law / Review answer / 375 / Proposed",
+      "slug": "review-eligible",
+      "width": 375,
+      "height": 1401,
+      "screenshot": "evidence/review-eligible-375.png",
+      "sha256": "0b62c9d0a8b61b41f853f841320091b79ee5a890c25b9b46c45c950f28481546"
+    },
+    {
+      "id": "669:805",
+      "slug": "consent-required",
+      "width": 1440,
+      "height": 900,
+      "screenshot": "evidence/consent-required-1440.png",
+      "sha256": "5c66be6bfbdbf388b1d9152b0634a0288492bd7ae9532d03ba7554e814ad216d"
+    },
+    {
+      "id": "669:841",
+      "slug": "consent-required",
+      "width": 375,
+      "height": 900,
+      "screenshot": "evidence/consent-required-375.png",
+      "sha256": "d7efc3f5c19fc881a5fad2ce595f831df38a28225a42d8da3a4c1e4e87fbe05f"
+    },
+    {
+      "id": "671:809",
+      "name": "Street Law / Civil questions only / 1440 / Proposed",
+      "slug": "criminal-refusal",
+      "width": 1440,
+      "height": 900,
+      "screenshot": "evidence/criminal-refusal-1440.png",
+      "sha256": "0a346aa80dd4fe746f58d52f058529111bcd6aaa52f1adf2b8ceeb67c98e0a6d"
+    },
+    {
+      "id": "671:840",
+      "name": "Street Law / Civil questions only / 375 / Proposed",
+      "slug": "criminal-refusal",
+      "width": 375,
+      "height": 900,
+      "screenshot": "evidence/criminal-refusal-375.png",
+      "sha256": "f30d6f13768059d6589782941966653b2b7841494366522e52986ce33ce0bf29"
+    },
+    {
+      "id": "672:811",
+      "name": "Street Law / Ask a volunteer / 1440 / Proposed",
+      "slug": "victim-civil-handover",
+      "width": 1440,
+      "height": 900,
+      "screenshot": "evidence/victim-civil-handover-1440.png",
+      "sha256": "61d3ad4b964b2b82d4eea452472233675b8e4238480c9090dfae36935e6a4862"
+    },
+    {
+      "id": "672:846",
+      "name": "Street Law / Ask a volunteer / 375 / Proposed",
+      "slug": "victim-civil-handover",
+      "width": 375,
+      "height": 900,
+      "screenshot": "evidence/victim-civil-handover-375.png",
+      "sha256": "43952b9f238b401a8cbbcd553e6fc383a4812d7c1ec250ad8210b9f6d6dd7620"
+    },
+    {
+      "id": "682:1692",
+      "name": "Street Law / Your reviewed answer / 1440 / Proposed",
+      "slug": "client-released",
+      "width": 1440,
+      "height": 1121,
+      "screenshot": "evidence/client-released-1440.png",
+      "sha256": "90c8d90d10fc5670ccd0ddf33da63e00a34139017e9a34fddaaf7a53d3dd488b"
+    },
+    {
+      "id": "682:1735",
+      "name": "Street Law / Your reviewed answer / 375 / Proposed",
+      "slug": "client-released",
+      "width": 375,
+      "height": 1170,
+      "screenshot": "evidence/client-released-375.png",
+      "sha256": "bf816b61742140ac047d06012b7353facdfec8a978b79faffd72121bbfd3f252"
+    },
+    {
+      "id": "674:815",
+      "name": "Street Law / Session volunteers / 1440 / Proposed",
+      "slug": "session-access",
+      "width": 1440,
+      "height": 1259,
+      "screenshot": "evidence/session-access-1440.png",
+      "sha256": "515093e79a0f1c2e87a8a1ab57dc129a0f67cf52cfe5ebe26dd91de9b215618d"
+    },
+    {
+      "id": "674:955",
+      "name": "Street Law / Session volunteers / 375 / Proposed",
+      "slug": "session-access",
+      "width": 375,
+      "height": 1403,
+      "screenshot": "evidence/session-access-375.png",
+      "sha256": "16d92469722a7e43fe5a6669ba149d7f8a805ac9fc3a66f5ff305a302b66fdba"
+    }
+  ]
+}
