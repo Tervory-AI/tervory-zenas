@@ -12,6 +12,17 @@ from agents.zenas.core.matters import CURRENT_WORDING_VERSION
 TENANT = '11111111-1111-4111-8111-111111111111'
 
 
+class Matters(MemoryStore):
+    async def set_document_state(self, tenant_id, document_id, state):
+        document = await super().set_document_state(tenant_id, document_id, state)
+        if document is not None and state == 'released':
+            document['reviewed'] = True
+        return document
+
+    async def lock_document(self, tenant_id, document_id):
+        return await self.get_document(tenant_id, document_id) is not None
+
+
 class Sessions:
     def __init__(self, matters):
         self.rows, self.lock, self.matters = {}, asyncio.Lock(), matters
@@ -36,7 +47,7 @@ class Sessions:
 
 @pytest_asyncio.fixture
 async def clinic():
-    matters = MemoryStore()
+    matters = Matters()
     await matters.register_tenant(TENANT, 'za')
     actor = Actor(TENANT, 'placeholder-founder', True)
     await matters.add_consent({'tenant_id': TENANT, 'user_id': actor.user_id,

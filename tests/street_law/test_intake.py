@@ -18,15 +18,16 @@ async def test_question_to_exact_sourced_draft_never_releases_even_with_review_o
     clinic.law.search_text.assert_awaited_once_with('rental deposit refund', jurisdiction='za', limit=3)
 
 
-@pytest.mark.parametrize('question', ['Help me defend criminal charges.', 'How do I apply for bail?',
+@pytest.mark.parametrize('question', ['Help me defend criminal charges.', 'How do I apply for bail?', 'How do I report a crime?',
                                      'I was assaulted. How do I prosecute him?', 'Can I appeal my conviction?'])
 def test_criminal_refusal_cannot_be_bypassed_by_claim_flag(question):
     with pytest.raises(Refused):
         triage(question, True)
 
 
-def test_only_victims_own_explicit_civil_claim_is_accepted_for_handover():
-    assert triage('I was assaulted. Can I claim compensation for medical bills?', True) == ('handed_over', '')
+@pytest.mark.parametrize('hint', [False, True])
+def test_only_victims_own_explicit_civil_claim_is_accepted_for_handover(hint):
+    assert triage('I was assaulted. Can I claim compensation for medical bills?', hint) == ('handed_over', '')
     with pytest.raises(Refused):
         triage('My friend was assaulted. Can he claim compensation?', True)
 
@@ -89,3 +90,12 @@ async def test_foreign_tenant_cannot_read_session(clinic):
     await clinic.matters.register_tenant(other.tenant_id, 'za')
     with pytest.raises(Refused):
         await clinic.service.answer(other, 'za', clinic.session, 'placeholder-case')
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('question', ['My landlord removed the front door.',
+    'My employer will not let me join a union.', 'My bank has not returned my deposit.'])
+async def test_a_topic_word_alone_never_answers_an_unrelated_legal_question(clinic, question):
+    result = await clinic.service.submit(clinic.actor, 'za', clinic.session, question)
+    assert result['status'] == 'handed_over'
+    clinic.law.search_text.assert_not_called()

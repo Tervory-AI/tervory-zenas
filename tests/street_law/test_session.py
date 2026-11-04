@@ -7,7 +7,7 @@ from fastapi import FastAPI
 
 from agents.zenas.core.street_law import Actor, Refused
 from agents.zenas.core.matters import CURRENT_WORDING_VERSION
-from agents.zenas import street_law_api as api
+from agents.zenas.core import street_law_api as api
 
 
 @pytest.mark.asyncio
@@ -106,6 +106,25 @@ async def test_tank_derives_founder_and_forwards_only_to_local_za_room(monkeypat
     outgoing.reset_mock()
     monkeypatch.setenv('TANK_REGION', 'us-east')
     from fastapi import HTTPException
+    async def us_body():
+        return {'type': 'http.request', 'body': b'{"home_region":"us-east"}', 'more_body': False}
+    us_request = Request({'type': 'http', 'method': 'POST', 'path': '/v1/zenas/street-law/sessions',
+                          'query_string': b'', 'headers': headers}, us_body)
     with pytest.raises(HTTPException):
-        await main.zenas_proxy('street-law/sessions', request)
+        await main.zenas_proxy('street-law/sessions', us_request)
     outgoing.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_organizer_can_withdraw_volunteer_access_and_requeue_assignment(clinic):
+    actor = clinic.actor
+    await clinic.service.volunteers(actor, 'za', clinic.session, 'placeholder-helper', 'placeholder-admission')
+    helper = Actor(actor.tenant_id, 'placeholder-helper')
+    case = await clinic.service.submit(actor, 'za', clinic.session, 'My rental deposit?')
+    await clinic.service.assign(helper, 'za', clinic.session, case['id'], helper.user_id)
+    await clinic.service.volunteers(actor, 'za', clinic.session, helper.user_id, remove=True)
+    with pytest.raises(Refused):
+        await clinic.service.queue(helper, 'za', clinic.session)
+    with pytest.raises(Refused):
+        await clinic.service.answer(helper, 'za', clinic.session, case['id'])
+    assert (await clinic.service.queue(actor, 'za', clinic.session))['queued'][0]['assigned_to'] is None

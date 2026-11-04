@@ -29,6 +29,11 @@ class QuestionIn(Context):
 class VolunteerIn(Context):
     user_id: str = Field(min_length=1, max_length=200)
     admission_no: str = Field(default='', max_length=200)
+    remove: bool = False
+
+
+class ReleaseIn(Context):
+    confirmed: bool = False
 
 
 class AssignmentIn(Context):
@@ -71,7 +76,8 @@ def register_routes(app, *, matters_factory, box_region):
 
     @app.post('/street-law/sessions/{session_id}/volunteers')
     async def volunteers(request: Request, session_id: UUID, body: VolunteerIn):
-        return await call(request, body.tenant_id, body.home_region, 'volunteers', str(session_id), body.user_id, body.admission_no)
+        return await call(request, body.tenant_id, body.home_region, 'volunteers', str(session_id),
+                          body.user_id, body.admission_no, remove=body.remove)
 
     @app.get('/street-law/sessions/{session_id}')
     async def queue(request: Request, session_id: UUID, tenant_id: UUID, home_region: str):
@@ -92,3 +98,8 @@ def register_routes(app, *, matters_factory, box_region):
     @app.post('/street-law/sessions/{session_id}/questions/{case_id}/handover')
     async def handover(request: Request, session_id: UUID, case_id: UUID, body: Context):
         return await call(request, body.tenant_id, body.home_region, 'handover', str(session_id), str(case_id))
+
+    @app.post('/street-law/sessions/{session_id}/questions/{case_id}/release')
+    async def release(request: Request, session_id: UUID, case_id: UUID, body: ReleaseIn):
+        return await call(request, body.tenant_id, body.home_region, 'release', str(session_id), str(case_id),
+                          confirmed=body.confirmed)

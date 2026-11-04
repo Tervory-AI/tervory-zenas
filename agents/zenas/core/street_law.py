@@ -6,12 +6,13 @@ law pool; no model, Knowledge Base HTTP client, or training writer is used.
 from __future__ import annotations
 
 from dataclasses import dataclass
+import json
 import re
 from uuid import uuid4
 
 from agents.zenas.core.citation_sources import public_source_url
 from agents.zenas.core.matters import CURRENT_WORDING_VERSION, _redact, _use_home
-from agents.zenas.core.scope_rules import REFUSED, classify
+from agents.zenas.core.scope_rules import REFUSED, classify, detect_jurisdiction
 from agents.zenas.core.service import _with_legal_notice
 
 
@@ -26,14 +27,14 @@ class Refused(ValueError):
     pass
 
 
-_CRIMINAL = re.compile(r'\b(criminal|bail|arrest|conviction|sentencing|prosecut\w*|murder|rape|robbery|assault\w*|theft)\b', re.I)
+_CRIMINAL = re.compile(r'\b(criminal|crime|bail|arrest|conviction|sentencing|prosecut\w*|murder|rape|robbery|assault\w*|theft)\b', re.I)
 _CRIMINAL_HELP = re.compile(r'\b(bail|defen[cs]e|defend|prosecut\w*|sentence|sentencing|plead|conviction|charges?|arrest)\b', re.I)
 _VICTIM = re.compile(r'\b(i was (?:assaulted|robbed|injured|attacked|a victim|the victim)|i am the victim|my (?:stolen|damaged)|stolen from me|hurt me)\b', re.I)
 _REMEDY = re.compile(r'\b(civil claim|compensation|damages|medical bills|medical expenses|return my property)\b', re.I)
 _TOPICS = (
-    ('deposit', re.compile(r'\b(deposit|landlord|rent|rental)\b', re.I), 'rental deposit refund'),
-    ('employment', re.compile(r'\b(wages|working hours|overtime|employer|salary)\b', re.I), 'employment working hours wages'),
-    ('goods', re.compile(r'\b(refund|faulty|broken goods|bought|shop)\b', re.I), 'consumer goods refund'),
+    ('deposit', re.compile(r'\bdeposit\b', re.I), 'rental deposit refund'),
+    ('employment', re.compile(r'\b(wages|working hours|overtime|salary)\b', re.I), 'employment working hours wages'),
+    ('goods', re.compile(r'\b(faulty|defective|broken goods)\b', re.I), 'consumer goods refund'),
 )
 _COMPLEX = re.compile(r'\b(evict\w*|summons|court|deadline|appeal|urgent|divorce|custody|maintenance|injur\w*)\b', re.I)
 
@@ -42,13 +43,16 @@ def triage(question: str, victim_civil_claim: bool = False) -> tuple[str, str]:
     """A victim exception admits only a civil handover, never criminal advice."""
     criminal = classify(question, 'za')['criminal'] or bool(_CRIMINAL.search(question))
     if criminal:
-        if (victim_civil_claim and _VICTIM.search(question) and _REMEDY.search(question)
+        if (_VICTIM.search(question) and _REMEDY.search(question)
                 and not _CRIMINAL_HELP.search(question)):
             return 'handed_over', ''
         raise Refused(REFUSED)
+    if detect_jurisdiction(question) in {'us', 'both'}:
+        return 'handed_over', ''
     if victim_civil_claim or len(question) > 500 or question.count('?') > 1 or _COMPLEX.search(question):
         return 'handed_over', ''
-    topics = [(name, query) for name, pattern, query in _TOPICS if pattern.search(question)]
+    topics = [(name, query) for name, pattern, query in _TOPICS if pattern.search(question)
+              and (name != 'deposit' or re.search(r'\b(landlord|rent|rental|tenant|lease)\b', question, re.I))]
     return ('queued', topics[0][1]) if len(topics) == 1 else ('handed_over', '')
 
 
@@ -135,7 +139,7 @@ class StreetLaw:
                     continue
                 sources.append({'citation': chunk.citation, 'quote': chunk.text, 'url': url,
                     'doc_id': chunk.document_id, 'version_id': chunk.version_id,
-                    **{key: str(meta[key]) for key in ('version_date', 'attribution', 'licence') if meta.get(key)}})
+                    **{key: str(meta[key]) for key in ('version_date', 'known_from', 'attribution', 'licence') if meta.get(key)}})
             if not sources:
                 row['status'] = 'handed_over'
                 return {'id': row['id'], 'status': row['status']}
@@ -146,16 +150,16 @@ class StreetLaw:
             row.update(status='answered', document_id=document['id'],
                        answer={'text': body, 'sources': sources}, answered_by=actor.user_id)
             # Only volunteers receive drafts. The client read path withholds them.
-            return {'id': row['id'], 'status': row['status'], 'answer': row['answer'], 'released': False}
+            return {'id': row['id'], 'status': row['status'], 'answer': row['answer'], 'released': False, 'reviewed': False}
 
     @staticmethod
     def view(row, *, volunteer=False):
         return {key: row[key] for key in ('id', 'question', 'status', 'assigned_to')} | {
-            'released': row['review_id'] is not None,
+            'released': row['review_id'] is not None, 'reviewed': row['review_id'] is not None,
             'answer': row['answer'] if volunteer or row['review_id'] is not None else None}
 
     async def volunteers(self, actor: Actor, home_region: str, session_id: str,
-                         user_id: str, admission_no: str = ''):
+                         user_id: str, admission_no: str = '', *, remove: bool = False):
         await self.guard(actor, home_region)
         async with self.sessions.edit(actor.tenant_id, session_id) as (session, _):
             if not actor.founder or session['creator'] != actor.user_id:
@@ -164,6 +168,12 @@ class StreetLaw:
                 raise Refused('invalid volunteer')
             if user_id == session['creator']:
                 raise Refused('organizer membership is fixed')
+            if remove:
+                session['members'].pop(user_id, None)
+                for row in session['cases']:
+                    if row['review_id'] is None and row['assigned_to'] == user_id:
+                        row['assigned_to'] = None
+                return {'user_id': user_id, 'active': False, 'can_review': False}
             session['members'][user_id] = {'kind': 'reviewer', 'admission_no': admission_no.strip()}
             return {'user_id': user_id, 'can_review': bool(admission_no.strip())}
 
@@ -208,3 +218,41 @@ class StreetLaw:
                 await matters.set_document_state(actor.tenant_id, row['document_id'], 'rejected')
             row.update(status='handed_over', answer=None)
             return self.view(row, volunteer=True)
+
+    async def release(self, actor: Actor, home_region: str, session_id: str, case_id: str, *, confirmed: bool):
+        """Explicit human sign-off, using Zenas's existing review identity rules.
+
+        Street Law's pre-launch minimum is review on, even when the room-wide
+        ZENAS_REVIEW default is off. No code path auto-releases these documents.
+        """
+        from agents.zenas.core.matters import record_review, sign_off_identity
+        if not confirmed:
+            raise Refused('human review required')
+        await self.guard(actor, home_region)
+        async with self.sessions.edit(actor.tenant_id, session_id) as (session, matters):
+            member = self.member(session, actor)
+            if (member['kind'] == 'founder' and not actor.founder) or sign_off_identity(
+                    reviewer_kind=member['kind'], admission_no=member['admission_no']) is None:
+                raise Refused('reviewer required')
+            row = self.case(session, case_id)
+            if row['review_id'] is not None:
+                return self.view(row)
+            if row['status'] != 'answered' or not row['answer'] or not row['document_id']:
+                raise Refused('no answer awaiting review')
+            if not await matters.lock_document(actor.tenant_id, row['document_id']):
+                raise Refused('no answer awaiting review')
+            document = await matters.get_document(actor.tenant_id, row['document_id'])
+            if document and isinstance(document['sources'], str):
+                document['sources'] = json.loads(document['sources'])
+            if (not document or str(document['matter_id']) != row['matter_id']
+                    or document['kind'] != 'street_law' or document['state'] != 'in_review'
+                    or document['body'] != row['answer']['text'] or document['sources'] != row['answer']['sources']):
+                raise Refused('answer changed; review required')
+            review = await record_review(matters, tenant_id=actor.tenant_id, document_id=row['document_id'],
+                reviewer=actor.user_id, jurisdiction='za', admission_no=member['admission_no'],
+                reviewer_kind=member['kind'], decision='released')
+            if not review.get('ok'):
+                raise Refused('reviewer required')
+            await matters.set_document_state(actor.tenant_id, row['document_id'], 'released')
+            row.update(review_id=review['review_id'], released_by=actor.user_id)
+            return self.view(row)

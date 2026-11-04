@@ -676,4 +676,5 @@ CREATE TABLE IF NOT EXISTS agent_zenas.street_law_sessions (
 );
 -- Match the room's existing RLS deployment mode; do not turn on the chassis
 -- admin-pool requirement on a box that has not performed its RLS rollout.
+-- Keep the DO block on one line for the existing schema_statements loader.
 DO $$ BEGIN IF EXISTS (SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='agent_zenas' AND c.relrowsecurity AND c.relname <> 'street_law_sessions') THEN ALTER TABLE agent_zenas.street_law_sessions ENABLE ROW LEVEL SECURITY; ALTER TABLE agent_zenas.street_law_sessions FORCE ROW LEVEL SECURITY; IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='agent_zenas' AND tablename='street_law_sessions' AND policyname='street_law_tenant') THEN CREATE POLICY street_law_tenant ON agent_zenas.street_law_sessions USING (tenant_id=NULLIF(current_setting('app.tenant_id',true),'')::uuid) WITH CHECK (tenant_id=NULLIF(current_setting('app.tenant_id',true),'')::uuid); END IF; END IF; END $$;
