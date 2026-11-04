@@ -233,6 +233,144 @@ def quote_in_source(quote: str, source: str) -> bool:
     return folded in fold_for_quote(source)
 
 
+# A placeholder the personal-information mask writes into a quote: "[Date]", "[Party A]",
+# "[PHONE_1]", "[SA_ID_1]", "[US_PASSPORT_1]". Every placeholder either detector can emit
+# (agents/zenas/core/pii_detect.py, tank/skills/zenas.pii/*/detect.py) must match this;
+# tests/test_zenas_rule_card_dated_quotes.py checks that against both detectors' labels.
+MASK_TOKEN = re.compile(r"(\[(?:Party [A-Z0-9]+|[A-Z][A-Za-z]*(?:_[A-Z][A-Za-z]*)*(?:_\d+)?)\])")
+
+# The most characters of court text one placeholder may stand for when a masked quote
+# is rechecked. Detector matches (dates, phone and ID numbers, names, addresses, emails)
+# are far shorter; a longer span fails closed. It bounds the caller's quote_len.
+MASK_TOKEN_MAX_CHARS = 256
+
+# Caller-supplied masked quotes are bounded in absolute terms too, so adding
+# placeholders or statements cannot buy more scan work:
+# - MASK_TOKEN_MAX_COUNT: most placeholders one masked quote may carry. A real card
+#   quote is one court sentence with a date or a number or two; more fails closed.
+# - MASKED_QUOTE_MAX_CHARS: longest exact court words (quote_len) a masked quote may
+#   stand for. Card quotes are a sentence or two; a longer one fails closed.
+# - MASKED_SCAN_BUDGET: work units one cite_check(..., allow_masked=True) call may spend
+#   on masked rechecks, across all statements and passages. Each candidate window costs
+#   MASKED_WINDOW_COST plus its length (the slice and the hash), and each mask check of
+#   a window whose fingerprint matched costs MASKED_CLEAN_COST per character (the
+#   detector is far slower than sha256). About 1 s of work. Once it is spent,
+#   every remaining masked statement fails closed; nothing passes on an empty budget.
+MASK_TOKEN_MAX_COUNT = 8
+MASKED_QUOTE_MAX_CHARS = 2048
+MASKED_SCAN_BUDGET = 1_000_000_000
+MASKED_WINDOW_COST = 512
+MASKED_CLEAN_COST = 1000
+
+
+def _sha_folded(folded: str) -> str:
+    return hashlib.sha256(folded.encode("utf-8")).hexdigest()
+
+
+def quote_sha(text: str) -> str:
+    """Fingerprint of the court's exact words, kept when the shown quote is masked."""
+    return _sha_folded(fold_for_quote(text))
+
+
+def quote_len(text: str) -> int:
+    """Length of the court's exact words after PDF folding, kept with the fingerprint."""
+    return len(fold_for_quote(text))
+
+
+def _quote_starts(text: str, head: str):
+    """Every place the exact words could start: each occurrence of the first literal
+    words (overlapping ones too), or every position when the quote opens with a mask."""
+    if head:
+        index = text.find(head)
+        while index >= 0:
+            yield index
+            index = text.find(head, index + 1)
+        return
+    yield from range(len(text))
+
+
+def masked_quote_in_source(
+    quote: str,
+    sha: str,
+    length: Any,
+    source: str,
+    *,
+    budget: list[int] | None = None,
+    folded_source: str | None = None,
+) -> bool:
+    """A masked quote matches only the exact court words it was verified from.
+
+    The quote was checked unmasked, word for word, when the card was built, and the
+    fingerprint and length of those words were kept. Here every window of the source
+    with that length, starting where the quote's first words appear, is tried: its
+    fingerprint must match AND it must mask to the quote shown. A different date,
+    number or name gives a different fingerprint, so it fails.
+
+    Each window costs one hash over the window, so the work is the number of starts
+    times the length: O(source x length), not linear. When the quote opens with a
+    mask every position is a start. The length comes from the caller (cite_check
+    1.1.0), so it is bounded first: a placeholder stands for at most
+    MASK_TOKEN_MAX_CHARS characters, and a length longer than the quote's literal
+    words plus that much per placeholder cannot be the words shown, so it fails
+    closed before any scan. So do more than MASK_TOKEN_MAX_COUNT placeholders and a
+    length over MASKED_QUOTE_MAX_CHARS.
+
+    budget is a one-item list of work units left, shared by every call in one
+    cite_check (a fresh MASKED_SCAN_BUDGET when omitted). The scan stops and fails
+    closed when it would overspend, and the list is left at 0, so later masked
+    statements in the same call fail too. folded_source, when given, is
+    fold_for_quote(source), so a caller can fold each passage once.
+    """
+    folded = fold_for_quote(quote)
+    try:
+        size = int(length)
+    except (TypeError, ValueError):
+        return False
+    if not sha or not folded or size <= 0 or not MASK_TOKEN.search(folded):
+        return False
+    tokens = MASK_TOKEN.findall(folded)
+    if len(tokens) > MASK_TOKEN_MAX_COUNT or size > MASKED_QUOTE_MAX_CHARS:
+        return False
+    literal = len(folded) - sum(len(token) for token in tokens)
+    if size > literal + MASK_TOKEN_MAX_CHARS * len(tokens):
+        return False
+    left = budget if budget is not None else [MASKED_SCAN_BUDGET]
+    parts = MASK_TOKEN.split(folded)
+    head, tail = parts[0], parts[-1]
+    text = fold_for_quote(source) if folded_source is None else folded_source
+    window_cost = MASKED_WINDOW_COST + size
+    clean_cost = MASKED_CLEAN_COST * size
+    for start in _quote_starts(text, head):
+        if left[0] < window_cost:
+            left[0] = 0
+            return False
+        left[0] -= window_cost
+        window = text[start : start + size]
+        if len(window) < size:
+            break
+        if tail and not window.endswith(tail):
+            continue
+        if _sha_folded(window) != sha:
+            continue
+        if left[0] < clean_cost:
+            left[0] = 0
+            return False
+        left[0] -= clean_cost
+        if fold_for_quote(_clean_piece(window, [])) == folded:
+            return True
+    return False
+
+
+def cite_statement(element: dict[str, Any]) -> dict[str, Any]:
+    """The fields cite_check reads from a stored card element (masked quotes included)."""
+    return {
+        "citation": element.get("citation"),
+        "quote": element.get("quote"),
+        "quote_sha": element.get("quote_sha"),
+        "quote_len": element.get("quote_len"),
+    }
+
+
 def _detect_candidates() -> list[Path]:
     here = Path(__file__).resolve()
     found = [
@@ -441,17 +579,48 @@ def retrieve_passages(
     return chosen[:limit]
 
 
-def cite_check(statements: list[dict[str, Any]], passages: list[dict[str, Any]]) -> dict[str, Any]:
-    """Every citation resolves and every quote matches the source, word for word."""
+def _cite_verdict(results: list[dict[str, Any]]) -> dict[str, Any]:
+    passed = bool(results) and all(row["resolved"] and row["quote_match"] and not row["superseded"] for row in results)
+    return {"passed": passed, "blocked": not passed, "results": results}
+
+
+def cite_check(
+    statements: list[dict[str, Any]],
+    passages: list[dict[str, Any]],
+    *,
+    allow_masked: bool = False,
+) -> dict[str, Any]:
+    """Every citation resolves and every quote matches the source, word for word.
+
+    allow_masked (off by default, so approved Skala versions keep their behaviour):
+    a quote shown masked ("[Date]") also matches when the exact words it was built
+    from (quote_sha, quote_len) are in the source and mask to it. Those rechecks share
+    one MASKED_SCAN_BUDGET for the whole call, and each passage is folded once.
+    """
     results: list[dict[str, Any]] = []
+    budget = [MASKED_SCAN_BUDGET]
+    folded_texts: dict[str, str] = {}
+
+    def folded_text(source: str) -> str:
+        if source not in folded_texts:
+            folded_texts[source] = fold_for_quote(source)
+        return folded_texts[source]
+
     for statement in statements:
         citation = str(statement.get("citation") or "")
         quote = str(statement.get("quote") or "")
         folded = fold_for_quote(quote)
         hits = citation_hits(citation, passages)
         matched = None
+        sha = str(statement.get("quote_sha") or "") if allow_masked else ""
+        size = statement.get("quote_len") if allow_masked else None
         for hit in hits:
-            if folded and quote_in_source(quote, str(hit.get("text") or "")):
+            source = str(hit.get("text") or "")
+            if folded and (
+                folded in folded_text(source)
+                or (sha and masked_quote_in_source(quote, sha, size, source, budget=budget,
+                                                   folded_source=folded_text(source)))
+            ):
                 if str(hit.get("status") or "") != "superseded":
                     matched = hit
                     break
@@ -471,8 +640,7 @@ def cite_check(statements: list[dict[str, Any]], passages: list[dict[str, Any]])
                 "version_id": str((matched or {}).get("version_id") or ""),
             }
         )
-    passed = bool(results) and all(row["resolved"] and row["quote_match"] and not row["superseded"] for row in results)
-    return {"passed": passed, "blocked": not passed, "results": results}
+    return _cite_verdict(results)
 
 
 def parse_json_object(raw: str) -> dict[str, Any]:
@@ -487,14 +655,18 @@ def parse_json_object(raw: str) -> dict[str, Any]:
     return data
 
 
-def _clean_piece(value: str, secrets: list[str]) -> str:
+def _strip_secrets(value: str, secrets: list[str]) -> str:
     text = value or ""
     for secret in secrets:
         needle = _fold_space(secret)
         if len(needle) >= 8:
             text = text.replace(secret, "")
             text = re.sub(re.escape(needle), "", text, flags=re.IGNORECASE)
-    masked = str(pii_detect(text).get("text") or "")
+    return text
+
+
+def _clean_piece(value: str, secrets: list[str]) -> str:
+    masked = str(pii_detect(_strip_secrets(value, secrets)).get("text") or "")
     return _fold_space(masked)
 
 
@@ -533,28 +705,48 @@ def card_from_proposal(
     *,
     question: str,
     secrets: list[str] | None = None,
+    verify_unmasked: bool = False,
 ) -> dict[str, Any]:
+    """Build a rule card and cite-check it.
+
+    verify_unmasked (off by default, so approved Skala versions keep their behaviour):
+    each quote is checked UNMASKED, word for word, and only then masked for output,
+    with the fingerprint and length of the exact words kept. The stored masked form
+    is then rechecked the way approve, answer and selftest will, and both must pass.
+    """
     hidden = [item for item in (secrets or []) if item]
     elements: list[dict[str, Any]] = []
+    verified: list[dict[str, Any]] = []
     for index, raw in enumerate(proposal.get("elements") or []):
         if not isinstance(raw, dict):
             continue
         citation = str(raw.get("citation") or "")
-        quote = _clean_piece(str(raw.get("quote") or ""), hidden)
+        if verify_unmasked:
+            words = _fold_space(_strip_secrets(str(raw.get("quote") or ""), hidden))
+            quote = _clean_piece(words, [])
+        else:
+            quote = _clean_piece(str(raw.get("quote") or ""), hidden)
+            words = quote
         test = _clean_piece(str(raw.get("test") or ""), hidden)
         element_id = str(raw.get("id") or f"e{index + 1}")
-        elements.append(
-            {
-                "id": element_id,
-                "test": test,
-                "citation": citation,
-                "quote": quote,
-            }
-        )
-    check = cite_check(
-        [{"citation": item["citation"], "quote": item["quote"]} for item in elements],
-        passages,
-    )
+        element: dict[str, Any] = {
+            "id": element_id,
+            "test": test,
+            "citation": citation,
+            "quote": quote,
+        }
+        if quote != words:
+            element["quote_sha"] = quote_sha(words)
+            element["quote_len"] = quote_len(words)
+        elements.append(element)
+        verified.append({"citation": citation, "quote": words})
+    check = cite_check(verified, passages)
+    if verify_unmasked:
+        stored = cite_check([cite_statement(item) for item in elements], passages, allow_masked=True)
+        for row, again in zip(check["results"], stored["results"]):
+            if not (again["resolved"] and again["quote_match"] and not again["superseded"]):
+                row["quote_match"] = False
+        check = _cite_verdict(check["results"])
     sources: list[dict[str, str]] = []
     for element, result in zip(elements, check["results"]):
         element["doc_id"] = result["doc_id"]

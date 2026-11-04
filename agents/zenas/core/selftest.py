@@ -15,7 +15,7 @@ from collections import defaultdict
 from typing import Any
 
 from agents.zenas.core.answer_failures import exception_failure, safe_failure, route_failure
-from agents.zenas.core.engine import cite_check, code_finding, compose_memo, decide_without_model
+from agents.zenas.core.engine import cite_check, cite_statement, code_finding, compose_memo, decide_without_model
 from agents.zenas.core.legalbench import legalbench_scores
 from agents.zenas.core.scope_rules import classify
 
@@ -166,11 +166,11 @@ async def _score(card: dict[str, Any], case: dict[str, Any], given: dict[str, An
         cost += float(found.get("cost_usd") or 0)
     memo = compose_memo(card, findings)
     statements = [
-        {"citation": element.get("citation"), "quote": element.get("quote")}
+        cite_statement(element)
         for element in card.get("elements") or []
         if element.get("citation")
     ]
-    checked = cite_check(statements, _passages(card)) if statements else {"passed": False}
+    checked = cite_check(statements, _passages(card), allow_masked=True) if statements else {"passed": False}
     predicted = _predicted_outcome(findings)
     court = _court_outcome(str(case.get("outcome") or ""))
     return {
@@ -789,7 +789,23 @@ def supported_quotes(result: dict[str, Any] | None, citation: str, judgment_text
     elements = (result.get("rule_card") or {}).get("elements") or []
     card_quotes = {_fold(element.get("quote")) for element in elements if isinstance(element, dict)
                    and _fold(element.get("citation")) == _fold(citation)}
-    return [sentence for sentence in sentences if sentence in answer or sentence in card_quotes]
+    out = [sentence for sentence in sentences if sentence in answer or sentence in card_quotes]
+    passage = [{"citation": citation, "text": judgment_text, "status": "in_force"}]
+    for element in elements:
+        if not isinstance(element, dict) or _fold(element.get("citation")) != _fold(citation):
+            continue
+        quote = _fold(element.get("quote"))
+        # Masking can collapse a multiword date or identifier into one token.
+        # The fingerprint recheck below still requires the exact court words.
+        if not element.get("quote_sha") and (
+            len(quote.split()) < _QUOTE_MIN_WORDS or len(quote) < _QUOTE_MIN_CHARS
+        ):
+            continue
+        if quote not in out and cite_check(
+            [cite_statement(element)], passage, allow_masked=True
+        ).get("passed"):
+            out.append(quote)
+    return out
 
 
 def _quotes_the_judgment(answer: str, quote: str, supported: list[str]) -> bool:
@@ -811,8 +827,15 @@ def _quote_misattributed(result: dict[str, Any], citation: str, judgment_text: s
             continue
         cited = _fold(element.get("citation"))
         quote = _fold(element.get("quote"))
-        if cited and cited.casefold() != expected and any(sentence in quote for sentence in sentences):
-            return True
+        if cited and cited.casefold() != expected:
+            if any(sentence in quote for sentence in sentences):
+                return True
+            if element.get("quote_sha") and cite_check(
+                [{**cite_statement(element), "citation": citation}],
+                [{"citation": citation, "text": judgment_text, "status": "in_force"}],
+                allow_masked=True,
+            ).get("passed"):
+                return True
 
     answer = _fold((result.get("memo") or {}).get("text"))
     # Known citations cover the library/card. The expected citation's numeric
