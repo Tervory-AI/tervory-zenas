@@ -58,3 +58,12 @@ def test_non_appeal_or_unknown_appeal_is_not_relabelled(appeal):
     source["appeal"] = appeal
     with pytest.raises(HearingError, match="decided_civil_appeal_required"):
         build_problem(source, OWNER)
+
+
+def test_explicit_criminal_metadata_cannot_hide_behind_a_civil_looking_sa_caption():
+    source = row()
+    source.update(region="za", source_region="za", jurisdiction="za", title="An ordinary looking caption", nature_of_suit="criminal appeal")
+    from agents.zenas.core.moot.hearing import Actor
+    actor = Actor(OWNER.tenant_id, OWNER.user_id, "za", True)
+    with pytest.raises(HearingError, match="civil_only"):
+        build_problem(source, actor)

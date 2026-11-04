@@ -11,8 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from . import hearing
 from .hearing_ai import AIExecutor, validate_turn
-from .hearing_sources import edited_problem, worked_problem
-from agents.zenas.core.convert import criminal_case
+from .hearing_sources import criminal_source, edited_problem, worked_problem
 from .hearing_store import HearingStore
 
 
@@ -76,7 +75,7 @@ def register_routes(app, pool, tenant_store, box_region, tank):
             ORDER BY w.created_at DESC LIMIT 100"""
         async with pool().acquire() as conn:
             rows = await conn.fetch(sql, actor.region, UUID(actor.tenant_id))
-        return {"sources": [{"id": str(r["id"]), "title": r["title"]} for r in rows if not criminal_case(dict(r))]}
+        return {"sources": [{"id": str(r["id"]), "title": r["title"]} for r in rows if not criminal_source(dict(r))]}
 
     @app.get("/moot/hearings")
     async def listing(home_region: str, x_tank_key: str = Header(default=""),
