@@ -1,0 +1,107 @@
+{
+  "frames": [
+    {
+      "id": "681:1690",
+      "name": "Street Law / Your question / 1440 / Proposed",
+      "slug": "client-pending",
+      "width": 1440,
+      "height": 900,
+      "screenshot": "evidence/client-pending-1440.png",
+      "sha256": "a8b47023418a7914033bee944bf77ae32e45aa5bc3a03c09c37ba9173b4fbf31"
+    },
+    {
+      "id": "681:1722",
+      "name": "Street Law / Your question / 375 / Proposed",
+      "slug": "client-pending",
+      "width": 375,
+      "height": 900,
+      "screenshot": "evidence/client-pending-375.png",
+      "sha256": "d394a2c65c7a6ebf24854d30d2b5f1c342981f95cfd496c96a928a53a19f2e41"
+    }
+  ],
+  "createdNodeIds": [
+    "681:1690",
+    "681:1691",
+    "681:1692",
+    "681:1693",
+    "681:1694",
+    "681:1695",
+    "681:1696",
+    "681:1697",
+    "681:1698",
+    "681:1711",
+    "681:1712",
+    "681:1713",
+    "681:1714",
+    "681:1715",
+    "681:1716",
+    "681:1717",
+    "681:1718",
+    "681:1719",
+    "I681:1719;266:3033",
+    "681:1721",
+    "681:1722",
+    "681:1723",
+    "681:1724",
+    "681:1725",
+    "681:1726",
+    "681:1727",
+    "681:1728",
+    "681:1741",
+    "681:1742",
+    "681:1743",
+    "681:1744",
+    "681:1745",
+    "681:1746",
+    "681:1747",
+    "681:1748",
+    "681:1749",
+    "I681:1749;266:3033",
+    "681:1751"
+  ],
+  "audit": [
+    {
+      "id": "681:1690",
+      "width": 1440,
+      "height": 900,
+      "editableNodes": 19,
+      "copy": [
+        "Proposed \u00b7 Not approved",
+        "Street Law \u00b7 Zenas",
+        "South Africa \u00b7 Civil questions",
+        "Your question",
+        "Proposed \u00b7 Anonymous review fixture",
+        "Review pending",
+        "Can I ask my landlord for proof of the interest on my deposit?",
+        "Your answer is waiting for human review.",
+        "Check status",
+        "Zenas provides legal information, not legal advice."
+      ],
+      "nonInter": [],
+      "overflow": [],
+      "smallControls": []
+    },
+    {
+      "id": "681:1722",
+      "width": 375,
+      "height": 900,
+      "editableNodes": 17,
+      "copy": [
+        "Proposed \u00b7 Not approved",
+        "Street Law \u00b7 Zenas",
+        "South Africa \u00b7 Civil questions",
+        "Your question",
+        "Proposed \u00b7 Anonymous review fixture",
+        "Review pending",
+        "Can I ask my landlord for proof of the interest on my deposit?",
+        "Your answer is waiting for human review.",
+        "Check status",
+        "Zenas provides legal information, not legal advice."
+      ],
+      "nonInter": [],
+      "overflow": [],
+      "smallControls": []
+    }
+  ],
+  "wordingStatus": "Proposed"
+}
