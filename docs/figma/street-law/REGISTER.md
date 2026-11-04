@@ -156,3 +156,9 @@ Organizer access and qualified-reviewer examples illustrate backend permissions.
 | 375 | [682:1735](https://www.figma.com/design/ZnphBOJU6657tohGLD3IzS?node-id=682-1735) | [PNG](evidence/client-released-375.png) | Proposed |
 
 [Created node IDs, exact Proposed copy and checks](evidence/client-released-completion.json).
+
+## Completion validation
+
+[Backend handoff snapshot](evidence/backend-handoff.md) records the exact four missing-screen requirements. Coverage: (1) consent-required, criminal-refusal and victim-civil-handover, with approved consent terms still absent; (2) original volunteer day plus session-access, withdraw-access and assignment; (3) review-eligible and review-ineligible; (4) client-pending, client-released and original hand-over. No build permission is inferred from a static frame.
+
+[Completion validation](evidence/completion-validation.json) checks both registers' local references and native PNG widths; 20 new frames pass Inter, content bounds, 44px minimum action height and PNG hashes. The unchanged shared navigation has its existing clipped scroll content; the new-content bounds assertion excludes that component. Mobile consent, session access and qualified review were visually inspected, along with desktop review. Exact added wording is in each completion JSON and [authoring specs](authoring/specs.json); every new phrase remains Proposed. No approval or live canvas reversion occurred.
