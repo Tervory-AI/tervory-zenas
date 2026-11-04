@@ -84,3 +84,12 @@ Organizer access and qualified-reviewer examples illustrate backend permissions.
 | 375 | [671:840](https://www.figma.com/design/ZnphBOJU6657tohGLD3IzS?node-id=671-840) | [PNG](evidence/criminal-refusal-375.png) | Proposed |
 
 [Created node IDs, exact Proposed copy and checks](evidence/criminal-refusal-completion.json).
+
+### victim-civil-handover · Proposed
+
+| Width | Frame | Screenshot | Status |
+| --- | --- | --- | --- |
+| 1440 | [672:811](https://www.figma.com/design/ZnphBOJU6657tohGLD3IzS?node-id=672-811) | [PNG](evidence/victim-civil-handover-1440.png) | Proposed |
+| 375 | [672:846](https://www.figma.com/design/ZnphBOJU6657tohGLD3IzS?node-id=672-846) | [PNG](evidence/victim-civil-handover-375.png) | Proposed |
+
+[Created node IDs, exact Proposed copy and checks](evidence/victim-civil-handover-completion.json).
