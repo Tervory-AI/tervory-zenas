@@ -1,0 +1,628 @@
+[
+  {
+    "id": "583:360",
+    "name": "Street Law / Intake / Ready / 1440 / Proposed",
+    "width": 1440,
+    "height": 900,
+    "nonInter": [],
+    "overflow": [],
+    "copy": [
+      "South Africa · Civil questions",
+      "Ask a simple civil question",
+      "Proposed wording and example data",
+      "Your question",
+      "Tell us what happened in your own words.",
+      "Question",
+      "Can I ask my landlord for proof of the interest on my deposit?",
+      "Civil law only. Do not include account numbers or private documents.",
+      "Ask Zenas",
+      "Zenas provides legal information, not legal advice.",
+      "Share this question and answer with a volunteer only when you choose “Ask a volunteer”."
+    ]
+  },
+  {
+    "id": "583:477",
+    "name": "Street Law / Intake / Ready / 375 / Proposed",
+    "width": 375,
+    "height": 900,
+    "nonInter": [],
+    "overflow": [],
+    "copy": [
+      "South Africa · Civil questions",
+      "Ask a simple civil question",
+      "Proposed wording and example data",
+      "Your question",
+      "Tell us what happened in your own words.",
+      "Question",
+      "Can I ask my landlord for proof of the interest on my deposit?",
+      "Civil law only. Do not include account numbers or private documents.",
+      "Ask Zenas",
+      "Zenas provides legal information, not legal advice.",
+      "Share this question and answer with a volunteer only when you choose “Ask a volunteer”."
+    ]
+  },
+  {
+    "id": "583:516",
+    "name": "Street Law / Intake / Empty / 1440 / Proposed",
+    "width": 1440,
+    "height": 900,
+    "nonInter": [],
+    "overflow": [],
+    "copy": [
+      "South Africa · Civil questions",
+      "Ask a simple civil question",
+      "Proposed wording and example data",
+      "Your question",
+      "Tell us what happened in your own words.",
+      "Question",
+      "[Your civil question]",
+      "Civil law only. Do not include account numbers or private documents.",
+      "Ask Zenas",
+      "Zenas provides legal information, not legal advice.",
+      "Share this question and answer with a volunteer only when you choose “Ask a volunteer”."
+    ]
+  },
+  {
+    "id": "583:607",
+    "name": "Street Law / Intake / Empty / 375 / Proposed",
+    "width": 375,
+    "height": 900,
+    "nonInter": [],
+    "overflow": [],
+    "copy": [
+      "South Africa · Civil questions",
+      "Ask a simple civil question",
+      "Proposed wording and example data",
+      "Your question",
+      "Tell us what happened in your own words.",
+      "Question",
+      "[Your civil question]",
+      "Civil law only. Do not include account numbers or private documents.",
+      "Ask Zenas",
+      "Zenas provides legal information, not legal advice.",
+      "Share this question and answer with a volunteer only when you choose “Ask a volunteer”."
+    ]
+  },
+  {
+    "id": "583:646",
+    "name": "Street Law / Intake / Loading / 1440 / Proposed",
+    "width": 1440,
+    "height": 900,
+    "nonInter": [],
+    "overflow": [],
+    "copy": [
+      "South Africa · Civil questions",
+      "Ask a simple civil question",
+      "Proposed wording and example data",
+      "Loading…",
+      "Please wait.",
+      "Zenas provides legal information, not legal advice.",
+      "Share this question and answer with a volunteer only when you choose “Ask a volunteer”."
+    ]
+  },
+  {
+    "id": "583:734",
+    "name": "Street Law / Intake / Loading / 375 / Proposed",
+    "width": 375,
+    "height": 900,
+    "nonInter": [],
+    "overflow": [],
+    "copy": [
+      "South Africa · Civil questions",
+      "Ask a simple civil question",
+      "Proposed wording and example data",
+      "Loading…",
+      "Please wait.",
+      "Zenas provides legal information, not legal advice.",
+      "Share this question and answer with a volunteer only when you choose “Ask a volunteer”."
+    ]
+  },
+  {
+    "id": "583:770",
+    "name": "Street Law / Intake / Error / 1440 / Proposed",
+    "width": 1440,
+    "height": 900,
+    "nonInter": [],
+    "overflow": [],
+    "copy": [
+      "South Africa · Civil questions",
+      "Ask a simple civil question",
+      "Proposed wording and example data",
+      "Something went wrong",
+      "Please try again.",
+      "Try again",
+      "Go back",
+      "Zenas provides legal information, not legal advice.",
+      "Share this question and answer with a volunteer only when you choose “Ask a volunteer”."
+    ]
+  },
+  {
+    "id": "583:859",
+    "name": "Street Law / Intake / Error / 375 / Proposed",
+    "width": 375,
+    "height": 900,
+    "nonInter": [],
+    "overflow": [],
+    "copy": [
+      "South Africa · Civil questions",
+      "Ask a simple civil question",
+      "Proposed wording and example data",
+      "Something went wrong",
+      "Please try again.",
+      "Try again",
+      "Go back",
+      "Zenas provides legal information, not legal advice.",
+      "Share this question and answer with a volunteer only when you choose “Ask a volunteer”."
+    ]
+  },
+  {
+    "id": "583:896",
+    "name": "Street Law / Answer / Ready / 1440 / Proposed",
+    "width": 1440,
+    "height": 1278,
+    "nonInter": [],
+    "overflow": [],
+    "copy": [
+      "South Africa · Civil questions",
+      "Your answer",
+      "Proposed wording and example data",
+      "Your question",
+      "Can I ask my landlord for proof of the interest on my deposit?",
+      "Answer",
+      "Yes. During the lease, you can ask your landlord for written proof of the interest earned on your deposit. [1]",
+      "This example explains the source. A volunteer can help you understand your next step.",
+      "Sources",
+      "[1] Rental Housing Act 50 of 1999 · section 5(3)(d)",
+      "Proof of interest on a rental deposit.",
+      "Read source",
+      "Western Cape Government · Tenant questions",
+      "Read tenant questions",
+      "Ask a volunteer",
+      "Ask another question",
+      "Zenas provides legal information, not legal advice.",
+      "Share this question and answer with a volunteer only when you choose “Ask a volunteer”."
+    ]
+  },
+  {
+    "id": "583:998",
+    "name": "Street Law / Answer / Ready / 375 / Proposed",
+    "width": 375,
+    "height": 1387,
+    "nonInter": [],
+    "overflow": [],
+    "copy": [
+      "South Africa · Civil questions",
+      "Your answer",
+      "Proposed wording and example data",
+      "Your question",
+      "Can I ask my landlord for proof of the interest on my deposit?",
+      "Answer",
+      "Yes. During the lease, you can ask your landlord for written proof of the interest earned on your deposit. [1]",
+      "This example explains the source. A volunteer can help you understand your next step.",
+      "Sources",
+      "[1] Rental Housing Act 50 of 1999 · section 5(3)(d)",
+      "Proof of interest on a rental deposit.",
+      "Read source",
+      "Western Cape Government · Tenant questions",
+      "Read tenant questions",
+      "Ask a volunteer",
+      "Ask another question",
+      "Zenas provides legal information, not legal advice.",
+      "Share this question and answer with a volunteer only when you choose “Ask a volunteer”."
+    ]
+  },
+  {
+    "id": "583:1048",
+    "name": "Street Law / Answer / Empty / 1440 / Proposed",
+    "width": 1440,
+    "height": 900,
+    "nonInter": [],
+    "overflow": [],
+    "copy": [
+      "South Africa · Civil questions",
+      "Your answer",
+      "Proposed wording and example data",
+      "Ask a question first",
+      "There is no question to show.",
+      "Ask a question",
+      "Zenas provides legal information, not legal advice.",
+      "Share this question and answer with a volunteer only when you choose “Ask a volunteer”."
+    ]
+  },
+  {
+    "id": "583:1135",
+    "name": "Street Law / Answer / Empty / 375 / Proposed",
+    "width": 375,
+    "height": 900,
+    "nonInter": [],
+    "overflow": [],
+    "copy": [
+      "South Africa · Civil questions",
+      "Your answer",
+      "Proposed wording and example data",
+      "Ask a question first",
+      "There is no question to show.",
+      "Ask a question",
+      "Zenas provides legal information, not legal advice.",
+      "Share this question and answer with a volunteer only when you choose “Ask a volunteer”."
+    ]
+  },
+  {
+    "id": "583:1170",
+    "name": "Street Law / Answer / Loading / 1440 / Proposed",
+    "width": 1440,
+    "height": 900,
+    "nonInter": [],
+    "overflow": [],
+    "copy": [
+      "South Africa · Civil questions",
+      "Your answer",
+      "Proposed wording and example data",
+      "Loading…",
+      "Zenas is checking the law. This can take up to a minute.",
+      "Zenas provides legal information, not legal advice.",
+      "Share this question and answer with a volunteer only when you choose “Ask a volunteer”."
+    ]
+  },
+  {
+    "id": "583:1258",
+    "name": "Street Law / Answer / Loading / 375 / Proposed",
+    "width": 375,
+    "height": 900,
+    "nonInter": [],
+    "overflow": [],
+    "copy": [
+      "South Africa · Civil questions",
+      "Your answer",
+      "Proposed wording and example data",
+      "Loading…",
+      "Zenas is checking the law. This can take up to a minute.",
+      "Zenas provides legal information, not legal advice.",
+      "Share this question and answer with a volunteer only when you choose “Ask a volunteer”."
+    ]
+  },
+  {
+    "id": "583:1294",
+    "name": "Street Law / Answer / Error / 1440 / Proposed",
+    "width": 1440,
+    "height": 900,
+    "nonInter": [],
+    "overflow": [],
+    "copy": [
+      "South Africa · Civil questions",
+      "Your answer",
+      "Proposed wording and example data",
+      "Something went wrong",
+      "Your answer could not be loaded.",
+      "Try again",
+      "Go back",
+      "Zenas provides legal information, not legal advice.",
+      "Share this question and answer with a volunteer only when you choose “Ask a volunteer”."
+    ]
+  },
+  {
+    "id": "583:1383",
+    "name": "Street Law / Answer / Error / 375 / Proposed",
+    "width": 375,
+    "height": 900,
+    "nonInter": [],
+    "overflow": [],
+    "copy": [
+      "South Africa · Civil questions",
+      "Your answer",
+      "Proposed wording and example data",
+      "Something went wrong",
+      "Your answer could not be loaded.",
+      "Try again",
+      "Go back",
+      "Zenas provides legal information, not legal advice.",
+      "Share this question and answer with a volunteer only when you choose “Ask a volunteer”."
+    ]
+  },
+  {
+    "id": "583:1420",
+    "name": "Street Law / Hand-over / Ready / 1440 / Proposed",
+    "width": 1440,
+    "height": 900,
+    "nonInter": [],
+    "overflow": [],
+    "copy": [
+      "South Africa · Civil questions",
+      "A volunteer will help you",
+      "Proposed wording and example data",
+      "Your question is in the queue",
+      "Can I ask my landlord for proof of the interest on my deposit?",
+      "A volunteer will help you understand the answer and its sources.",
+      "No response time is promised. This is a Proposed review example.",
+      "View answer",
+      "Ask another question",
+      "Zenas provides legal information, not legal advice.",
+      "Share this question and answer with a volunteer only when you choose “Ask a volunteer”."
+    ]
+  },
+  {
+    "id": "583:1511",
+    "name": "Street Law / Hand-over / Ready / 375 / Proposed",
+    "width": 375,
+    "height": 900,
+    "nonInter": [],
+    "overflow": [],
+    "copy": [
+      "South Africa · Civil questions",
+      "A volunteer will help you",
+      "Proposed wording and example data",
+      "Your question is in the queue",
+      "Can I ask my landlord for proof of the interest on my deposit?",
+      "A volunteer will help you understand the answer and its sources.",
+      "No response time is promised. This is a Proposed review example.",
+      "View answer",
+      "Ask another question",
+      "Zenas provides legal information, not legal advice.",
+      "Share this question and answer with a volunteer only when you choose “Ask a volunteer”."
+    ]
+  },
+  {
+    "id": "583:1550",
+    "name": "Street Law / Hand-over / Empty / 1440 / Proposed",
+    "width": 1440,
+    "height": 900,
+    "nonInter": [],
+    "overflow": [],
+    "copy": [
+      "South Africa · Civil questions",
+      "A volunteer will help you",
+      "Proposed wording and example data",
+      "Ask a question first",
+      "There is no question to show.",
+      "Ask a question",
+      "Zenas provides legal information, not legal advice.",
+      "Share this question and answer with a volunteer only when you choose “Ask a volunteer”."
+    ]
+  },
+  {
+    "id": "583:1637",
+    "name": "Street Law / Hand-over / Empty / 375 / Proposed",
+    "width": 375,
+    "height": 900,
+    "nonInter": [],
+    "overflow": [],
+    "copy": [
+      "South Africa · Civil questions",
+      "A volunteer will help you",
+      "Proposed wording and example data",
+      "Ask a question first",
+      "There is no question to show.",
+      "Ask a question",
+      "Zenas provides legal information, not legal advice.",
+      "Share this question and answer with a volunteer only when you choose “Ask a volunteer”."
+    ]
+  },
+  {
+    "id": "583:1672",
+    "name": "Street Law / Hand-over / Loading / 1440 / Proposed",
+    "width": 1440,
+    "height": 900,
+    "nonInter": [],
+    "overflow": [],
+    "copy": [
+      "South Africa · Civil questions",
+      "A volunteer will help you",
+      "Proposed wording and example data",
+      "Loading…",
+      "Please wait.",
+      "Zenas provides legal information, not legal advice.",
+      "Share this question and answer with a volunteer only when you choose “Ask a volunteer”."
+    ]
+  },
+  {
+    "id": "583:1760",
+    "name": "Street Law / Hand-over / Loading / 375 / Proposed",
+    "width": 375,
+    "height": 900,
+    "nonInter": [],
+    "overflow": [],
+    "copy": [
+      "South Africa · Civil questions",
+      "A volunteer will help you",
+      "Proposed wording and example data",
+      "Loading…",
+      "Please wait.",
+      "Zenas provides legal information, not legal advice.",
+      "Share this question and answer with a volunteer only when you choose “Ask a volunteer”."
+    ]
+  },
+  {
+    "id": "583:1796",
+    "name": "Street Law / Hand-over / Error / 1440 / Proposed",
+    "width": 1440,
+    "height": 900,
+    "nonInter": [],
+    "overflow": [],
+    "copy": [
+      "South Africa · Civil questions",
+      "A volunteer will help you",
+      "Proposed wording and example data",
+      "Something went wrong",
+      "Your question has not been sent to a volunteer.",
+      "Try again",
+      "Go back",
+      "Zenas provides legal information, not legal advice.",
+      "Share this question and answer with a volunteer only when you choose “Ask a volunteer”."
+    ]
+  },
+  {
+    "id": "583:1885",
+    "name": "Street Law / Hand-over / Error / 375 / Proposed",
+    "width": 375,
+    "height": 900,
+    "nonInter": [],
+    "overflow": [],
+    "copy": [
+      "South Africa · Civil questions",
+      "A volunteer will help you",
+      "Proposed wording and example data",
+      "Something went wrong",
+      "Your question has not been sent to a volunteer.",
+      "Try again",
+      "Go back",
+      "Zenas provides legal information, not legal advice.",
+      "Share this question and answer with a volunteer only when you choose “Ask a volunteer”."
+    ]
+  },
+  {
+    "id": "583:1922",
+    "name": "Street Law / Volunteer day / Ready / 1440 / Proposed",
+    "width": 1440,
+    "height": 1142,
+    "nonInter": [],
+    "overflow": [],
+    "copy": [
+      "South Africa · Civil questions",
+      "Volunteer day",
+      "Proposed wording and example data",
+      "Queue · 1",
+      "Deposit interest",
+      "Can I ask my landlord for proof of the interest on my deposit?",
+      "Proposed anonymous example",
+      "Open question",
+      "Answered · 1",
+      "Proof of payment",
+      "Can I ask for a receipt?",
+      "Proposed anonymous example",
+      "View answer",
+      "Handed over · 1",
+      "Lease question",
+      "I need help understanding my lease.",
+      "Proposed anonymous example",
+      "View answer",
+      "Zenas provides legal information, not legal advice."
+    ]
+  },
+  {
+    "id": "583:2188",
+    "name": "Street Law / Volunteer day / Ready / 375 / Proposed",
+    "width": 375,
+    "height": 1240,
+    "nonInter": [],
+    "overflow": [],
+    "copy": [
+      "South Africa · Civil questions",
+      "Volunteer day",
+      "Proposed wording and example data",
+      "Queue · 1",
+      "Deposit interest",
+      "Can I ask my landlord for proof of the interest on my deposit?",
+      "Proposed anonymous example",
+      "Open question",
+      "Answered · 1",
+      "Proof of payment",
+      "Can I ask for a receipt?",
+      "Proposed anonymous example",
+      "View answer",
+      "Handed over · 1",
+      "Lease question",
+      "I need help understanding my lease.",
+      "Proposed anonymous example",
+      "View answer",
+      "Zenas provides legal information, not legal advice."
+    ]
+  },
+  {
+    "id": "583:2405",
+    "name": "Street Law / Volunteer day / Empty / 1440 / Proposed",
+    "width": 1440,
+    "height": 900,
+    "nonInter": [],
+    "overflow": [],
+    "copy": [
+      "South Africa · Civil questions",
+      "Volunteer day",
+      "Proposed wording and example data",
+      "No questions yet",
+      "Queue · 0\nAnswered · 0\nHanded over · 0",
+      "Zenas provides legal information, not legal advice."
+    ]
+  },
+  {
+    "id": "583:2590",
+    "name": "Street Law / Volunteer day / Empty / 375 / Proposed",
+    "width": 375,
+    "height": 900,
+    "nonInter": [],
+    "overflow": [],
+    "copy": [
+      "South Africa · Civil questions",
+      "Volunteer day",
+      "Proposed wording and example data",
+      "No questions yet",
+      "Queue · 0\nAnswered · 0\nHanded over · 0",
+      "Zenas provides legal information, not legal advice."
+    ]
+  },
+  {
+    "id": "583:2726",
+    "name": "Street Law / Volunteer day / Loading / 1440 / Proposed",
+    "width": 1440,
+    "height": 900,
+    "nonInter": [],
+    "overflow": [],
+    "copy": [
+      "South Africa · Civil questions",
+      "Volunteer day",
+      "Proposed wording and example data",
+      "Loading…",
+      "Please wait.",
+      "Zenas provides legal information, not legal advice."
+    ]
+  },
+  {
+    "id": "583:2914",
+    "name": "Street Law / Volunteer day / Loading / 375 / Proposed",
+    "width": 375,
+    "height": 900,
+    "nonInter": [],
+    "overflow": [],
+    "copy": [
+      "South Africa · Civil questions",
+      "Volunteer day",
+      "Proposed wording and example data",
+      "Loading…",
+      "Please wait.",
+      "Zenas provides legal information, not legal advice."
+    ]
+  },
+  {
+    "id": "583:3053",
+    "name": "Street Law / Volunteer day / Error / 1440 / Proposed",
+    "width": 1440,
+    "height": 900,
+    "nonInter": [],
+    "overflow": [],
+    "copy": [
+      "South Africa · Civil questions",
+      "Volunteer day",
+      "Proposed wording and example data",
+      "Something went wrong",
+      "Please try again.",
+      "Try again",
+      "Zenas provides legal information, not legal advice."
+    ]
+  },
+  {
+    "id": "583:3240",
+    "name": "Street Law / Volunteer day / Error / 375 / Proposed",
+    "width": 375,
+    "height": 900,
+    "nonInter": [],
+    "overflow": [],
+    "copy": [
+      "South Africa · Civil questions",
+      "Volunteer day",
+      "Proposed wording and example data",
+      "Something went wrong",
+      "Please try again.",
+      "Try again",
+      "Zenas provides legal information, not legal advice."
+    ]
+  }
+]
