@@ -1110,3 +1110,7 @@ async def get_moot_published(home_region: str, match_id: UUID | None = None) -> 
     except Exception:
         raise HTTPException(status_code=503, detail="published matches unavailable") from None
     return {"matches": matches}
+
+# Backend only. Street Law pages await the founder's Figma frames.
+from agents.zenas.street_law_api import register_routes as register_street_law_routes  # noqa: E402
+register_street_law_routes(app, matters_factory=_store, box_region=_box_region)

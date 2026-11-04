@@ -147,3 +147,64 @@ class StreetLaw:
                        answer={'text': body, 'sources': sources}, answered_by=actor.user_id)
             # Only volunteers receive drafts. The client read path withholds them.
             return {'id': row['id'], 'status': row['status'], 'answer': row['answer'], 'released': False}
+
+    @staticmethod
+    def view(row, *, volunteer=False):
+        return {key: row[key] for key in ('id', 'question', 'status', 'assigned_to')} | {
+            'released': row['review_id'] is not None,
+            'answer': row['answer'] if volunteer or row['review_id'] is not None else None}
+
+    async def volunteers(self, actor: Actor, home_region: str, session_id: str,
+                         user_id: str, admission_no: str = ''):
+        await self.guard(actor, home_region)
+        async with self.sessions.edit(actor.tenant_id, session_id) as (session, _):
+            if not actor.founder or session['creator'] != actor.user_id:
+                raise Refused('session organizer required')
+            if not user_id.strip() or len(user_id) > 200 or len(admission_no) > 200:
+                raise Refused('invalid volunteer')
+            if user_id == session['creator']:
+                raise Refused('organizer membership is fixed')
+            session['members'][user_id] = {'kind': 'reviewer', 'admission_no': admission_no.strip()}
+            return {'user_id': user_id, 'can_review': bool(admission_no.strip())}
+
+    async def queue(self, actor: Actor, home_region: str, session_id: str):
+        await self.guard(actor, home_region)
+        async with self.sessions.edit(actor.tenant_id, session_id) as (session, _):
+            self.member(session, actor)
+            return {'id': session['id'], 'name': session['name'],
+                    'volunteers': [{'user_id': user, 'can_review': bool(member['admission_no']) or member['kind'] == 'founder'}
+                                   for user, member in session['members'].items()],
+                    **{state: [self.view(row, volunteer=True) for row in session['cases'] if row['status'] == state]
+                       for state in ('queued', 'answered', 'handed_over')}}
+
+    async def read(self, actor: Actor, home_region: str, session_id: str, case_id: str):
+        await self.guard(actor, home_region)
+        async with self.sessions.edit(actor.tenant_id, session_id) as (session, _):
+            row = self.case(session, case_id)
+            volunteer = actor.user_id in session['members']
+            if not volunteer and row['client'] != actor.user_id:
+                raise Refused('not found')
+            return self.view(row, volunteer=volunteer)
+
+    async def assign(self, actor: Actor, home_region: str, session_id: str, case_id: str, user_id: str):
+        await self.guard(actor, home_region)
+        async with self.sessions.edit(actor.tenant_id, session_id) as (session, _):
+            self.member(session, actor)
+            row = self.case(session, case_id)
+            if (user_id not in session['members'] or row['review_id'] is not None
+                    or (not actor.founder and (user_id != actor.user_id or row['assigned_to'] not in (None, actor.user_id)))):
+                raise Refused('assignment refused')
+            row['assigned_to'] = user_id
+            return self.view(row, volunteer=True)
+
+    async def handover(self, actor: Actor, home_region: str, session_id: str, case_id: str):
+        await self.guard(actor, home_region)
+        async with self.sessions.edit(actor.tenant_id, session_id) as (session, matters):
+            self.member(session, actor)
+            row = self.case(session, case_id)
+            if row['review_id'] is not None:
+                raise Refused('answer already released')
+            if row['document_id']:
+                await matters.set_document_state(actor.tenant_id, row['document_id'], 'rejected')
+            row.update(status='handed_over', answer=None)
+            return self.view(row, volunteer=True)
