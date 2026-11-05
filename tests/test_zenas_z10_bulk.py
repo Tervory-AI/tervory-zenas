@@ -28,6 +28,7 @@ import sys
 import threading
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import pytest
 
@@ -221,7 +222,7 @@ async def _fixture(monkeypatch: pytest.MonkeyPatch):
     assert "skipped not our court" in line
     assert "criminal" in line and "not commercial" in line and "no text" in line
     assert "no reporter citation" in line
-    assert all("s3-us-west-2.amazonaws.com" in url for url, _headers in calls)
+    assert all(urlsplit(url).hostname == "com-courtlistener-storage.s3-us-west-2.amazonaws.com" for url, _headers in calls)
     assert not any(url.startswith("https://www.courtlistener.com/api/") for url, _headers in calls)
 
 
@@ -315,7 +316,7 @@ async def _api_after(monkeypatch: pytest.MonkeyPatch):
         calls.append((url, dict(headers)))
         assert marker not in url
         assert "token=" not in url.lower()
-        if "list-type=" in url or "s3-us-west-2.amazonaws.com" in url:
+        if urlsplit(url).hostname == "com-courtlistener-storage.s3-us-west-2.amazonaws.com":
             assert "Authorization" not in headers
             if "list-type=" in url:
                 return _listing(list(files))
