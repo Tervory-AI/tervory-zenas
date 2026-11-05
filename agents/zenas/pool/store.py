@@ -27,6 +27,15 @@ from agents.zenas.pool.textutil import VersionPlan, applies, citation_key, plan_
 
 SCHEMA_PATH = Path(__file__).with_name("schema.sql")
 
+
+def _obsolete_frap_url(doc: LegalDocument) -> str | None:
+    if doc.source_id != "frap":
+        return None
+    from agents.zenas.pool.adapters.govinfo import FRAP_BULK
+    if doc.url != FRAP_BULK:
+        return None
+    return FRAP_BULK.removesuffix("-app.htm") + "-app-federalru-dup3-rule1.htm"
+
 CITATION_DOCUMENT_SQL = """
 SELECT c.chunk_id, c.version_id, c.document_id, c.jurisdiction, c.path, c.heading,
        c.text, c.citation, c.citation_key, c.ordinal
@@ -375,6 +384,11 @@ class MemoryStore:
             known_from=doc.known_from,
         )
         if plan.action == "skip":
+            obsolete = _obsolete_frap_url(doc)
+            if obsolete:
+                for item in same:
+                    if item.content_hash == doc.content_hash and item.url == obsolete:
+                        item.url = doc.url
             return False
         _bind_version(doc, chunks, plan, {item.version_id for item in self.docs.values()})
         for version_id in plan.close_ids:
@@ -688,6 +702,14 @@ class PostgresStore:
                 known_from=doc.known_from,
             )
             if plan.action == "skip":
+                obsolete = _obsolete_frap_url(doc)
+                if obsolete:
+                    # Correct the known dead publisher link without changing legal
+                    # text, version identity, dates, or dependent card freshness.
+                    await self._conn.execute("""UPDATE zenas_pool.documents SET url=$1
+                        WHERE source_id='frap' AND jurisdiction=$2 AND document_id=$3
+                        AND content_hash=$4 AND url=$5""",
+                        doc.url, doc.jurisdiction, doc.id, doc.content_hash, obsolete)
                 return False
             _bind_version(doc, chunks, plan, {row.version_id for row in existing})
             if plan.close_ids:

@@ -1,0 +1,204 @@
+From 7174469d3454c1493f3c852109b930e1d02f0b7a Mon Sep 17 00:00:00 2001
+Subject: [PATCH] Keep Zenas GPU training on official court outcomes
+
+diff --git a/tank/training.py b/tank/training.py
+--- a/tank/training.py
++++ b/tank/training.py
+@@ -628,13 +628,17 @@
+ async def _training_readiness(conn: Any, body: TrainingRunRequest) -> dict[str, Any] | None:
+     ready = await conn.fetchval(
+         """SELECT count(*) FROM tank.training_pairs WHERE tenant_id=$1 AND agent=$2
+-        AND active AND public AND NOT client_matter""",
+-        PLATFORM_TENANT, body.agent,
++        AND active AND public AND NOT client_matter AND region=$3
++        AND source='court_text' AND task_type='zenas.reasoning'
++        AND split_part(source_ref,':',1)=ANY($4::text[])""",
++        PLATFORM_TENANT, body.agent, runtime().box_region(), sorted(OFFICIAL_ZA_CASE_SOURCES),
+     )
+     holdout = await conn.fetchval(
+         """SELECT count(*) FROM tank.training_pairs WHERE tenant_id=$1 AND agent=$2
+-        AND active AND public AND NOT client_matter AND holdout""",
+-        PLATFORM_TENANT, body.agent,
++        AND active AND public AND NOT client_matter AND holdout AND region=$3
++        AND source='court_text' AND task_type='zenas.reasoning'
++        AND split_part(source_ref,':',1)=ANY($4::text[])""",
++        PLATFORM_TENANT, body.agent, runtime().box_region(), sorted(OFFICIAL_ZA_CASE_SOURCES),
+     )
+     if int(ready or 0) < 2000:
+         return {"status": "fewer than 2,000 public zenas training rows", "count": int(ready or 0)}
+@@ -660,7 +664,7 @@
+     child_env["HF_HUB_OFFLINE"] = "0"
+     script = Path(__file__).with_name("training_jobs") / "run.py"
+     process = await asyncio.create_subprocess_exec(
+-        sys.executable, str(script), *arguments, "--json",
++        os.environ.get("HF_JOBS_PYTHON") or sys.executable, str(script), *arguments, "--json",
+         env=child_env, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL,
+     )
+     stdout, _ = await process.communicate()
+@@ -848,11 +852,19 @@
+     return {"ok": True}
+
+
++def court_training_row(row: dict[str, Any]) -> bool:
++    if row.get("agent") != "zenas":
++        return True
++    return (row.get("source") == "court_text" and row.get("task_type") == "zenas.reasoning"
++            and row.get("region") == "za"
++            and str(row.get("source_ref") or "").split(":", 1)[0] in OFFICIAL_ZA_CASE_SOURCES)
++
++
+ def exportable(row: dict[str, Any]) -> bool:
+     return (row.get("region") in ("us-east", "za") and row.get("region") == runtime().box_region()
+             and row.get("holdout") is False and row.get("active") is True
+             and row.get("public") is True and row.get("client_matter") is False
+-            and row.get("tenant_id") == PLATFORM_TENANT)
++            and row.get("tenant_id") == PLATFORM_TENANT and court_training_row(row))
+
+
+ async def upload_dataset(client: httpx.AsyncClient, org: str, agent: str, day: str, rows: list[dict], region: str = "us-east",
+@@ -898,7 +910,7 @@
+         raise RuntimeError("Private dataset commit failed")
+
+
+-async def export_once(*, day: date | None = None) -> dict[str, Any]:
++async def export_once(*, day: date | None = None, only_agent: str | None = None) -> dict[str, Any]:
+     token, org = os.environ.get("HF_TOKEN", ""), os.environ.get("HF_ORG", "")
+     if not token or not org:
+         return {"status": "skipped", "reason": "not configured"}
+@@ -917,11 +929,17 @@
+             from gold import AGENTS
+             async with httpx.AsyncClient(headers={"Authorization": f"Bearer {token}"}, timeout=60,
+                                          follow_redirects=False) as client:
++                if only_agent is not None and only_agent not in AGENTS:
++                    raise ValueError("Unknown training agent")
+                 for agent in AGENTS:
++                    if only_agent is not None and agent != only_agent:
++                        continue
+                     done = await conn.fetchval(
+                         "SELECT 1 FROM tank.training_exports WHERE region=$3 AND day=$1 AND agent=$2", day, agent, region,
+                     )
+-                    if done:
++                    # Refresh today's Zenas snapshot after new official court splits,
++                    # including a snapshot written by the older mixed-gold exporter.
++                    if done and agent != "zenas":
+                         continue
+                     payload = []
+                     holdouts = []
+@@ -956,7 +974,8 @@
+                             scope["tenant_id"], agent, region,
+                         )
+                         for row in held_rows:
+-                            if row["tenant_id"] == PLATFORM_TENANT and not await _batch_removed(conn, scope["tenant_id"], row["batch_id"]):
++                            if (row["tenant_id"] == PLATFORM_TENANT and court_training_row(dict(row))
++                                    and not await _batch_removed(conn, scope["tenant_id"], row["batch_id"])):
+                                 holdouts.append({"region": region, "public": True, "client_matter": False,
+                                                  "scope": "platform", "holdout": True, "active": True,
+                                                  "task_type": row["task_type"], "input": obj(row["input"]),
+@@ -1060,6 +1079,12 @@
+
+
+ @router.post("/jobs/export", dependencies=[Depends(require_job)])
+-async def export_job() -> dict[str, Any]:
+-    await collect_once()
+-    return await export_once()
++async def export_job(agent: str | None = None) -> dict[str, Any]:
++    from gold import AGENTS
++    if agent is not None and agent not in AGENTS:
++        raise HTTPException(422, "Unknown training agent")
++    # Zenas's dedicated run uses the owning room's acknowledged code splits.
++    # It does not collect other rooms or mix retrieval gold into court labels.
++    if agent != "zenas":
++        await collect_once()
++    return await export_once(only_agent=agent)
+diff --git a/tank/training_jobs/train.py b/tank/training_jobs/train.py
+--- a/tank/training_jobs/train.py
++++ b/tank/training_jobs/train.py
+@@ -110,13 +110,17 @@
+             continue
+         if info.private is not True:
+             raise ValueError('Dataset repository is not private')
+-        for region in ('us-east', 'za'):
++        for region in (('za',) if selected == 'zenas' else ('us-east', 'za')):
+             try:
+                 path = hf_hub_download(dataset, f'snapshots/{region}/{day}.jsonl', repo_type='dataset', revision=info.sha)
+             except EntryNotFoundError:
+                 continue
+             batch = [json.loads(line) for line in Path(path).read_text().splitlines() if line]
+             validate_rows(batch)  # Reject the entire run before constructing the trainer.
++            if selected == 'zenas' and any(
++                    row.get('task_type') != 'zenas.reasoning' or _outcome(row.get('output')) is None
++                    for row in batch):
++                raise ValueError('Zenas training requires code-labelled court outcomes')
+             if any(row['region'] != region for row in batch):
+                 raise ValueError('Snapshot region does not match its rows')
+             rows.extend(batch)
+@@ -130,7 +134,7 @@
+     info = api.dataset_info(dataset)
+     if info.private is not True:
+         raise ValueError('Dataset repository is not private')
+-    for region in ('us-east', 'za'):
++    for region in ('za',):
+         try:
+             path = hf_hub_download(dataset, f'holdouts/{region}/{day}.jsonl', repo_type='dataset', revision=info.sha)
+         except Exception as exc:
+@@ -139,8 +143,14 @@
+             raise
+         rows.extend(json.loads(line) for line in Path(path).read_text().splitlines() if line)
+     if any(row.get('holdout') is not True or row.get('public') is not True
+-           or row.get('client_matter') is not False for row in rows):
++           or row.get('client_matter') is not False or row.get('scope') != 'platform'
++           or row.get('active') is not True or 'tenant_id' in row or row.get('region') != 'za'
++           or row.get('task_type') != 'zenas.reasoning' or _outcome(row.get('output')) is None
++           for row in rows):
+         raise ValueError('Unsafe holdout dataset')
++    if len({hashlib.sha256(json.dumps(row['input'], sort_keys=True).encode()).hexdigest()
++            for row in rows}) < 200:
++        raise ValueError('At least 200 distinct court holdouts are required')
+     return rows
+
+
+@@ -173,6 +183,12 @@
+     train_agent = os.environ.get('TRAIN_AGENT', '')
+     max_length = context_length(train_agent)
+     rows = load_snapshots(api, org, day)
++    holdouts = load_holdouts(api, org, day) if train_agent == 'zenas' else []
++    held_hashes = {hashlib.sha256(json.dumps(row['input'], sort_keys=True).encode()).hexdigest()
++                   for row in holdouts}
++    if any(hashlib.sha256(json.dumps(row['input'], sort_keys=True).encode()).hexdigest()
++           in held_hashes for row in rows):
++        raise ValueError('Court holdouts overlap the training snapshot')
+     train, validation, seen = [], [], set()
+     for row in rows:
+         digest = hashlib.sha256(json.dumps(row['input'], sort_keys=True).encode()).hexdigest()
+@@ -197,7 +213,6 @@
+     Path('/tmp/lora/evaluation.json').write_text(json.dumps({'validation_loss': metrics['eval_loss'],
+                                                           'n': len(validation), 'gold_holdout': False}))
+     if train_agent == 'zenas':
+-        holdouts = load_holdouts(api, org, day)
+         answers = []
+         model, tokenizer = trainer.model, trainer.processing_class
+         for row in holdouts:
+diff --git a/tank/Dockerfile b/tank/Dockerfile
+--- a/tank/Dockerfile
++++ b/tank/Dockerfile
+@@ -12,6 +12,13 @@
+     pip install --no-cache-dir --no-deps --require-hashes -r requirements-routellm-wheel.txt && \
+     python routellm_build.py /opt/routellm && \
+     python semantic_encoder.py
++# Keep the HF Jobs SDK separate from the pinned CPU routing dependencies.
++COPY training_jobs/requirements.txt /tmp/hf-jobs-requirements.txt
++RUN --mount=type=secret,id=proxy_ca \
++    if [ -f /run/secrets/proxy_ca ]; then export PIP_CERT=/run/secrets/proxy_ca SSL_CERT_FILE=/run/secrets/proxy_ca; fi; \
++    python -m venv /opt/hf-jobs && \
++    /opt/hf-jobs/bin/pip install --no-cache-dir -r /tmp/hf-jobs-requirements.txt
++ENV HF_JOBS_PYTHON=/opt/hf-jobs/bin/python
+ # Every Tank module is copied by pattern, so a PR that adds a module never edits this line
+ # (it used to be a hand-kept list that clashed on almost every Tank PR).
+ COPY *.py schema.sql cl100k_base.tiktoken cl100k_base.LICENSE ./
+diff --git a/tank/training_jobs/requirements.txt b/tank/training_jobs/requirements.txt
+new file mode 100644
+--- /dev/null
++++ b/tank/training_jobs/requirements.txt
+@@ -0,0 +1,2 @@
++huggingface-hub==1.7.2
++asyncpg==0.30.0

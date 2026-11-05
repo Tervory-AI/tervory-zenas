@@ -1,10 +1,9 @@
 import asyncio
-from uuid import UUID
 from contextlib import asynccontextmanager
+from uuid import UUID
 
 import pytest
-
-from test_source_freshness import database as database, room, save, card, read, NEXT, TENANT
+from test_source_freshness import NEXT, TENANT, card, read, room, save
 
 
 @pytest.mark.asyncio
@@ -14,6 +13,18 @@ async def test_late_old_source_card_is_never_reusable(database):
     await save(database, text="placeholder amended civil rule", start=NEXT)
     late = await card(ladder, old)
     assert late["status"] == "stale" and not late["active"]
+
+
+@pytest.mark.asyncio
+async def test_approval_cannot_revive_retired_source_dependency(database):
+    ladder = await room(database)
+    old, _ = await save(database)
+    saved = await card(ladder, old)
+    await save(database, text="placeholder amended civil rule", start=NEXT)
+    returned = await ladder.set_status(saved['id'], region='us-east', status='lawyer_approved')
+    assert returned['status'] == 'stale' and not returned['active']
+    async with database.acquire() as conn:
+        assert await conn.fetchval('SELECT status FROM agent_zenas.rule_cards WHERE id=$1', UUID(saved['id'])) == 'stale'
 
 
 @pytest.mark.asyncio

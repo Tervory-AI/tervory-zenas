@@ -1,10 +1,10 @@
 from unittest.mock import AsyncMock
 
 import pytest
+from test_source_freshness import room
 
 from agents.zenas.core import convert, judgment_training, regulations, selftest
 from agents.zenas.pool import nightly
-from test_source_freshness import database, room  # noqa: F401
 
 
 @pytest.mark.asyncio

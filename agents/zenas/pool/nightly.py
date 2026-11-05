@@ -772,6 +772,10 @@ async def _scheduled_jobs(conn, report, *, region, deadline=None, clock=None):
                     with deadline_scope(until, clock):
                         value = await job(conn, region=region)
                         check_deadline()
+                ok = not isinstance(value, dict) or value.get("ok", True)
+                report.setdefault("jobs", {})[name] = {"ok": ok}
+                if not ok:
+                    report.setdefault("failed_jobs", []).append(name)
                 if name in {"regulations", "judgment_training"}:
                     report[name] = value
             except (DeadlineReached, TimeoutError) as exc:
@@ -787,6 +791,10 @@ async def _scheduled_jobs(conn, report, *, region, deadline=None, clock=None):
         else:
             try:
                 value = await job(conn, region=region)
+                ok = not isinstance(value, dict) or value.get("ok", True)
+                report.setdefault("jobs", {})[name] = {"ok": ok}
+                if not ok:
+                    report.setdefault("failed_jobs", []).append(name)
                 if name in {"regulations", "judgment_training"}:
                     report[name] = value
             except Exception:

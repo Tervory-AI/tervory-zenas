@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$(dirname "$0")/.."
+export PYTHONPATH="$PWD:$PWD/tank:$PWD/agents/_chassis:$PWD/vendor/tervory-tank:$PWD/vendor/tervory-tank/tank:$PWD/vendor/tervory-tank/agents/_chassis${PYTHONPATH:+:$PYTHONPATH}"
+if [[ -x .venv/bin/python ]]; then zenas_python=.venv/bin/python; else zenas_python=${PYTHON:-python3}; fi
+exec "$zenas_python" -m agents.zenas.core.operations "$@"

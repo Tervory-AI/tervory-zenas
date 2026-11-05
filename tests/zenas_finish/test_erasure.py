@@ -1,10 +1,11 @@
 from uuid import UUID, uuid4
 
 import pytest
+from asyncpg.exceptions import RaiseError
+from test_source_freshness import TENANT, room, save
 
 from agents.zenas.core.erasure import erase
 from agents.zenas.pool.region import RegionError
-from test_source_freshness import TENANT, database, room, save  # noqa: F401
 
 OTHER = uuid4()
 
@@ -78,7 +79,7 @@ async def test_erasure_rolls_back_every_row_and_outbox_on_failure(database):
             BEGIN RAISE EXCEPTION 'offline rollback probe'; END $$"""
         )
         await conn.execute("CREATE TRIGGER erasure_probe BEFORE DELETE ON agent_zenas.pii FOR EACH ROW EXECUTE FUNCTION fail_erasure()")
-        with pytest.raises(Exception, match='offline rollback probe'):
+        with pytest.raises(RaiseError, match='offline rollback probe'):
             await erase(conn, tenant_id=tenant, matter_id=matter, region='us-east')
         assert await conn.fetchval('SELECT count(*) FROM agent_zenas.reviews') == 1
         assert await conn.fetchval('SELECT count(*) FROM agent_zenas.training_pairs') == 1

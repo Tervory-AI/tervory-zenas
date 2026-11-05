@@ -1,6 +1,6 @@
 """Changed offline law must not leave reusable cards on superseded versions."""
-from datetime import date
 import os
+from datetime import date
 from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
 from uuid import uuid4
@@ -13,8 +13,8 @@ from agents.zenas.core.engine import question_key
 from agents.zenas.core.ladder_store import PgLadder
 from agents.zenas.pool.builddoc import build_document
 from agents.zenas.pool.catalogue import sources_for_region
-from agents.zenas.pool.chunk import chunk_document
 from agents.zenas.pool.checkout import PerStatement
+from agents.zenas.pool.chunk import chunk_document
 from agents.zenas.pool.model import Section
 from agents.zenas.pool.store import PostgresStore
 

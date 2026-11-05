@@ -34,7 +34,7 @@ FRE_WAVE = (
 )
 FRAP_WAVE = (
     "https://www.govinfo.gov/content/pkg/USCODE-2023-title28/html/"
-    "USCODE-2023-title28-app-federalru-dup3-rule1.htm",
+    "USCODE-2023-title28-app.htm",
 )
 # Whole appendices. FRAP's dup3 file redirects to an error page; the title 28
 # appendix holds FRAP, then FRCP. FRAP is the text before FRCP Rule 1.
@@ -266,3 +266,9 @@ class FrapAdapter(_RulesAdapter):
     wave = FRAP_WAVE
     bulk_url = FRAP_BULK
     cut_frcp = True
+
+    async def fetch(self, http_get) -> list[bytes]:
+        # GovInfo's dup3 single-rule URL returns an error document. The official
+        # appendix contains FRAP before FRCP; reuse the bulk splitter for Rule 1.
+        blobs, _ = await self.fetch_bulk(http_get)
+        return split_rule_html(blobs[0])[:1] if blobs else []

@@ -45,7 +45,8 @@ def configure_chromium():
 def test_layout(stage):
     shutil.copytree(VENDOR, stage, dirs_exist_ok=True)
     for name in TRACKED:
-        if name and any(name == p or name.startswith(p + '/') for p in PATHS):
+        if name and (any(name == p or name.startswith(p + '/') for p in PATHS)
+                     or name.startswith('tank-patches/') or name == 'scripts/zenas'):
             target = stage / name
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(ROOT / name, target)

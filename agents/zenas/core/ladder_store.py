@@ -458,8 +458,14 @@ class PgLadder:
                 args.append(fields[name])
                 sets.append(f"{name} = ${len(args)}")
         sql = f"UPDATE agent_zenas.rule_cards SET {', '.join(sets)} WHERE region = $1 AND id = $2"
-        async with self.pool.acquire() as conn:
+        async with self.pool.acquire() as conn, conn.transaction():
+            from agents.zenas.core.freshness import lock_sources, reconcile
+            sources = await conn.fetchval("SELECT sources FROM agent_zenas.rule_cards WHERE region=$1 AND id=$2", *args[:2])
+            if sources is None:
+                return None
+            await lock_sources(conn, json.loads(sources) if isinstance(sources, str) else sources)
             await conn.execute(sql, *args)
+            await reconcile(conn, args[0], args[1])
             row = await conn.fetchrow(
                 "SELECT * FROM agent_zenas.rule_cards WHERE region = $1 AND id = $2",
                 _region(region),
