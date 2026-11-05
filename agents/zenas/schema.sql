@@ -617,6 +617,18 @@ CREATE TABLE IF NOT EXISTS agent_zenas.moot_hearing_pairs (
     UNIQUE(tenant_id, second_hearing)
 );
 
+-- Street Law client data never becomes public law, worked matters or training.
+CREATE TABLE IF NOT EXISTS agent_zenas.street_law_sessions (
+    tenant_id uuid NOT NULL,
+    id uuid NOT NULL,
+    data jsonb NOT NULL CHECK (jsonb_typeof(data) = 'object'),
+    PRIMARY KEY (tenant_id,id)
+);
+-- Match the room's existing RLS deployment mode; do not turn on the chassis
+-- admin-pool requirement on a box that has not performed its RLS rollout.
+-- Keep the DO block on one line for the existing schema_statements loader.
+DO $$ BEGIN IF EXISTS (SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='agent_zenas' AND c.relrowsecurity AND c.relname <> 'street_law_sessions') THEN ALTER TABLE agent_zenas.street_law_sessions ENABLE ROW LEVEL SECURITY; ALTER TABLE agent_zenas.street_law_sessions FORCE ROW LEVEL SECURITY; IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='agent_zenas' AND tablename='street_law_sessions' AND policyname='street_law_tenant') THEN CREATE POLICY street_law_tenant ON agent_zenas.street_law_sessions USING (tenant_id=NULLIF(current_setting('app.tenant_id',true),'')::uuid) WITH CHECK (tenant_id=NULLIF(current_setting('app.tenant_id',true),'')::uuid); END IF; END IF; END $$;
+
 -- BEGIN GENERATED AGENT MEMORY (hermes/record_schema.py)
 CREATE TABLE IF NOT EXISTS agent_zenas.memory_records (
     id uuid PRIMARY KEY,
@@ -666,15 +678,3 @@ CREATE TABLE IF NOT EXISTS agent_zenas.memory_publish_log (
     published_row uuid
 );
 -- END GENERATED AGENT MEMORY
-
--- Street Law client data never becomes public law, worked matters or training.
-CREATE TABLE IF NOT EXISTS agent_zenas.street_law_sessions (
-    tenant_id uuid NOT NULL,
-    id uuid NOT NULL,
-    data jsonb NOT NULL CHECK (jsonb_typeof(data) = 'object'),
-    PRIMARY KEY (tenant_id,id)
-);
--- Match the room's existing RLS deployment mode; do not turn on the chassis
--- admin-pool requirement on a box that has not performed its RLS rollout.
--- Keep the DO block on one line for the existing schema_statements loader.
-DO $$ BEGIN IF EXISTS (SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='agent_zenas' AND c.relrowsecurity AND c.relname <> 'street_law_sessions') THEN ALTER TABLE agent_zenas.street_law_sessions ENABLE ROW LEVEL SECURITY; ALTER TABLE agent_zenas.street_law_sessions FORCE ROW LEVEL SECURITY; IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='agent_zenas' AND tablename='street_law_sessions' AND policyname='street_law_tenant') THEN CREATE POLICY street_law_tenant ON agent_zenas.street_law_sessions USING (tenant_id=NULLIF(current_setting('app.tenant_id',true),'')::uuid) WITH CHECK (tenant_id=NULLIF(current_setting('app.tenant_id',true),'')::uuid); END IF; END IF; END $$;
