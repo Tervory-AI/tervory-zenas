@@ -138,6 +138,7 @@ tests/zenas_ask_rules.mjs
 tests/zenas_backend_live.py
 tests/zenas_brain
 tests/zenas_feeds_public.mjs
+tests/zenas_finish
 tests/zenas_gate2
 tests/zenas_page_rules.mjs
 tests/zenas_regulation_alerts

@@ -660,6 +660,7 @@ class PostgresStore:
         import json
 
         async with self._conn.transaction():
+            closed: list[dict[str, str]] = []
             rows = await self._conn.fetch(
                 """
                 SELECT version_id, content_hash, effective_from, effective_to, known_from
@@ -700,6 +701,7 @@ class PostgresStore:
                     doc.jurisdiction,
                     list(plan.close_ids),
                 )
+                closed.extend({"doc_id": doc.id, "version_id": version} for version in plan.close_ids)
             await self._conn.execute(
                 """
                 INSERT INTO zenas_pool.documents (
@@ -759,12 +761,13 @@ class PostgresStore:
                 ],
             )
             if url_replaces(doc, source):
-                await self._conn.execute(
+                replaced = await self._conn.fetch(
                     """
                     UPDATE zenas_pool.documents
                     SET effective_to = $1, status = 'superseded'
                     WHERE source_id = $2 AND jurisdiction = $3 AND kind = $4 AND url = $5
                       AND document_id <> $6 AND effective_to IS NULL
+                    RETURNING document_id, version_id
                     """,
                     on,
                     doc.source_id,
@@ -773,31 +776,66 @@ class PostgresStore:
                     doc.url,
                     doc.id,
                 )
+                closed.extend({"doc_id": row["document_id"], "version_id": row["version_id"]} for row in replaced)
+            await self._invalidate_rule_cards(closed)
         return True
+
+    async def _invalidate_rule_cards(self, closed: list[dict[str, str]]) -> None:
+        """Retire dependent cards in the same transaction as their source version.
+
+        A loader may run before the room has created its own tables. In that
+        case there cannot be a stored card to invalidate. Once the table exists,
+        an invalidation failure must roll the source change back, rather than
+        leave a reusable card attached to law we have just superseded.
+        """
+        if not closed:
+            return
+        if not await self._conn.fetchval("SELECT to_regclass('agent_zenas.rule_cards') IS NOT NULL"):
+            return
+        import json
+
+        await self._conn.execute(
+            """
+            UPDATE agent_zenas.rule_cards AS card
+            SET status = 'stale', active = false
+            WHERE card.region = $1 AND card.status <> 'stale'
+              AND EXISTS (
+                SELECT 1 FROM jsonb_array_elements(card.sources) AS ref
+                JOIN jsonb_to_recordset($2::jsonb) AS old_src(doc_id text, version_id text)
+                  ON old_src.doc_id = ref->>'doc_id'
+                WHERE NULLIF(ref->>'version_id', '') IS NULL
+                   OR old_src.version_id = ref->>'version_id'
+              )
+            """,
+            self.home_region,
+            json.dumps(closed),
+        )
 
     async def close_collapsed(
         self, source_id: str, jurisdiction: str, citation: str, hashes: set[str], titles: set[str], *, on: date
     ) -> int:
         """Close open rows of ``citation`` that hold one of its split children's text or heading."""
         _guard_home(self.home_region, jurisdiction=jurisdiction)
-        result = await self._conn.execute(
-            """
-            UPDATE zenas_pool.documents
-            SET effective_to = $1, status = 'superseded'
-            WHERE source_id = $2 AND jurisdiction = $3 AND citation = $4 AND effective_to IS NULL
-              AND (content_hash = ANY($5::text[]) OR title = ANY($6::text[]))
-            """,
-            on,
-            source_id,
-            jurisdiction,
-            citation,
-            sorted(hashes),
-            sorted(titles),
-        )
-        try:
-            return int(str(result).split()[-1])
-        except (ValueError, IndexError):
-            return 0
+        async with self._conn.transaction():
+            closed = await self._conn.fetch(
+                """
+                UPDATE zenas_pool.documents
+                SET effective_to = $1, status = 'superseded'
+                WHERE source_id = $2 AND jurisdiction = $3 AND citation = $4 AND effective_to IS NULL
+                  AND (content_hash = ANY($5::text[]) OR title = ANY($6::text[]))
+                RETURNING document_id, version_id
+                """,
+                on,
+                source_id,
+                jurisdiction,
+                citation,
+                sorted(hashes),
+                sorted(titles),
+            )
+            await self._invalidate_rule_cards(
+                [{"doc_id": row["document_id"], "version_id": row["version_id"]} for row in closed]
+            )
+        return len(closed)
 
     async def record_link(self, source_id: str, url: str, reason: str) -> None:
         _guard_home(self.home_region)
