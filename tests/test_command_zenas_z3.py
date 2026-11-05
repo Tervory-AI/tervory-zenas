@@ -67,6 +67,13 @@ async def test_confirm_watch_lifecycle_receipt_refusals_and_isolation(api, runti
     monkeypatch.setenv("TANK_KEY_ZENAS", "offline-room")
     monkeypatch.setenv("TANK_KEY", "offline-room")
     monkeypatch.setenv("ZENAS_AGENT_URL", "http://agent-zenas:8000")
+    from contextvars import ContextVar
+    from trigger_signin_fakes import native_provider, ORG
+    import trigger_signin_config as registry
+    provider = native_provider(monkeypatch, {ORG: str(TENANT)})
+    signed = provider.workspace_headers('founder', TENANT)
+    monkeypatch.setattr(registry, 'proof', ContextVar('fixture_verified_proof', default={
+        name: value for name, value in signed.items() if name.startswith('x-trigger-signin-')}))
     core, watches = MemoryStore(), MemoryWatches()
     await core.register_tenant(str(TENANT), region)
     await core.register_tenant(str(OTHER), region)
