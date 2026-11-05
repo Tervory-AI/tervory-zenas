@@ -125,7 +125,7 @@ No activation, deployment, model call or production SQL was performed.
 | ZA-only actor attestation and fixed route allowlist | `tank/main.py:3807` |
 | Existing review setting documentation | `docs/ops/FOUNDER-SETTINGS.md:59` |
 | Offline transactional store fixture | `tests/street_law/conftest.py:15` |
-| Civil, privacy, refusal and source checks | `tests/street_law/test_intake.py:9` |
+| Civil, privacy, refusal and source checks | `tests/street_law/test_street_law_intake.py:9` |
 | Session and authenticated-room/Tank checks | `tests/street_law/test_session.py:14` |
 | Full HTTP release, eligibility and concurrency checks | `tests/street_law/test_release.py:14` |
 | Non-bypass PostgreSQL, RLS, persistence and rollback proof | `tests/street_law/test_postgres.py:58` |
