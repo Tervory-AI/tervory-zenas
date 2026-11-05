@@ -67,6 +67,13 @@ async def test_confirm_watch_lifecycle_receipt_refusals_and_isolation(api, runti
     monkeypatch.setenv("TANK_KEY_ZENAS", "offline-room")
     monkeypatch.setenv("TANK_KEY", "offline-room")
     monkeypatch.setenv("ZENAS_AGENT_URL", "http://agent-zenas:8000")
+    from contextvars import ContextVar
+    from trigger_signin_fakes import native_provider, ORG
+    import trigger_signin_config as registry
+    provider = native_provider(monkeypatch, {ORG: str(TENANT), "10002": str(OTHER)})
+    signed = provider.workspace_headers('founder', TENANT)
+    monkeypatch.setattr(registry, 'proof', ContextVar('fixture_verified_proof', default={
+        name: value for name, value in signed.items() if name.startswith('x-trigger-signin-')}))
     core, watches = MemoryStore(), MemoryWatches()
     await core.register_tenant(str(TENANT), region)
     await core.register_tenant(str(OTHER), region)
@@ -123,12 +130,19 @@ async def test_confirm_watch_lifecycle_receipt_refusals_and_isolation(api, runti
                     receipt = await pool.fetchrow("SELECT * FROM tank.ledger WHERE id=$1", __import__('uuid').UUID(card["result"]["ledger_id"]))
                     assert receipt["tenant_id"] == TENANT and receipt["agent"] == "zenas"
                     assert receipt["cost_usd"] == 0 and receipt["model"] == "code"
-            founder = command.Actor(OTHER, "founder", True)
-            status, result = await command.dispatch_action(command.PlannedAction(tool="zenas.watch.list", arguments={}), founder)
-            assert status == 200 and result["watches"] == []
-            for tool in ("zenas.watch.enable", "zenas.watch.disable"):
-                status, result = await command.dispatch_action(command.PlannedAction(tool=tool, arguments={"watch_id": watch_id}), founder)
-                assert status == 404 and result == {"detail": "Not in scope."}
+            other_signed = provider.workspace_headers("founder", OTHER)
+            proof_token = registry.proof.set({
+                name: value for name, value in other_signed.items()
+                if name.startswith("x-trigger-signin-")})
+            try:
+                founder = command.Actor(OTHER, "founder", True)
+                status, result = await command.dispatch_action(command.PlannedAction(tool="zenas.watch.list", arguments={}), founder)
+                assert status == 200 and result["watches"] == []
+                for tool in ("zenas.watch.enable", "zenas.watch.disable"):
+                    status, result = await command.dispatch_action(command.PlannedAction(tool=tool, arguments={"watch_id": watch_id}), founder)
+                    assert status == 404 and result == {"detail": "Not in scope."}
+            finally:
+                registry.proof.reset(proof_token)
             criminal = await confirm("zenas.watch.add", {"source": source, "topic": "criminal sentencing"})
             assert criminal["status"] == "failed"
             assert criminal["error"] == REFUSED

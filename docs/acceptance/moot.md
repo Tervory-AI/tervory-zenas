@@ -23,7 +23,7 @@ The register's Zenas legislation, email, training and brain settings are not
 prerequisites for these hearing and public-reader checks. Account, people, source,
 AI and regional prerequisites below still apply; they are not settings in the register.
 
-- **Account**: signed-in founder account, selected Clerk organization and membership.
+- **Account**: signed-in founder account, selected Trigger sign-in organization and membership.
   The server determines founder capability; the browser cannot grant it.
 - **People**: three existing organization members, assigned Applicant, Respondent
   and Judge. Use their actual names from the selectors and separate signed-in

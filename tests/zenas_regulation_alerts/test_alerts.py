@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from agents.zenas.pool.fixture_bytes import read_fixture
+
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 import json
@@ -314,7 +316,7 @@ async def test_ecfr_uses_official_date_and_existing_xml_parser():
                     ]
                 }
             ).encode()
-        return (SAVED / "saved/ecfr/19-cfr-141.xml").read_bytes()
+        return read_fixture(SAVED / "saved/ecfr/19-cfr-141.xml")
 
     watch = dict(source="ecfr", topic="customs", options={"title": "19", "part": "141"})
     rows = await Sources("us-east", http_get=get).fetch(watch)
@@ -670,7 +672,7 @@ async def test_congress_untrusted_next_cannot_receive_key(monkeypatch):
 async def test_ecfr_removed_section_changes_part_but_new_date_alone_does_not():
     from xml.etree import ElementTree as ET
 
-    xml = (SAVED / "saved/ecfr/19-cfr-141.xml").read_bytes()
+    xml = read_fixture(SAVED / "saved/ecfr/19-cfr-141.xml")
     on = "2026-10-07"
 
     async def get(url, headers):
