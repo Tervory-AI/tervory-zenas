@@ -1,16 +1,23 @@
-// Execute the existing server transport with offline fetch capture.
+// Actual Workspace transport and imports; only local HTTP/identity is doubled.
+const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const { createRequire } = require('node:module');
 const root = path.resolve(__dirname, '../..');
-const deps = createRequire(path.join(root, 'workspace/package.json'));
-const ts = deps('typescript');
-const moduleValue = { exports: {} };
-const filename = path.join(root, 'workspace/app/api/zenas/tank.ts');
-const js = ts.transpileModule(fs.readFileSync(filename, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText;
+process.env.COMMAND_TEST_TOOLS ??= path.join(root, 'workspace/node_modules');
+const {workspace} = require('../command_acceptance_20261031/workspace_loader.cjs');
+const {legacyHome} = require('../legacy_tenant_home.cjs');
 const input = JSON.parse(fs.readFileSync(0, 'utf8'));
-const captures = [];
-new Function('module', 'exports', 'process', 'fetch', js)(moduleValue, moduleValue.exports,
-  { env: { TANK_REGION: 'us-east', TANK_URL: 'http://offline-tank', TANK_API_KEY: 'offline-key' } },
-  async (url, init) => { captures.push({ url, body: JSON.parse(init.body) }); return Response.json({}); });
-moduleValue.exports.zenas(input.path, { method: 'POST', body: JSON.stringify(input.body) }).then(() => process.stdout.write(JSON.stringify(captures[0])));
+const captures = [], homes = [];
+const load = workspace({
+  env:{TANK_REGION:'us-east',TANK_URL:'http://offline-tank',TANK_API_KEY:'offline-key'},
+  fetch:async(raw,init)=>{
+    const home=legacyHome(raw,init,{tenants:[input.body.tenant_id],key:'offline-key',origin:'http://offline-tank',calls:homes});
+    if(home)return home;
+    assert.equal(new URL(String(raw)).origin,'http://offline-tank');
+    captures.push({url:String(raw),body:JSON.parse(init.body)});
+    return Response.json({});
+  },
+});
+load('app/api/zenas/tank.ts').zenas(input.path,{method:'POST',body:JSON.stringify(input.body)})
+  .then(()=>{assert.equal(captures.length,1);process.stdout.write(JSON.stringify(captures[0]));})
+  .catch(error=>{console.error(error);process.exitCode=1;});
