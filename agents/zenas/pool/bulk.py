@@ -492,6 +492,12 @@ async def _record_error(store: Store, source: SourceSpec, exc: Exception, when: 
 
 
 def main() -> None:
+    import sys
+    if len(sys.argv) > 1:
+        if "--dry-run" not in sys.argv[1:]:
+            raise SystemExit("Use scripts/zenas load for command options")
+        from agents.zenas.core.operations import main as command
+        raise SystemExit(command(["load", *sys.argv[1:]]))
     try:
         os.nice(19)
     except OSError:

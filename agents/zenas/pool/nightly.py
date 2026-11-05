@@ -747,6 +747,12 @@ async def _record_source_error(store: Store, source, exc: Exception, when: datet
 
 
 def main() -> None:
+    import sys
+    if len(sys.argv) > 1:
+        if "--dry-run" not in sys.argv[1:]:
+            raise SystemExit("Use scripts/zenas nightly for command options")
+        from agents.zenas.core.operations import main as command
+        raise SystemExit(command(["nightly", *sys.argv[1:]]))
     asyncio.run(_main())
 
 

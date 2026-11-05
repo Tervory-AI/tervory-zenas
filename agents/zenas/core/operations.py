@@ -122,7 +122,7 @@ async def sample(conn, *, region, selected, http_get=None):
     return {"ok": True, "region": region, "embedding": "not run; keyword and citation storage only", "sources": receipts}
 
 
-async def training(args, *, transport=None):
+async def training(args, *, transport=None, stop_before_launch=False):
     """Use Tank's export, founder authorization, readiness and cost-gated HF runner."""
     import httpx
     require("TANK_URL", "TANK_API_KEY", "TRAINING_JOB_KEY")
@@ -171,6 +171,8 @@ async def training(args, *, transport=None):
             plan = await post("/v1/training/run/plan", body=body)
             if plan.get("status") != "ready":
                 return {"ok": False, "phase": "readiness", "result": plan}
+        if stop_before_launch:
+            return {"ok": True, "phase": "ready_to_launch", "launch_requested": False, "court_text": court_text}
         result = await post("/v1/training/run", body=body)
         return {"ok": result.get("status") == "running", "phase": "submit", "court_text": court_text, "result": result}
 
@@ -193,6 +195,12 @@ async def prepare_court_text(region):
 async def execute(args):
     require("TANK_REGION")
     region = current_region()
+    if getattr(args, "dry_run", False):
+        from agents.zenas.core.dry_run import run
+        result = await run(args, region=region)
+        if args.command == "train":
+            result["artifacts"] = training_artifacts()
+        return result
     if args.command == "nightly" and region == "za":
         from agents.zenas.pool.nightly import _ZA_RUN_SECONDS
         deadline = monotonic() + _ZA_RUN_SECONDS
@@ -201,7 +209,12 @@ async def execute(args):
     else:
         result = await _execute(args, region)
     if args.command == "train":
-        result["artifacts"] = {
+        result["artifacts"] = training_artifacts()
+    return result
+
+
+def training_artifacts():
+    return {
             "dataset_repo": "HF_ORG/tervory-public-zenas",
             "snapshots": "snapshots/{region}/{YYYY-MM-DD}.jsonl",
             "holdouts": "holdouts/{region}/{YYYY-MM-DD}.jsonl",
@@ -210,8 +223,7 @@ async def execute(args):
             "results": ["evaluation.json", "holdout.json", "zenas-q4_k_m.gguf"],
             "qualification": {"method": "exact_outcome", "min_cases": 200, "min_agreement": 0.99, "auto_promote": False},
             "tank_settings": ["HF_TOKEN", "HF_ORG", "HF_TRAIN_MAX_USD"],
-        }
-    return result
+    }
 
 
 async def _execute(args, region, *, deadline=None):
@@ -271,17 +283,22 @@ async def _execute(args, region, *, deadline=None):
             result = await run_nightly(store, region=region, only=[s.source_id for s in selected], live=True,
                                        deadline=deadline, **backends)
             await _scheduled_jobs(conn, result, region=region, deadline=deadline)
+        selected_ids = {source.source_id for source in selected}
         bad = [row["source_id"] for row in result.get("sources", [])
-               if row.get("last_status") not in {"ok", "not_configured", "deferred", None}]
+               if row["source_id"] in selected_ids
+               and row.get("last_status") not in {"ok", "not_configured", "deferred", None}]
         return {"ok": not bad and not result.get("failed_jobs"), "failed_sources": bad, "result": result}
 
 
 def parser():
     root = argparse.ArgumentParser(description=__doc__)
     sub = root.add_subparsers(dest="command", required=True)
-    for name in ["sample", "load", "nightly", *JOBS, "reconcile", "gold", "heartbeat", "erase-matter", "erase-tenant", "train"]:
+    for name in ["sample", "load", "nightly", *JOBS, "reconcile", "gold", "heartbeat", "erase-matter", "erase-tenant", "train", "saturday"]:
         command = sub.add_parser(name)
         command.set_defaults(source=None, temporary=False, text_only=False, matter=None)
+        command.add_argument("--dry-run", action="store_true", help="Run with disposable storage and offline fakes; never launch training")
+        if name == "saturday":
+            command.set_defaults(dry_run=True)
         command.add_argument("--receipt", type=Path, help="Write an operational JSON receipt; never contains credentials")
         if name in {"sample", "load", "nightly"}:
             command.add_argument("--source", action="append", help="Regional source ID; repeat to select sources")
@@ -294,7 +311,7 @@ def parser():
         if name == "erase-matter":
             command.add_argument("--matter", required=True)
         if name == "train":
-            command.add_argument("--founder", required=True, help="Existing Trigger sign-in founder user ID; verified by Tank")
+            command.add_argument("--founder", default="", help="Existing Trigger sign-in founder user ID; verified by Tank")
             command.add_argument("--minutes", default=120, type=int, choices=range(1, 241), metavar="1..240")
             action = command.add_mutually_exclusive_group()
             action.add_argument("--submit", action="store_true", help="Export dataset and start the cost-gated HF GPU job")

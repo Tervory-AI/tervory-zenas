@@ -44,12 +44,22 @@ def configure_chromium():
 
 def test_layout(stage):
     shutil.copytree(VENDOR, stage, dirs_exist_ok=True)
+    # Patch projections always read the immutable base, including when another
+    # proposed patch has been applied to the disposable verification copy.
+    (stage / 'vendor').mkdir(exist_ok=True)
+    (stage / 'vendor/tervory-tank').symlink_to(VENDOR, target_is_directory=True)
     for name in TRACKED:
         if name and (any(name == p or name.startswith(p + '/') for p in PATHS)
                      or name.startswith('tank-patches/') or name == 'scripts/zenas'):
             target = stage / name
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(ROOT / name, target)
+    # Test the proposed Workspace changes in the disposable verification copy.
+    # Neither the read-only Tank checkout nor the immutable vendor is patched.
+    gate4 = ROOT / 'tank-patches/gate4.patch'
+    if gate4.is_file():
+        run(['git', 'apply', '--check', gate4], cwd=stage)
+        run(['git', 'apply', gate4], cwd=stage)
     deps = CACHE / 'workspace'
     deps.mkdir(exist_ok=True)
     lock = (stage / 'workspace/package-lock.json').read_bytes()

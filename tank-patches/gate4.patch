@@ -1,0 +1,439 @@
+From 7174469d3454c1493f3c852109b930e1d02f0b7a Mon Sep 17 00:00:00 2001
+Subject: [PATCH] Zenas day-zero client views
+
+diff --git a/tank/training.py b/tank/training.py
+--- a/tank/training.py
++++ b/tank/training.py
+@@ -645,8 +645,9 @@
+         PLATFORM_TENANT,
+     ):
+         return {"status": "reconcile the previous training job"}
+-    if not os.environ.get("HF_TOKEN") or not os.environ.get("HF_ORG"):
+-        return {"status": "Hugging Face training is not configured"}
++    missing = [name for name in ("HF_TOKEN", "HF_ORG") if not os.environ.get(name)]
++    if missing:
++        return {"status": "Hugging Face training is not configured", "needs_settings": missing}
+     return None
+
+
+@@ -708,8 +709,9 @@
+ ) -> dict[str, Any]:
+     if not actor.founder:
+         raise HTTPException(403, "Founder access required")
+-    if not os.environ.get("HF_TOKEN") or not os.environ.get("HF_ORG"):
+-        return {"status": "Hugging Face training is not configured"}
++    missing = [name for name in ("HF_TOKEN", "HF_ORG") if not os.environ.get(name)]
++    if missing:
++        return {"status": "Hugging Face training is not configured", "needs_settings": missing}
+     return await _training_subprocess(
+         "--job-id", body.job_id, "--billed-usd", str(body.billed_usd),
+     )
+@@ -901,7 +903,8 @@
+ async def export_once(*, day: date | None = None) -> dict[str, Any]:
+     token, org = os.environ.get("HF_TOKEN", ""), os.environ.get("HF_ORG", "")
+     if not token or not org:
+-        return {"status": "skipped", "reason": "not configured"}
++        missing = [name for name in ("HF_TOKEN", "HF_ORG") if not os.environ.get(name)]
++        return {"status": "skipped", "reason": "not configured", "needs_settings": missing}
+     region = runtime().box_region()
+     if region not in ("us-east", "za"):
+         return {"status": "skipped", "reason": "unknown region"}
+diff --git a/tests/acceptance/zenas_review.cjs b/tests/acceptance/zenas_review.cjs
+--- a/tests/acceptance/zenas_review.cjs
++++ b/tests/acceptance/zenas_review.cjs
+@@ -36,7 +36,11 @@
+ (async () => {
+   const page = require(path.join(root, 'workspace/app/review/page.tsx')).default;
+   const html = renderToStaticMarkup(await page());
+-  assert(html.includes('Worked example'));
++  assert(!html.includes('Worked example'));
++  assert(!html.includes('2026-01-16'));
++  assert(html.includes('Waiting for review'));
++  assert(html.includes('Open a matter'));
++  assert(html.includes('0'));
+   assert(html.includes('/brand/zenas-on-dark.png'));
+   assert(html.includes('/brand/tervory-logo-reversed.png'));
+   assert(html.includes('Reviewer'));
+diff --git a/tests/test_zenas_review_console.py b/tests/test_zenas_review_console.py
+--- a/tests/test_zenas_review_console.py
++++ b/tests/test_zenas_review_console.py
+@@ -1,4 +1,4 @@
+-"""The review console shows one locked deadline, and only a reviewer can open it."""
++"""Locked deadline arithmetic remains tested; client review shows only real work."""
+ from __future__ import annotations
+
+ import json
+@@ -33,7 +33,9 @@
+     assert "United States" in example
+     assert "not a client matter" in example
+     assert "SOUTH AFRICA" not in console
+-    assert "WORKED_EXAMPLE" in console
++    assert "WORKED_EXAMPLE" in example
++    assert "WORKED_EXAMPLE" not in console
++    assert "worked-example-title" not in console
+     assert "requireReviewer" in page
+     assert "ReviewConsole" in page
+
+diff --git a/workspace/app/api/zenas/rules.ts b/workspace/app/api/zenas/rules.ts
+--- a/workspace/app/api/zenas/rules.ts
++++ b/workspace/app/api/zenas/rules.ts
+@@ -96,6 +96,16 @@
+ const REVIEW_MISSING = "The review queue is not on this server yet.";
+ const REVIEW_GENERIC = "The review queue could not be loaded.";
+
++const CONFIGURATION_SETTINGS = new Set(["DATABASE_URL", "TANK_REGION", "TANK_URL", "TANK_KEY", "ZENAS_PII_KEY", "CHASSIS_ADMIN_DATABASE_URL", "CHASSIS_RLS_ADMIN_ROLE"]);
++
++export function configurationNote(payload: unknown): string {
++  if (!payload || typeof payload !== "object") return "";
++  const row = payload as Record<string, unknown>;
++  const names = [row.needs_settings, row.invalid_settings].flatMap(value => Array.isArray(value) ? value : [])
++    .filter((name): name is string => typeof name === "string" && CONFIGURATION_SETTINGS.has(name));
++  return names.length ? "Missing setting: " + [...new Set(names)].join(", ") : "";
++}
++
+ /** A short reason from a refusal body. Secrets and long dumps stay hidden. */
+ export function statedReason(payload: unknown): string | null {
+   if (!payload || typeof payload !== "object") return null;
+@@ -110,6 +120,8 @@
+
+ /** 404 stays the not-yet message. A 403 shows the room's reason. Anything else stays generic. */
+ export function reviewRefusal(status: number, payload: unknown): string {
++  const configuration = configurationNote(payload);
++  if (configuration) return configuration;
+   if (status === 404) return REVIEW_MISSING;
+   if (status === 403) return statedReason(payload) ?? REVIEW_GENERIC;
+   return REVIEW_GENERIC;
+@@ -225,6 +237,8 @@
+
+ /** A refusal from the room, in plain English. Unknown reasons stay generic so nothing internal leaks. */
+ export function askRefusal(status: number, payload: unknown): AskReply {
++  const configuration = configurationNote(payload);
++  if (configuration) return { kind: "error", message: configuration };
+   const reason = statedReason(payload) ?? "";
+   if (reason === CRIMINAL_REFUSAL) {
+     return { kind: "refused", message: "Zenas does not do criminal law.", referral: "Ask a criminal lawyer in that jurisdiction." };
+diff --git a/workspace/app/matters/board.tsx b/workspace/app/matters/board.tsx
+--- a/workspace/app/matters/board.tsx
++++ b/workspace/app/matters/board.tsx
+@@ -65,7 +65,7 @@
+       </form>
+       {error && <p className="error">{error}</p>}
+       {note && <p className="note">{note}</p>}
+-      {initial.length === 0 && <p className="note">No matters yet.</p>}
++      {initial.length === 0 && <p className="note">0 · Open a matter</p>}
+       {initial.map((matter) => (
+         <article className="card" key={matter.id}>
+           <h2>{matter.title}</h2>
+diff --git a/workspace/app/matters/page.tsx b/workspace/app/matters/page.tsx
+--- a/workspace/app/matters/page.tsx
++++ b/workspace/app/matters/page.tsx
+@@ -1,5 +1,5 @@
+ import { currentTenant } from "@/lib/tenant";
+-import { presentMatters, type MatterRow } from "@/app/api/zenas/rules";
++import { configurationNote, presentMatters, type MatterRow } from "@/app/api/zenas/rules";
+ import { homeRegion, zenas } from "@/app/api/zenas/tank";
+ import { MatterBoard } from "./board";
+
+@@ -13,7 +13,7 @@
+     const res = await zenas(`matters?tenant_id=${tenantId}&home_region=${homeRegion()}`, { method: "GET" });
+     if (res.ok) matters = presentMatters(await res.json());
+     else if (res.status === 404) note = "The matters list is not on this server yet. You can still open one.";
+-    else note = "Matters could not be loaded.";
++    else note = configurationNote(await res.json().catch(() => null)) || "Matters could not be loaded.";
+   } catch {
+     note = "Matters could not be loaded.";
+   }
+diff --git a/workspace/app/moot/page.tsx b/workspace/app/moot/page.tsx
+--- a/workspace/app/moot/page.tsx
++++ b/workspace/app/moot/page.tsx
+@@ -29,7 +29,7 @@
+         {result.status === "unavailable" || result.status === "malformed" ? (
+           <p role="alert" data-moot-state={result.status}>Room unavailable</p>
+         ) : result.status === "empty" ? (
+-          <p>No published matches yet.</p>
++          <><p>No published matches yet.</p><ul><li>0 · <Link href="/zenas">Moot Court</Link></li></ul></>
+         ) : (
+           <ul>
+             {result.matches.map((row) => (
+diff --git a/workspace/app/review/console.tsx b/workspace/app/review/console.tsx
+--- a/workspace/app/review/console.tsx
++++ b/workspace/app/review/console.tsx
+@@ -4,7 +4,6 @@
+ import { useState } from "react";
+ import type { ReviewItem } from "@/app/api/zenas/rules";
+ import { ReviewDesk } from "./desk";
+-import { WORKED_EXAMPLE } from "./example";
+
+ const TOP_LINKS = [
+   { href: "https://app.tervory.com/", label: "Dashboard" },
+@@ -38,7 +37,6 @@
+   const [menu, setMenu] = useState(false);
+   const name = account.trim() || "Your account";
+   const initial = name.slice(0, 1).toUpperCase();
+-  const example = WORKED_EXAMPLE;
+
+   return (
+     <div className="zr-app">
+@@ -88,15 +86,15 @@
+             <div className="zr-side-head">
+               <p className="zr-kicker">AREAS OF LAW</p>
+             </div>
+-            <p className="zr-item">No areas of law yet.</p>
++            <p className="zr-item">0 · <Link href="/matters">Open a matter</Link></p>
+             <div className="zr-side-head">
+               <p className="zr-kicker">DIARY</p>
+             </div>
+-            <p className="zr-item">No diary entries yet.</p>
++            <p className="zr-item">0 · <Link href="/matters">Open a matter</Link></p>
+             <div className="zr-side-head">
+               <p className="zr-kicker">UPCOMING COURT DATES</p>
+             </div>
+-            <p className="zr-item">No court dates yet.</p>
++            <p className="zr-item">0 · <Link href="/matters">Open a matter</Link></p>
+           </div>
+         </div>
+         <div className="zr-panel-foot">
+@@ -117,23 +115,6 @@
+           <p className="lede">Read a draft beside its sources. Approve it or send it back. Your name, admission number, and changes are recorded.</p>
+           <p className="meta">Signed in as {reviewer}</p>
+         </header>
+-        <article className="zr-card" aria-labelledby="worked-example-title">
+-          <p className="zr-chip">{example.label}</p>
+-          <h2 id="worked-example-title">{example.title}</h2>
+-          <p className="meta">{example.jurisdictionLabel} · trigger {example.trigger} · {example.days} days</p>
+-          <p className="zr-kicker-date">Deadline</p>
+-          <p className="zr-date">{example.deadline}</p>
+-          <p>{example.reading}</p>
+-          <p className="note">{example.note}</p>
+-          <ol className="zr-steps">
+-            {example.steps.map((step) => (
+-              <li key={step.rule}>
+-                <span className="meta">{step.rule}</span>
+-                <span>{step.text}</span>
+-              </li>
+-            ))}
+-          </ol>
+-        </article>
+         <ReviewDesk items={items} note={note} />
+         <p className="fine">Zenas prepares drafts and research for review by a licensed lawyer.</p>
+       </div>
+diff --git a/workspace/app/review/desk.tsx b/workspace/app/review/desk.tsx
+--- a/workspace/app/review/desk.tsx
++++ b/workspace/app/review/desk.tsx
+@@ -1,4 +1,6 @@
+ "use client";
++
++import Link from "next/link";
+
+ import { useRouter } from "next/navigation";
+ import { useState } from "react";
+@@ -69,7 +71,7 @@
+       {note && <p className="note">{note}</p>}
+       {confirm && <p className="confirm">{confirm}</p>}
+       {error && <p className="error">{error}</p>}
+-      {items.length === 0 && !note && <p className="note">Nothing is waiting in your jurisdictions.</p>}
++      {items.length === 0 && !note && <p className="note">0 · <Link href="/matters">Open a matter</Link></p>}
+       {items.map((item) => (
+         <article className="zr-item-card" key={item.documentId}>
+           <h3>{item.title}</h3>
+diff --git a/workspace/app/zenas/deadlines-panel.tsx b/workspace/app/zenas/deadlines-panel.tsx
+--- a/workspace/app/zenas/deadlines-panel.tsx
++++ b/workspace/app/zenas/deadlines-panel.tsx
+@@ -1,3 +1,4 @@
++import Link from "next/link";
+ import { DEADLINE_ALERTS, DEADLINE_NOTE, DEADLINE_ROWS } from "./frame";
+
+ /** Deadlines column: Upcoming, then Alerts. Dates appear only when a matter has them. */
+@@ -17,7 +18,7 @@
+             <p>Next 30 days</p>
+           </header>
+           <ul>
+-            {DEADLINE_ROWS.length === 0 ? <li>No matters yet.</li> : DEADLINE_ROWS.map((row, index) => (
++            {DEADLINE_ROWS.length === 0 ? <li>0 · <Link href="/matters">Open a matter</Link></li> : DEADLINE_ROWS.map((row, index) => (
+               <li className={index === 0 ? "soon" : ""} key={`${row.title}-${index}`}>
+                 <strong>{row.title}</strong>
+                 <span>{row.meta}</span>
+@@ -29,7 +30,7 @@
+         <article className="zn-card zn-alerts">
+           <h2>Alerts</h2>
+           <ul>
+-            {DEADLINE_ALERTS.map((alert) => (
++            {DEADLINE_ROWS.length === 0 ? <li>0 · <Link href="/matters">Open a matter</Link></li> : DEADLINE_ALERTS.map((alert) => (
+               <li key={alert.title}>
+                 <strong>{alert.title}</strong>
+                 <span>{alert.detail}</span>
+diff --git a/workspace/app/zenas/feeds/board.tsx b/workspace/app/zenas/feeds/board.tsx
+--- a/workspace/app/zenas/feeds/board.tsx
++++ b/workspace/app/zenas/feeds/board.tsx
+@@ -257,7 +257,8 @@
+       </p>
+       <h2>Test scores</h2>
+       <p className="note">LegalBench rows are a code baseline, not a model score.</p>
+-      {scores.length === 0 ? <p>No scores yet.</p> : (
++      {scores.length === 0 ? <p>No scores yet. Load now · Convert cases</p> : null}
++      {(
+         <div className="zf-scroll">
+         <table>
+           <thead>
+@@ -272,7 +273,7 @@
+             </tr>
+           </thead>
+           <tbody>
+-            {scores.map((row) => (
++            {scores.length === 0 ? <tr><td>—</td><td>—</td><td>0</td><td>—</td><td>—</td><td>—</td><td>—</td></tr> : scores.map((row) => (
+               <tr key={`${row.kind}-${row.area}-${row.set}`}>
+                 <td>{row.area || row.jurisdiction}</td>
+                 <td>{row.error ? "error" : row.label || row.set || row.kind}</td>
+@@ -281,10 +282,10 @@
+                   <td colSpan={4}>{row.reason}</td>
+                 ) : (
+                   <>
+-                    <td className="meta">{row.outcome_agreement}%</td>
+-                    <td className="meta">{row.element_agreement}%</td>
+-                    <td className="meta">{row.citations_valid}%</td>
+-                    <td className="meta">{row.cost_per_case}</td>
++                    <td className="meta">{row.cases > 0 ? `${row.outcome_agreement}%` : "—"}</td>
++                    <td className="meta">{row.cases > 0 ? `${row.element_agreement}%` : "—"}</td>
++                    <td className="meta">{row.cases > 0 ? `${row.citations_valid}%` : "—"}</td>
++                    <td className="meta">{row.cases > 0 ? row.cost_per_case : "—"}</td>
+                   </>
+                 )}
+               </tr>
+@@ -294,6 +295,7 @@
+         </div>
+       )}
+       <h2>Sources</h2>
++      {sources.length === 0 ? <p className="note">Load now</p> : null}
+       <div className="zf-scroll">
+       <table>
+         <thead>
+@@ -307,7 +309,7 @@
+           </tr>
+         </thead>
+         <tbody>
+-          {sources.map((row) => (
++          {sources.length === 0 ? <tr><td>—</td><td>0</td><td>—</td><td>—</td><td>—</td><td>Load now</td></tr> : sources.map((row) => (
+             <tr key={row.id}>
+               <td>{row.title}</td>
+               <td className="meta">{row.documents}</td>
+diff --git a/workspace/app/zenas/feeds/page.tsx b/workspace/app/zenas/feeds/page.tsx
+--- a/workspace/app/zenas/feeds/page.tsx
++++ b/workspace/app/zenas/feeds/page.tsx
+@@ -1,3 +1,4 @@
++import { configurationNote } from "@/app/api/zenas/rules";
+ import { auth } from "@/lib/trigger-signin";
+ import Link from "next/link";
+ import { notFound } from "next/navigation";
+@@ -25,7 +26,7 @@
+     const feeds = await zenasIn(region, `pool/status?home_region=${region}`, { method: "GET" });
+     if (!feeds) note = "That box is not connected.";
+     else if (feeds.ok) sources = publicFeeds(await feeds.json()).sources;
+-    else note = "Feeds could not be loaded.";
++    else note = configurationNote(await feeds.json().catch(() => null)) || "Feeds could not be loaded.";
+   } catch {
+     note = "Feeds could not be loaded.";
+   }
+diff --git a/workspace/app/zenas/moot-court.tsx b/workspace/app/zenas/moot-court.tsx
+--- a/workspace/app/zenas/moot-court.tsx
++++ b/workspace/app/zenas/moot-court.tsx
+@@ -266,7 +266,7 @@
+           {operator && fairness.status !== "incomplete" && <button className="zn-outline" onClick={() => selectHearing(fairness.first_hearing === hearing?.id ? fairness.second_hearing : fairness.first_hearing)}>View other hearing</button>}
+           {operator && fairness.status === "incomplete" && hearing?.id === fairness.first_hearing && <button className="zn-outline" disabled={busy} onClick={() => { swappedStart.current = null; void startSwapped(); }}>Run swapped seats</button>}
+         </section>}
+-        {!hearing?.ruling ? <p>{MOOT_PARTS[2].empty}</p> : <><h3>{hearing.ruling.order}</h3><ol>{hearing.ruling.reasons.map((r, i) => <li key={i}>{r}</li>)}</ol><h3>What the court actually held</h3><p>{hearing.reveal ?? "The original holding will be revealed after both hearings close."}</p>
++        {!hearing?.ruling ? <><p>{MOOT_PARTS[2].empty}</p><p>Cost: —</p><p>{MOOT_PARTS[0].empty}</p></> : <><h3>{hearing.ruling.order}</h3><ol>{hearing.ruling.reasons.map((r, i) => <li key={i}>{r}</li>)}</ol><h3>What the court actually held</h3><p>{hearing.reveal ?? "The original holding will be revealed after both hearings close."}</p>
+           <p>Cost: {hearing.cost_usd === null ? "unavailable" : `$${hearing.cost_usd.toFixed(6)}`}</p>
+           {operator && !hearing.published && <button className="zn-primary" disabled={busy || Boolean(hearing.fairness_pair_id && (!fairness || fairness.status === "incomplete"))} onClick={() => void command("publish")}>{hearing.fairness_pair_id ? "Publish paired hearings" : "Publish"}</button>}
+           {hearing.published && <a href={`/moot/${hearing.id}${hearing.region === "za" ? "?region=za" : ""}`}>Public watch page</a>}
+diff --git a/workspace/app/zenas/page.tsx b/workspace/app/zenas/page.tsx
+--- a/workspace/app/zenas/page.tsx
++++ b/workspace/app/zenas/page.tsx
+@@ -55,7 +55,7 @@
+       const runs = res && res.ok ? publicScores(await res.json()).runs : [];
+       const hold = runs.filter((row) => row.kind === "holdout" && !(row.area || "").startsWith("Made-up"));
+       const top = hold[0];
+-      founderLine = top
++      founderLine = top && top.cases > 0
+         ? `Test scores: ${top.outcome_agreement}% outcome, ${top.cases} cases`
+         : "Test scores";
+     }
+diff --git a/workspace/app/zenas/view.tsx b/workspace/app/zenas/view.tsx
+--- a/workspace/app/zenas/view.tsx
++++ b/workspace/app/zenas/view.tsx
+@@ -63,7 +63,7 @@
+   const [asked, setAsked] = useState<string | null>(null);
+   const [reply, setReply] = useState<AskReply | null>(null);
+   const [asking, setAsking] = useState(false);
+-  const [messages, setMessages] = useState(0);
++  const messages = Number(Boolean(asked)) + Number(Boolean(reply));
+   const [attached, setAttached] = useState<string | null>(null);
+   const [actionNote, setActionNote] = useState("");
+   const [section, setSection] = useState<"chats" | "moot" | "deadlines">("chats");
+@@ -180,7 +180,6 @@
+     setAsked(text);
+     setReply(null);
+     setAsking(true);
+-    setMessages((count) => count + 2);
+     setActionNote("");
+     if (askRef.current) askRef.current.value = "";
+     try {
+@@ -275,13 +274,13 @@
+           <div className="zn-side-head">
+             <p className="zn-kicker">DIARY</p>
+           </div>
+-          <p className="zn-empty">No matters yet.</p>
++          <p className="zn-empty">0 · <Link href="/matters">Open a matter</Link></p>
+         </section>
+         <section className="zn-side" aria-label="Upcoming court dates">
+           <div className="zn-side-head">
+             <p className="zn-kicker">UPCOMING COURT DATES</p>
+           </div>
+-          <p className="zn-empty">No matters yet.</p>
++          <p className="zn-empty">0 · <Link href="/matters">Open a matter</Link></p>
+         </section>
+         <div className="zn-spacer" />
+         </div>
+@@ -370,7 +369,7 @@
+                     </section>
+                   );
+                 })}
+-                {hits.length === 0 ? <p className="zn-empty">{query.trim() ? "No records match that search." : "No matters yet."}</p> : null}
++                {hits.length === 0 ? <p className="zn-empty">{query.trim() ? "No records match that search." : "No matters yet."} · <Link href="/matters">Open a matter</Link></p> : null}
+                 <p className="zn-results-foot">
+                   Enter to see all {hits.length} results · ↑↓ to move · Searches matters, drafts, documents, citations and review in Zenas only.
+                 </p>
+@@ -452,7 +451,7 @@
+                 </article>
+               </>
+             ) : (
+-              <p className="zn-empty">No matters yet.</p>
++              <p className="zn-empty">0 · <Link href="/matters">Open a matter</Link></p>
+             )}
+           </div>
+           <form className="zn-composer" onSubmit={onAsk}>
+@@ -484,7 +483,7 @@
+               <h2>Recent matters</h2>
+               <Link href="/matters">View all</Link>
+             </header>
+-            {MATTER_ROWS === 0 ? <p className="zn-empty">No matters yet.</p> : null}
++            {MATTER_ROWS === 0 ? <p className="zn-empty">0 · <Link href="/matters">Open a matter</Link></p> : null}
+           </article>
+           <div className="zn-work-side">
+             <article className="zn-card">
+@@ -492,14 +491,14 @@
+                 <h2>Review</h2>
+                 <Link href="/review">View all</Link>
+               </header>
+-              {REVIEW_ROWS === 0 ? <p className="zn-empty">No matters yet.</p> : null}
++              {REVIEW_ROWS === 0 ? <p className="zn-empty">0 · <Link href="/matters">Open a matter</Link></p> : null}
+             </article>
+             <article className="zn-card">
+               <header>
+                 <h2>Deadlines</h2>
+                 <button type="button" onClick={showDeadlines}>View all</button>
+               </header>
+-              {DEADLINE_ROWS.length === 0 ? <p className="zn-empty">No matters yet.</p> : null}
++              {DEADLINE_ROWS.length === 0 ? <p className="zn-empty">0 · <Link href="/matters">Open a matter</Link></p> : null}
+             </article>
+           </div>
+         </section>

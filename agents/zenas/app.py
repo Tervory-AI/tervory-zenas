@@ -6,10 +6,12 @@ import logging
 import hmac
 import os
 import sys
-from contextlib import asynccontextmanager
+from contextlib import AsyncExitStack, asynccontextmanager
 from pathlib import Path
 from typing import Any
 from uuid import UUID
+
+from asyncpg import PostgresError
 
 _HERE = Path(__file__).resolve().parent
 if (_HERE / "agents" / "zenas" / "pool").is_dir():
@@ -303,7 +305,22 @@ _inner_lifespan = app.router.lifespan_context
 @asynccontextmanager
 async def _room_lifespan(application):
     """After the chassis pool is up, bind law_pool and mark cut-off loads."""
-    async with _inner_lifespan(application):
+    from agents.zenas.core.configuration import room_readiness
+
+    application.state.configuration = room_readiness()
+    if not application.state.configuration["ok"]:
+        yield
+        return
+    async with AsyncExitStack() as stack:
+        try:
+            await stack.enter_async_context(_inner_lifespan(application))
+        except (OSError, RuntimeError, ValueError, PostgresError) as exc:
+            application.state.configuration = {
+                "ok": False, "needs_settings": [], "invalid_settings": ["DATABASE_URL"],
+                "error_type": type(exc).__name__,
+            }
+            yield
+            return
         raw = os.environ.get("TANK_REGION", "").strip().lower()
         try:
             region = assert_box_region(raw or None)
@@ -320,6 +337,16 @@ async def _room_lifespan(application):
 
 
 app.router.lifespan_context = _room_lifespan
+
+
+@app.middleware("http")
+async def configuration_guard(request, call_next):
+    from starlette.responses import JSONResponse
+
+    configuration = getattr(app.state, "configuration", None)
+    if configuration is not None and not configuration["ok"]:
+        return JSONResponse(configuration, status_code=503)
+    return await call_next(request)
 
 
 @app.post("/consents", status_code=201)

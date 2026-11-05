@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 from datetime import datetime, timezone
 from typing import Any
@@ -109,10 +110,10 @@ async def run_daily(
     now: datetime | None = None,
     transport: Any = None,
     recipient: str | None = None,
-) -> dict[str, int]:
+) -> dict[str, Any]:
     """One regional job. A bad source never commits a partial snapshot or stops others."""
     now = now or datetime.now(timezone.utc)
-    counts = dict(changes=0, summarized=0, sent=0, unavailable=0, not_configured=0)
+    counts: dict[str, Any] = dict(changes=0, summarized=0, sent=0, unavailable=0, not_configured=0)
     async with store.daily_lock() as locked:
         if not locked:
             return counts
@@ -134,8 +135,11 @@ async def run_daily(
                     counts["changes"] += await store.record_snapshot(
                         tenant, watch["id"], rows, now
                     )
-                except FetchNotConfigured:
+                except FetchNotConfigured as exc:
                     counts["not_configured"] += 1
+                    names = [name for name in ("LEGISCAN_API_KEY", "LAWS_AFRICA_API_TOKEN") if name in str(exc)]
+                    if names:
+                        counts["needs_settings"] = sorted(set(counts.get("needs_settings", [])) | set(names))
                 except Exception:
                     counts["unavailable"] += (
                         1  # Never log source body, query, key or exception text.
@@ -181,6 +185,10 @@ async def run_daily(
                     namespace="zenas",
                 )
                 counts["sent"] += result.get("sent", 0)
+                if result.get("mail") == "not_configured":
+                    names = [name for name in ("ZENAS_SMTP_HOST", "ZENAS_SMTP_FROM", "ZENAS_SMTP_ALERT_ADDRESSES")
+                             if not os.environ.get(name)] or ["ZENAS_SMTP_ALERT_ADDRESSES"]
+                    counts["needs_settings"] = sorted(set(counts.get("needs_settings", [])) | set(names))
                 if result.get("mail") == "not_configured" or not any(
                     result.get(k, 0)
                     for k in ("sent", "pending", "uncertain", "suppressed")
@@ -189,7 +197,7 @@ async def run_daily(
     return counts
 
 
-async def run_scheduled(conn: Any, *, region: str) -> dict[str, int]:
+async def run_scheduled(conn: Any, *, region: str) -> dict[str, Any]:
     """Called by the existing 02:00 regional pool task, after completed source loads."""
     import os
     import httpx
