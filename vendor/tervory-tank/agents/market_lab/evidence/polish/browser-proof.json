@@ -1,0 +1,39 @@
+{
+  "label": "local, fixture page",
+  "question": "What is the latest container volume?",
+  "widths": [
+    1440,
+    375
+  ],
+  "screenshots": [
+    "brief-1440.png",
+    "source-page-1-1440.png",
+    "source-page-2-1440.png",
+    "earlier-citation-1440.png",
+    "brief-375.png",
+    "source-page-1-375.png",
+    "source-page-2-375.png",
+    "earlier-citation-375.png"
+  ],
+  "browserErrors": [],
+  "externalRequests": [],
+  "fact": {
+    "text": "Container volume, Port of Los Angeles: 14,474 20-foot container units (Jan 2026).",
+    "href": "/market-lab/sources/184c9e2f-f918-4eb5-a75e-91732fe87f21?row=66#point-66",
+    "name": "Port of Los Angeles container volume"
+  },
+  "title": "Market Lab · Tervory",
+  "pageSizes": [
+    50,
+    17
+  ],
+  "firstPeriod": "Jan 2026",
+  "lastPeriod": "Jan 1960",
+  "currentValue": "14,474",
+  "oldCitation": {
+    "href": "/market-lab/sources/184c9e2f-f918-4eb5-a75e-91732fe87f21?row=0#point-0",
+    "page": 2,
+    "period": "Jan 1960"
+  },
+  "result": "passed"
+}

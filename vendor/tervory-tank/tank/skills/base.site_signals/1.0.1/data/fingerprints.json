@@ -1,0 +1,2210 @@
+[
+  {
+    "name": "Google Analytics 4",
+    "categories": [
+      "analytics"
+    ],
+    "website": "https://marketingplatform.google.com/about/analytics/",
+    "scriptSrc": [
+      {
+        "re": "googletagmanager\\.com/gtag/js\\?id=(G-[A-Z0-9]+)",
+        "id": "$1",
+        "caseSensitive": true
+      }
+    ],
+    "html": [
+      {
+        "re": "\\b(G-[A-Z0-9]{9,12})\\b",
+        "id": "$1",
+        "caseSensitive": true,
+        "note": "GA4 measurement ID"
+      }
+    ],
+    "js": {
+      "gtag": "",
+      "dataLayer": ""
+    },
+    "requestHost": [
+      "(?:www\\.)?google-analytics\\.com",
+      "analytics\\.google\\.com"
+    ],
+    "implies": [
+      "Google Tag Manager"
+    ]
+  },
+  {
+    "name": "Universal Analytics",
+    "categories": [
+      "analytics"
+    ],
+    "website": "https://support.google.com/analytics/answer/10089681",
+    "scriptSrc": [
+      "google-analytics\\.com/(?:analytics|ga)\\.js"
+    ],
+    "html": [
+      {
+        "re": "\\b(UA-\\d{4,10}-\\d{1,4})\\b",
+        "id": "$1",
+        "caseSensitive": true
+      }
+    ]
+  },
+  {
+    "name": "Google Tag Manager",
+    "categories": [
+      "tag-manager"
+    ],
+    "website": "https://tagmanager.google.com",
+    "scriptSrc": [
+      "googletagmanager\\.com/gtm\\.js",
+      "googletagmanager\\.com/gtag/js"
+    ],
+    "html": [
+      {
+        "re": "\\b(GTM-[A-Z0-9]{6,10})\\b",
+        "id": "$1",
+        "caseSensitive": true,
+        "note": "GTM container ID"
+      }
+    ],
+    "js": {
+      "google_tag_manager": "",
+      "dataLayer": ""
+    }
+  },
+  {
+    "name": "Stape",
+    "categories": [
+      "tag-manager"
+    ],
+    "website": "https://stape.io",
+    "scriptSrc": [
+      "stape\\.io",
+      "stapetag"
+    ],
+    "requestHost": [
+      "\\.stape\\.io"
+    ],
+    "description": "Server-side Google Tag Manager hosting",
+    "implies": [
+      "Google Tag Manager"
+    ]
+  },
+  {
+    "name": "Plausible Analytics",
+    "categories": [
+      "analytics"
+    ],
+    "website": "https://plausible.io",
+    "scriptSrc": [
+      "plausible\\.io/js/",
+      "plausible(?:\\.outbound-links)?\\.js"
+    ],
+    "requestHost": [
+      "plausible\\.io"
+    ]
+  },
+  {
+    "name": "Fathom Analytics",
+    "categories": [
+      "analytics"
+    ],
+    "website": "https://usefathom.com",
+    "scriptSrc": [
+      "cdn\\.usefathom\\.com"
+    ],
+    "js": {
+      "fathom": ""
+    }
+  },
+  {
+    "name": "Umami",
+    "categories": [
+      "analytics"
+    ],
+    "website": "https://umami.is",
+    "scriptSrc": [
+      "umami.*?/script\\.js",
+      "cloud\\.umami\\.is"
+    ],
+    "html": [
+      "data-website-id"
+    ]
+  },
+  {
+    "name": "Matomo",
+    "categories": [
+      "analytics"
+    ],
+    "website": "https://matomo.org",
+    "scriptSrc": [
+      "matomo\\.js",
+      "piwik\\.js"
+    ],
+    "js": {
+      "_paq": "",
+      "Matomo": ""
+    }
+  },
+  {
+    "name": "PostHog",
+    "categories": [
+      "product-analytics",
+      "feature-flags"
+    ],
+    "website": "https://posthog.com",
+    "scriptSrc": [
+      "posthog\\.com/static/array\\.js",
+      "posthog-js"
+    ],
+    "js": {
+      "posthog": ""
+    },
+    "requestHost": [
+      "(?:app|us|eu)\\.posthog\\.com",
+      "\\.i\\.posthog\\.com"
+    ],
+    "npmDep": [
+      "^posthog-js$"
+    ]
+  },
+  {
+    "name": "Mixpanel",
+    "categories": [
+      "product-analytics"
+    ],
+    "website": "https://mixpanel.com",
+    "scriptSrc": [
+      "cdn\\.mxpnl\\.com",
+      "cdn\\d?\\.mixpanel\\.com"
+    ],
+    "js": {
+      "mixpanel": ""
+    },
+    "requestHost": [
+      "api(?:-js)?\\.mixpanel\\.com"
+    ]
+  },
+  {
+    "name": "Amplitude",
+    "categories": [
+      "product-analytics"
+    ],
+    "website": "https://amplitude.com",
+    "scriptSrc": [
+      "cdn\\.amplitude\\.com",
+      "cdn\\.eu\\.amplitude\\.com"
+    ],
+    "js": {
+      "amplitude": ""
+    },
+    "requestHost": [
+      "api\\d?\\.amplitude\\.com"
+    ]
+  },
+  {
+    "name": "Heap",
+    "categories": [
+      "product-analytics"
+    ],
+    "website": "https://www.heap.io",
+    "scriptSrc": [
+      "cdn\\.heapanalytics\\.com",
+      "cdn\\d?\\.heap\\.io"
+    ],
+    "js": {
+      "heap": ""
+    }
+  },
+  {
+    "name": "Segment",
+    "categories": [
+      "analytics",
+      "tag-manager"
+    ],
+    "website": "https://segment.com",
+    "scriptSrc": [
+      "cdn\\.segment\\.com/analytics\\.js"
+    ],
+    "js": {
+      "analytics.SNIPPET_VERSION": {
+        "re": "([\\d.]+)",
+        "version": "$1"
+      }
+    },
+    "requestHost": [
+      "api\\.segment\\.io"
+    ]
+  },
+  {
+    "name": "RudderStack",
+    "categories": [
+      "analytics",
+      "tag-manager"
+    ],
+    "website": "https://www.rudderstack.com",
+    "scriptSrc": [
+      "rudderlabs\\.com",
+      "rudder-analytics"
+    ],
+    "js": {
+      "rudderanalytics": ""
+    }
+  },
+  {
+    "name": "Snowplow",
+    "categories": [
+      "analytics"
+    ],
+    "website": "https://snowplow.io",
+    "scriptSrc": [
+      {
+        "re": "@snowplow/javascript-tracker@([\\d.]+)",
+        "version": "$1"
+      },
+      "sp(?:\\.min)?\\.js"
+    ],
+    "js": {
+      "snowplow": ""
+    },
+    "npmDep": [
+      "^@snowplow/"
+    ]
+  },
+  {
+    "name": "Microsoft Clarity",
+    "categories": [
+      "analytics"
+    ],
+    "website": "https://clarity.microsoft.com",
+    "scriptSrc": [
+      {
+        "re": "clarity\\.ms/tag/([a-z0-9]+)",
+        "id": "$1"
+      }
+    ],
+    "js": {
+      "clarity": ""
+    },
+    "requestHost": [
+      "\\.clarity\\.ms"
+    ]
+  },
+  {
+    "name": "Hotjar",
+    "categories": [
+      "analytics"
+    ],
+    "website": "https://www.hotjar.com",
+    "scriptSrc": [
+      "static\\.hotjar\\.com",
+      "script\\.hotjar\\.com"
+    ],
+    "js": {
+      "hj": "",
+      "_hjSettings": ""
+    }
+  },
+  {
+    "name": "FullStory",
+    "categories": [
+      "analytics"
+    ],
+    "website": "https://www.fullstory.com",
+    "scriptSrc": [
+      "fullstory\\.com/s/fs\\.js",
+      "edge\\.fullstory\\.com"
+    ],
+    "js": {
+      "FS": "",
+      "_fs_namespace": ""
+    }
+  },
+  {
+    "name": "LogRocket",
+    "categories": [
+      "analytics",
+      "error-tracking"
+    ],
+    "website": "https://logrocket.com",
+    "scriptSrc": [
+      "cdn\\.log(?:rocket|r)\\.io",
+      "cdn\\.lr-"
+    ],
+    "js": {
+      "LogRocket": ""
+    },
+    "npmDep": [
+      "^logrocket$"
+    ]
+  },
+  {
+    "name": "Smartlook",
+    "categories": [
+      "analytics"
+    ],
+    "website": "https://www.smartlook.com",
+    "scriptSrc": [
+      "web-sdk\\.smartlook\\.com",
+      "rec\\.smartlook\\.com"
+    ],
+    "js": {
+      "smartlook": ""
+    }
+  },
+  {
+    "name": "Vercel Analytics",
+    "categories": [
+      "analytics"
+    ],
+    "website": "https://vercel.com/analytics",
+    "scriptSrc": [
+      "/_vercel/insights/script\\.js",
+      "/_vercel/speed-insights/script\\.js"
+    ],
+    "npmDep": [
+      "^@vercel/analytics$",
+      "^@vercel/speed-insights$"
+    ]
+  },
+  {
+    "name": "Cloudflare Web Analytics",
+    "categories": [
+      "analytics"
+    ],
+    "website": "https://www.cloudflare.com/web-analytics/",
+    "scriptSrc": [
+      "static\\.cloudflareinsights\\.com/beacon"
+    ]
+  },
+  {
+    "name": "Adobe Analytics",
+    "categories": [
+      "analytics"
+    ],
+    "website": "https://business.adobe.com/products/analytics/adobe-analytics.html",
+    "scriptSrc": [
+      "AppMeasurement\\.js",
+      "assets\\.adobedtm\\.com"
+    ],
+    "js": {
+      "s_c_il": "",
+      "AppMeasurement": ""
+    }
+  },
+  {
+    "name": "Pirsch",
+    "categories": [
+      "analytics"
+    ],
+    "website": "https://pirsch.io",
+    "scriptSrc": [
+      "api\\.pirsch\\.io/pirsch"
+    ]
+  },
+  {
+    "name": "GoatCounter",
+    "categories": [
+      "analytics"
+    ],
+    "website": "https://www.goatcounter.com",
+    "scriptSrc": [
+      "gc\\.zgo\\.at/count\\.js"
+    ]
+  },
+  {
+    "name": "Simple Analytics",
+    "categories": [
+      "analytics"
+    ],
+    "website": "https://www.simpleanalytics.com",
+    "scriptSrc": [
+      "scripts\\.simpleanalyticscdn\\.com"
+    ]
+  },
+  {
+    "name": "Stripe",
+    "categories": [
+      "payment"
+    ],
+    "website": "https://stripe.com",
+    "scriptSrc": [
+      "js\\.stripe\\.com"
+    ],
+    "js": {
+      "Stripe": ""
+    },
+    "requestHost": [
+      "js\\.stripe\\.com",
+      "api\\.stripe\\.com",
+      "m\\.stripe\\.(?:com|network)"
+    ],
+    "npmDep": [
+      "^@stripe/"
+    ]
+  },
+  {
+    "name": "PayPal",
+    "categories": [
+      "payment"
+    ],
+    "website": "https://www.paypal.com",
+    "scriptSrc": [
+      "www\\.paypal(?:objects)?\\.com/(?:sdk|api)"
+    ],
+    "js": {
+      "paypal": ""
+    },
+    "requestHost": [
+      "\\.paypal\\.com",
+      "paypalobjects\\.com"
+    ]
+  },
+  {
+    "name": "Braintree",
+    "categories": [
+      "payment"
+    ],
+    "website": "https://www.braintreepayments.com",
+    "scriptSrc": [
+      "js\\.braintreegateway\\.com"
+    ],
+    "js": {
+      "braintree": ""
+    }
+  },
+  {
+    "name": "Adyen",
+    "categories": [
+      "payment"
+    ],
+    "website": "https://www.adyen.com",
+    "scriptSrc": [
+      "checkoutshopper-(?:live|test)\\.adyen\\.com"
+    ],
+    "js": {
+      "AdyenCheckout": ""
+    }
+  },
+  {
+    "name": "Checkout.com",
+    "categories": [
+      "payment"
+    ],
+    "website": "https://www.checkout.com",
+    "scriptSrc": [
+      "cdn\\.checkout\\.com",
+      "js\\.checkout\\.com"
+    ]
+  },
+  {
+    "name": "Square",
+    "categories": [
+      "payment"
+    ],
+    "website": "https://squareup.com",
+    "scriptSrc": [
+      "(?:web|js)\\.squarecdn\\.com",
+      "js\\.squareup\\.com"
+    ]
+  },
+  {
+    "name": "Razorpay",
+    "categories": [
+      "payment"
+    ],
+    "website": "https://razorpay.com",
+    "scriptSrc": [
+      "checkout\\.razorpay\\.com"
+    ],
+    "js": {
+      "Razorpay": ""
+    }
+  },
+  {
+    "name": "GoKwik",
+    "categories": [
+      "payment"
+    ],
+    "website": "https://www.gokwik.co",
+    "scriptSrc": [
+      "(?:pdp|sdk|api)\\.gokwik\\.co"
+    ],
+    "requestHost": [
+      "\\.gokwik\\.co"
+    ],
+    "js": {
+      "gokwikSdk": ""
+    },
+    "description": "Kwik Checkout, one-click checkout for Indian ecommerce"
+  },
+  {
+    "name": "Cashfree",
+    "categories": [
+      "payment"
+    ],
+    "website": "https://www.cashfree.com",
+    "scriptSrc": [
+      "sdk\\.cashfree\\.com"
+    ]
+  },
+  {
+    "name": "PhonePe",
+    "categories": [
+      "payment"
+    ],
+    "website": "https://www.phonepe.com",
+    "scriptSrc": [
+      "mercury\\.phonepe\\.com"
+    ]
+  },
+  {
+    "name": "Paytm",
+    "categories": [
+      "payment"
+    ],
+    "website": "https://paytm.com",
+    "scriptSrc": [
+      "secure\\.paytm(?:gateway)?\\.in"
+    ]
+  },
+  {
+    "name": "Klarna",
+    "categories": [
+      "payment"
+    ],
+    "website": "https://www.klarna.com",
+    "scriptSrc": [
+      "(?:x|js|eu-library)\\.klarnacdn\\.net",
+      "klarna(?:services)?\\.com"
+    ],
+    "js": {
+      "Klarna": ""
+    }
+  },
+  {
+    "name": "Afterpay",
+    "categories": [
+      "payment"
+    ],
+    "website": "https://www.afterpay.com",
+    "scriptSrc": [
+      "static\\.afterpay\\.com",
+      "js\\.afterpay\\.com"
+    ]
+  },
+  {
+    "name": "Affirm",
+    "categories": [
+      "payment"
+    ],
+    "website": "https://www.affirm.com",
+    "scriptSrc": [
+      "cdn\\d?\\.affirm\\.com"
+    ],
+    "js": {
+      "affirm": ""
+    }
+  },
+  {
+    "name": "Paddle",
+    "categories": [
+      "payment",
+      "subscription"
+    ],
+    "website": "https://www.paddle.com",
+    "scriptSrc": [
+      "cdn\\.paddle\\.com"
+    ],
+    "js": {
+      "Paddle": ""
+    }
+  },
+  {
+    "name": "Lemon Squeezy",
+    "categories": [
+      "payment",
+      "subscription"
+    ],
+    "website": "https://www.lemonsqueezy.com",
+    "scriptSrc": [
+      "assets\\.lemonsqueezy\\.com"
+    ],
+    "requestHost": [
+      "\\.lemonsqueezy\\.com"
+    ]
+  },
+  {
+    "name": "Polar",
+    "categories": [
+      "payment",
+      "subscription"
+    ],
+    "website": "https://polar.sh",
+    "requestHost": [
+      "(?:api\\.)?polar\\.sh"
+    ],
+    "npmDep": [
+      "^@polar-sh/"
+    ]
+  },
+  {
+    "name": "Mollie",
+    "categories": [
+      "payment"
+    ],
+    "website": "https://www.mollie.com",
+    "scriptSrc": [
+      "js\\.mollie\\.com"
+    ]
+  },
+  {
+    "name": "Shop Pay",
+    "categories": [
+      "payment"
+    ],
+    "website": "https://shop.app",
+    "scriptSrc": [
+      "shop\\.app/checkouts",
+      "shopifycloud/(?:shop-js|storefront/assets/shopify_pay)"
+    ],
+    "requires": [
+      "Shopify"
+    ]
+  },
+  {
+    "name": "VTEX",
+    "categories": [
+      "ecommerce",
+      "platform"
+    ],
+    "website": "https://vtex.com",
+    "description": "Enterprise commerce platform, dominant across Latin America",
+    "html": [
+      "vtexassets\\.com",
+      "__RUNTIME__",
+      "vtexcommercestable\\.com\\.br"
+    ],
+    "requestHost": [
+      "\\.vtexassets\\.com",
+      "\\.vtexcommercestable\\.com\\.br",
+      "\\.myvtex\\.com"
+    ],
+    "headers": {
+      "x-vtex-io-cluster-id": "",
+      "x-vtex-router-cache": ""
+    }
+  },
+  {
+    "name": "commercetools",
+    "categories": [
+      "ecommerce",
+      "platform"
+    ],
+    "website": "https://commercetools.com",
+    "description": "Headless, API-first commerce",
+    "requestHost": [
+      "api\\.[a-z-]+\\.commercetools\\.com",
+      "\\.commercetools\\.com"
+    ],
+    "npmDep": [
+      "^@commercetools/"
+    ]
+  },
+  {
+    "name": "SAP Commerce Cloud",
+    "categories": [
+      "ecommerce",
+      "platform"
+    ],
+    "website": "https://www.sap.com/products/commerce-cloud.html",
+    "description": "Formerly Hybris",
+    "html": [
+      "/_ui/responsive/",
+      "/medias/sys_master/"
+    ],
+    "url": [
+      "/[a-z]{2}/[a-z]{2}/c/|\\.html\\?q="
+    ],
+    "implies": [
+      "Java"
+    ]
+  },
+  {
+    "name": "Elastic Path",
+    "categories": [
+      "ecommerce",
+      "platform"
+    ],
+    "website": "https://www.elasticpath.com",
+    "requestHost": [
+      "\\.elasticpath\\.com",
+      "api\\.moltin\\.com"
+    ]
+  },
+  {
+    "name": "Spryker",
+    "categories": [
+      "ecommerce",
+      "platform"
+    ],
+    "website": "https://spryker.com",
+    "html": [
+      "/assets/current/Yves/",
+      "spryker"
+    ],
+    "headers": {
+      "x-spryker-": ""
+    },
+    "implies": [
+      "PHP"
+    ]
+  },
+  {
+    "name": "Medusa",
+    "categories": [
+      "ecommerce",
+      "platform"
+    ],
+    "website": "https://medusajs.com",
+    "npmDep": [
+      "^@medusajs/"
+    ],
+    "probe": [
+      {
+        "path": "/store/regions",
+        "body": "\"regions\"\\s*:"
+      }
+    ],
+    "implies": [
+      "Node.js"
+    ]
+  },
+  {
+    "name": "Saleor",
+    "categories": [
+      "ecommerce",
+      "platform"
+    ],
+    "website": "https://saleor.io",
+    "requestHost": [
+      "\\.saleor\\.cloud"
+    ],
+    "npmDep": [
+      "^@saleor/"
+    ],
+    "implies": [
+      "Python",
+      "GraphQL"
+    ]
+  },
+  {
+    "name": "Swell",
+    "categories": [
+      "ecommerce",
+      "platform"
+    ],
+    "website": "https://www.swell.is",
+    "requestHost": [
+      "\\.swell\\.store",
+      "api\\.swell\\.is"
+    ],
+    "npmDep": [
+      "^swell-js$"
+    ]
+  },
+  {
+    "name": "Vendure",
+    "categories": [
+      "ecommerce",
+      "platform"
+    ],
+    "website": "https://www.vendure.io",
+    "npmDep": [
+      "^@vendure/"
+    ],
+    "implies": [
+      "Node.js",
+      "GraphQL"
+    ]
+  },
+  {
+    "name": "Ecwid",
+    "categories": [
+      "ecommerce",
+      "platform"
+    ],
+    "website": "https://www.ecwid.com",
+    "requestHost": [
+      "app\\.ecwid\\.com",
+      "d2j6dbq0eux0bg\\.cloudfront\\.net"
+    ],
+    "scriptSrc": [
+      "app\\.ecwid\\.com/script\\.js"
+    ],
+    "js": {
+      "Ecwid": ""
+    }
+  },
+  {
+    "name": "Tiendanube",
+    "categories": [
+      "ecommerce",
+      "platform"
+    ],
+    "website": "https://www.tiendanube.com",
+    "description": "Nuvemshop, the leading platform for small merchants in Latin America",
+    "requestHost": [
+      "\\.tiendanube\\.com",
+      "\\.nuvemshop\\.com\\.br",
+      "d2r9epyceweg5n\\.cloudfront\\.net"
+    ],
+    "html": [
+      "cdn\\.tiendanube\\.com",
+      "nuvemshop\\.com\\.br"
+    ]
+  },
+  {
+    "name": "SHOPLINE",
+    "categories": [
+      "ecommerce",
+      "platform"
+    ],
+    "website": "https://shopline.com",
+    "description": "Major platform across Greater China and Southeast Asia",
+    "requestHost": [
+      "\\.shoplineapp\\.com",
+      "\\.myshopline\\.com"
+    ],
+    "html": [
+      "shoplineapp\\.com",
+      "shoplineimg\\.com"
+    ]
+  },
+  {
+    "name": "Big Cartel",
+    "categories": [
+      "ecommerce",
+      "platform"
+    ],
+    "website": "https://www.bigcartel.com",
+    "requestHost": [
+      "assets\\.bigcartel\\.com",
+      "\\.bigcartel\\.com"
+    ],
+    "html": [
+      "assets\\.bigcartel\\.com"
+    ]
+  },
+  {
+    "name": "Squarespace Commerce",
+    "categories": [
+      "ecommerce"
+    ],
+    "website": "https://www.squarespace.com/ecommerce-website",
+    "html": [
+      "sqs-add-to-cart-button",
+      "commerce-product"
+    ],
+    "requires": [
+      "Squarespace"
+    ],
+    "implies": [
+      "Squarespace"
+    ]
+  },
+  {
+    "name": "Wix Stores",
+    "categories": [
+      "ecommerce"
+    ],
+    "website": "https://www.wix.com/ecommerce/website",
+    "html": [
+      "wixstores",
+      "stores\\.wix\\.com"
+    ],
+    "requires": [
+      "Wix"
+    ],
+    "implies": [
+      "Wix"
+    ]
+  },
+  {
+    "name": "Webflow Ecommerce",
+    "categories": [
+      "ecommerce"
+    ],
+    "website": "https://webflow.com/ecommerce",
+    "html": [
+      "data-wf-item-id",
+      "w-commerce-commerce"
+    ],
+    "requires": [
+      "Webflow"
+    ],
+    "implies": [
+      "Webflow"
+    ]
+  },
+  {
+    "name": "Lightspeed eCom",
+    "categories": [
+      "ecommerce",
+      "platform"
+    ],
+    "website": "https://www.lightspeedhq.com",
+    "requestHost": [
+      "cdn\\.shoplightspeed\\.com",
+      "\\.webshopapp\\.com"
+    ]
+  },
+  {
+    "name": "Shift4Shop",
+    "categories": [
+      "ecommerce",
+      "platform"
+    ],
+    "website": "https://www.shift4shop.com",
+    "requestHost": [
+      "\\.shift4shop\\.com",
+      "\\.3dcartstores\\.com"
+    ]
+  },
+  {
+    "name": "Volusion",
+    "categories": [
+      "ecommerce",
+      "platform"
+    ],
+    "website": "https://www.volusion.com",
+    "requestHost": [
+      "\\.volusion\\.com"
+    ],
+    "html": [
+      "/v/vspfiles/"
+    ]
+  },
+  {
+    "name": "OpenCart",
+    "categories": [
+      "ecommerce",
+      "platform"
+    ],
+    "website": "https://www.opencart.com",
+    "html": [
+      "catalog/view/(?:theme|javascript)/",
+      "index\\.php\\?route=common/home"
+    ],
+    "cookies": {
+      "^OCSESSID$": ""
+    },
+    "implies": [
+      "PHP"
+    ]
+  },
+  {
+    "name": "nopCommerce",
+    "categories": [
+      "ecommerce",
+      "platform"
+    ],
+    "website": "https://www.nopcommerce.com",
+    "html": [
+      "/Themes/[A-Za-z]+/Content/",
+      "nopCommerce"
+    ],
+    "cookies": {
+      "^Nop\\.customer$": ""
+    },
+    "implies": [
+      "ASP.NET"
+    ]
+  },
+  {
+    "name": "CS-Cart",
+    "categories": [
+      "ecommerce",
+      "platform"
+    ],
+    "website": "https://www.cs-cart.com",
+    "html": [
+      "/var/cache/misc/assets/design/themes/",
+      "cm-ajax"
+    ],
+    "cookies": {
+      "^cscart_": ""
+    },
+    "implies": [
+      "PHP"
+    ]
+  },
+  {
+    "name": "Jumpseller",
+    "categories": [
+      "ecommerce",
+      "platform"
+    ],
+    "website": "https://jumpseller.com",
+    "requestHost": [
+      "\\.jumpseller\\.com"
+    ]
+  },
+  {
+    "name": "Dukaan",
+    "categories": [
+      "ecommerce",
+      "platform"
+    ],
+    "website": "https://mydukaan.io",
+    "description": "India-focused SMB commerce platform",
+    "requestHost": [
+      "\\.mydukaan\\.io",
+      "dukaan\\.b-cdn\\.net"
+    ]
+  },
+  {
+    "name": "StoreHippo",
+    "categories": [
+      "ecommerce",
+      "platform"
+    ],
+    "website": "https://www.storehippo.com",
+    "requestHost": [
+      "\\.storehippo\\.com"
+    ]
+  },
+  {
+    "name": "Shopify Hydrogen",
+    "categories": [
+      "ecommerce",
+      "js-framework"
+    ],
+    "website": "https://hydrogen.shopify.dev",
+    "description": "Shopify headless storefront framework",
+    "npmDep": [
+      "^@shopify/hydrogen"
+    ],
+    "html": [
+      "__hydrogen",
+      "hydrogen-"
+    ],
+    "headers": {
+      "powered-by": "Shopify Hydrogen"
+    },
+    "implies": [
+      "Remix",
+      "React"
+    ]
+  },
+  {
+    "name": "Vue Storefront",
+    "categories": [
+      "ecommerce",
+      "js-framework"
+    ],
+    "website": "https://vuestorefront.io",
+    "npmDep": [
+      "^@vue-storefront/"
+    ],
+    "implies": [
+      "Vue.js"
+    ]
+  },
+  {
+    "name": "Klarna On-Site Messaging",
+    "categories": [
+      "payment",
+      "ecommerce-app"
+    ],
+    "website": "https://www.klarna.com",
+    "scriptSrc": [
+      "extensions/[^/]+/klarna-[a-z-]*\\d+/",
+      "osm\\.klarnaservices\\.com"
+    ],
+    "implies": [
+      "Klarna"
+    ]
+  },
+  {
+    "name": "Mercado Pago",
+    "categories": [
+      "payment"
+    ],
+    "website": "https://www.mercadopago.com",
+    "description": "Dominant payment provider across Latin America",
+    "scriptSrc": [
+      "sdk\\.mercadopago\\.com",
+      "secure\\.mlstatic\\.com"
+    ],
+    "requestHost": [
+      "\\.mercadopago\\.com"
+    ],
+    "js": {
+      "MercadoPago": ""
+    }
+  },
+  {
+    "name": "PayU",
+    "categories": [
+      "payment"
+    ],
+    "website": "https://payu.com",
+    "scriptSrc": [
+      "secure\\.payu\\.com",
+      "jssdk\\.payu\\.in",
+      "checkout-static\\.payu\\.in"
+    ],
+    "requestHost": [
+      "\\.payu\\.(?:com|in|pl)"
+    ]
+  },
+  {
+    "name": "Paystack",
+    "categories": [
+      "payment"
+    ],
+    "website": "https://paystack.com",
+    "description": "Widely used across Nigeria, Ghana and South Africa",
+    "scriptSrc": [
+      "js\\.paystack\\.co"
+    ],
+    "js": {
+      "PaystackPop": ""
+    }
+  },
+  {
+    "name": "Flutterwave",
+    "categories": [
+      "payment"
+    ],
+    "website": "https://flutterwave.com",
+    "scriptSrc": [
+      "checkout\\.flutterwave\\.com"
+    ],
+    "js": {
+      "FlutterwaveCheckout": ""
+    }
+  },
+  {
+    "name": "Midtrans",
+    "categories": [
+      "payment"
+    ],
+    "website": "https://midtrans.com",
+    "description": "Indonesian payment gateway",
+    "scriptSrc": [
+      "app\\.(?:sandbox\\.)?midtrans\\.com/snap"
+    ],
+    "js": {
+      "snap": {
+        "re": "",
+        "confidence": 0.4
+      }
+    }
+  },
+  {
+    "name": "Xendit",
+    "categories": [
+      "payment"
+    ],
+    "website": "https://www.xendit.co",
+    "requestHost": [
+      "\\.xendit\\.co"
+    ]
+  },
+  {
+    "name": "dLocal",
+    "categories": [
+      "payment"
+    ],
+    "website": "https://dlocal.com",
+    "scriptSrc": [
+      "js\\.dlocal\\.com"
+    ]
+  },
+  {
+    "name": "EBANX",
+    "categories": [
+      "payment"
+    ],
+    "website": "https://www.ebanx.com",
+    "scriptSrc": [
+      "js\\.ebanx\\.com"
+    ]
+  },
+  {
+    "name": "Airwallex",
+    "categories": [
+      "payment"
+    ],
+    "website": "https://www.airwallex.com",
+    "scriptSrc": [
+      "checkout\\.airwallex\\.com"
+    ]
+  },
+  {
+    "name": "Amazon Pay",
+    "categories": [
+      "payment"
+    ],
+    "website": "https://pay.amazon.com",
+    "scriptSrc": [
+      "static-na\\.payments-amazon\\.com",
+      "static-eu\\.payments-amazon\\.com"
+    ],
+    "js": {
+      "amazon": {
+        "re": "",
+        "confidence": 0.3
+      }
+    }
+  },
+  {
+    "name": "Google Pay",
+    "categories": [
+      "payment"
+    ],
+    "website": "https://pay.google.com",
+    "scriptSrc": [
+      "pay\\.google\\.com/gp/p/js/pay\\.js"
+    ]
+  },
+  {
+    "name": "Authorize.net",
+    "categories": [
+      "payment"
+    ],
+    "website": "https://www.authorize.net",
+    "scriptSrc": [
+      "js\\.authorize\\.net"
+    ]
+  },
+  {
+    "name": "Worldpay",
+    "categories": [
+      "payment"
+    ],
+    "website": "https://www.worldpay.com",
+    "requestHost": [
+      "\\.worldpay\\.com"
+    ]
+  },
+  {
+    "name": "Bolt",
+    "categories": [
+      "payment"
+    ],
+    "website": "https://www.bolt.com",
+    "scriptSrc": [
+      "connect\\.bolt\\.com",
+      "connect-sandbox\\.bolt\\.com"
+    ],
+    "js": {
+      "BoltCheckout": ""
+    }
+  },
+  {
+    "name": "Simpl",
+    "categories": [
+      "payment"
+    ],
+    "website": "https://getsimpl.com",
+    "description": "Buy-now-pay-later, India",
+    "scriptSrc": [
+      "sdk\\.getsimpl\\.com"
+    ]
+  },
+  {
+    "name": "Juspay",
+    "categories": [
+      "payment"
+    ],
+    "website": "https://juspay.io",
+    "scriptSrc": [
+      "sdk\\.juspay\\.in",
+      "\\.juspay\\.io"
+    ]
+  },
+  {
+    "name": "Instamojo",
+    "categories": [
+      "payment"
+    ],
+    "website": "https://www.instamojo.com",
+    "scriptSrc": [
+      "js\\.instamojo\\.com"
+    ]
+  },
+  {
+    "name": "CCAvenue",
+    "categories": [
+      "payment"
+    ],
+    "website": "https://www.ccavenue.com",
+    "requestHost": [
+      "\\.ccavenue\\.com"
+    ]
+  },
+  {
+    "name": "Shiprocket Checkout",
+    "categories": [
+      "payment"
+    ],
+    "website": "https://www.shiprocket.in/shiprocket-checkout/",
+    "scriptSrc": [
+      "fastrr-boost-ui\\.pickrr\\.com",
+      "checkout\\.shiprocket\\."
+    ],
+    "implies": [
+      "Shiprocket"
+    ]
+  },
+  {
+    "name": "mParticle",
+    "categories": [
+      "analytics"
+    ],
+    "website": "https://www.mparticle.com",
+    "scriptSrc": [
+      "jssdkcdns\\.mparticle\\.com"
+    ],
+    "js": {
+      "mParticle": ""
+    }
+  },
+  {
+    "name": "Branch",
+    "categories": [
+      "analytics"
+    ],
+    "website": "https://www.branch.io",
+    "description": "Mobile deep linking and attribution",
+    "scriptSrc": [
+      "cdn\\.branch\\.io"
+    ],
+    "requestHost": [
+      "\\.app\\.link",
+      "api\\d?\\.branch\\.io"
+    ],
+    "js": {
+      "branch": ""
+    }
+  },
+  {
+    "name": "AppsFlyer",
+    "categories": [
+      "analytics"
+    ],
+    "website": "https://www.appsflyer.com",
+    "requestHost": [
+      "\\.onelink\\.me",
+      "\\.appsflyer\\.com"
+    ],
+    "js": {
+      "AF": {
+        "re": "",
+        "confidence": 0.4
+      }
+    }
+  },
+  {
+    "name": "Fueled",
+    "categories": [
+      "analytics"
+    ],
+    "website": "https://fueled.io",
+    "description": "Server-side tracking and conversion APIs for ecommerce",
+    "requestHost": [
+      "\\.fueled\\.io"
+    ]
+  },
+  {
+    "name": "WordPress",
+    "categories": [
+      "cms",
+      "platform"
+    ],
+    "website": "https://wordpress.org",
+    "meta": {
+      "generator": {
+        "re": "WordPress(?:\\s+([\\d.]+))?",
+        "version": "$1"
+      }
+    },
+    "html": [
+      {
+        "re": "/wp-content/(?:themes|plugins|uploads)/",
+        "note": "WordPress asset path"
+      },
+      "/wp-includes/js/",
+      "<link[^>]+rel=[\"']https://api\\.w\\.org/[\"']"
+    ],
+    "cookies": {
+      "^wordpress_logged_in_": "",
+      "^wp-settings-": ""
+    },
+    "headers": {
+      "x-pingback": "/xmlrpc\\.php"
+    },
+    "probe": [
+      {
+        "path": "/wp-json/",
+        "body": "\"namespace\"\\s*:\\s*\"wp/v2\""
+      },
+      {
+        "path": "/wp-login.php",
+        "body": "user_login|wp-submit"
+      }
+    ],
+    "robots": [
+      "Disallow:\\s*/wp-admin"
+    ],
+    "implies": [
+      "PHP",
+      "MySQL"
+    ]
+  },
+  {
+    "name": "Shopify",
+    "categories": [
+      "ecommerce",
+      "platform"
+    ],
+    "website": "https://www.shopify.com",
+    "headers": {
+      "powered-by": "Shopify",
+      "x-shopid": "",
+      "x-shopify-stage": "",
+      "x-sorting-hat-shopid": ""
+    },
+    "cookies": {
+      "^_shopify_y$": "",
+      "^_shopify_s$": "",
+      "^_secure_session_id$": ""
+    },
+    "html": [
+      "cdn\\.shopify\\.com",
+      "Shopify\\.shop\\s*=",
+      "shopify-section-"
+    ],
+    "js": {
+      "Shopify": "",
+      "Shopify.theme": ""
+    },
+    "scriptSrc": [
+      "cdn\\.shopify\\.com/s/",
+      "/cdn/shopifycloud/"
+    ],
+    "robots": [
+      "# we use Shopify as our ecommerce platform"
+    ],
+    "implies": [
+      "Liquid",
+      "Ruby"
+    ]
+  },
+  {
+    "name": "Shopify Plus",
+    "categories": [
+      "ecommerce",
+      "platform"
+    ],
+    "website": "https://www.shopify.com/plus",
+    "html": [
+      "shopify-plus",
+      "\"plan\"\\s*:\\s*\\{[^}]*\"shopify_plus\""
+    ],
+    "requires": [
+      "Shopify"
+    ]
+  },
+  {
+    "name": "Wix",
+    "categories": [
+      "cms",
+      "platform"
+    ],
+    "website": "https://www.wix.com",
+    "meta": {
+      "generator": "Wix\\.com Website Builder"
+    },
+    "headers": {
+      "x-wix-request-id": "",
+      "x-wix-renderer-server": ""
+    },
+    "html": [
+      "static\\.parastorage\\.com",
+      "wixstatic\\.com"
+    ],
+    "scriptSrc": [
+      "static\\.parastorage\\.com"
+    ]
+  },
+  {
+    "name": "Squarespace",
+    "categories": [
+      "cms",
+      "platform"
+    ],
+    "website": "https://www.squarespace.com",
+    "html": [
+      "static1\\.squarespace\\.com",
+      "Static\\.SQUARESPACE_CONTEXT",
+      "squarespace-cdn\\.com"
+    ],
+    "headers": {
+      "x-contextid": ""
+    },
+    "js": {
+      "Static.SQUARESPACE_CONTEXT": ""
+    }
+  },
+  {
+    "name": "Webflow",
+    "categories": [
+      "cms",
+      "platform"
+    ],
+    "website": "https://webflow.com",
+    "meta": {
+      "generator": "Webflow"
+    },
+    "html": [
+      "data-wf-(?:page|site|domain)",
+      "assets(?:-global)?\\.website-files\\.com",
+      "cdn\\.prod\\.website-files\\.com"
+    ],
+    "js": {
+      "Webflow": ""
+    }
+  },
+  {
+    "name": "Ghost",
+    "categories": [
+      "cms"
+    ],
+    "website": "https://ghost.org",
+    "meta": {
+      "generator": {
+        "re": "Ghost(?:\\s+([\\d.]+))?",
+        "version": "$1"
+      }
+    },
+    "html": [
+      "ghost-sdk",
+      "content_api_key|ghost\\.min\\.js",
+      "/ghost/assets/"
+    ],
+    "probe": [
+      {
+        "path": "/ghost/api/content/settings/",
+        "status": [
+          200,
+          401,
+          403
+        ],
+        "body": "\"errors\"\\s*:\\s*\\[[^\\]]*(?:UnauthorizedError|ValidationError)|\"settings\"\\s*:"
+      }
+    ],
+    "implies": [
+      "Node.js"
+    ]
+  },
+  {
+    "name": "Drupal",
+    "categories": [
+      "cms"
+    ],
+    "website": "https://www.drupal.org",
+    "meta": {
+      "generator": {
+        "re": "Drupal\\s+(\\d+)",
+        "version": "$1"
+      }
+    },
+    "headers": {
+      "x-drupal-cache": "",
+      "x-drupal-dynamic-cache": "",
+      "x-generator": {
+        "re": "Drupal\\s+(\\d+)",
+        "version": "$1"
+      }
+    },
+    "html": [
+      "/sites/(?:default|all)/(?:files|modules|themes)/",
+      "drupal-settings-json"
+    ],
+    "js": {
+      "Drupal": ""
+    },
+    "implies": [
+      "PHP"
+    ]
+  },
+  {
+    "name": "Joomla",
+    "categories": [
+      "cms"
+    ],
+    "website": "https://www.joomla.org",
+    "meta": {
+      "generator": {
+        "re": "Joomla!?(?:\\s*-?\\s*([\\d.]+))?",
+        "version": "$1"
+      }
+    },
+    "html": [
+      "/media/(?:jui|system)/js/",
+      "option=com_"
+    ],
+    "implies": [
+      "PHP"
+    ]
+  },
+  {
+    "name": "Magento",
+    "categories": [
+      "ecommerce",
+      "platform"
+    ],
+    "website": "https://business.adobe.com/products/magento/magento-commerce.html",
+    "cookies": {
+      "^X-Magento-Vary$": "",
+      "^mage-cache-storage$": ""
+    },
+    "html": [
+      "/static/version\\d+/frontend/",
+      "Magento_Ui/js",
+      "mage/cookies"
+    ],
+    "js": {
+      "require.s.contexts._.config.paths.mage": ""
+    },
+    "implies": [
+      "PHP"
+    ]
+  },
+  {
+    "name": "WooCommerce",
+    "categories": [
+      "ecommerce",
+      "ecommerce-app"
+    ],
+    "website": "https://woocommerce.com",
+    "html": [
+      {
+        "re": "woocommerce(?:-|/assets)",
+        "note": "WooCommerce asset path"
+      },
+      "wc-ajax=",
+      "class=\"[^\"]*\\bwoocommerce\\b"
+    ],
+    "cookies": {
+      "^woocommerce_cart_hash$": "",
+      "^wp_woocommerce_session_": ""
+    },
+    "requires": [
+      "WordPress"
+    ],
+    "implies": [
+      "WordPress"
+    ]
+  },
+  {
+    "name": "BigCommerce",
+    "categories": [
+      "ecommerce",
+      "platform"
+    ],
+    "website": "https://www.bigcommerce.com",
+    "html": [
+      "cdn\\d*\\.bigcommerce\\.com",
+      "bigcommerce\\.com/s-"
+    ],
+    "headers": {
+      "x-bc-request-id": ""
+    },
+    "cookies": {
+      "^SHOP_SESSION_TOKEN$": ""
+    }
+  },
+  {
+    "name": "PrestaShop",
+    "categories": [
+      "ecommerce",
+      "platform"
+    ],
+    "website": "https://www.prestashop.com",
+    "meta": {
+      "generator": "PrestaShop"
+    },
+    "cookies": {
+      "^PrestaShop-": ""
+    },
+    "js": {
+      "prestashop": ""
+    },
+    "implies": [
+      "PHP"
+    ]
+  },
+  {
+    "name": "Shopware",
+    "categories": [
+      "ecommerce",
+      "platform"
+    ],
+    "website": "https://www.shopware.com",
+    "html": [
+      "/bundles/storefront/",
+      "shopware"
+    ],
+    "headers": {
+      "sw-invalidation-states": ""
+    },
+    "implies": [
+      "PHP",
+      "Symfony"
+    ]
+  },
+  {
+    "name": "Salesforce Commerce Cloud",
+    "categories": [
+      "ecommerce",
+      "platform"
+    ],
+    "website": "https://www.salesforce.com/products/commerce-cloud/",
+    "html": [
+      "demandware\\.static",
+      "demandware\\.edgesuite\\.net"
+    ],
+    "url": [
+      "/on/demandware\\.store/"
+    ],
+    "cookies": {
+      "^dwsid$": ""
+    }
+  },
+  {
+    "name": "Adobe Experience Manager",
+    "categories": [
+      "cms"
+    ],
+    "website": "https://business.adobe.com/products/experience-manager/adobe-experience-manager.html",
+    "html": [
+      "/etc\\.clientlibs/",
+      "/content/dam/",
+      "cq-?dialog"
+    ],
+    "implies": [
+      "Java"
+    ]
+  },
+  {
+    "name": "Sitecore",
+    "categories": [
+      "cms"
+    ],
+    "website": "https://www.sitecore.com",
+    "cookies": {
+      "^SC_ANALYTICS_GLOBAL_COOKIE$": ""
+    },
+    "html": [
+      "/-/media/",
+      "sitecore"
+    ],
+    "implies": [
+      "ASP.NET"
+    ]
+  },
+  {
+    "name": "Contentful",
+    "categories": [
+      "cms"
+    ],
+    "website": "https://www.contentful.com",
+    "requestHost": [
+      "cdn\\.contentful\\.com",
+      "images\\.ctfassets\\.net",
+      "preview\\.contentful\\.com"
+    ],
+    "html": [
+      "images\\.ctfassets\\.net",
+      "videos\\.ctfassets\\.net"
+    ],
+    "npmDep": [
+      "^contentful$",
+      "^@contentful/"
+    ]
+  },
+  {
+    "name": "Sanity",
+    "categories": [
+      "cms"
+    ],
+    "website": "https://www.sanity.io",
+    "requestHost": [
+      "cdn\\.sanity\\.io",
+      "apicdn\\.sanity\\.io"
+    ],
+    "html": [
+      "cdn\\.sanity\\.io"
+    ],
+    "npmDep": [
+      "^@sanity/",
+      "^next-sanity$"
+    ]
+  },
+  {
+    "name": "Strapi",
+    "categories": [
+      "cms",
+      "backend-framework"
+    ],
+    "website": "https://strapi.io",
+    "headers": {
+      "x-powered-by": "Strapi"
+    },
+    "implies": [
+      "Node.js"
+    ]
+  },
+  {
+    "name": "Directus",
+    "categories": [
+      "cms",
+      "baas"
+    ],
+    "website": "https://directus.io",
+    "headers": {
+      "x-powered-by": "Directus"
+    },
+    "implies": [
+      "Node.js"
+    ]
+  },
+  {
+    "name": "Payload CMS",
+    "categories": [
+      "cms"
+    ],
+    "website": "https://payloadcms.com",
+    "npmDep": [
+      "^payload$",
+      "^@payloadcms/"
+    ],
+    "probe": [
+      {
+        "path": "/api/access",
+        "status": [
+          200,
+          401,
+          403
+        ],
+        "body": "\"canAccessAdmin\"|\"collections\"\\s*:"
+      }
+    ],
+    "implies": [
+      "Node.js"
+    ]
+  },
+  {
+    "name": "Storyblok",
+    "categories": [
+      "cms"
+    ],
+    "website": "https://www.storyblok.com",
+    "requestHost": [
+      "api\\.storyblok\\.com",
+      "a\\.storyblok\\.com"
+    ],
+    "html": [
+      "a\\.storyblok\\.com"
+    ],
+    "npmDep": [
+      "^@storyblok/",
+      "^storyblok"
+    ]
+  },
+  {
+    "name": "Prismic",
+    "categories": [
+      "cms"
+    ],
+    "website": "https://prismic.io",
+    "requestHost": [
+      "\\.prismic\\.io",
+      "images\\.prismic\\.io"
+    ],
+    "npmDep": [
+      "^@prismicio/"
+    ]
+  },
+  {
+    "name": "Framer",
+    "categories": [
+      "cms",
+      "platform"
+    ],
+    "website": "https://www.framer.com",
+    "meta": {
+      "generator": "Framer"
+    },
+    "html": [
+      "framerusercontent\\.com",
+      "framer\\.com/m/"
+    ]
+  },
+  {
+    "name": "Bubble",
+    "categories": [
+      "platform"
+    ],
+    "website": "https://bubble.io",
+    "html": [
+      "bubble\\.io",
+      "d1muf25xaso8hp\\.cloudfront\\.net"
+    ],
+    "meta": {
+      "generator": "Bubble"
+    }
+  },
+  {
+    "name": "Craft CMS",
+    "categories": [
+      "cms"
+    ],
+    "website": "https://craftcms.com",
+    "headers": {
+      "x-powered-by": "Craft CMS"
+    },
+    "cookies": {
+      "^CraftSessionId$": ""
+    },
+    "implies": [
+      "PHP",
+      "Yii"
+    ]
+  },
+  {
+    "name": "Umbraco",
+    "categories": [
+      "cms"
+    ],
+    "website": "https://umbraco.com",
+    "headers": {
+      "x-umbraco-version": {
+        "re": "([\\d.]+)",
+        "version": "$1"
+      }
+    },
+    "cookies": {
+      "^UMB_": ""
+    },
+    "implies": [
+      "ASP.NET"
+    ]
+  },
+  {
+    "name": "TYPO3",
+    "categories": [
+      "cms"
+    ],
+    "website": "https://typo3.org",
+    "meta": {
+      "generator": "TYPO3 CMS"
+    },
+    "html": [
+      "/typo3(?:conf|temp)/"
+    ],
+    "implies": [
+      "PHP"
+    ]
+  },
+  {
+    "name": "Statamic",
+    "categories": [
+      "cms"
+    ],
+    "website": "https://statamic.com",
+    "headers": {
+      "x-powered-by": "Statamic"
+    },
+    "implies": [
+      "Laravel",
+      "PHP"
+    ]
+  },
+  {
+    "name": "Blogger",
+    "categories": [
+      "cms"
+    ],
+    "website": "https://www.blogger.com",
+    "meta": {
+      "generator": "blogger"
+    },
+    "html": [
+      "\\.blogspot\\.com",
+      "blogger\\.com/static"
+    ]
+  },
+  {
+    "name": "Substack",
+    "categories": [
+      "cms",
+      "platform"
+    ],
+    "website": "https://substack.com",
+    "html": [
+      "substackcdn\\.com",
+      "substack\\.com/api"
+    ]
+  },
+  {
+    "name": "Medium",
+    "categories": [
+      "cms",
+      "platform"
+    ],
+    "website": "https://medium.com",
+    "html": [
+      "cdn-client\\.medium\\.com",
+      "miro\\.medium\\.com"
+    ]
+  },
+  {
+    "name": "Notion",
+    "categories": [
+      "cms",
+      "platform"
+    ],
+    "website": "https://www.notion.so",
+    "html": [
+      "notion-static\\.com",
+      "www\\.notion\\.so/api"
+    ]
+  },
+  {
+    "name": "Discourse",
+    "categories": [
+      "platform"
+    ],
+    "website": "https://www.discourse.org",
+    "meta": {
+      "generator": "Discourse"
+    },
+    "html": [
+      "discourse-cdn\\.com",
+      "discourse_theme_id"
+    ],
+    "implies": [
+      "Ruby on Rails"
+    ]
+  },
+  {
+    "name": "Kajabi",
+    "categories": [
+      "platform"
+    ],
+    "website": "https://kajabi.com",
+    "html": [
+      "kajabi-storefronts",
+      "kajabi\\.com"
+    ]
+  },
+  {
+    "name": "Teachable",
+    "categories": [
+      "platform"
+    ],
+    "website": "https://teachable.com",
+    "html": [
+      "teachablecdn\\.com",
+      "assets\\.teachablecdn\\.com"
+    ]
+  },
+  {
+    "name": "Thinkific",
+    "categories": [
+      "platform"
+    ],
+    "website": "https://www.thinkific.com",
+    "html": [
+      "thinkific\\.com",
+      "import\\.cdn\\.thinkific\\.com"
+    ]
+  },
+  {
+    "name": "Gumroad",
+    "categories": [
+      "ecommerce",
+      "platform"
+    ],
+    "website": "https://gumroad.com",
+    "html": [
+      "gumroad\\.com/js",
+      "assets\\.gumroad\\.com"
+    ]
+  },
+  {
+    "name": "Circle",
+    "categories": [
+      "platform"
+    ],
+    "website": "https://circle.so",
+    "html": [
+      "circle\\.so",
+      "cdn\\.circle\\.so"
+    ]
+  },
+  {
+    "name": "HubSpot CMS",
+    "categories": [
+      "cms"
+    ],
+    "website": "https://www.hubspot.com/products/cms",
+    "html": [
+      "cdn\\d*\\.hubspot\\.net",
+      "hs-sites\\.com"
+    ],
+    "headers": {
+      "x-hs-cache-config": ""
+    }
+  },
+  {
+    "name": "Duda",
+    "categories": [
+      "cms",
+      "platform"
+    ],
+    "website": "https://www.duda.co",
+    "html": [
+      "dudaone",
+      "cdn\\d*\\.editmysite\\.com",
+      "irp-cdn\\.multiscreensite\\.com"
+    ]
+  },
+  {
+    "name": "Odoo",
+    "categories": [
+      "cms",
+      "ecommerce"
+    ],
+    "website": "https://www.odoo.com",
+    "meta": {
+      "generator": {
+        "re": "Odoo(?:\\s+([\\d.]+))?",
+        "version": "$1"
+      }
+    },
+    "html": [
+      "/web/static/",
+      "odoo\\.define"
+    ],
+    "implies": [
+      "Python"
+    ]
+  }
+]

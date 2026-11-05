@@ -1,0 +1,3 @@
+{"name": "reachable site returns text", "input": {"website": "https://example.com"}, "expected": {"pages": ["https://example.com"]}, "tolerance": "fields"}
+{"name": "unreachable", "input": {"website": "https://nonexistent-zzqx-tervory.invalid"}, "expected": {"error": "home page unreachable"}, "tolerance": "exact"}
+{"name": "empty", "input": {"website": ""}, "expected": {"emails": [], "pages": []}, "tolerance": "exact"}

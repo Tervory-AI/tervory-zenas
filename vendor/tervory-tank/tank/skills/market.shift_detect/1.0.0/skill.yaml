@@ -1,0 +1,21 @@
+id: market.shift_detect
+version: 1.0.0
+agent: market_lab
+rung: 3
+description: >
+  Flag areas where the gap changed sharply. A jump up is a bottleneck forming.
+  A jump down is a market saturating. The size and date come from surge detection
+  on the gap series.
+input:
+  type: object
+  required: [areas]
+  properties:
+    areas: {type: array}
+    window: {type: integer}
+    z_threshold: {type: number}
+    pct_threshold: {type: number}
+output:
+  type: object
+  properties:
+    events: {type: array}
+eval_threshold: 1.0

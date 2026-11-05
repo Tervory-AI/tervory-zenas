@@ -1,0 +1,14 @@
+{
+  "job": "refresh",
+  "sources_with_rows": 14,
+  "model_calls": 0,
+  "result": "passed",
+  "pdf_citation": "report.pdf \u00b7 Page 2",
+  "pdf_pages": 2,
+  "xlsx_and_csv_guarded": true,
+  "deletion_removes_answer_and_object": true,
+  "other_tenant_files_and_answers": 0,
+  "squad_checks": "passed",
+  "secrets_and_connection_tokens": "sealed, metadata only",
+  "storage": "external R2 transport fixture; real room client"
+}

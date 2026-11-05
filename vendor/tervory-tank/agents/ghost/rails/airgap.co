@@ -1,0 +1,22 @@
+# Autumbra air-gap Colang stub (inspired by NeMo Guardrails Colang)
+# Vault: /workspace/autumbra-oss-vault/nemo-guardrails — customise, do not re-clone.
+# Runtime enforcement today: agents.ghost.rails.ensure_threat_payload_before_enforce
+# + agents.ghost.threat_payload.accept_threat_payload
+#
+# Watch may touch dirty intake. Enforce must not. Only ThreatPayload crosses.
+
+define bot inform airgap burn
+  "Threat payload burned. No action was taken."
+
+define subflow autumbra injection burn
+  # Pre-Watch: burn prompt-injection shapes (marker / llm-guard stub).
+  # Implemented in agents.ghost.guardrails.guard_inbound when flag ON.
+
+define subflow autumbra pii redact
+  # Pre-Watch: redact PII onsite (zero-ingestion). llm-guard Anonymize-shaped stub.
+  # Implemented in agents.ghost.scanners.pii.scan_pii_stub
+
+define subflow autumbra threatpayload only before enforce
+  # Stronger-than-stock output rail: if not ThreatPayload → burn; never arm Enforce
+  # from free text. Enforce remains flag-OFF unless explicitly enabled.
+  # Implemented in agents.ghost.rails.ensure_threat_payload_before_enforce

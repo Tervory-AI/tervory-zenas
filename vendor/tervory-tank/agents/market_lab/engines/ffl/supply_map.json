@@ -1,0 +1,354 @@
+{
+  "plan": {
+    "supply": [
+      {
+        "source": "listing_counts",
+        "prefix": "count:state:",
+        "unit": "listings",
+        "per_capita": true,
+        "note": "Active licences per state from the ATF monthly lists"
+      }
+    ],
+    "demand": [
+      {
+        "source": "upload",
+        "prefix": "applications:",
+        "unit": "applications",
+        "note": "Founder per-state licence-application history"
+      },
+      {
+        "source": "check_counts",
+        "prefix": "total:",
+        "unit": "checks",
+        "note": "Monthly FBI NICS background-check counts per state"
+      }
+    ],
+    "population": [
+      {
+        "source": "census_population",
+        "prefix": "population:state:",
+        "unit": "people"
+      }
+    ],
+    "costs": [
+      {
+        "role": "copper",
+        "ref": "PCOPPUSDM",
+        "feeds_id": "fred_pcoppusdm",
+        "adapter": "fred",
+        "source": "fred",
+        "store": false,
+        "unit": "index"
+      },
+      {
+        "role": "zinc",
+        "ref": "PZINCUSDM",
+        "feeds_id": "fred_pzincusdm",
+        "adapter": "fred",
+        "source": "fred",
+        "store": false,
+        "unit": "index"
+      },
+      {
+        "role": "lead",
+        "ref": "PLEADUSDM",
+        "feeds_id": "fred_pleadusdm",
+        "adapter": "fred",
+        "source": "fred",
+        "store": false,
+        "unit": "index"
+      },
+      {
+        "role": "freight",
+        "ref": "TSIFRGHT",
+        "feeds_id": "fred_tsifrght",
+        "adapter": "fred",
+        "source": "fred",
+        "store": false,
+        "unit": "index"
+      }
+    ],
+    "surge": {
+      "window": 6,
+      "z_threshold": 2.0,
+      "pct_threshold": 0.25
+    },
+    "bindings": {
+      "supply": [
+        {
+          "source": "listing_counts",
+          "prefix": "count:state:"
+        }
+      ],
+      "demand": [
+        {
+          "source": "upload",
+          "prefix": "applications:"
+        },
+        {
+          "source": "check_counts",
+          "prefix": "total:"
+        }
+      ],
+      "population": [
+        {
+          "source": "census_population",
+          "prefix": "population:state:"
+        }
+      ],
+      "competitors": [
+        {
+          "source": "competitor",
+          "prefix": "competitors:"
+        }
+      ]
+    },
+    "response_targets": {
+      "increase": 5.0,
+      "hold": 3.0,
+      "reduce": 1.0
+    }
+  },
+  "warnings": {
+    "signals": [
+      {
+        "source": "port_los_angeles",
+        "ref": "teu",
+        "label": "Port of Los Angeles container volume"
+      },
+      {
+        "source": "bts_freight",
+        "ref": "tsifrght",
+        "label": "Freight volume"
+      },
+      {
+        "source": "eia_diesel",
+        "label": "Diesel prices"
+      },
+      {
+        "source": "noaa_alerts",
+        "label": "Severe weather notices",
+        "kind": "notice"
+      },
+      {
+        "source": "legiscan",
+        "label": "Legislation",
+        "kind": "notice"
+      },
+      {
+        "source": "world_bank_commodities",
+        "label": "Commodity prices"
+      },
+      {
+        "source": "port_nynj",
+        "ref": "Imports",
+        "label": "Loaded container imports, Port of New York and New Jersey"
+      }
+    ],
+    "outcomes": [
+      {
+        "source": "listing_counts",
+        "label": "Licence counts"
+      },
+      {
+        "source": "check_counts",
+        "label": "Background-check counts",
+        "note": "These are not sales."
+      },
+      {
+        "source": "tiger_price",
+        "label": "Watched product prices"
+      },
+      {
+        "source": "tiger_stock",
+        "label": "Watched product availability"
+      }
+    ],
+    "pairs": [
+      {
+        "id": "port_los_angeles:availability",
+        "source": "port_los_angeles",
+        "ref": "teu",
+        "label": "Port of Los Angeles container volume",
+        "downstream_source": "tiger_stock",
+        "direction": "drop",
+        "outcome_direction": "drop",
+        "baseline_value": 2,
+        "outcome_pct": 0.25,
+        "outcome_words": "became unavailable",
+        "prediction_words": "may become unavailable",
+        "min_episodes": 3,
+        "window": 6,
+        "z_threshold": 2.0,
+        "pct_threshold": 0.15,
+        "min_lag_days": 7,
+        "max_lag_days": 84,
+        "max_gap_days": 14
+      },
+      {
+        "id": "bts_freight:availability",
+        "source": "bts_freight",
+        "ref": "tsifrght",
+        "label": "Freight volume",
+        "downstream_source": "tiger_stock",
+        "direction": "drop",
+        "outcome_direction": "drop",
+        "baseline_value": 2,
+        "outcome_pct": 0.25,
+        "outcome_words": "became unavailable",
+        "prediction_words": "may become unavailable",
+        "min_episodes": 3,
+        "window": 6,
+        "z_threshold": 2.0,
+        "pct_threshold": 0.15,
+        "min_lag_days": 7,
+        "max_lag_days": 84,
+        "max_gap_days": 14
+      },
+      {
+        "id": "port_nynj:availability",
+        "source": "port_nynj",
+        "ref": "Imports",
+        "label": "Loaded container imports, Port of New York and New Jersey",
+        "downstream_source": "tiger_stock",
+        "direction": "drop",
+        "outcome_direction": "drop",
+        "baseline_value": 2,
+        "outcome_pct": 0.25,
+        "outcome_words": "became unavailable",
+        "prediction_words": "may become unavailable",
+        "min_episodes": 3,
+        "window": 6,
+        "z_threshold": 2.0,
+        "pct_threshold": 0.15,
+        "min_lag_days": 7,
+        "max_lag_days": 84,
+        "max_gap_days": 14
+      },
+      {
+        "id": "world_bank_commodities:PLEADUSDM:availability",
+        "source": "world_bank_commodities",
+        "ref": "PLEADUSDM",
+        "label": "Lead",
+        "downstream_source": "tiger_stock",
+        "direction": "surge",
+        "outcome_direction": "drop",
+        "baseline_value": 2,
+        "outcome_pct": 0.25,
+        "outcome_words": "became unavailable",
+        "prediction_words": "may become unavailable",
+        "min_episodes": 3,
+        "window": 6,
+        "z_threshold": 2.0,
+        "pct_threshold": 0.15,
+        "min_lag_days": 7,
+        "max_lag_days": 84,
+        "max_gap_days": 14
+      },
+      {
+        "id": "world_bank_commodities:PCOPPUSDM:availability",
+        "source": "world_bank_commodities",
+        "ref": "PCOPPUSDM",
+        "label": "Copper",
+        "downstream_source": "tiger_stock",
+        "direction": "surge",
+        "outcome_direction": "drop",
+        "baseline_value": 2,
+        "outcome_pct": 0.25,
+        "outcome_words": "became unavailable",
+        "prediction_words": "may become unavailable",
+        "min_episodes": 3,
+        "window": 6,
+        "z_threshold": 2.0,
+        "pct_threshold": 0.15,
+        "min_lag_days": 7,
+        "max_lag_days": 84,
+        "max_gap_days": 14
+      },
+      {
+        "id": "world_bank_commodities:PZINCUSDM:availability",
+        "source": "world_bank_commodities",
+        "ref": "PZINCUSDM",
+        "label": "Zinc",
+        "downstream_source": "tiger_stock",
+        "direction": "surge",
+        "outcome_direction": "drop",
+        "baseline_value": 2,
+        "outcome_pct": 0.25,
+        "outcome_words": "became unavailable",
+        "prediction_words": "may become unavailable",
+        "min_episodes": 3,
+        "window": 6,
+        "z_threshold": 2.0,
+        "pct_threshold": 0.15,
+        "min_lag_days": 7,
+        "max_lag_days": 84,
+        "max_gap_days": 14
+      },
+      {
+        "id": "noaa_alerts:supply:availability",
+        "source": "noaa_alerts",
+        "ref": "severe_weather:supply",
+        "label": "Severe-weather alerts",
+        "downstream_source": "tiger_stock",
+        "direction": "surge",
+        "outcome_direction": "drop",
+        "baseline_value": 2,
+        "outcome_pct": 0.25,
+        "outcome_words": "became unavailable",
+        "prediction_words": "may become unavailable",
+        "min_episodes": 3,
+        "window": 6,
+        "z_threshold": 2.0,
+        "pct_threshold": 0.15,
+        "min_lag_days": 7,
+        "max_lag_days": 84,
+        "max_gap_days": 14,
+        "trigger": "event",
+        "key_name": "NOAA_TOKEN"
+      },
+      {
+        "id": "legiscan:engrossed:availability",
+        "source": "legiscan",
+        "ref": "bill_stage:engrossed:supply",
+        "label": "Legislation",
+        "downstream_source": "tiger_stock",
+        "direction": "surge",
+        "outcome_direction": "drop",
+        "baseline_value": 2,
+        "outcome_pct": 0.25,
+        "outcome_words": "became unavailable",
+        "prediction_words": "may become unavailable",
+        "min_episodes": 3,
+        "window": 6,
+        "z_threshold": 2.0,
+        "pct_threshold": 0.15,
+        "min_lag_days": 7,
+        "max_lag_days": 84,
+        "max_gap_days": 14,
+        "trigger": "event",
+        "key_name": "LEGISCAN_API_KEY"
+      }
+    ],
+    "event_signals": [
+      {
+        "source": "noaa_alerts",
+        "kind": "severe_weather",
+        "ref": "severe_weather:supply",
+        "key_name": "NOAA_TOKEN",
+        "region_source": "listing_counts",
+        "region_prefix": "count:state:"
+      },
+      {
+        "source": "legiscan",
+        "kind": "bill_status",
+        "ref": "bill_stage:engrossed:supply",
+        "key_name": "LEGISCAN_API_KEY",
+        "region_source": "listing_counts",
+        "region_prefix": "count:state:",
+        "stage": "Engrossed",
+        "stage_pattern": "^(?:[A-Z]+\\s*\\d+|\\d+)\\s+(?P<stage>.*)$"
+      }
+    ]
+  }
+}

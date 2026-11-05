@@ -1,0 +1,16 @@
+{"name": "categories", "answer": {"categories": ["handguns", "rifles", "shotguns", "ammunition"], "services": ["gunsmithing", "FFL transfers", "concealed-carry classes"], "description": "Family-owned gun shop in Springfield since 1998.", "people": [{"name": "Mark Ridge", "role": "Owner"}]}}
+{"name": "services", "answer": {"categories": ["handguns", "rifles", "shotguns", "ammunition"], "services": ["gunsmithing", "transfers", "classes"], "description": "Family-owned gun shop in Springfield since 1998.", "people": [{"name": "Mark Ridge", "role": "Owner"}]}}
+{"name": "people", "answer": {"categories": ["handguns", "rifles", "shotguns", "ammunition"], "services": ["gunsmithing", "FFL transfers", "concealed-carry classes"], "description": "Family-owned gun shop in Springfield since 1998.", "people": [{"name": "Mark Ridge", "role": "NRA instructor"}]}}
+{"name": "too little text", "answer": {"categories": [], "services": [], "description": "", "people": []}}
+{"name": "jsonld catalog", "answer": {"categories": ["Range bags"], "services": ["Sight-in"], "description": "Packs and help for a day outside.", "people": [{"name": "Ida Moss", "role": "Owner"}]}}
+{"name": "jsonld local business", "answer": {"categories": ["Water bottles", "Trail maps"], "services": [], "description": "Maps and bottles for the trail.", "people": []}}
+{"name": "microdata store", "answer": {"categories": ["Canvas tents"], "services": [], "description": "Tents for weekend trips.", "people": [{"name": "Bea Horn", "role": "Guide"}]}}
+{"name": "opengraph description", "answer": {"categories": [], "services": [], "description": "A family shop on Main Street since 2001.", "people": []}}
+{"name": "about and nav", "answer": {"categories": ["Handguns", "Rifles"], "services": [], "description": "We have served the town since 1984.", "people": []}}
+{"name": "team cards", "answer": {"categories": [], "services": [], "description": "The counter is staffed on weekdays.", "people": [{"name": "Ada Lowe", "role": "Manager"}, {"name": "Ben Holt", "role": "Buyer"}]}}
+{"name": "services section", "answer": {"categories": [], "services": ["Transfers", "Evaluations"], "description": "", "people": []}}
+{"name": "vocabulary prose", "answer": {"categories": ["holsters", "optics"], "services": [], "description": "", "people": []}}
+{"name": "hours only", "answer": {"categories": [], "services": [], "description": "", "people": []}}
+{"name": "structured data wins", "answer": {"categories": ["Safes"], "services": [], "description": "", "people": []}}
+{"name": "contact page stays empty", "answer": {"categories": [], "services": [], "description": "", "people": []}}
+{"name": "owner line", "answer": {"categories": [], "services": [], "description": "Nora Hale teaches at the downtown counter.", "people": [{"name": "Nora Hale", "role": "Owner"}]}}

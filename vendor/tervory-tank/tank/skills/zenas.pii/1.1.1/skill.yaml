@@ -1,0 +1,18 @@
+id: zenas.pii
+version: 1.1.1
+agent: zenas
+rung: 3
+description: >
+  Find personal identifiers in a document and replace them with placeholders.
+  Extends 1.0.0 with party and company names, email addresses, deal amounts,
+  deal dates, case numbers, and registration numbers. The raw value is not returned.
+input:
+  type: object
+  properties:
+    text: {type: string}
+output:
+  type: object
+  properties:
+    text: {type: string}
+    matches: {type: array}
+eval_threshold: 1.0

@@ -1,0 +1,49 @@
+# Autumbra Watch — Vector preset (stronger-than-stock)
+# Vault pin: bdd8842daf787497ae65f7e11e4eda6f72df8196
+# Do not enable cloud sinks or usage analytics.
+data_dir: "/var/lib/autumbra-watch/vector"
+
+# Internal API / acknowledgements stay local. No phone-home.
+api:
+  enabled: false
+
+# No `sources` that scrape foreign hosts. Dogfood sources are operator-supplied
+# onsite (file / journald / socket). Placeholder stdin for local prove-it only.
+sources:
+  onsite_demo:
+    type: "demo_logs"
+    format: "json"
+    interval: 60
+
+transforms:
+  anomaly_gate:
+    type: "filter"
+    inputs: ["onsite_demo"]
+    condition: '.autumbra_score >= 0.8'
+
+  strip_raw:
+    type: "remap"
+    inputs: ["anomaly_gate"]
+    source: |
+      # Drop raw message bodies — keep bounded Watch facts only.
+      . = {
+        "source": "vector",
+        "site": string!(.site) ?? "unknown",
+        "signal": string!(.signal) ?? "anomaly",
+        "score": to_float!(.autumbra_score) ?? 0.0,
+        "reason": truncate(string!(.reason) ?? "vector anomaly", 300) ?? "vector anomaly",
+        "cve_ids": [],
+        "confidence": to_float!(.autumbra_score) ?? 0.0
+      }
+
+sinks:
+  # Onsite Autumbra bus — localhost only. Never a cloud HTTP sink by default.
+  autumbra_bus:
+    type: "http"
+    inputs: ["strip_raw"]
+    uri: "http://127.0.0.1:8791/ghost/watch/intake"
+    method: "post"
+    encoding:
+      codec: "json"
+    batch:
+      max_events: 1

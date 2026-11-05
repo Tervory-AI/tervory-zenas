@@ -1,0 +1,7 @@
+........................................................................ [ 35%]
+........................................................................ [ 70%]
+..........................................................s              [100%]
+================= quarantine (2 entries, tests/quarantine.txt) =================
+   not collected  tests/test_room_seal.py::test_no_room_service_would_leak_when_coolify_deploys_it[agents/zenas/docker-compose.docassemble.yml]  [xfail] waits on Docassemble's removal in a separate PR (contract drafting moves into agent-zenas), not test drift: this compose file has no raw-compose marker, so in Coolify's normal mode the Docassemble service joins Coolify's internet-facing app network as well as the internal assembly network. Delete this entry in the PR that removes the file
+   not collected  tests/test_room_seal.py::test_no_room_service_would_leak_when_coolify_deploys_it[agents/zenas/docker-compose.docassemble.za.yml]  [xfail] waits on Docassemble's removal in a separate PR (contract drafting moves into agent-zenas), not test drift: this compose file has no raw-compose marker, so in Coolify's normal mode the Docassemble service joins Coolify's internet-facing app network as well as the internal assembly network. Delete this entry in the PR that removes the file
+202 passed, 1 skipped in 19.10s

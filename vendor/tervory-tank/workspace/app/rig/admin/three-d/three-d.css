@@ -1,0 +1,13 @@
+.three-admin{max-width:1040px;margin:auto;padding:32px 20px 80px;color:#001840;font-family:var(--font-inter),sans-serif;line-height:1.55}
+.three-admin *{box-sizing:border-box}.three-admin h1,.three-admin h2,.three-admin h3{font-family:var(--font-jost),sans-serif;font-weight:300;line-height:1.2}
+.three-admin h1{font-size:36px}.three-admin h2{font-size:26px}.three-admin h3{font-size:22px}
+.three-admin section{border:1px solid #B8BFD0;padding:24px;margin-top:24px;border-radius:6px}
+.three-admin article{padding:16px 0;border-top:1px solid #B8BFD0}.three-admin form{display:grid;gap:16px;max-width:680px}
+.three-admin label{display:grid;gap:6px}.three-admin input,.three-admin textarea,.three-admin select,.three-admin button{font:inherit;color:inherit;min-height:48px;border:1px solid #B8BFD0;border-radius:4px;padding:10px;max-width:100%;width:100%;background:white}
+.three-admin button{width:auto;justify-self:start;cursor:pointer}.three-admin button[type=submit]{background:#001840;color:white;border-color:#001840}
+.three-admin .three-check{display:flex;align-items:center;gap:12px}.three-admin .three-check input{width:20px;min-height:20px;flex-shrink:0}
+.three-admin .three-fields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}.three-admin .three-fields input{min-width:0}
+.three-admin .three-controls{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.three-admin canvas{display:block;width:100%;height:320px;background:#F4F6FB;margin-top:16px}
+.three-admin .three-notice{background:#F4F6FB;padding:16px;border-left:3px solid #001840}.three-admin a{color:inherit;text-decoration:underline}
+.three-admin :focus-visible{outline:3px solid #001840;outline-offset:3px}.three-admin li{overflow-wrap:anywhere}
+@media(max-width:500px){.three-admin{padding:20px 12px 48px}.three-admin section{padding:16px}.three-admin .three-fields{grid-template-columns:1fr}.three-admin canvas{height:280px}}

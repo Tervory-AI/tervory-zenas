@@ -1,0 +1,91 @@
+.ml-h7 {
+  --h7-ink: var(--cs-color-text, #001840);
+  --h7-muted: var(--cs-color-muted, #3d4a66);
+  --h7-line: var(--cs-color-border, #b8bfd0);
+  --h7-canvas: var(--cs-color-canvas, #f4f6fa);
+  --h7-surface: var(--cs-color-surface, #fff);
+  position: relative;
+  min-height: 100vh;
+  background: var(--h7-canvas);
+  color: var(--h7-ink);
+  font: 14px/20px var(--font-inter), Inter, Arial, sans-serif;
+}
+.ml-h7 * { box-sizing: border-box; }
+.ml-h7 p, .ml-h7 h1, .ml-h7 h2, .ml-h7 h3 { margin: 0; overflow-wrap: anywhere; }
+.ml-h7 a { color: inherit; text-decoration: none; }
+.h7-menu {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 240px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--h7-surface);
+  box-shadow: inset 0 0 0 1px var(--h7-line);
+}
+.h7-identity { padding: 16px; display: flex; flex-direction: column; gap: 8px; flex-shrink: 0; }
+.h7-identity img { object-fit: contain; }
+.h7-identity p { font-size: 20px; line-height: 28px; color: var(--h7-muted); }
+.h7-business { display: flex; justify-content: space-between; align-items: center; padding: 4px 8px; min-height: 44px; background: var(--h7-canvas); }
+.h7-business button { min-height: 28px; background: transparent; border: 0; font: inherit; color: inherit; }
+.h7-menu nav { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 0 16px 16px; }
+.h7-menu section { display: flex; flex-direction: column; }
+.h7-menu h2 { font-size: 12px; font-weight: 400; line-height: 20px; }
+.h7-menu nav a, .h7-menu nav span { display: flex; align-items: center; padding: 8px; min-height: 44px; font-size: 15px; line-height: 24px; border-radius: 8px; }
+.h7-menu a:hover { background: #e9edf6; }
+.h7-account { margin-top: 8px; }
+.h7-content { margin-left: 240px; padding: 48px 64px; min-height: 960px; display: flex; min-width: 0; flex-direction: column; align-items: flex-start; gap: 16px; }
+.h7-content > * { max-width: 100%; width: 100%; }
+.h7-content h1, .h7-content h2 { font-size: 32px; line-height: 45px; font-weight: 600; }
+.h7-content h3 { font-size: 20px; line-height: 28px; font-weight: 600; }
+.h7-tabs { display: flex; gap: 8px; }
+.h7-tabs a, .h7-button { border: 1px solid var(--h7-ink); background: var(--h7-surface); border-radius: 8px; padding: 8px; min-height: 48px; display: flex; align-items: center; justify-content: center; font-size: 13px; line-height: 1.4; font-weight: 600; max-width: 100%; }
+.h7-tabs a { width: 200px; }
+.h7-button { width: 280px; }
+.h7-button:disabled { opacity: .5; color: var(--h7-ink); }
+.ml-h7 .h7-retry { background: var(--h7-ink); color: var(--h7-surface); }
+/* Figma's inset strokes do not consume the 16px auto-layout padding. */
+.h7-card, .h7-cohort { display: flex; flex-direction: column; gap: 16px; padding: 16px; background: var(--h7-surface); box-shadow: inset 0 0 0 1px var(--crm-input-border, #848da3); border-radius: 8px; overflow-wrap: anywhere; }
+.h7-saved-text, .h7-delivery { white-space: pre-wrap; }
+.h7-table table { display: block; width: 100%; border-collapse: collapse; }
+.h7-table thead, .h7-table tbody { display: contents; }
+.h7-table tr { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; margin-bottom: 16px; }
+.h7-table th, .h7-table td { text-align: left; vertical-align: top; padding: 0; font-weight: 400; overflow-wrap: anywhere; }
+.h7-table th { font-weight: 600; }
+.h7-table tbody tr:last-child { margin-bottom: 0; }
+.h7-mobile, .h7-close, .h7-scrim { display: none; }
+.h7-tabs a:focus-visible, .h7-button:focus-visible, .h7-menu a:focus-visible, .h7-select-cohort:focus-visible { outline: 2px solid var(--h7-ink); outline-offset: 3px; }
+.h7-chart { width: 528px; max-width: 100%; height: 320px; padding: 24px; box-shadow: inset 0 0 0 1px var(--h7-line); border-radius: 16px; display: flex; flex-direction: column; gap: 8px; margin: 0; background: var(--h7-surface); }
+.h7-chart figcaption { font-size: 17px; font-weight: 600; line-height: 1.4; }
+.h7-chart > p { font-size: 12px; color: var(--h7-muted); line-height: 1.4; }
+.h7-plot { position: relative; width: 480px; height: 184px; flex-shrink: 0; font-size: 12px; line-height: 1.4; color: var(--h7-muted); }
+/* Keep each supplied SVG at its native dimensions. */
+.h7-plot img { max-width: none; }
+.h7-plot.mobile { display: none; }
+.h7-y-label { position: absolute; text-align: right; }
+.h7-x-label { position: absolute; width: 100px; }
+.h7-cohort-summary { display: flex; flex-direction: column; gap: 16px; width: 100%; }
+.h7-cohort-caption { font-size: 12px; line-height: 1.4; }
+.h7-select-cohort { border: 0; background: none; color: inherit; padding: 0; font: inherit; text-align: left; cursor: pointer; }
+.h7-sr { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+@media (max-width: 800px) {
+  .h7-mobile { height: 64px; display: flex; align-items: center; justify-content: space-between; background: var(--h7-surface); padding: 8px 24px; }
+  .h7-mobile img { object-fit: contain; }
+  .h7-mobile button { border: 1px solid var(--h7-line); border-radius: 8px; background: var(--h7-surface); width: 66px; height: 48px; color: var(--h7-ink); font: inherit; }
+  .h7-menu { display: none; }
+  .h7-menu.open { display: flex; position: fixed; z-index: 91; width: 280px; }
+  .h7-close { display: block; background: var(--h7-surface); border: 1px solid var(--h7-line); border-radius: 8px; min-height: 44px; }
+  .h7-scrim { display: block; position: fixed; inset: 0; background: #00184066; border: 0; z-index: 90; }
+  .h7-content { margin-left: 0; padding: 24px; min-height: 640px; }
+  .h7-content h1, .h7-content h2 { font-size: 28px; line-height: 40px; }
+  .h7-tabs a { width: 151px; flex-shrink: 1; }
+  .h7-table { display: none; }
+  .h7-chart { width: 327px; }
+  .h7-plot.desktop { display: none; }
+  .h7-plot.mobile { display: block; width: 279px; }
+  .h7-x-label { width: 72px; }
+  .h7-cohort { display: contents; }
+  .h7-cohort-summary { padding: 16px; border-radius: 8px; background: var(--h7-surface); box-shadow: inset 0 0 0 1px var(--crm-input-border, #848da3); }
+  .h7-cohort-caption { width: 100%; }
+}

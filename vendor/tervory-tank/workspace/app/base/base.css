@@ -1,0 +1,1333 @@
+/* Base page. The navy panel is fixed to the viewport. Only [data-scroll-root] scrolls.
+   Navy #001840 · Red #E80008 (one primary action) · Lines #B8BFD0 · Tint #F4F6FB · Jost Light headings · Inter body */
+
+.bcp-reference { margin: 24px 0; overflow-wrap: anywhere; }
+.bcp-product-table { max-width: 100%; overflow-x: auto; margin: 16px 0; }
+.bcp-product-table table { width: 100%; border-collapse: collapse; text-align: left; }
+.bcp-product-table th, .bcp-product-table td { padding: 10px; border-bottom: 1px solid #b8bfd0; }
+.bcp-text-button { border: 0; background: transparent; padding: 0; color: inherit; text-decoration: underline; cursor: pointer; font: inherit; }
+.bcp-reference dt { font-weight: 600; text-transform: capitalize; }
+.bcp-reference dd { margin: 4px 0 12px; }
+
+html:has(.bcp),
+body:has(.bcp) {
+  height: 100%;
+  overflow: hidden;
+  background: #f4f6fb;
+  color: #001840;
+}
+
+body:has(.bcp) main {
+  max-width: none;
+  width: 100%;
+  height: 100dvh;
+  max-height: 100dvh;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.bcp {
+  height: 100dvh;
+  max-height: 100dvh;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: #f4f6fb;
+  color: #001840;
+  font-family: var(--font-inter), Inter, sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.bcp h1,
+.bcp h2,
+.bcp .bcp-part-head h3 {
+  font-family: var(--font-jost), Jost, sans-serif;
+  font-weight: 300;
+  color: #001840;
+}
+
+.bcp a {
+  color: #001840;
+  text-decoration: none;
+}
+
+.bcp button {
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  padding: 0;
+  border-radius: 0;
+  cursor: pointer;
+}
+
+.bcp *,
+.bcp *::before,
+.bcp *::after {
+  box-sizing: border-box;
+}
+
+.bcp-top {
+  display: none;
+}
+
+/* ---- Left panel: anchored ---- */
+
+.bcp-panel {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 240px;
+  height: 100dvh;
+  max-height: 100dvh;
+  overflow-x: hidden;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  background: #001840;
+  color: #fff;
+  z-index: 30;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.35) transparent;
+}
+
+.bcp-panel-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 28px 24px 12px;
+}
+
+.bcp-logo {
+  width: auto;
+  height: 43px;
+  max-width: 100%;
+  object-fit: contain;
+  object-position: left center;
+  display: block;
+  flex: 0 0 auto;
+}
+
+.bcp-foot-logo {
+  width: 168px;
+  height: 31px;
+  margin: 4px 26px 12px;
+  object-fit: contain;
+  object-position: left center;
+  display: block;
+}
+
+.bcp button.bcp-close,
+.bcp button.bcp-dim {
+  display: none;
+}
+
+.bcp nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 14px;
+}
+
+.bcp a.bcp-link,
+.bcp button.bcp-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 9px 12px;
+  border-radius: 8px;
+  color: #c9d0e0;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.3;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.bcp a.bcp-link:hover,
+.bcp button.bcp-link:hover {
+  color: #fff;
+}
+
+.bcp a.bcp-link.active,
+.bcp button.bcp-link.active {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  font-weight: 500;
+}
+
+.bcp-count {
+  color: #8a94ad;
+  font-size: 12px;
+}
+
+.bcp-rule {
+  height: 1px;
+  margin: 12px 26px;
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.bcp-kicker {
+  margin: 6px 26px 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #8a94ad;
+}
+
+.bcp-panel-bottom {
+  margin-top: auto;
+  padding-bottom: 20px;
+}
+
+/* The signed-in organisation, at the top of the panel. */
+.bcp-account {
+  margin: 4px 12px 8px;
+  padding: 0 0 8px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bcp-refreshed {
+  padding: 12px 26px 0;
+}
+
+.bcp-refreshed-label {
+  margin: 0;
+  font-size: 12px;
+  color: #c9d0e0;
+}
+
+.bcp-time {
+  margin: 4px 0 0;
+  font-size: 12px;
+  font-weight: 500;
+  color: #fff;
+}
+
+/* ---- Body: the only part that scrolls ---- */
+
+.bcp-main {
+  margin-left: 240px;
+  flex: 1 1 auto;
+  height: 100%;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.bcp-body {
+  padding: 40px 56px 80px;
+  display: flex;
+  flex-direction: column;
+  gap: 48px;
+  max-width: 1200px;
+}
+
+.bcp-intro {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 32px;
+}
+
+.bcp-refresh {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.bcp-refresh .bcp-refreshed-label {
+  color: #4a5570;
+}
+
+.bcp-crumb {
+  margin: 0 0 8px;
+  color: #4a5570;
+  font-size: 13px;
+}
+
+.bcp-crumb a {
+  color: #4a5570;
+}
+
+.bcp h1 {
+  margin: 0;
+  font-size: 48px;
+  line-height: 1.1;
+}
+
+.bcp-lead {
+  margin: 12px 0 0;
+  max-width: 640px;
+  color: #4a5570;
+}
+
+/* The one red button on the screen. */
+.bcp button.bcp-primary {
+  background: #e80008;
+  color: #fff;
+  border-radius: 8px;
+  padding: 10px 18px;
+  font-weight: 600;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.bcp-intro button.bcp-primary {
+  padding: 14px 28px;
+  font-size: 15px;
+}
+
+.bcp button.bcp-primary:hover {
+  background: #c40007;
+}
+
+.bcp button.bcp-primary:disabled {
+  opacity: 0.7;
+  cursor: default;
+}
+
+/* While Plugins is open, the page behind is dimmed and its red button steps back. */
+.bcp-dialog-open .bcp-intro button.bcp-primary {
+  visibility: hidden;
+}
+
+.bcp button.bcp-secondary {
+  background: #fff;
+  color: #001840;
+  border: 1px solid #001840;
+  border-radius: 8px;
+  padding: 9px 18px;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.bcp button.bcp-text-btn {
+  font-size: 13px;
+  font-weight: 500;
+  color: #001840;
+}
+
+.bcp button.bcp-text-btn:hover {
+  text-decoration: underline;
+}
+
+.bcp-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+.bcp-stat {
+  border: 1px solid #b8bfd0;
+  border-radius: 12px;
+  background: #fff;
+  padding: 16px 18px;
+}
+
+.bcp-stat.tint {
+  background: #f4f6fb;
+}
+
+.bcp-stat b {
+  display: block;
+  font-family: var(--font-jost), Jost, sans-serif;
+  font-weight: 300;
+  font-size: 36px;
+  line-height: 1.1;
+}
+
+.bcp-stat span {
+  color: #4a5570;
+  font-size: 14px;
+}
+
+.bcp-section h2 {
+  margin: 0 0 8px;
+  font-size: 28px;
+}
+
+.bcp-copy {
+  margin: 0 0 20px;
+  max-width: 760px;
+  color: #4a5570;
+}
+
+.bcp-state {
+  background: #fff;
+  border: 1px solid #b8bfd0;
+  border-radius: 12px;
+  padding: 24px;
+}
+
+.bcp-state h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.bcp-state p {
+  margin: 8px 0 0;
+  color: #4a5570;
+}
+
+/* ---- Tables ---- */
+
+.bcp-table {
+  background: #fff;
+  border: 1px solid #b8bfd0;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.bcp-tr {
+  display: grid;
+  gap: 16px;
+  align-items: center;
+  padding: 16px 24px;
+  border-top: 1px solid #b8bfd0;
+  font-size: 14px;
+}
+
+.bcp-tr:first-child {
+  border-top: 0;
+}
+
+.bcp-th {
+  padding-top: 12px;
+  padding-bottom: 12px;
+  background: #f4f6fb;
+  color: #4a5570;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.bcp-batch-cols {
+  grid-template-columns: minmax(180px, 1fr) 80px 80px 110px 110px 110px 190px;
+}
+
+.bcp-skill-cols {
+  grid-template-columns: minmax(160px, 1fr) 200px 90px 140px 100px;
+}
+
+.bcp-file-cols {
+  grid-template-columns: minmax(180px, 1fr) 70px 100px 90px 150px 100px;
+}
+
+.bcp-name {
+  font-weight: 500;
+}
+
+.bcp-mono,
+.bcp-env {
+  font-family: var(--font-mono), "JetBrains Mono", ui-monospace, monospace;
+}
+
+.bcp-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+.bcp-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border: 1px solid #b8bfd0;
+  border-radius: 999px;
+  background: #fff;
+  color: #4a5570;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  justify-self: start;
+  align-self: center;
+  width: max-content;
+}
+
+.bcp-pill i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  border: 1.2px solid #7e889e;
+}
+
+.bcp-pill.on {
+  color: #001840;
+}
+
+.bcp-pill.on i {
+  background: #001840;
+  border-color: #001840;
+}
+
+.bcp-example {
+  display: inline-block;
+  padding: 2px 8px;
+  border: 1px solid #b8bfd0;
+  border-radius: 999px;
+  background: #f4f6fb;
+  color: #6b7590;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.bcp-footer {
+  margin: 0;
+  color: #4a5570;
+  font-size: 13px;
+}
+
+/* ---- Plugins: white pop-up over the dimmed page ---- */
+
+.bcp-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 56px 40px 56px 280px;
+  overflow-y: auto;
+}
+
+.bcp button.bcp-modal-dim {
+  position: fixed;
+  inset: 0 0 0 240px;
+  background: rgba(0, 24, 64, 0.35);
+  cursor: default;
+}
+
+.bcp-popup {
+  position: relative;
+  width: min(1000px, 100%);
+  background: #fff;
+  border: 1px solid #b8bfd0;
+  border-radius: 16px;
+  box-shadow: 0 24px 48px rgba(0, 24, 64, 0.18);
+  padding: 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.bcp-handle {
+  display: none;
+}
+
+.bcp-popup-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 24px;
+}
+
+.bcp-popup-head h2 {
+  margin: 0;
+  font-size: 36px;
+  line-height: 1.2;
+}
+
+.bcp-popup-head p {
+  margin: 8px 0 0;
+  color: #3d4a66;
+}
+
+.bcp-tabs {
+  display: flex;
+  gap: 28px;
+  border-bottom: 1px solid #b8bfd0;
+}
+
+.bcp button.bcp-tab {
+  padding: 10px 0 12px;
+  color: #4a5570;
+  font-size: 15px;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+
+.bcp button.bcp-tab.active {
+  color: #001840;
+  font-weight: 600;
+  border-bottom-color: #001840;
+}
+
+.bcp-group {
+  display: none;
+}
+
+.bcp-group.open {
+  display: block;
+}
+
+.bcp button.bcp-group-head {
+  display: none;
+}
+
+.bcp-group-body {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.bcp-part-head p {
+  margin: 6px 0 0;
+  color: #4a5570;
+  font-size: 14px;
+}
+
+.bcp-part-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.bcp-part-title h3 {
+  margin: 0;
+  font-size: 28px;
+  line-height: 1.2;
+}
+
+.bcp-list,
+.bcp-box {
+  border: 1px solid #b8bfd0;
+  border-radius: 12px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.bcp-box {
+  padding: 20px 24px;
+}
+
+.bcp-key-row,
+.bcp-link-row,
+.bcp-mcp-row {
+  display: grid;
+  gap: 24px;
+  align-items: center;
+  padding: 18px 24px;
+  border-top: 1px solid #b8bfd0;
+}
+
+.bcp-list > :first-child {
+  border-top: 0;
+}
+
+.bcp-key-row {
+  grid-template-columns: 190px 90px 180px minmax(0, 1fr);
+}
+
+.bcp-key-row.bcp-add {
+  grid-template-columns: 200px repeat(3, minmax(0, 1fr)) auto;
+  align-items: end;
+  background: #f4f6fb;
+}
+
+.bcp-link-row {
+  grid-template-columns: minmax(0, 1fr) 160px 150px 80px;
+}
+
+.bcp-mcp-row {
+  grid-template-columns: 180px minmax(0, 1fr) 140px 120px 90px;
+}
+
+.bcp-row-title {
+  margin: 0;
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.bcp-row-copy {
+  margin: 4px 0 0;
+  color: #4a5570;
+  font-size: 13px;
+}
+
+.bcp-env {
+  margin: 4px 0 0;
+  color: #4a5570;
+  font-size: 11px;
+}
+
+.bcp-input {
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 10px 13px;
+  border: 1px solid #b8bfd0;
+  border-radius: 8px;
+  background: #fff;
+  color: #001840;
+  font: inherit;
+  font-size: 14px;
+}
+
+.bcp-input::placeholder {
+  color: #7e889e;
+}
+
+.bcp-input:disabled {
+  background: #f4f6fb;
+}
+
+.bcp-saved {
+  background: #f4f6fb;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.bcp-actions {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+}
+
+.bcp-actions.bcp-replace .bcp-input {
+  min-width: 0;
+  flex: 1 1 140px;
+}
+
+/* Shown in place of every Plugins tab while base.vault is off. */
+.bcp-vault-off {
+  margin: 8px 0 4px;
+  padding: 16px 18px;
+  border: 1px solid #b8bfd0;
+  border-radius: 10px;
+  background: #f4f6fb;
+  color: #001840;
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.bcp-dots {
+  letter-spacing: 0.08em;
+}
+
+.bcp-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.bcp-field > span {
+  font-size: 12px;
+  color: #4a5570;
+}
+
+.bcp-grow {
+  flex: 1 1 auto;
+}
+
+.bcp-drop {
+  border: 1.5px dashed #b8bfd0;
+  border-radius: 12px;
+  background: #f4f6fb;
+  padding: 32px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.bcp-drop .bcp-row-copy {
+  margin: 0;
+}
+
+.bcp-link-form {
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+
+.bcp-toggle {
+  display: inline-flex;
+  align-self: flex-start;
+  border: 1px solid #b8bfd0;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.bcp .bcp-toggle button {
+  padding: 9px 14px;
+  font-size: 13px;
+  background: #fff;
+  color: #001840;
+}
+
+.bcp .bcp-toggle button[aria-pressed="true"] {
+  background: #001840;
+  color: #fff;
+}
+
+.bcp-mcp-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.bcp-mcp-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.bcp-token-row {
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+}
+
+.bcp-notice {
+  margin: 0;
+  min-height: 1em;
+  color: #001840;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.bcp-notice:empty {
+  display: none;
+}
+
+.bcp-fine {
+  margin: 0;
+  color: #4a5570;
+  font-size: 12px;
+}
+
+
+/* ---- Search records ---- */
+
+.bcp-search {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.bcp-search-bar {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  background: #fff;
+  border: 1px solid #b8bfd0;
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.bcp-search-bar .bcp-input {
+  flex: 1 1 auto;
+  border-color: transparent;
+  background: #f4f6fb;
+}
+
+.bcp button.bcp-secondary:disabled,
+.bcp button.bcp-send:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.bcp-hits-count {
+  margin: 0 0 10px;
+  color: #4a5570;
+  font-size: 13px;
+}
+
+.bcp-hits .bcp-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.bcp-hit {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.2fr) repeat(3, minmax(0, 1fr));
+  gap: 20px;
+  padding: 16px 24px;
+  border-top: 1px solid #b8bfd0;
+  align-items: start;
+}
+
+.bcp-hit-field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  font-size: 14px;
+}
+
+.bcp-hit-label {
+  color: #4a5570;
+  font-size: 12px;
+}
+
+.bcp-hit-value {
+  overflow-wrap: anywhere;
+  font-weight: 500;
+}
+
+.bcp-hit-none {
+  color: #7e889e;
+}
+
+.bcp-hit-source {
+  color: #6b7590;
+  font-size: 12px;
+}
+
+/* ---- Ask Base: thread above, box and Send together below ---- */
+
+.bcp-chat {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: #fff;
+  border: 1px solid #b8bfd0;
+  border-radius: 12px;
+  padding: 20px;
+}
+
+.bcp-thread {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 140px;
+  max-height: 460px;
+  overflow-y: auto;
+}
+
+.bcp-thread-empty {
+  margin: auto 0;
+  color: #4a5570;
+  font-size: 14px;
+  max-width: 620px;
+}
+
+.bcp-msg {
+  max-width: 78%;
+  padding: 12px 16px;
+  border-radius: 12px;
+  border: 1px solid #b8bfd0;
+}
+
+.bcp-msg.you {
+  align-self: flex-end;
+  background: #f4f6fb;
+}
+
+.bcp-msg.base {
+  align-self: flex-start;
+  background: #fff;
+}
+
+.bcp-msg-who {
+  margin: 0 0 4px;
+  color: #4a5570;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.bcp-msg-text {
+  margin: 0;
+  font-size: 14px;
+  white-space: pre-wrap;
+}
+
+.bcp-msg-wait {
+  margin: 0;
+  color: #4a5570;
+  font-size: 13px;
+}
+
+.bcp-answer-sources {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid #b8bfd0;
+}
+
+.bcp-answer-sources-title {
+  margin: 0 0 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #4a5570;
+}
+
+.bcp-answer-sources ol {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.bcp-answer-sources li > span {
+  display: block;
+}
+
+.bcp-answer-sources .bcp-row-title {
+  font-size: 13px;
+}
+
+.bcp-answer-sources .bcp-row-copy {
+  margin: 0;
+  font-size: 12px;
+}
+
+.bcp-composer {
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+  border-top: 1px solid #b8bfd0;
+  padding-top: 12px;
+}
+
+.bcp-composer textarea {
+  flex: 1 1 auto;
+  resize: vertical;
+  min-height: 46px;
+}
+
+.bcp button.bcp-send {
+  background: #001840;
+  color: #fff;
+  border-radius: 8px;
+  padding: 11px 22px;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.bcp button.bcp-send:hover:not(:disabled) {
+  background: #0a2a5c;
+}
+
+@media (max-width: 1200px) and (min-width: 801px) {
+  .bcp-stats {
+    grid-template-columns: 1fr 1fr;
+  }
+  .bcp-batch-cols {
+    grid-template-columns: minmax(160px, 1fr) 70px 70px 90px 90px 90px 170px;
+  }
+  .bcp-key-row {
+    grid-template-columns: 1fr 120px;
+  }
+  .bcp-key-row.bcp-add {
+    grid-template-columns: 1fr 1fr;
+  }
+  .bcp-mcp-row,
+  .bcp-link-row {
+    grid-template-columns: 1fr auto;
+  }
+}
+
+/* ---- Narrow screens: top bar, panel slides in, Plugins becomes a sheet ---- */
+
+@media (max-width: 800px) {
+  .bcp-hit {
+    grid-template-columns: 1fr;
+    gap: 8px;
+    padding: 14px 16px;
+  }
+  .bcp-search-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .bcp-msg {
+    max-width: 92%;
+  }
+  .bcp-chat {
+    padding: 14px;
+  }
+  .bcp-top {
+    display: flex;
+    align-items: center;
+    height: 60px;
+    flex: 0 0 60px;
+    padding: 0 16px;
+    background: #001840;
+    z-index: 20;
+  }
+
+  .bcp-top img {
+    width: 150px;
+    height: 28px;
+    object-fit: contain;
+    object-position: left center;
+  }
+
+  .bcp button.bcp-menu {
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: #fff;
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    border-radius: 8px;
+    padding: 8px 12px;
+  }
+
+  .bcp-burger {
+    display: inline-flex;
+    flex-direction: column;
+    gap: 3px;
+    width: 16px;
+  }
+
+  .bcp-burger i {
+    display: block;
+    height: 1.5px;
+    background: #fff;
+  }
+
+  .bcp button.bcp-dim {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 24, 64, 0.45);
+    z-index: 40;
+  }
+
+  .bcp-panel {
+    width: 300px;
+    z-index: 50;
+    transform: translateX(-105%);
+    transition: transform 180ms ease;
+  }
+
+  .bcp-panel.open {
+    transform: translateX(0);
+    box-shadow: 8px 0 24px rgba(0, 23, 64, 0.35);
+  }
+
+  .bcp button.bcp-close {
+    display: inline-flex;
+    margin-left: auto;
+    width: 36px;
+    height: 36px;
+    flex: 0 0 36px;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    border-radius: 8px;
+  }
+
+  .bcp-x {
+    position: relative;
+    width: 14px;
+    height: 14px;
+  }
+
+  .bcp-x::before,
+  .bcp-x::after {
+    content: "";
+    position: absolute;
+    left: 6px;
+    top: 0;
+    width: 1.5px;
+    height: 14px;
+    background: #fff;
+  }
+
+  .bcp-x::before {
+    transform: rotate(45deg);
+  }
+
+  .bcp-x::after {
+    transform: rotate(-45deg);
+  }
+
+  .bcp-main {
+    margin-left: 0;
+    height: auto;
+  }
+
+  .bcp-body {
+    padding: 24px 20px 64px;
+    gap: 28px;
+  }
+
+  .bcp-intro {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .bcp h1 {
+    font-size: 34px;
+  }
+
+  .bcp-refresh {
+    align-items: stretch;
+  }
+
+  .bcp-intro form,
+  .bcp-intro button.bcp-primary {
+    width: 100%;
+  }
+
+  .bcp-stats {
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+
+  .bcp-stat b {
+    font-size: 28px;
+  }
+
+  .bcp-table {
+    border: 0;
+    background: transparent;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .bcp-tr,
+  .bcp-tr:first-child {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+    padding: 16px;
+    border: 1px solid #b8bfd0;
+    border-radius: 12px;
+    background: #fff;
+  }
+
+  .bcp-tr.bcp-th,
+  .bcp-tr.bcp-th:first-child {
+    display: none;
+  }
+
+  .bcp-tr [data-label] {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    font-size: 13px;
+  }
+
+  .bcp-tr [data-label]::before {
+    content: attr(data-label);
+    color: #4a5570;
+  }
+
+  .bcp-modal {
+    padding: 0;
+    align-items: flex-end;
+  }
+
+  .bcp button.bcp-modal-dim {
+    inset: 0;
+    background: rgba(0, 24, 64, 0.45);
+  }
+
+  .bcp-popup {
+    width: 100%;
+    max-height: calc(100dvh - 60px);
+    overflow-y: auto;
+    border-radius: 16px 16px 0 0;
+    padding: 12px 20px 32px;
+    gap: 16px;
+  }
+
+  .bcp-handle {
+    display: block;
+    align-self: center;
+    width: 40px;
+    height: 4px;
+    border-radius: 2px;
+    background: #b8bfd0;
+  }
+
+  .bcp-popup-head h2 {
+    font-size: 30px;
+  }
+
+  .bcp-tabs {
+    display: none;
+  }
+
+  /* One group open at a time, so only one red button shows. */
+  .bcp-group {
+    display: block;
+    border-top: 1px solid #b8bfd0;
+  }
+
+  .bcp button.bcp-group-head {
+    display: flex;
+    width: 100%;
+    justify-content: space-between;
+    padding: 14px 0;
+    font-weight: 600;
+    font-size: 16px;
+  }
+
+  .bcp-group-body {
+    padding-bottom: 16px;
+  }
+
+  .bcp-key-row,
+  .bcp-key-row.bcp-add,
+  .bcp-link-row,
+  .bcp-mcp-row,
+  .bcp-mcp-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .bcp-token-row,
+  .bcp-link-form {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .bcp-actions button.bcp-primary,
+  .bcp-actions button.bcp-secondary {
+    width: 100%;
+  }
+
+  .bcp-actions.bcp-replace {
+    flex-wrap: wrap;
+  }
+
+  .bcp-actions.bcp-replace .bcp-input {
+    flex: 1 1 100%;
+  }
+
+  .bcp-actions.bcp-replace button.bcp-secondary {
+    width: auto;
+    flex: 1 1 auto;
+  }
+}
+.bcp-context-cols {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+/* Controls needed to upload a list and inspect its verified result. */
+.bcp-workflow { margin: 20px 0; }
+.bcp-upload { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; }
+.bcp-upload label { display: grid; gap: 6px; flex: 1 1 220px; min-width: 0; }
+.bcp-upload .bcp-input { width: 100%; box-sizing: border-box; }
+.bcp-upload .bcp-copy { flex-basis: 100%; }
+.bcp-batch-result { margin-top: 24px; }
+.bcp-result-row { padding: 12px 0; border-bottom: 1px solid #b8bfd0; overflow-wrap: anywhere; }

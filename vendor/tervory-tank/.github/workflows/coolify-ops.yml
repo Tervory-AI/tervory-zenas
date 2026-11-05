@@ -1,0 +1,209 @@
+# Coolify operations Claude runs without clicking through the dashboard.
+#   gh api -X POST repos/Tervory-AI/tervory-tank/actions/workflows/coolify-ops.yml/dispatches \
+#     -f ref=main -f 'inputs[op]=status'
+# Every op is logged as an annotation (readable through the GitHub API).
+#
+# Rules:
+# - The Coolify token lives only in the repo secret COOLIFY_TOKEN and is never printed.
+# - COOLIFY_URL (repo variable, default https://coolify.tervory.com) must be https://, so the token never crosses the internet in clear text.
+# - env-refs only ever writes references of the form {{project.NAME}}, never a secret value.
+# - zenas-renormalise runs agents.zenas.pool.renormalise inside the deployed ZA Zenas room as a
+#   Coolify scheduled task on that app (same container as zenas-pool-nightly). Dry run unless
+#   apply=true. zenas-renormalise-report reads the last run. Both share the fixed concurrency group
+#   coolify-zenas-renormalise. See docs/ops/ZENAS-ZA-RENORMALISE.md.
+# - room-setup generates a room's secrets inside this job (masked, never printed, never seen by anyone)
+#   and writes them straight into Coolify on the main app and the room. Existing values are never replaced.
+name: coolify-ops
+
+on:
+  workflow_dispatch:
+    inputs:
+      op:
+        description: "status | env-refs | create-room | deploy | room-setup | backup-scope | nightly-status | zenas-renormalise | zenas-renormalise-report"
+        required: true
+      app:
+        description: "Application uuid (env-refs, deploy)"
+        required: false
+        default: ""
+      names:
+        description: "env-refs: names to point at {{project.NAME}}. room-setup: extra room-only secrets to generate (e.g. RIG_ADMIN_KEY)"
+        required: false
+        default: ""
+      room:
+        description: "create-room / room-setup: agent folder name under agents/ (e.g. rig)"
+        required: false
+        default: ""
+      region:
+        description: "zenas-renormalise(-report): region (only za)"
+        required: false
+        default: ""
+      apply:
+        description: "zenas-renormalise: write new versions. Default false = dry run"
+        required: false
+        type: boolean
+        default: false
+      source:
+        description: "zenas-renormalise: comma-separated source ids (default: every PDF court source except special-tribunal, which waits for #502)"
+        required: false
+        default: ""
+      limit:
+        description: "zenas-renormalise: stop after this many rows"
+        required: false
+        default: ""
+      after:
+        description: "zenas-renormalise: resume after this document_id (last_document_id of a report)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+# deploy and room-setup redeploy Coolify apps: they join deploy-on-merge's coolify-deploy
+# group and queue behind it (and it behind them). Read-only and metadata ops get their own
+# group per run, so a status read never waits on a deploy.
+concurrency:
+  # deploy/room-setup queue with deploy-on-merge; both renormalise ops share one fixed
+  # group so two never run side by side; every other op runs on its own.
+  group: ${{ (inputs.op == 'deploy' || inputs.op == 'room-setup') && 'coolify-deploy' || (inputs.op == 'zenas-renormalise' || inputs.op == 'zenas-renormalise-report') && 'coolify-zenas-renormalise' || format('coolify-ops-{0}', github.run_id) }}
+  cancel-in-progress: false
+  queue: max
+
+jobs:
+  op:
+    runs-on: ubuntu-latest
+    # 12: the renormalise run step stops itself at 9, leaving time for its restore step.
+    timeout-minutes: 12
+    env:
+      COOLIFY_URL: ${{ vars.COOLIFY_URL || 'https://coolify.tervory.com' }}
+      COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+      OP: ${{ inputs.op }}
+      APP: ${{ inputs.app }}
+      NAMES: ${{ inputs.names }}
+      ROOM: ${{ inputs.room }}
+      REGION: ${{ inputs.region }}
+      APPLY: ${{ inputs.apply }}
+      SOURCE: ${{ inputs.source }}
+      LIMIT: ${{ inputs.limit }}
+      AFTER: ${{ inputs.after }}
+      PROJECT_UUID: dguxczrbmbqvezo3qib0twge
+      ENVIRONMENT_NAME: production
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Check inputs
+        run: |
+          case "$COOLIFY_URL" in https://*) ;; *) echo "::error::COOLIFY_URL must be an https:// address"; exit 1 ;; esac
+          test -n "$COOLIFY_TOKEN" || { echo "::error::COOLIFY_TOKEN secret is missing"; exit 1; }
+          case "$OP" in status|env-refs|create-room|deploy|room-setup|backup-scope|nightly-status|zenas-renormalise|zenas-renormalise-report) ;; *) echo "::error::unknown op $OP"; exit 1 ;; esac
+          for v in "$APP" "$ROOM"; do
+            case "$v" in *[!A-Za-z0-9_-]*) echo "::error::bad id: $v"; exit 1 ;; esac
+          done
+          case "$NAMES" in *[!A-Z0-9_,]*) echo "::error::names must be UPPER_CASE, comma-separated"; exit 1 ;; esac
+          case "$OP" in zenas-renormalise|zenas-renormalise-report)
+            test -z "$APP$ROOM$NAMES" || { echo "::error::$OP uses only region, apply, source, limit, after"; exit 1; }
+            test "$REGION" = za || { echo "::error::$OP: region must be za"; exit 1; } ;;
+            *) test -z "$REGION$SOURCE$LIMIT$AFTER" && [ "$APPLY" != true ] || { echo "::error::region, apply, source, limit, after belong to zenas-renormalise only"; exit 1; } ;;
+          esac
+          if [ "$OP" = backup-scope ]; then
+            test -z "$APP$ROOM$NAMES" || { echo "::error::backup-scope uses only its fixed main app and two existing names"; exit 1; }
+          fi
+
+      - name: Check nightly metadata scope
+        if: inputs.op == 'nightly-status'
+        run: test -z "$APP$ROOM$NAMES"
+
+      - name: Read existing US and ZA nightly execution metadata
+        if: inputs.op == 'nightly-status'
+        run: python3 .github/scripts/zenas_nightly_status.py
+
+      - name: Repair main backup runtime scope (metadata only, no deploy)
+        if: inputs.op == 'backup-scope'
+        run: python3 .github/scripts/backup_runtime_scope.py --apply
+
+      - name: ZA re-normalise in the deployed room (dry run unless apply=true)
+        if: inputs.op == 'zenas-renormalise'
+        timeout-minutes: 9
+        # exec: the runner signals the step's entry process on a cancel (SIGINT, then
+        # SIGTERM), so python must be that process for its in-process restore to run.
+        run: exec python3 .github/scripts/zenas_renormalise_op.py run
+
+      # A cancel, a step timeout or a SIGKILL can stop the run step before its own
+      # restore. This fixed step (no workflow inputs) acts only when the run step left
+      # its $RUNNER_TEMP marker (it stored a command and did not restore it): it puts
+      # those flags back with --dry-run and keeps the queued mark. After a refusal or a
+      # failed Check inputs there is no marker, and it makes no Coolify call.
+      - name: Put the ZA re-normalise task back to a dry run after a stop
+        if: (cancelled() || failure()) && inputs.op == 'zenas-renormalise'
+        timeout-minutes: 2
+        run: exec python3 .github/scripts/zenas_renormalise_op.py restore
+
+      - name: Read the last ZA re-normalise run
+        if: inputs.op == 'zenas-renormalise-report'
+        run: exec python3 .github/scripts/zenas_renormalise_op.py report
+
+      - name: Room setup (one op, nothing by hand)
+        if: inputs.op == 'room-setup'
+        run: python3 .github/scripts/room_setup.py
+
+      - name: Verify main backup scope before manual deploy
+        if: inputs.op == 'deploy' && inputs.app == 'xnmc0jkz8j9i5jh1jwanbsfv'
+        run: python3 .github/scripts/backup_runtime_scope.py
+
+      - name: Run
+        if: inputs.op != 'room-setup' && inputs.op != 'backup-scope' && inputs.op != 'nightly-status' && inputs.op != 'zenas-renormalise' && inputs.op != 'zenas-renormalise-report'
+        run: |
+          api() {  # method path [json-body-file]
+            if [ -n "${3:-}" ]; then
+              curl -sS -o out.json -w '%{http_code}' -X "$1" "$COOLIFY_URL/api/v1$2" \
+                -H "Authorization: Bearer $COOLIFY_TOKEN" -H "Content-Type: application/json" --data-binary @"$3"
+            else
+              curl -sS -o out.json -w '%{http_code}' -X "$1" "$COOLIFY_URL/api/v1$2" \
+                -H "Authorization: Bearer $COOLIFY_TOKEN"
+            fi
+          }
+          note() { echo "::notice title=$1::$2"; }
+          fail() { echo "::error title=$1::$2"; exit 1; }
+
+          case "$OP" in
+            status)
+              code=$(api GET /applications)
+              [ "$code" = 200 ] || fail "applications HTTP $code" "$(head -c 300 out.json)"
+              note "Applications" "$(jq -c '[.[] | {name, uuid, status}]' out.json)"
+              code=$(api GET /servers);     note "Servers HTTP $code" "$(jq -c '[.[]? | {name, uuid}]' out.json 2>/dev/null)"
+              code=$(api GET /github-apps); note "GitHub apps HTTP $code" "$(jq -c '[.[]? | {name, uuid}]' out.json 2>/dev/null)"
+              ;;
+
+            env-refs)
+              [ -n "$APP" ] && [ -n "$NAMES" ] || fail "env-refs" "app and names are required"
+              # References only: the value is the literal text {{project.NAME}}, resolved by Coolify at deploy.
+              jq -n --arg names "$NAMES" '{data: ($names | split(",") | map(select(length > 0)) |
+                   map({key: ., value: ("{{project." + . + "}}"), is_preview: false}))}' > body.json
+              code=$(api PATCH "/applications/$APP/envs/bulk" body.json)
+              case "$code" in 2*) note "env-refs HTTP $code" "$NAMES now point at {{project.*}} on $APP" ;;
+                              *) fail "env-refs HTTP $code" "$(head -c 300 out.json)" ;; esac
+              ;;
+
+            create-room)
+              [ -n "$ROOM" ] || fail "create-room" "room is required"
+              code=$(api GET /servers);     server=$(jq -r '.[0].uuid' out.json)
+              code=$(api GET /github-apps); gh_app=$(jq -r '[.[] | select(.name == "tervory-git-hub")][0].uuid' out.json)
+              [ -n "$server" ] && [ "$server" != null ] || fail "create-room" "no server uuid"
+              [ -n "$gh_app" ] && [ "$gh_app" != null ] || fail "create-room" "GitHub app tervory-git-hub not found"
+              jq -n --arg p "$PROJECT_UUID" --arg e "$ENVIRONMENT_NAME" --arg s "$server" --arg g "$gh_app" --arg r "$ROOM" '{
+                  project_uuid: $p, environment_name: $e, server_uuid: $s, github_app_uuid: $g,
+                  git_repository: "Tervory-AI/tervory-tank", git_branch: "main",
+                  build_pack: "dockercompose", base_directory: ("/agents/" + $r),
+                  docker_compose_location: "/docker-compose.yml",
+                  name: ("agent-" + ($r | gsub("_"; "-"))), ports_exposes: "8000", instant_deploy: false
+                }' > body.json
+              code=$(api POST /applications/private-github-app body.json)
+              case "$code" in 2*) note "Room created HTTP $code" "$(jq -c '{uuid}' out.json)" ;;
+                              *) fail "create-room HTTP $code" "$(head -c 400 out.json)" ;; esac
+              ;;
+
+            deploy)
+              [ -n "$APP" ] || fail "deploy" "app is required"
+              code=$(api POST "/deploy?uuid=$APP&force=false")
+              case "$code" in 2*) note "Deploy queued HTTP $code" "$(jq -c '.deployments // .' out.json | head -c 300)" ;;
+                              *) fail "deploy HTTP $code" "$(head -c 300 out.json)" ;; esac
+              ;;
+          esac

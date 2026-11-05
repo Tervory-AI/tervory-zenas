@@ -1,0 +1,18 @@
+{
+  "id": "GHSA-8q59-q68h-6hv4",
+  "summary": "Arbitrary code execution in PyYAML before 5.4",
+  "aliases": ["CVE-2020-14343", "PYSEC-2021-142"],
+  "affected": [
+    {
+      "package": {"ecosystem": "PyPI", "name": "pyyaml"},
+      "ranges": [
+        {
+          "type": "ECOSYSTEM",
+          "events": [{"introduced": "0"}, {"fixed": "5.4"}]
+        }
+      ],
+      "database_specific": {"severity": "CRITICAL"}
+    }
+  ],
+  "database_specific": {"severity": "CRITICAL"}
+}

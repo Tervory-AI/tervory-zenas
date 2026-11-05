@@ -1,0 +1,3 @@
+{"name": "keeps numbers", "input": {"text": "Acme Packaging quoted $0.42 per unit at 5,000 units and $0.31 at 20,000 units, delivery to Boston in 3 weeks, payment net 30. Their contact is Dana Reyes."}, "expected": {"text": "0.31"}, "tolerance": "contains"}
+{"name": "keeps names", "input": {"text": "Acme Packaging quoted $0.42 per unit at 5,000 units and $0.31 at 20,000 units, delivery to Boston in 3 weeks, payment net 30. Their contact is Dana Reyes."}, "expected": {"text": "dana"}, "tolerance": "contains"}
+{"name": "short input", "input": {"text": "Meeting moved to Tuesday 10am."}, "expected": {"text": "tuesday"}, "tolerance": "contains"}

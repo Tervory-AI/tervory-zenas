@@ -1,0 +1,23 @@
+id: zenas.apply
+version: 1.0.0
+agent: zenas
+rung: 1
+task_type: zenas.apply
+cache_scope: tenant
+description: >
+  Decide each element of a rule card. Reuse a matching worked finding, then
+  the decision table, then one cheap model call for an element that still differs.
+input:
+  type: object
+  properties:
+    card: {type: object}
+    features: {type: object}
+    worked: {type: array}
+    tenant_id: {type: string}
+output:
+  type: object
+  properties:
+    rungs: {type: array}
+    findings: {type: array}
+    cost_usd: {type: number}
+eval_threshold: 1.0

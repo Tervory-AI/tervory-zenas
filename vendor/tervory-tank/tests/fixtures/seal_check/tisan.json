@@ -1,0 +1,31 @@
+{
+  "containers": {
+    "placeholder-agent-tisan": {
+      "uuid": "placeholder-tisan",
+      "resource": "agent-tisan",
+      "project": "placeholder-tisan",
+      "service": "agent-tisan",
+      "name": "placeholder-agent-tisan",
+      "networks": [
+        "tervory-gw-tisan",
+        "placeholder-tisan_figma_internal"
+      ]
+    },
+    "placeholder-figma-egress-proxy": {
+      "uuid": "placeholder-tisan",
+      "resource": "agent-tisan",
+      "project": "placeholder-tisan",
+      "service": "figma-egress-proxy",
+      "name": "placeholder-figma-egress-proxy",
+      "networks": [
+        "placeholder-tisan_figma_internal",
+        "placeholder-tisan_egress"
+      ]
+    }
+  },
+  "networks": {
+    "tervory-gw-tisan": false,
+    "placeholder-tisan_figma_internal": true,
+    "placeholder-tisan_egress": false
+  }
+}

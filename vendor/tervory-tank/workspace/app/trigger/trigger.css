@@ -1,0 +1,630 @@
+/* PR #642: light CRM canvas; all rules scoped to the Trigger product. */
+body:has(.trigger-console) {
+  color-scheme: light;
+  background: #f4f6fa;
+}
+body:has(.trigger-console) main {
+  max-width: none;
+  padding: 0;
+  margin: 0;
+}
+.trigger-console {
+  --tr-ink: #001840;
+  --tr-muted: #3d4a66;
+  --tr-paper: #fff;
+  --tr-canvas: #f4f6fa;
+  --tr-line: #b8bfd0;
+  --tr-input: #848da3;
+  color: var(--tr-ink);
+  background: var(--tr-canvas);
+  min-height: 100dvh;
+  font-family: var(--font-inter), Inter, sans-serif;
+  font-size: 14px;
+  line-height: 24px;
+}
+.trigger-console * {
+  box-sizing: border-box;
+}
+.trigger-console h1,
+.trigger-console h2,
+.trigger-console p {
+  margin: 0;
+}
+.trigger-console h1 {
+  font:
+    300 34px/44px var(--font-jost),
+    Jost,
+    sans-serif;
+}
+.trigger-console h2 {
+  font:
+    300 20px/30px var(--font-jost),
+    Jost,
+    sans-serif;
+}
+.trigger-console a {
+  color: inherit;
+  text-decoration: none;
+}
+.trigger-console button,
+.trigger-console input,
+.trigger-console textarea,
+.trigger-console select {
+  font: inherit;
+  color: var(--tr-ink);
+}
+.trigger-console button {
+  min-height: 44px;
+  padding: 8px 16px;
+  border: 1px solid var(--tr-line);
+  border-radius: 8px;
+  background: white;
+  cursor: pointer;
+}
+.trigger-console button:disabled,
+.trigger-console [aria-disabled="true"] {
+  opacity: 0.45;
+  cursor: default;
+}
+.trigger-console button.primary {
+  background: var(--tr-ink);
+  color: white;
+  border-color: var(--tr-ink);
+}
+.trigger-console button.destructive {
+  color: #b91c1c;
+  border-color: #b91c1c;
+}
+.trigger-console :focus-visible {
+  outline: 2px solid var(--tr-ink);
+  outline-offset: 3px;
+}
+.trigger-sidebar {
+  width: 240px;
+  position: fixed;
+  inset: 0 auto 0 0;
+  background: white;
+  border: 1px solid var(--tr-line);
+  display: flex;
+  flex-direction: column;
+  z-index: 30;
+}
+.trigger-identity {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: none;
+}
+.trigger-wordmark {
+  display: block;
+  width: 208px;
+  height: 38px;
+  object-fit: contain;
+}
+.trigger-business {
+  width: 208px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 8px;
+  background: var(--tr-canvas);
+  overflow-wrap: anywhere;
+}
+.trigger-product {
+  font:
+    300 28px/36px var(--font-jost),
+    Jost,
+    sans-serif;
+}
+.trigger-areas {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 16px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.trigger-group {
+  flex: none;
+}
+.trigger-group h2 {
+  font:
+    600 12px/20px var(--font-inter),
+    Inter,
+    sans-serif;
+  color: var(--tr-muted);
+}
+.trigger-group a,
+.trigger-group span,
+.trigger-account a {
+  min-height: 44px;
+  padding: 8px;
+  display: flex;
+  align-items: center;
+  border-radius: 8px;
+  font-size: 15px;
+}
+.trigger-group a[aria-current="page"] {
+  background: var(--tr-canvas);
+  font-weight: 600;
+}
+.trigger-account {
+  border-top: 1px solid var(--tr-line);
+  margin: 8px -16px -16px;
+  padding: 16px;
+  flex: none;
+}
+.trigger-mobile-bar,
+.trigger-close-menu,
+.trigger-scrim {
+  display: none;
+}
+.trigger-content {
+  margin-left: 240px;
+  padding: 24px;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 24px;
+}
+.trigger-content > * {
+  width: min(100%, 1136px);
+}
+.trigger-table-scroll {
+  overflow: auto;
+  background: white;
+}
+.trigger-table {
+  width: 100%;
+  min-width: 900px;
+  margin: 0;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+.trigger-table th {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--tr-ink);
+  height: 56px;
+  padding: 16px;
+}
+.trigger-table td {
+  font-size: 14px;
+  height: 56px;
+  padding: 16px;
+  overflow-wrap: anywhere;
+}
+.trigger-table th,
+.trigger-table td {
+  border-bottom: 1px solid var(--tr-line);
+  vertical-align: top;
+}
+.trigger-table tr[data-record] {
+  cursor: pointer;
+}
+.trigger-mobile-records {
+  display: none;
+}
+.trigger-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 16px;
+}
+.trigger-field {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 8px;
+  background: white;
+  padding: 16px;
+  border-bottom: 1px solid var(--tr-input);
+  overflow-wrap: anywhere;
+}
+.trigger-field-label {
+  font-size: 14px;
+  color: var(--tr-muted);
+}
+.trigger-field-value {
+  min-height: 24px;
+  white-space: pre-wrap;
+}
+.trigger-field input,
+.trigger-field textarea,
+.trigger-field select {
+  width: 100%;
+  min-width: 0;
+  background: white;
+  border: 1px solid var(--tr-input);
+  border-radius: 8px;
+  padding: 8px;
+  min-height: 44px;
+}
+.trigger-field textarea {
+  min-height: 96px;
+  resize: vertical;
+}
+.trigger-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.trigger-section {
+  background: white;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.trigger-composer {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 16px;
+}
+.trigger-composer .trigger-field {
+  padding: 0;
+}
+.trigger-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  min-width: 0;
+}
+.trigger-channel {
+  display: grid;
+  grid-template-columns: 160px 390px minmax(140px, 1fr) 144px;
+  min-height: 64px;
+  align-items: center;
+  background: white;
+  gap: 16px;
+  padding: 8px 16px;
+}
+.trigger-channel > span {
+  overflow-wrap: anywhere;
+}
+.trigger-channel button {
+  width: 144px;
+}
+.trigger-channel-list {
+  overflow: auto;
+}
+.trigger-channel-heading {
+  background: transparent;
+}
+.trigger-confirm {
+  padding-bottom: 104px;
+}
+.trigger-confirm-footer {
+  position: fixed;
+  inset: auto 0 0 240px;
+  height: 80px;
+  background: white;
+  border-top: 1px solid var(--tr-line);
+  padding: 16px 24px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 16px;
+  z-index: 20;
+}
+.trigger-confirm-footer > * {
+  min-width: 120px;
+}
+.trigger-calendar {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0;
+}
+.trigger-calendar-cell {
+  background: white;
+  min-height: 144px;
+  border: 1px solid var(--tr-line);
+  padding: 8px;
+  overflow-wrap: anywhere;
+}
+.trigger-post-card {
+  background: var(--tr-canvas);
+  border-radius: 8px;
+  padding: 8px;
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.trigger-transcript {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.trigger-bubble {
+  padding: 16px;
+  background: white;
+  border: 1px solid var(--tr-line);
+  border-radius: 8px;
+  white-space: pre-wrap;
+}
+.trigger-sources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.trigger-sources a {
+  border: 1px solid var(--tr-line);
+  padding: 8px;
+  border-radius: 8px;
+  text-decoration: underline;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 767px) {
+  .trigger-sidebar {
+    display: none;
+    height: 100dvh;
+  }
+  .trigger-sidebar.is-open {
+    display: flex;
+  }
+  .trigger-mobile-bar {
+    position: fixed;
+    inset: 0 0 auto;
+    height: 64px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 16px;
+    background: white;
+    border-bottom: 1px solid var(--tr-line);
+    z-index: 25;
+  }
+  .trigger-mobile-bar strong {
+    font:
+      300 28px/36px var(--font-jost),
+      Jost,
+      sans-serif;
+  }
+  .trigger-mobile-bar button {
+    border: 0;
+    padding: 0;
+    width: 44px;
+    font-size: 24px;
+  }
+  .trigger-content {
+    margin-left: 0;
+    padding: 88px 16px 24px;
+    gap: 24px;
+  }
+  .trigger-content > * {
+    width: 100%;
+  }
+  .trigger-close-menu {
+    display: block;
+    border: 0 !important;
+    padding: 0 !important;
+    width: 44px;
+    height: 44px;
+    flex: none;
+    background: white;
+  }
+  .trigger-logo-row {
+    display: flex;
+    width: 208px;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .trigger-wordmark {
+    width: 156px;
+    height: auto;
+  }
+  .trigger-scrim {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: #00184033;
+    border: 0 !important;
+    border-radius: 0 !important;
+    z-index: 29;
+  }
+  .trigger-table-scroll {
+    display: none;
+  }
+  .trigger-mobile-records {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+  .trigger-record {
+    background: white;
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 16px;
+    min-height: 88px;
+  }
+  .trigger-record > span {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .trigger-record b {
+    font-weight: 400;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .trigger-fields,
+  .trigger-composer {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .trigger-confirm-footer {
+    left: 0;
+    padding: 16px;
+  }
+  .trigger-confirm-footer > * {
+    min-width: 0;
+    flex: 1;
+  }
+  .trigger-confirm {
+    padding-bottom: 104px;
+  }
+  .trigger-channel {
+    grid-template-columns: minmax(0, 1fr) 144px;
+    min-height: 120px;
+    gap: 8px;
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+  .trigger-channel > span:nth-child(2) {
+    grid-column: 1;
+    grid-row: 2;
+  }
+  .trigger-channel > span:nth-child(3) {
+    grid-column: 2;
+    grid-row: 1;
+  }
+  .trigger-channel button {
+    grid-column: 2;
+    grid-row: 2;
+  }
+  .trigger-channel-heading {
+    display: none;
+  }
+  .trigger-calendar-cell {
+    min-height: 104px;
+    padding: 8px;
+    font-size: 12px;
+  }
+  .trigger-calendar-cell .trigger-post-card {
+    font-size: 11px;
+    padding: 8px 4px;
+  }
+}
+
+.trigger-actions [role="switch"] {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 180px;
+  height: 48px;
+}
+.trigger-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--tr-line);
+  border-radius: 8px;
+  min-height: 44px;
+  padding: 8px 16px;
+  background: white;
+}
+.trigger-channel select {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid var(--tr-input);
+  background: white;
+  border-radius: 8px;
+}
+
+/* Field edits retain the framed label/value geometry. */
+.trigger-table th {
+  text-align: left;
+}
+.trigger-table td {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.trigger-table td > a {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.trigger-business {
+  height: 44px;
+  font-size: 11px;
+  line-height: 16px;
+  overflow: hidden;
+}
+.trigger-business > span {
+  flex: 1;
+  min-width: 0;
+}
+.trigger-business > .cl-rootBox {
+  flex: none;
+  max-width: 28px;
+}
+.trigger-field textarea,
+.trigger-field input,
+.trigger-field select {
+  border: 0;
+  border-radius: 0;
+  min-height: 24px;
+  padding: 0;
+}
+.trigger-field textarea {
+  height: 24px;
+  resize: vertical;
+}
+.trigger-mobile-bar button {
+  font-family: Arial, sans-serif;
+}
+
+.trigger-subtable {
+  overflow: auto;
+  background: white;
+}
+.trigger-subtable .trigger-table {
+  min-width: 720px;
+}
+.trigger-subtable .trigger-table th {
+  height: 72px;
+}
+.trigger-subtable .trigger-table td {
+  height: 64px;
+}
+@media (max-width: 767px) {
+  .trigger-record-actions {
+    flex-direction: column;
+    gap: 16px;
+  }
+  .trigger-record-actions button {
+    width: 100%;
+  }
+  .trigger-mobile-bar strong {
+    font-size: 24px;
+  }
+}
+
+.trigger-hamburger {
+  display: inline-block;
+  position: relative;
+  width: 20px;
+  height: 16px;
+  border-top: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+}
+.trigger-hamburger::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 5px;
+  height: 2px;
+  background: currentColor;
+}
+
+.trigger-subtable th:first-child {
+  width: 30%;
+}
+.trigger-subtable th:nth-child(2),
+.trigger-subtable th:nth-child(3) {
+  width: 20%;
+}
+.trigger-subtable th:nth-child(4) {
+  width: 18%;
+}
+.trigger-subtable th:last-child {
+  width: 12%;
+}

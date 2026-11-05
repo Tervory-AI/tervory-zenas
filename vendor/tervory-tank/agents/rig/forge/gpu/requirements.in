@@ -1,0 +1,25 @@
+# GPU runtime dependencies; torch/CUDA come from the digest-pinned base.
+torch==2.6.0
+torchvision==0.21.0
+requests==2.34.2
+trimesh==4.9.0
+numpy==2.2.6
+pillow==11.3.0
+transformers==4.56.2
+huggingface-hub==0.35.3
+imageio==2.37.0
+imageio-ffmpeg==0.6.0
+easydict==1.13
+opencv-python-headless==4.12.0.88
+ninja==1.13.0
+einops==0.8.1
+scipy==1.15.3
+zstandard==0.24.0
+kornia==0.8.1
+timm==1.0.20
+networkx==3.4.2
+setuptools==80.9.0
+wheel==0.45.1
+packaging==25.0
+moderngl==5.12.0
+plyfile==1.1.2

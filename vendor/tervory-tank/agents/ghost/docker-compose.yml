@@ -1,0 +1,202 @@
+# coolify: raw compose
+# Autumbra Watch — shared, tenant-scoped. Gateway network + browser.
+# Reaches Tank and public threat sources. No Cloudflare write credential.
+# No production DB login, model key, control-plane key or Docker socket.
+services:
+  agent-ghost:
+    build:
+      context: ..
+      dockerfile: ghost/Dockerfile
+    restart: unless-stopped
+    mem_limit: 512m
+    cpus: 0.5
+    environment:
+      AGENT_NAME: ghost
+      GHOST_BRAIN_ENABLED: ${GHOST_BRAIN_ENABLED:-false}
+      TANK_KEY: ${TANK_KEY_GHOST:-}
+      TANK_REGION: ${TANK_REGION:-us-east}
+      DATA_DIR: /data
+      # Per-client queues live under this root as <tenant_id>/ (never one shared inbox).
+      THREAT_PAYLOAD_QUEUE_ROOT: /queues
+      # Same shared secret as Workspace + Enforce (Coolify NAME). Signs Undo / receipts email links.
+      AUTUMBRA_UNDO_TOKEN_SECRET: ${AUTUMBRA_UNDO_TOKEN_SECRET:-}
+      # Watch-only delivery and native push verification; founder fills values.
+      AUTUMBRA_SMTP_HOST: ${AUTUMBRA_SMTP_HOST:-}
+      AUTUMBRA_SMTP_PORT: ${AUTUMBRA_SMTP_PORT:-}
+      AUTUMBRA_SMTP_FROM: ${AUTUMBRA_SMTP_FROM:-}
+      AUTUMBRA_SMTP_USER: ${AUTUMBRA_SMTP_USER:-}
+      AUTUMBRA_SMTP_PASSWORD: ${AUTUMBRA_SMTP_PASSWORD:-}
+      AUTUMBRA_CLOUDFLARE_WEBHOOK_SECRET: ${AUTUMBRA_CLOUDFLARE_WEBHOOK_SECRET:-}
+      AUTUMBRA_GOOGLE_PUSH_AUDIENCE: ${AUTUMBRA_GOOGLE_PUSH_AUDIENCE:-}
+      AUTUMBRA_GOOGLE_PUSH_SERVICE_ACCOUNT: ${AUTUMBRA_GOOGLE_PUSH_SERVICE_ACCOUNT:-}
+      AUTUMBRA_EDGE_WEBHOOK_SECRET: ${AUTUMBRA_EDGE_WEBHOOK_SECRET:-}
+      AUTUMBRA_MAILBOX_WEBHOOK_SECRET: ${AUTUMBRA_MAILBOX_WEBHOOK_SECRET:-}
+      # GHOST-2 inventory: read-only Coolify API token, by name only. Empty = not connected.
+      COOLIFY_TOKEN_GHOST: ${COOLIFY_TOKEN_GHOST:-}
+      COOLIFY_URL_GHOST: ${COOLIFY_URL_GHOST:-}
+      # Existing draft-only dogfood PR path; founder fills the existing scoped token.
+      GHOST_PATCH_PR_ENABLED: ${GHOST_PATCH_PR_ENABLED:-0}
+      GHOST_GITHUB_TOKEN: ${GHOST_GITHUB_TOKEN:-}
+      # Air gap: Watch has NO edge write credential. Per-client Enforce holds
+      # Edge credential names held until a real connected edge client (agnostic).
+    volumes:
+      - agent_ghost_data:/data
+      - threat_queues:/queues
+    networks: [gw]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    expose: ["8000"]
+  enforce-lifecycle:
+    build:
+      context: ..
+      dockerfile: ghost/Dockerfile
+    command: [uvicorn, ghost.enforce_api:create_app, --factory, --host, 0.0.0.0, --port, "8000", --no-access-log]
+    restart: unless-stopped
+    mem_limit: 256m
+    cpus: 0.5
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    environment:
+      AUTUMBRA_LIFECYCLE_KEY: ${AUTUMBRA_LIFECYCLE_KEY:-}
+      RIG_LIFECYCLE_KEY: ${RIG_LIFECYCLE_KEY:-}
+      RIG_COOLIFY_URL: ${RIG_COOLIFY_URL:-}
+      RIG_COOLIFY_TOKEN: ${RIG_COOLIFY_TOKEN:-}
+      RIG_COOLIFY_PROJECT_UUID: ${RIG_COOLIFY_PROJECT_UUID:-}
+      RIG_COOLIFY_SERVER_UUID: ${RIG_COOLIFY_SERVER_UUID:-}
+      RIG_COOLIFY_ENVIRONMENT: ${RIG_COOLIFY_ENVIRONMENT:-}
+      RIG_COOLIFY_GITHUB_APP_UUID: ${RIG_COOLIFY_GITHUB_APP_UUID:-}
+      PYTHONDONTWRITEBYTECODE: "1"
+      AUTUMBRA_COOLIFY_URL: ${AUTUMBRA_COOLIFY_URL:-}
+      AUTUMBRA_COOLIFY_TOKEN: ${AUTUMBRA_COOLIFY_TOKEN:-}
+      AUTUMBRA_COOLIFY_PROJECT_UUID: ${AUTUMBRA_COOLIFY_PROJECT_UUID:-}
+      AUTUMBRA_COOLIFY_SERVER_UUID: ${AUTUMBRA_COOLIFY_SERVER_UUID:-}
+      AUTUMBRA_COOLIFY_ENVIRONMENT: ${AUTUMBRA_COOLIFY_ENVIRONMENT:-}
+      AUTUMBRA_COOLIFY_GITHUB_APP_UUID: ${AUTUMBRA_COOLIFY_GITHUB_APP_UUID:-}
+    networks: [gw]
+  ghost-browser:
+    build:
+      context: ..
+      dockerfile: ghost/Dockerfile.browser
+    restart: unless-stopped
+    # Reap finished Chrome children (3 Nov: 33,845 zombie chrome processes had built up).
+    init: true
+    mem_limit: 1g
+    cpus: 0.5
+    environment:
+      TANK_KEY: ${TANK_KEY_GHOST:-}
+    volumes:
+      - ghost_browser_data:/data
+    networks: [gw]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    expose: ["8000"]
+  ghost-brain:
+    profiles:
+    - brain
+    build:
+      context: ../..
+      dockerfile: agents/rig/Dockerfile.brain
+    command:
+    - uvicorn
+    - brain.standby:app
+    - --host
+    - 0.0.0.0
+    - --port
+    - '8001'
+    - --no-access-log
+    restart: unless-stopped
+    mem_limit: 2g
+    cpus: 1
+    pids_limit: 128
+    read_only: true
+    tmpfs:
+    - /tmp:rw,noexec,nosuid,nodev,size=32m
+    environment:
+      BRAIN_ROOM: ghost
+      TANK_REGION: us-east
+      TANK_URL: http://tank:8000
+      TANK_KEY: ${TANK_KEY_GHOST:-}
+      HERMES_URL: http://hermes:8000
+      GHOST_URL: http://agent-ghost:8000
+      GHOST_SANDBOX_URL: http://ghost-sandbox:8002
+      SANDBOX_KEY: ${SANDBOX_KEY_GHOST:-}
+      DATA_DIR: /data
+      GHOST_BROWSER_URL: http://ghost-browser:8000
+    volumes:
+    - ghost_brain_data:/data
+    networks:
+    - gw
+    - sandbox
+    depends_on:
+      ghost-sandbox:
+        condition: service_healthy
+    healthcheck:
+      test:
+      - CMD
+      - python
+      - -c
+      - import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health', timeout=3)
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    security_opt:
+    - no-new-privileges:true
+    cap_drop:
+    - ALL
+  ghost-sandbox:
+    profiles:
+    - brain
+    build:
+      context: ../..
+      dockerfile: agents/base/Dockerfile.sandbox
+    restart: unless-stopped
+    mem_limit: 512m
+    cpus: 0.5
+    pids_limit: 64
+    environment:
+      BRAIN_ROOM: ghost
+      SANDBOX_KEY: ${SANDBOX_KEY_GHOST:-}
+    read_only: true
+    tmpfs:
+    - /tmp:rw,noexec,nosuid,nodev,size=32m
+    - /work:rw,nosuid,nodev,size=128m,uid=1000,gid=1000,mode=0700
+    networks:
+    - sandbox
+    healthcheck:
+      test:
+      - CMD
+      - python
+      - -c
+      - import urllib.request; urllib.request.urlopen('http://127.0.0.1:8002/health', timeout=3)
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    security_opt:
+    - no-new-privileges:true
+    cap_drop:
+    - ALL
+
+volumes:
+  agent_ghost_data:
+  ghost_browser_data:
+  threat_queues:
+  ghost_brain_data:
+    name: tervory-ghost-brain-data
+networks:
+  sandbox:
+    internal: true
+  gw:
+    external: true
+    name: tervory-gw-ghost

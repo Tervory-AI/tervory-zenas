@@ -1,0 +1,20 @@
+id: zenas.review
+version: 1.0.0
+agent: zenas
+rung: 3
+description: >
+  Check a contract against a playbook. An exact approved sentence is not a
+  deviation. A difference is a redline back to the approved sentence.
+input:
+  type: object
+  properties:
+    text: {type: string}
+    positions: {type: array}
+output:
+  type: object
+  properties:
+    deviations: {type: integer}
+    risk: {type: string}
+    inserts: {type: array}
+    deletes: {type: array}
+eval_threshold: 1.0

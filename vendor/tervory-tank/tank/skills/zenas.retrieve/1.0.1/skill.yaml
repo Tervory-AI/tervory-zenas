@@ -1,0 +1,21 @@
+id: zenas.retrieve
+version: 1.0.1
+agent: zenas
+rung: 3
+description: >
+  Find passages in the legal pool by citation, by the words in the text, and
+  by meaning. Filter by jurisdiction and as-at date. Public law only.
+input:
+  type: object
+  properties:
+    query: {type: string}
+    citation: {type: string}
+    jurisdiction: {type: string}
+    as_at: {type: string}
+    corpus: {type: array}
+output:
+  type: object
+  properties:
+    count: {type: integer}
+    citations: {type: array}
+eval_threshold: 1.0

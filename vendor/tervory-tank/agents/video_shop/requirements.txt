@@ -1,0 +1,5 @@
+# Local inference only: MIT engines, no provider SDK or API service.
+faster-whisper==1.2.1
+open_clip_torch==3.3.0
+# Safetensors avoids executable pickle checkpoints.
+safetensors==0.7.0

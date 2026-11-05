@@ -1,0 +1,21 @@
+id: zenas.pii
+version: 1.3.0
+agent: zenas
+rung: 3
+description: >
+  Find personal identifiers in a document and replace them with placeholders.
+  Extends 1.0.0 with party and company names, email addresses, deal amounts,
+  deal dates, case numbers, and registration numbers. 1.3.0 adds South African
+  and US formats seen in real case text: split SA ID numbers, litigants named in
+  judgment headings, ZA and US phone forms, SSN, ITIN, EIN, payment cards,
+  driver's licences, PO boxes and ZIP+4. The raw value is not returned.
+input:
+  type: object
+  properties:
+    text: {type: string}
+output:
+  type: object
+  properties:
+    text: {type: string}
+    matches: {type: array}
+eval_threshold: 1.0

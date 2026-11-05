@@ -1,0 +1,60 @@
+.zenas-page {
+  --fg: #001840;
+  --bg: #f4f6fb;
+  --card: #ffffff;
+  --line: #b8bfd0;
+  --muted: #4a5672;
+  --red: #e80008;
+  color: var(--fg);
+  font-family: var(--font-inter), Inter, sans-serif;
+}
+.zenas-page h1, .zenas-page h2 {
+  font-family: var(--font-jost), Jost, sans-serif;
+  font-weight: 300;
+  margin: 0 0 8px;
+}
+.zenas-page .logo { height: 28px; width: auto; }
+.zenas-page .lede, .zenas-page .note { color: var(--muted); }
+.zenas-page .meta { font-family: var(--font-mono), "JetBrains Mono", ui-monospace, monospace; font-size: 12px; color: var(--muted); }
+.zenas-page .card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin: 12px 0;
+}
+.zenas-page form { display: flex; flex-direction: column; gap: 8px; }
+.zenas-page input, .zenas-page textarea, .zenas-page select {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font: inherit;
+  color: var(--fg);
+  background: transparent;
+}
+.zenas-page button.primary,
+.zenas-page button.secondary {
+  border-radius: 8px;
+  padding: 8px 12px;
+  font: inherit;
+  cursor: pointer;
+  align-self: flex-start;
+}
+.zenas-page button.primary {
+  background: var(--red);
+  color: #fff;
+  border: 1px solid var(--red);
+}
+.zenas-page button.secondary {
+  background: transparent;
+  color: var(--fg);
+  border: 1px solid var(--line);
+}
+.zenas-page form .actions { display: flex; flex-direction: row; gap: 8px; }
+.zenas-page .split { display: grid; grid-template-columns: 1.2fr 0.8fr; gap: 16px; }
+.zenas-page .draft { white-space: pre-wrap; }
+.zenas-page .error { color: var(--red); }
+.zenas-page .confirm { color: var(--fg); font-weight: 600; margin: 8px 0; }
+@media (max-width: 800px) {
+  .zenas-page .split { grid-template-columns: 1fr; }
+}

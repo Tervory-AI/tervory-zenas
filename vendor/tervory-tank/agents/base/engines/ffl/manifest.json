@@ -1,0 +1,50 @@
+{
+  "id": "ffl",
+  "version": "1.0.0",
+  "entrypoints": {
+    "project": "agents.base.engines.ffl.reference:project",
+    "reference": "agents.base.engines.ffl.reference:register",
+    "gold": "agents.base.engines.ffl.atf_gold:fetch_list"
+  },
+  "skills": [
+    "ffl.ingest",
+    "ffl.profile"
+  ],
+  "files": {
+    "agents/base/engines/ffl/atf_gold.py": "7e96bf9834f8cd66581363c414a59460819b31f60f42dcdfb976763bf0730df1",
+    "agents/base/engines/ffl/gold_lists.json": "adc2b65b142fee328b0054d4bf05e86d41f5fb130cb6550f809310a46191e0ac",
+    "agents/base/engines/ffl/reference.py": "545952f71b53a4c5b42db07cb5a22abe272e7008b57e4390f78ba1f23930657a",
+    "agents/base/engines/ffl/reference_source.py": "5d8fd0c819e74505f2066b124ece69ef0f8a0f4ce828575483123d00152d0aa8",
+    "tank/skills/ffl.ingest/1.0.0/CHANGELOG.md": "c36ea67a717c4bde850af6f59295183cf9762b5c634e1d23ef92a8e8c4b3f625",
+    "tank/skills/ffl.ingest/1.0.0/evals/cases.jsonl": "0818978d974a237f510556481be32ba52afd73e7aabca6a4b51dc7e135ef13de",
+    "tank/skills/ffl.ingest/1.0.0/run.py": "7b8bd36433456fbd2b5674808ab3d35ae9fc05d9344852d1df06d5bce1903ebd",
+    "tank/skills/ffl.ingest/1.0.0/skill.yaml": "d626fe786d8c1ec5ff802f0bbf86b9498ed30b5123f1c7ccb77302f8fb91a430",
+    "tank/skills/ffl.ingest/1.0.1/CHANGELOG.md": "864a83458ba33e2c864b716d025ea63eeb761d049b40f005cd7795c20d183280",
+    "tank/skills/ffl.ingest/1.0.1/evals/cases.jsonl": "36709ac009ecec3de8521a587a38634677a560d4ad8e83fbdcfc33346969d309",
+    "tank/skills/ffl.ingest/1.0.1/run.py": "7b8bd36433456fbd2b5674808ab3d35ae9fc05d9344852d1df06d5bce1903ebd",
+    "tank/skills/ffl.ingest/1.0.1/skill.yaml": "414a76db20ea200761620cf2b93f17ebb369d1d1afb5c5ea4d9cde9de646283c",
+    "tank/skills/ffl.profile/1.0.0/CHANGELOG.md": "040466ce8762f3a809fd0f8f3e100e2ca81a6923d3bdf896a9e58abc1c2e1e44",
+    "tank/skills/ffl.profile/1.0.0/data/business.json": "2437e31cf0b0871891701258bc163b3a6ed2e550ef1c3c90b4cd67ee2ba53d60",
+    "tank/skills/ffl.profile/1.0.0/data/vocabulary.json": "1e464a0eb38f73c011a244dcbb7ebaa938dffc9e018676c8d205bfba7e53751f",
+    "tank/skills/ffl.profile/1.0.0/evals/cases.jsonl": "e0751f321e509e838adf796fa2eacc527174ef7e347e4cbdf56ec4e13e47052a",
+    "tank/skills/ffl.profile/1.0.0/run.py": "75c11fe59a6767f7cd31be48f476940467c43e9ab70f1d90861ed3ef587989a0",
+    "tank/skills/ffl.profile/1.0.0/skill.yaml": "7931d18c6faedb5cde9981759f4b2ad6fd338a3ce774934f31ea6a1475845e92",
+    "tank/skills/ffl.profile/1.1.0/CHANGELOG.md": "e4ee4d9f0975a2603084d3889b2a90bc18ce05c4a82f124c23d0677a8065ab98",
+    "tank/skills/ffl.profile/1.1.0/data/business.json": "2437e31cf0b0871891701258bc163b3a6ed2e550ef1c3c90b4cd67ee2ba53d60",
+    "tank/skills/ffl.profile/1.1.0/data/site.json": "068f1482099000d0343e9b0ba139fc4df3633d9718c7fabc74281d82170dcac9",
+    "tank/skills/ffl.profile/1.1.0/data/vocabulary.json": "1e464a0eb38f73c011a244dcbb7ebaa938dffc9e018676c8d205bfba7e53751f",
+    "tank/skills/ffl.profile/1.1.0/evals/cases.jsonl": "e0751f321e509e838adf796fa2eacc527174ef7e347e4cbdf56ec4e13e47052a",
+    "tank/skills/ffl.profile/1.1.0/run.py": "75c11fe59a6767f7cd31be48f476940467c43e9ab70f1d90861ed3ef587989a0",
+    "tank/skills/ffl.profile/1.1.0/skill.yaml": "83d6952407290adbb3f4dbbd5f957632c08b2a3ad01bef27f28fcf5679d8e36c",
+    "tank/skills/ffl.profile/1.1.1/CHANGELOG.md": "e2ab2941ec8ae7100461894418d82cda466552c64afd6c30e3232918b5f08146",
+    "tank/skills/ffl.profile/1.1.1/data/business.json": "2437e31cf0b0871891701258bc163b3a6ed2e550ef1c3c90b4cd67ee2ba53d60",
+    "tank/skills/ffl.profile/1.1.1/data/site.json": "068f1482099000d0343e9b0ba139fc4df3633d9718c7fabc74281d82170dcac9",
+    "tank/skills/ffl.profile/1.1.1/data/vocabulary.json": "1e464a0eb38f73c011a244dcbb7ebaa938dffc9e018676c8d205bfba7e53751f",
+    "tank/skills/ffl.profile/1.1.1/evals/cases.jsonl": "c49e9838a3b54dc80811563b3b9b316f94ec6635c419e0d71441d28d786c79a6",
+    "tank/skills/ffl.profile/1.1.1/run.py": "75c11fe59a6767f7cd31be48f476940467c43e9ab70f1d90861ed3ef587989a0",
+    "tank/skills/ffl.profile/1.1.1/skill.yaml": "861c44ad875a0f9199245bc75a4460144ed82877a84655cb8a379040cec8e1ba",
+    "agents/base/engines/ffl/__init__.py": "cadd0a15669ca21dd2cafad58faa13e82b7cbbc7cec67acec281c12320876cac"
+  },
+  "sot": [],
+  "compliance_flags": []
+}

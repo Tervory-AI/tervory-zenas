@@ -1,0 +1,23 @@
+id: scan.static
+version: 1.0.0
+agent: radix
+rung: 3
+description: >
+  Finds injection patterns in code that was handed over. Semgrep with vendored
+  rules when the Radix image has it, otherwise the same rules in process.
+  No network and no rule download.
+input:
+  type: object
+  required: [files]
+  properties:
+    files:
+      type: array
+output:
+  type: object
+  properties:
+    file: {type: string}
+    line: {type: integer}
+    rule: {type: string}
+    severity: {type: string}
+    critical: {type: integer}
+eval_threshold: 1.0

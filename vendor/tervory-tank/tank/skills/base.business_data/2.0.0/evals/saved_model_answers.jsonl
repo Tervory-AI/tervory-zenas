@@ -1,0 +1,15 @@
+{"name": "small gun shop", "answer": {"size_band": "2-10", "revenue_band": "<$500k", "business_model": "retail", "naics": "451110"}}
+{"name": "manufacturer", "answer": {"size_band": "51-200", "revenue_band": "$2M-$10M", "business_model": "manufacturer", "naics": "332994"}}
+{"name": "thin signals", "answer": {"size_band": null, "revenue_band": null, "business_model": null, "naics": null}}
+{"name": "headcount on the page", "answer": {"size_band": "51-200", "revenue_band": "$2M-$10M", "business_model": "manufacturer", "naics": "332994"}}
+{"name": "online cart", "answer": {"size_band": "2-10", "revenue_band": "<$500k", "business_model": "online retail", "naics": "451110"}}
+{"name": "trade only", "answer": {"size_band": "solo", "revenue_band": "<$500k", "business_model": "wholesale", "naics": "332994"}}
+{"name": "repair page", "answer": {"size_band": "solo", "revenue_band": null, "business_model": "service", "naics": null}}
+{"name": "three stores", "answer": {"size_band": "11-50", "revenue_band": "$500k-$2M", "business_model": "retail", "naics": "451110"}}
+{"name": "since 1998", "answer": {"size_band": "2-10", "revenue_band": "<$500k", "business_model": "retail", "naics": "451110"}}
+{"name": "copyright span", "answer": {"size_band": "2-10", "revenue_band": "<$500k", "business_model": "retail", "naics": "451110"}}
+{"name": "retail and wholesale", "answer": {"size_band": "2-10", "revenue_band": "<$500k", "business_model": "mixed", "naics": "451110"}}
+{"name": "large plant", "answer": {"size_band": "200+", "revenue_band": "$10M+", "business_model": "manufacturer", "naics": "332994"}}
+{"name": "social reach", "answer": {"size_band": "2-10", "revenue_band": "<$500k", "business_model": "retail", "naics": "451110"}}
+{"name": "licence points", "answer": {"size_band": "solo", "revenue_band": "<$500k", "business_model": "retail", "naics": "451110"}}
+{"name": "one person no licence", "answer": {"size_band": "solo", "revenue_band": "<$500k", "business_model": "retail", "naics": "451110"}}

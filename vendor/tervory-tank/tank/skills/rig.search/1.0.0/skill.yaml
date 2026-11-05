@@ -1,0 +1,20 @@
+id: rig.search
+version: 1.0.0
+agent: rig
+rung: 3
+description: >
+  Rank one tenant's products by full text and trigram similarity on the name,
+  brand, sku, and attributes. An empty query returns nothing.
+input:
+  type: object
+  properties:
+    q: {type: string}
+    limit: {type: integer}
+    tenant_id: {type: string}
+    products: {type: array}
+output:
+  type: object
+  properties:
+    results: {type: array}
+    ids: {type: array}
+eval_threshold: 1.0

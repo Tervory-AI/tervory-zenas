@@ -1,0 +1,190 @@
+:host {
+  --client-accent: #001840;
+  --client-ink: #1a1a1a;
+  --client-paper: #fff;
+  --client-line: #7a7a85;
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 2147483000;
+  font:
+    14px/20px "TriggerWidgetAtkinson",
+    sans-serif;
+  color: var(--client-ink);
+  color-scheme: light;
+}
+* {
+  box-sizing: border-box;
+}
+[hidden] {
+  display: none !important;
+}
+p,
+h2,
+h3 {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+h2,
+h3 {
+  font:
+    400 18px/26px "TriggerWidgetLiterata",
+    serif;
+}
+button,
+input,
+textarea {
+  font: inherit;
+  color: inherit;
+  background: var(--client-paper);
+  border: 1px solid var(--client-line);
+  border-radius: 8px;
+}
+button {
+  min-height: 44px;
+  padding: 8px;
+  cursor: pointer;
+}
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--client-accent);
+  outline-offset: 2px;
+}
+.launcher {
+  width: 92px;
+  min-width: 92px;
+  height: 48px;
+  border-radius: 12px;
+  background: var(--client-paper);
+  color: var(--client-ink);
+}
+.panel {
+  width: 343px;
+  max-width: calc(100vw - 32px);
+  height: 640px;
+  max-height: calc(100dvh - 32px);
+  display: flex;
+  flex-direction: column;
+  background: var(--client-paper);
+  border: 1px solid var(--client-line);
+  border-radius: 12px;
+  overflow: hidden;
+}
+header {
+  height: 64px;
+  flex: none;
+  padding: 16px;
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+header h2 {
+  flex: 1;
+  min-width: 0;
+}
+header button {
+  width: 44px;
+  height: 44px;
+  flex: none;
+}
+.messages {
+  padding: 16px;
+  overflow-y: auto;
+  min-height: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  align-items: flex-start;
+}
+.bubble {
+  width: 285px;
+  max-width: 100%;
+  border: 1px solid var(--client-line);
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: none;
+}
+.person {
+  align-self: flex-end;
+  border-color: var(--client-accent);
+}
+.sources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  width: 100%;
+}
+.sources .source {
+  color: var(--client-ink);
+  border: 1px solid var(--client-line);
+  border-radius: 12px;
+  padding: 8px;
+  width: calc(50% - 4px);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-wrap: anywhere;
+}
+.sources small {
+  font-size: 12px;
+}
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+}
+.composer {
+  padding: 8px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: none;
+}
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+input,
+textarea {
+  width: 100%;
+  min-height: 44px;
+  padding: 8px;
+  resize: vertical;
+}
+.composer label {
+  border: 1px solid var(--client-line);
+  border-radius: 8px;
+  padding: 8px;
+  gap: 0;
+}
+.composer textarea {
+  border: 0;
+  padding: 0;
+  outline-offset: 0;
+  min-height: 24px;
+  max-height: 64px;
+}
+.messages form {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.privacy {
+  white-space: pre-wrap;
+}
+.status {
+  white-space: pre-wrap;
+}

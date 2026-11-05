@@ -1,0 +1,10 @@
+# One-shot image. Creates agent database roles, then exits.
+# Tank does not use this image. asyncpg is the only dependency.
+FROM python:3.12-slim
+WORKDIR /app
+RUN pip install --no-cache-dir asyncpg==0.30.0 \
+    && useradd --create-home --uid 1000 roles
+COPY _chassis/chassis /app/chassis
+COPY _chassis/provision_agent_roles.py /app/provision_agent_roles.py
+USER roles
+CMD ["python", "/app/provision_agent_roles.py"]

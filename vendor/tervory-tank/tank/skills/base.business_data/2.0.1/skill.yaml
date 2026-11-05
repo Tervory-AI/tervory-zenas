@@ -1,0 +1,29 @@
+id: base.business_data
+version: 2.0.1
+agent: base
+rung: 3
+description: >
+  Pass 5. Estimates size band, revenue band, business model, and NAICS from the
+  signals earlier passes already found. Size is a points score whose cutoffs live
+  in the engine. Revenue follows the engine's size table. NAICS follows the
+  engine's category table. Estimates only; confidence never goes above 60. Pure code.
+input:
+  type: object
+  properties:
+    name: {type: string}
+    description: {type: string}
+    categories: {type: array}
+    services: {type: array}
+    people: {type: array}
+    html: {type: string}
+    fixture: {type: string}
+    engine: {type: string, description: engine id whose data files supply score tables}
+    bands: {type: object}
+output:
+  type: object
+  properties:
+    size_band: {type: string}
+    revenue_band: {type: string}
+    business_model: {type: string}
+    naics: {type: string}
+eval_threshold: 0.8

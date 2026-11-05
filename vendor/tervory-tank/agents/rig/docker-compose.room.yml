@@ -1,0 +1,83 @@
+# coolify: raw compose
+# Per-store data plane only. Brain, browser and 3D workers remain shared.
+# Coolify lifecycle creates this application without deploying it. Fill the
+# receipt's founder_fills in this application, then deploy through Coolify.
+services:
+  room:
+    build:
+      context: ..
+      dockerfile: rig/Dockerfile
+    container_name: ${RIG_ROOM_NAME:?}
+    restart: unless-stopped
+    mem_limit: 384m
+    cpus: 0.5
+    pids_limit: 128
+    read_only: true
+    tmpfs: [/tmp:rw,noexec,nosuid,nodev,size=64m,uid=1000,gid=1000]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    environment:
+      AGENT_NAME: rig
+      RIG_ROOM_TENANT: ${RIG_ROOM_TENANT:?}
+      DATABASE_URL: postgresql://rig:${RIG_ROOM_DB_PASSWORD}@database:5432/rig
+      DATA_DIR: /data
+      TANK_REGION: us-east
+      TANK_URL: http://tank:8000
+      TANK_KEY: ${TANK_KEY_RIG:?}
+      RIG_RETAILER_KEY: ${RIG_RETAILER_KEY:?}
+      RIG_TRUSTED_PROXY_CIDRS: ${RIG_TRUSTED_PROXY_CIDRS:?}
+      RIG_WIDGET_PUBLISHABLE_KEY: ${RIG_WIDGET_PUBLISHABLE_KEY:-}
+      RIG_FORGE_TRELLIS_ENABLED: 'false'
+      R2_BUCKET: tervory-rig
+      R2_ACCOUNT_ID: ${R2_ACCOUNT_ID:-}
+      R2_ACCESS_KEY_ID_RIG: ${R2_ACCESS_KEY_ID_RIG:-}
+      R2_SECRET_ACCESS_KEY_RIG: ${R2_SECRET_ACCESS_KEY_RIG:-}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+    volumes: [data:/data]
+    networks:
+      private: {}
+      gw:
+        aliases:
+          - ${RIG_ROOM_NAME:?}
+    depends_on:
+      database:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+  database:
+    image: postgres:16.15
+    restart: unless-stopped
+    mem_limit: 256m
+    cpus: 0.25
+    cap_drop: [NET_RAW]
+    security_opt: [no-new-privileges:true]
+    environment:
+      POSTGRES_USER: rig
+      POSTGRES_DB: rig
+      POSTGRES_PASSWORD: ${RIG_ROOM_DB_PASSWORD:?}
+    volumes: [database:/var/lib/postgresql/data]
+    networks: [private]
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U rig -d rig]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+volumes:
+  data:
+    name: ${RIG_ROOM_DATA_VOLUME:?}
+  database:
+    name: ${RIG_ROOM_DB_VOLUME:?}
+networks:
+  private:
+    name: ${RIG_ROOM_NETWORK:?}
+    internal: true
+  gw:
+    external: true
+    name: tervory-gw-rig

@@ -1,0 +1,104 @@
+[
+  {
+    "name": "sourced client businesses",
+    "input": {
+      "business_fixture": true,
+      "lookup_id": "20000000-0000-0000-0000-000000000002"
+    },
+    "expected": {
+      "ok": true,
+      "findings": [
+        {
+          "code": "privacy_notice",
+          "message": "The supplied scan did not find a privacy notice.",
+          "weight": 5,
+          "sources": [
+            {
+              "source_id": "scan",
+              "url": "client://00000000-0000-0000-0000-000000000001/fixtures/scan",
+              "record_id": "20000000-0000-0000-0000-000000000002",
+              "base_record_id": null,
+              "field": "privacy_notice",
+              "retrieved_at": "2026-10-18T10:00:00Z",
+              "evidence_sha256": "b77032bf13032736ba181c52b26838b5e4719e353aa388545144ddadad6e79e4"
+            }
+          ]
+        },
+        {
+          "code": "cookie_notice",
+          "message": "The supplied scan did not find a cookie notice.",
+          "weight": 5,
+          "sources": [
+            {
+              "source_id": "scan",
+              "url": "client://00000000-0000-0000-0000-000000000001/fixtures/scan",
+              "record_id": "20000000-0000-0000-0000-000000000002",
+              "base_record_id": null,
+              "field": "cookie_notice",
+              "retrieved_at": "2026-10-18T10:00:00Z",
+              "evidence_sha256": "4fe9c2531480597a7619dcb3fd1dbee4d5ccf6ef9104ed5bb2a2e192dc126201"
+            }
+          ]
+        },
+        {
+          "code": "exposed_admin",
+          "message": "An admin page was exposed in the supplied scan.",
+          "weight": 20,
+          "sources": [
+            {
+              "source_id": "scan",
+              "url": "client://00000000-0000-0000-0000-000000000001/fixtures/scan",
+              "record_id": "20000000-0000-0000-0000-000000000002",
+              "base_record_id": null,
+              "field": "exposed_admin",
+              "retrieved_at": "2026-10-18T10:00:00Z",
+              "evidence_sha256": "2313c4975cabb5a5bc1edad4611978727d2ef15a46daf472bae7fd35b8b3821b"
+            }
+          ]
+        },
+        {
+          "code": "new_domain",
+          "message": "The supplied domain creation date is within 90 days; this alone is not wrongdoing.",
+          "weight": 5,
+          "sources": [
+            {
+              "source_id": "rdap",
+              "url": "client://00000000-0000-0000-0000-000000000001/fixtures/rdap",
+              "record_id": "20000000-0000-0000-0000-000000000002",
+              "base_record_id": null,
+              "field": "domain_created_on",
+              "retrieved_at": "2026-10-18T10:00:00Z",
+              "evidence_sha256": "8203cc7672bc0b28a34c99b22442db1b67ea306f2603de9ef5cb1c2f7ca4eea7"
+            }
+          ]
+        },
+        {
+          "code": "lookalike_domain",
+          "message": "The supplied domain resembles a client-provided brand domain; ownership is not inferred.",
+          "weight": 10,
+          "sources": [
+            {
+              "source_id": "rdap",
+              "url": "client://00000000-0000-0000-0000-000000000001/fixtures/rdap",
+              "record_id": "20000000-0000-0000-0000-000000000002",
+              "base_record_id": null,
+              "field": "domain",
+              "retrieved_at": "2026-10-18T10:00:00Z",
+              "evidence_sha256": "4299512592a6d977d25a92863dfda61d772fdee6be9d3f90ec5d0c9b4a45b63d"
+            },
+            {
+              "source_id": "platform",
+              "url": "client://00000000-0000-0000-0000-000000000001/fixtures/platform",
+              "record_id": "00000000-0000-0000-0000-000000000001",
+              "base_record_id": null,
+              "field": "brand_domain",
+              "retrieved_at": "2026-10-18T10:00:00Z",
+              "evidence_sha256": "00a49519f2381a3c9e7f90b3b596af820e3887154ecac55f84a8a43eec7ae010"
+            }
+          ]
+        }
+      ]
+    },
+    "tolerance": "exact"
+  }
+]

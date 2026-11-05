@@ -1,0 +1,7 @@
+{
+  "name": "BAAI/bge-small-en-v1.5",
+  "repository": "Qdrant/bge-small-en-v1.5-onnx-Q",
+  "revision": "aa8f8b060edb00e03bfdd08813a2949946c8ba55",
+  "dimensions": 384,
+  "directory": "/opt/fastembed/pinned"
+}

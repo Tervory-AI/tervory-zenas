@@ -1,0 +1,18 @@
+{
+  "label": "local, fixture page",
+  "identity": "local Next wrapper; not Trigger sign-in proof",
+  "screenshots": [
+    "uploaded-1440.png",
+    "answer-1440.png",
+    "source-1440.png",
+    "deleted-1440.png",
+    "after-delete-1440.png",
+    "uploaded-375.png",
+    "answer-375.png",
+    "source-375.png",
+    "deleted-375.png",
+    "after-delete-375.png"
+  ],
+  "browser_errors": [],
+  "external_requests": []
+}

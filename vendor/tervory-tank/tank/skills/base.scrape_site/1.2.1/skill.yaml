@@ -1,0 +1,16 @@
+id: base.scrape_site
+version: 1.2.1
+agent: base
+rung: 3
+description: >
+  Pass 2b. Fetches a site's home page and its contact/about pages, and pulls out emails, phones,
+  social links and the visible text (trimmed) for the extraction pass. Also returns the raw HTML
+  of those pages, joined and capped at 400 KB. Pure code.
+input:
+  type: object
+  required: [website]
+  properties: {website: {type: string}}
+output:
+  type: object
+  properties: {emails: {type: array}, phones: {type: array}, socials: {type: object}, text: {type: string}, pages: {type: array}, html: {type: string}}
+eval_threshold: 1.0

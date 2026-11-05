@@ -1,0 +1,14 @@
+title = "tervory-radix"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "tervory-fixture-key"
+description = "Planted fixture key"
+regex = '''tvfy-example-fixture-key-[0-9]{4}'''
+keywords = ["tvfy-example-fixture-key"]
+
+[allowlist]
+description = "version control internals are not source"
+paths = ['''(^|/)\.git(/|$)''']

@@ -1,0 +1,59 @@
+{
+  "signal_points": {
+    "per_location": 3,
+    "per_person": 2,
+    "per_service": 1,
+    "max_services": 6,
+    "online_store": 4,
+    "per_social": 1,
+    "max_social_points": 5,
+    "per_five_years": 2,
+    "per_employee": 1
+  },
+  "size_thresholds": [
+    {"min": 200, "band": "200+"},
+    {"min": 51, "band": "51-200"},
+    {"min": 20, "band": "11-50"},
+    {"min": 6, "band": "2-10"},
+    {"min": 0, "band": "solo"}
+  ],
+  "revenue_by_size": {
+    "solo": "<$500k",
+    "2-10": "<$500k",
+    "11-50": "$500k-$2M",
+    "51-200": "$2M-$10M",
+    "200+": "$10M+"
+  },
+  "licence_points": {
+    "01": 4,
+    "02": 4,
+    "03": 0,
+    "06": 8,
+    "07": 12,
+    "08": 10,
+    "09": 6,
+    "10": 14,
+    "11": 10,
+    "dealer in firearms other than destructive devices": 4,
+    "pawnbroker in firearms other than destructive devices": 4,
+    "collector of curios and relics": 0,
+    "manufacturer of ammunition for firearms": 8,
+    "manufacturer of firearms other than destructive devices": 12,
+    "importer of firearms other than destructive devices": 10,
+    "dealer in destructive devices": 6,
+    "manufacturer of destructive devices": 14,
+    "importer of destructive devices": 10
+  },
+  "naics_by_category": {
+    "handguns": {"code": "451110", "label": "Sporting goods stores"},
+    "rifles": {"code": "451110", "label": "Sporting goods stores"},
+    "shotguns": {"code": "451110", "label": "Sporting goods stores"},
+    "ammunition": {"code": "451110", "label": "Sporting goods stores"},
+    "firearms": {"code": "451110", "label": "Sporting goods stores"},
+    "optics": {"code": "451110", "label": "Sporting goods stores"},
+    "accessories": {"code": "451110", "label": "Sporting goods stores"},
+    "archery": {"code": "451110", "label": "Sporting goods stores"},
+    "barrels": {"code": "332994", "label": "Small arms, ordnance, and ordnance accessories manufacturing"},
+    "suppressors": {"code": "332994", "label": "Small arms, ordnance, and ordnance accessories manufacturing"}
+  }
+}

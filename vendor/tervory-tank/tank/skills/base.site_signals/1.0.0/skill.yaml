@@ -1,0 +1,18 @@
+id: base.site_signals
+version: 1.0.0
+agent: base
+rung: 3
+description: Passive technology, online selling and freshness evidence from already fetched site pages. Pure code; no requests.
+input:
+  type: object
+  properties:
+    website: {type: string}
+    html: {type: string}
+    headers: {type: object}
+    page_responses: {type: array}
+    archived: {type: boolean}
+    as_of: {type: string}
+output:
+  type: object
+  properties: {fields: {type: object}}
+eval_threshold: 1.0

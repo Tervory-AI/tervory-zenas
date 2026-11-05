@@ -1,0 +1,150 @@
+{
+  "task_id": "76dd9627-4576-4cd7-84b7-eb33f4da9068",
+  "tenant_id": "2d80a73b-106e-4367-ab52-2ff3c4f5ab9c",
+  "room": "base",
+  "region": "us-east",
+  "status": "done",
+  "steps": [
+    {
+      "action": "recall",
+      "count": 1,
+      "memory_ids": [
+        "21fb6aef-c696-475b-b604-e23545083d44"
+      ]
+    },
+    {
+      "action": "skills",
+      "approved": [
+        "base.business_data@2.0.0",
+        "base.contacts@1.1.0",
+        "base.extract@2.0.0",
+        "base.find_site@1.7.0",
+        "base.normalize@1.0.0",
+        "base.resolve@1.0.0",
+        "base.scrape_site@1.2.0",
+        "base.socials@1.0.1",
+        "base.verify@1.0.1",
+        "ffl.ingest@1.0.1",
+        "ffl.profile@1.1.0"
+      ]
+    },
+    {
+      "action": "pipeline_run",
+      "status": "done",
+      "summary": "2 enriched (0 ready), 0 failed, model spend $0.0000",
+      "skills": {
+        "base.normalize": "base.normalize@1.0.0",
+        "base.resolve": "base.resolve@1.0.0",
+        "base.find_site": "base.find_site@1.7.0",
+        "base.scrape_site": "base.scrape_site@1.2.0",
+        "base.extract": "base.extract@2.0.0",
+        "base.contacts": "base.contacts@1.1.0",
+        "base.socials": "base.socials@1.0.1",
+        "base.business_data": "base.business_data@2.0.0",
+        "base.verify": "base.verify@1.0.1",
+        "ffl.ingest": "ffl.ingest@1.0.1",
+        "ffl.profile": "ffl.profile@1.1.0"
+      },
+      "cost_usd": 0.0
+    },
+    {
+      "action": "browser",
+      "status": "failed",
+      "source": "http://169.254.169.254"
+    },
+    {
+      "action": "sandbox",
+      "status": "done",
+      "backend": "sibling-exec",
+      "network": "none",
+      "exit_code": 0
+    },
+    {
+      "action": "pipeline_continue",
+      "status": "done",
+      "summary": "2 enriched (0 ready), 0 failed, model spend $0.0000",
+      "cost_usd": 0.0
+    },
+    {
+      "action": "remember",
+      "memory_id": "fc509b12-cd10-47d5-a84b-8cbca28678cf",
+      "source": "base:task:76dd9627-4576-4cd7-84b7-eb33f4da9068"
+    }
+  ],
+  "model_receipts": [
+    {
+      "room": "base",
+      "model": "fixture-recorded",
+      "region": "us-east",
+      "outcome": "delivered",
+      "task_id": "76dd9627-4576-4cd7-84b7-eb33f4da9068",
+      "cost_usd": 0.00014,
+      "ledger_id": "8dc21192-d806-44b1-bd03-08e53cd57585",
+      "task_type": "agent.base.think",
+      "tenant_id": "2d80a73b-106e-4367-ab52-2ff3c4f5ab9c",
+      "tokens_in": 100,
+      "latency_ms": 10,
+      "saving_usd": 0.00014,
+      "tokens_out": 20,
+      "cost_status": "reported",
+      "baseline_model": "fixture-baseline",
+      "baseline_cost_usd": 0.00028
+    },
+    {
+      "room": "base",
+      "model": "fixture-recorded",
+      "region": "us-east",
+      "outcome": "delivered",
+      "task_id": "76dd9627-4576-4cd7-84b7-eb33f4da9068",
+      "cost_usd": 0.00014,
+      "ledger_id": "e9402bb0-d55d-46e0-bf5f-1a17991fcdc2",
+      "task_type": "agent.base.think",
+      "tenant_id": "2d80a73b-106e-4367-ab52-2ff3c4f5ab9c",
+      "tokens_in": 100,
+      "latency_ms": 29,
+      "saving_usd": 0.00014,
+      "tokens_out": 20,
+      "cost_status": "reported",
+      "baseline_model": "fixture-baseline",
+      "baseline_cost_usd": 0.00028
+    },
+    {
+      "room": "base",
+      "model": "fixture-recorded",
+      "region": "us-east",
+      "outcome": "delivered",
+      "task_id": "76dd9627-4576-4cd7-84b7-eb33f4da9068",
+      "cost_usd": 0.00014,
+      "ledger_id": "5e38a83f-d2a6-49c2-82d8-80e19a78124f",
+      "task_type": "agent.base.think",
+      "tenant_id": "2d80a73b-106e-4367-ab52-2ff3c4f5ab9c",
+      "tokens_in": 100,
+      "latency_ms": 23,
+      "saving_usd": 0.00014,
+      "tokens_out": 20,
+      "cost_status": "reported",
+      "baseline_model": "fixture-baseline",
+      "baseline_cost_usd": 0.00028
+    },
+    {
+      "room": "base",
+      "model": "fixture-recorded",
+      "region": "us-east",
+      "outcome": "delivered",
+      "task_id": "76dd9627-4576-4cd7-84b7-eb33f4da9068",
+      "cost_usd": 0.00014,
+      "ledger_id": "c4a22f57-e2bd-40f5-8fb4-3bf6155a7930",
+      "task_type": "agent.base.think",
+      "tenant_id": "2d80a73b-106e-4367-ab52-2ff3c4f5ab9c",
+      "tokens_in": 100,
+      "latency_ms": 13,
+      "saving_usd": 0.00014,
+      "tokens_out": 20,
+      "cost_status": "reported",
+      "baseline_model": "fixture-baseline",
+      "baseline_cost_usd": 0.00028
+    }
+  ],
+  "summary": "Processed two synthetic Delaware ATF-format rows through Base's existing pipeline. No public websites were found in the recorded fixtures. Browser refusal and sandbox isolation were checked; no live data enrichment is claimed.",
+  "error": null
+}

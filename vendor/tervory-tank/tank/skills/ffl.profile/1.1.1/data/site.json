@@ -1,0 +1,42 @@
+{
+  "generic_words": [
+    "firearms",
+    "firearm",
+    "guns",
+    "gun",
+    "arms",
+    "ammo",
+    "ammunition",
+    "tactical",
+    "shooting",
+    "armory",
+    "hunting",
+    "range",
+    "sporting",
+    "goods",
+    "outdoors",
+    "outdoor",
+    "pawn",
+    "defense",
+    "precision",
+    "fishing",
+    "bait",
+    "tackle",
+    "farm",
+    "ranch",
+    "auction",
+    "jewelry",
+    "loan",
+    "loans"
+  ],
+  "blocked_hosts": [
+    "gunbroker.com",
+    "armslist.com",
+    "atf.gov"
+  ],
+  "generic_locals": [
+    "ffl",
+    "transfers",
+    "range"
+  ]
+}

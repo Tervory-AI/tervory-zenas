@@ -1,0 +1,5 @@
+{"name":"extra parts in the reply are dropped","input":{"fallback_why":["Fits North Lamp"],"model_text":"{\"why\": [\"Fits North Lamp\"], \"parts\": [{\"id\": \"NEW\"}]}"},"expected":{"why":["Fits North Lamp"]},"tolerance":"exact"}
+{"name":"invalid JSON","input":{"model_text":"not JSON","fallback_why":["Verified fit"]},"expected":{"why":["Verified fit"]},"tolerance":"exact"}
+{"name":"wrong shape","input":{"model_text":"{\"why\":\"invented\"}","fallback_why":["Verified fit"]},"expected":{"why":["Verified fit"]},"tolerance":"exact"}
+{"name":"empty reasons","input":{"model_text":"{\"why\":[]}","fallback_why":["Verified fit"]},"expected":{"why":["Verified fit"]},"tolerance":"exact"}
+{"name":"no evidence yields no invented reason","input":{"model_text":"{}"},"expected":{"why":[]},"tolerance":"exact","must_refuse":true}

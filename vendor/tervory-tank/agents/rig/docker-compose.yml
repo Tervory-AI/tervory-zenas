@@ -1,0 +1,267 @@
+# coolify: raw compose
+# Rig. Deploy this file as its own Coolify resource, with Raw Compose Deployment on.
+# Raw mode requires the explicit public route and existing proxy network below.
+# Only agent-rig is public; its brain, sandbox and browser have no proxy attachment.
+# Build context is agents/ (the parent of this file), because the chassis lives there.
+# The corridor is created by the main stack. This resource joins it by name.
+
+services:
+  agent-rig:
+    build:
+      context: ..
+      dockerfile: rig/Dockerfile
+    restart: unless-stopped
+    mem_limit: 512m
+    cpus: 0.5
+    environment:
+      AGENT_NAME: rig
+      R2_BUCKET: tervory-rig
+      R2_ACCOUNT_ID: ${R2_ACCOUNT_ID:-}
+      R2_ACCESS_KEY_ID_RIG: ${R2_ACCESS_KEY_ID_RIG:-}
+      R2_SECRET_ACCESS_KEY_RIG: ${R2_SECRET_ACCESS_KEY_RIG:-}
+      DATABASE_URL: postgresql://agent_rig:${AGENT_DB_PASSWORD_RIG}@postgres:5432/${POSTGRES_DB:-tervory}
+      CHASSIS_ADMIN_DATABASE_URL: ${CHASSIS_ADMIN_DATABASE_URL:-}
+      CHASSIS_RLS_ADMIN_ROLE: ${CHASSIS_RLS_ADMIN_ROLE:-}
+      TANK_URL: http://tank:8000
+      TANK_KEY: ${TANK_KEY_RIG:-}
+      # Controls listen on 8003, which has no Traefik route or published port.
+      RIG_RETAILER_KEY: ${RIG_RETAILER_KEY:-}
+      TANK_REGION: ${TANK_REGION:-us-east}
+      RIG_ADMIN_KEY: ${RIG_ADMIN_KEY:-}
+      RIG_QUOTE_FLOWS: ${RIG_QUOTE_FLOWS:-}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      RIG_WIDGET_PUBLISHABLE_KEY: ${RIG_WIDGET_PUBLISHABLE_KEY:-}
+      # Grok set 10.0.21.0/24 on agent-rig in Coolify (both rows).
+      # Keep deployment configuration explicit; /health returns 503 if empty/invalid.
+      RIG_TRUSTED_PROXY_CIDRS: ${RIG_TRUSTED_PROXY_CIDRS:-}
+      RIG_QUOTE_RETENTION_DAYS: ${RIG_QUOTE_RETENTION_DAYS:-30}
+      RIG_FORGE_TRELLIS_ENABLED: ${RIG_FORGE_TRELLIS_ENABLED:-false}
+      HERMES_URL: http://hermes:8000
+      DATA_DIR: /data
+    volumes:
+      - agent_rig_data:/data
+    networks:
+      - gw
+      - proxy
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=59f8cnpelzwsyte1atyjc4fv
+      # Preserve widget/store paths byte-for-byte; Workspace owns all other paths.
+      # Inventory and shared-host cutover: docs/ops/PRODUCT-HOSTS.md.
+      - traefik.http.routers.rig-http.rule=Host(`rig.tervory.com`) && (Path(`/v1/rig`) || PathPrefix(`/v1/rig/`) || Path(`/widget`) || PathPrefix(`/widget/`) || Path(`/3d`) || PathPrefix(`/3d/`) || Path(`/page`) || PathPrefix(`/page/`) || Path(`/product`) || PathPrefix(`/product/`) || Path(`/v5`) || PathPrefix(`/v5/`) || Path(`/cn-classic`) || Path(`/house`) || Path(`/health`) || Path(`/storage`) || PathPrefix(`/storage/`))
+      - traefik.http.routers.rig-http.priority=1000
+      - traefik.http.routers.rig-http.entrypoints=http
+      - traefik.http.routers.rig-http.middlewares=redirect-to-https
+      - traefik.http.routers.rig-https.rule=Host(`rig.tervory.com`) && (Path(`/v1/rig`) || PathPrefix(`/v1/rig/`) || Path(`/widget`) || PathPrefix(`/widget/`) || Path(`/3d`) || PathPrefix(`/3d/`) || Path(`/page`) || PathPrefix(`/page/`) || Path(`/product`) || PathPrefix(`/product/`) || Path(`/v5`) || PathPrefix(`/v5/`) || Path(`/cn-classic`) || Path(`/house`) || Path(`/health`) || Path(`/storage`) || PathPrefix(`/storage/`))
+      - traefik.http.routers.rig-https.priority=1000
+      - traefik.http.routers.rig-https.entrypoints=https
+      - traefik.http.routers.rig-https.tls=true
+      - traefik.http.routers.rig-https.tls.certresolver=letsencrypt
+      - traefik.http.routers.rig-https.service=rig
+      - traefik.http.routers.rig-https.middlewares=rig-gzip
+      - traefik.http.middlewares.rig-gzip.compress=true
+      - traefik.http.services.rig.loadbalancer.server.port=8000
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    expose:
+      - "8000"
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+
+  rig-brain:
+    build:
+      context: ../..
+      dockerfile: agents/rig/Dockerfile.brain
+    restart: unless-stopped
+    mem_limit: 2g
+    cpus: 1
+    environment:
+      TANK_URL: http://tank:8000
+      TANK_KEY: ${TANK_KEY_RIG:-}
+      TANK_REGION: ${TANK_REGION:-us-east}
+      HERMES_URL: http://hermes:8000
+      RIG_BROWSER_URL: http://rig-browser-gateway:3000
+      RIG_SANDBOX_URL: http://rig-sandbox:8002
+      SANDBOX_KEY: ${SANDBOX_KEY_RIG:?Set the Rig-only sandbox key}
+      DATA_DIR: /data
+      RIG_FORGE_TRELLIS_ENABLED: ${RIG_FORGE_TRELLIS_ENABLED:-false}
+    volumes:
+      - rig_brain_data:/data
+    networks: [gw, sandbox, forge-control]
+    depends_on:
+      rig-sandbox:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+
+  rig-sandbox:
+    # The exact Base WASI runtime; a separate container and internal network.
+    build:
+      context: ../..
+      dockerfile: agents/base/Dockerfile.sandbox
+    restart: unless-stopped
+    mem_limit: 512m
+    cpus: 0.5
+    pids_limit: 64
+    environment:
+      BRAIN_ROOM: rig
+      SANDBOX_KEY: ${SANDBOX_KEY_RIG:?Set the Rig-only sandbox key}
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=32m
+      - /work:rw,nosuid,nodev,size=128m,uid=1000,gid=1000,mode=0700
+    networks: [sandbox]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8002/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+
+  rig-browser:
+    build:
+      context: ../..
+      dockerfile: agents/base/Dockerfile.browser
+    restart: unless-stopped
+    mem_limit: 2g
+    cpus: 0.5
+    shm_size: 256m
+    environment:
+      ACCESS_ROOM: rig
+      ACCESS_GATEWAY_URL: http://rig-browser-gateway:3000
+      BROWSER_PROXY_URL: http://rig-browser-gateway:3128
+    volumes:
+      - rig_browser_data:/browser-data
+    networks: [browser]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:3000/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+
+  rig-browser-gateway:
+    build:
+      context: ../..
+      dockerfile: agents/base/Dockerfile.gateway
+    restart: unless-stopped
+    mem_limit: 128m
+    cpus: 0.25
+    environment:
+      TANK_KEY: ${TANK_KEY_RIG:-}
+      TANK_REGION: ${TANK_REGION:-us-east}
+      ACCESS_ROOM: rig
+      BROWSER_HOST: rig-browser
+    networks: [gw, browser]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:3000/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+
+  # RIG-5F: only the brain shares this control network with the forge.
+  rig-forge:
+    build:
+      context: ./forge
+      dockerfile: Dockerfile
+      target: runtime
+    restart: unless-stopped
+    mem_limit: 4g
+    cpus: 2
+    pids_limit: 128
+    read_only: true
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=256m,uid=1000,gid=1000
+    volumes:
+      - rig_forge_data:/data
+    environment:
+      RIG_FORGE_TRELLIS_ENABLED: ${RIG_FORGE_TRELLIS_ENABLED:-false}
+      FORGE_RETENTION_SECONDS: ${FORGE_RETENTION_SECONDS:-604800}
+      R2_ACCOUNT_ID: ${R2_ACCOUNT_ID:-}
+      R2_ACCESS_KEY_ID_RIG: ${R2_ACCESS_KEY_ID_RIG:-}
+      R2_SECRET_ACCESS_KEY_RIG: ${R2_SECRET_ACCESS_KEY_RIG:-}
+      HF_JOBS_TOKEN: ${HF_JOBS_TOKEN:-}
+      HF_JOBS_NAMESPACE: ${HF_JOBS_NAMESPACE:-}
+      HTTP_PROXY: http://rig-forge-egress:8080
+      HTTPS_PROXY: http://rig-forge-egress:8080
+      NO_PROXY: rig-brain,localhost,127.0.0.1
+      FORGE_DATA_DIR: /data
+    networks: [forge-control, forge-egress]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; assert urllib.request.urlopen('http://127.0.0.1:8010/health',timeout=3).status == 200"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+
+  rig-forge-egress:
+    build:
+      context: ./forge
+      dockerfile: Dockerfile
+      target: runtime
+    command: ["python", "-m", "forge.egress"]
+    restart: unless-stopped
+    mem_limit: 128m
+    cpus: 0.25
+    pids_limit: 32
+    read_only: true
+    environment:
+      R2_ACCOUNT_ID: ${R2_ACCOUNT_ID:-}
+    networks: [forge-egress, forge-outbound]
+    healthcheck:
+      test: ["CMD", "python", "-m", "forge.egress", "health"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+
+# The volume Rig used before the raw-compose switch, by its live name, so its data survives.
+# external: a wrong name fails the deploy instead of starting on an empty volume.
+volumes:
+  rig_forge_data:
+    name: tervory-rig-forge-data
+  agent_rig_data:
+    external: true
+    name: 59f8cnpelzwsyte1atyjc4fv_agent-rig-data
+  rig_brain_data:
+    name: tervory-rig-brain-data
+  rig_browser_data:
+    name: tervory-rig-browser-data
+
+networks:
+  forge-control:
+    internal: true
+  forge-egress:
+    internal: true
+  forge-outbound:
+    internal: false
+  sandbox:
+    internal: true
+  browser:
+    internal: true
+  gw:
+    external: true
+    name: tervory-gw-rig
+  # Rig's own proxy network, the one coolify-proxy already reaches it on today. Not the
+  # shared coolify network, so Rig stays on a per-app network as before the raw switch.
+  proxy:
+    external: true
+    name: 59f8cnpelzwsyte1atyjc4fv

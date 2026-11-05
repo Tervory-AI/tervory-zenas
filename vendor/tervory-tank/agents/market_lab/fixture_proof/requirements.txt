@@ -1,0 +1,4 @@
+# Complete local review dependencies, including tests that import Tank.
+-r ../../../tank/requirements.txt
+-r ../../../tank/requirements-dev.txt
+-r ../feeds/requirements.txt

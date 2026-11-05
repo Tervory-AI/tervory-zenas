@@ -1,0 +1,18 @@
+id: base.resolve
+version: 1.0.1
+agent: base
+rung: 3
+description: >
+  Pass 1b. Matches a normalised record against a registry (the industry engine's list, e.g. the ATF
+  FFL list) by name key, city and state using RapidFuzz. Returns the best match, its score and a
+  verdict: matched (>=92), probable (80-91), unmatched. Also flags duplicates inside the input batch.
+input:
+  type: object
+  required: [record, registry]
+  properties:
+    record: {type: object, description: output of base.normalize}
+    registry: {type: array, description: "list of objects with id, name_key, city, state"}
+output:
+  type: object
+  properties: {verdict: {type: string}, match: {type: object}, score: {type: number}}
+eval_threshold: 1.0

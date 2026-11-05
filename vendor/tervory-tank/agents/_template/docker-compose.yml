@@ -1,0 +1,40 @@
+# Template agent. Deploy this file as its own Coolify resource.
+# Build context is agents/ (the parent of this file), because the chassis lives there.
+# The only network is the external gateway. Coolify's own network for this resource
+# contains just this service, so it cannot see the main stack.
+
+services:
+  agent-template:
+    build:
+      context: ..
+      dockerfile: _template/Dockerfile
+    restart: unless-stopped
+    mem_limit: 512m
+    cpus: 0.5
+    environment:
+      AGENT_NAME: template
+      DATABASE_URL: postgresql://agent_template:${AGENT_DB_PASSWORD_TEMPLATE}@postgres:5432/${POSTGRES_DB:-tervory}
+      CHASSIS_ADMIN_DATABASE_URL: ${CHASSIS_ADMIN_DATABASE_URL:-}
+      CHASSIS_RLS_ADMIN_ROLE: ${CHASSIS_RLS_ADMIN_ROLE:-}
+      TANK_URL: http://tank:8000
+      TANK_KEY: ${TANK_KEY_TEMPLATE:-}
+      DATA_DIR: /data
+    volumes:
+      - agent_template_data:/data
+    networks:
+      - gw
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    expose:
+      - "8000"
+
+volumes:
+  agent_template_data:
+
+networks:
+  gw:
+    external: true
+    name: tervory-gw-template

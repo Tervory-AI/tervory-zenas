@@ -1,0 +1,26 @@
+id: scan.dependencies
+version: 1.1.0
+agent: radix
+rung: 3
+description: >
+  Matches npm and Python packages (requirements, package.json, lock files, and
+  pinned installs in Dockerfiles) against the OSV PyPI and npm exports baked into
+  the image at build.
+  Reports package, version, advisory id, severity, and the fixed version.
+  No network.
+input:
+  type: object
+  required: [files]
+  properties:
+    files:
+      type: array
+output:
+  type: object
+  properties:
+    package: {type: string}
+    version: {type: string}
+    advisory: {type: string}
+    severity: {type: string}
+    fixed: {type: string}
+    critical: {type: integer}
+eval_threshold: 1.0

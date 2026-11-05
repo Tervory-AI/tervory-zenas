@@ -1,0 +1,26 @@
+id: zenas.rule_card
+version: 1.0.1
+agent: zenas
+rung: 1
+task_type: zenas.rule_card
+cache_scope: region
+description: >
+  Build a rule card from pool passages. An approved card for the same question
+  is reused with no model call. A citation that does not resolve is not approvable.
+input:
+  type: object
+  properties:
+    question: {type: string}
+    passages: {type: array}
+    approved_card: {type: object}
+    home_region: {type: string}
+    provider: {type: string}
+output:
+  type: object
+  properties:
+    status: {type: string}
+    reused: {type: boolean}
+    approvable: {type: boolean}
+    cost_usd: {type: number}
+    model_calls: {type: integer}
+eval_threshold: 1.0

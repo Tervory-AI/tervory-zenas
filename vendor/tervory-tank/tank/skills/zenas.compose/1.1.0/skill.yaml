@@ -1,0 +1,21 @@
+id: zenas.compose
+version: 1.1.0
+agent: zenas
+rung: 1
+task_type: zenas.compose
+description: >
+  Write an IRAC memo from a rule card and the element findings. A cheap model
+  may smooth the words. It cannot add a citation.
+input:
+  type: object
+  properties:
+    card: {type: object}
+    elements: {type: array}
+    smooth: {type: boolean}
+output:
+  type: object
+  properties:
+    conclusion: {type: string}
+    smoothed: {type: boolean}
+    kept_template: {type: boolean}
+eval_threshold: 1.0

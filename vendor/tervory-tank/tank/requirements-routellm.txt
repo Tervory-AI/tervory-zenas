@@ -1,0 +1,10 @@
+# BERT-only CPU runtime. RouteLLM itself is installed without unrelated routers'
+# dependencies from the hash-pinned wheel below (see routellm_build.py).
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.8.0+cpu
+numpy==1.26.4
+transformers==4.55.4
+huggingface-hub==0.34.4
+tokenizers==0.21.4
+safetensors==0.6.2
+sentencepiece==0.2.1

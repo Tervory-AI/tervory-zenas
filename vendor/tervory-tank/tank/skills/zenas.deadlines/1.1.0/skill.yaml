@@ -1,0 +1,32 @@
+id: zenas.deadlines
+version: 1.1.0
+agent: zenas
+rung: 3
+description: >
+  Computes a civil court deadline from a trigger date. United States periods
+  use Federal Rule of Civil Procedure 6. South African periods use court days
+  under Uniform Rule 1. The 16 December to 15 January exclusion is applied
+  only for Uniform Rule 19(1) and Uniform Rule 26. Every step names the rule
+  it applied. Criminal periods are refused. No model is called.
+input:
+  type: object
+  properties:
+    jurisdiction: {type: string}
+    trigger: {type: string}
+    days: {type: integer}
+    hours: {type: integer}
+    unit: {type: string}
+    service: {type: string}
+    kind: {type: string}
+    step: {type: string}
+    state_holidays: {type: array}
+    dies_non: {type: boolean}
+    criminal: {type: boolean}
+output:
+  type: object
+  properties:
+    ok: {type: boolean}
+    deadline: {type: string}
+    steps: {type: array}
+    dies_non: {type: boolean}
+eval_threshold: 1.0

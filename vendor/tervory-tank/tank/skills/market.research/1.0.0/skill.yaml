@@ -1,0 +1,20 @@
+id: market.research
+version: 1.0.0
+agent: market_lab
+rung: 3
+task_type: market.research
+description: >
+  A question in, a short answer with citations out. Each claim keeps its
+  source URL and date. The model call uses task type market.research.
+input:
+  type: object
+  required: [question]
+  properties:
+    question: {type: string}
+    passages: {type: array}
+output:
+  type: object
+  properties:
+    answer: {type: string}
+    citations: {type: array}
+eval_threshold: 1.0

@@ -1,0 +1,19 @@
+.zenas-homes button.save {
+  background: var(--red);
+  border: 1px solid var(--red);
+  color: #fff;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font: inherit;
+  cursor: pointer;
+}
+.zenas-homes button.save:disabled { opacity: 0.6; }
+.zenas-homes form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 16px;
+  align-items: center;
+  margin: 8px 0 0;
+}
+.zenas-homes .choices { display: flex; gap: 16px; }
+.zenas-homes label { display: flex; gap: 6px; align-items: center; }

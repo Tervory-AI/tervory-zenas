@@ -1,0 +1,7 @@
+node_modules/
+.next/
+.env
+*.tsbuildinfo
+next-env.d.ts
+# CLI release files are a build output (cli/scripts/build-release.mjs, run by the Docker image build).
+/public/cli/

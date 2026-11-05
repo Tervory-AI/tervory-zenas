@@ -1,0 +1,12 @@
+Real Tank startup; cwd=tank; python3 -m uvicorn main:app (loopback, access log off)
+INFO:     Started server process [294792]
+INFO:     Waiting for application startup.
+redis unavailable, rung-4 cache off: Error 111 connecting to 127.0.0.1:1. Connection refused.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:37765 (Press CTRL+C to quit)
+GET /health: 200, ok=true
+Gold import: all 7/7 market.series_fetch 1.2.0 cases present, including decimal CSV observation.
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [294792]

@@ -1,0 +1,42 @@
+pytest==9.1.1
+pytest-asyncio==1.4.1
+# PR CI runs the full offline suite in parallel (.github/scripts/offline_suite.py):
+# xdist workers, a per-test timeout so a hang fails one test instead of the job,
+# and pytest-socket so in-process code can only reach loopback.
+pytest-xdist==3.8.0
+pytest-timeout==2.4.0
+pytest-socket==0.8.1
+ruff==0.17.2
+# Zenas seal tests import AES-GCM. The running box installs this from
+# agents/zenas/Dockerfile. Tank's image does not.
+cryptography==50.0.2
+# Zenas pool tests extract citations with eyecite. The pool-loader image
+# installs the same pin from agents/zenas/requirements.txt.
+eyecite==2.7.8
+# Official ZA judgment adapters extract PDF text. The pool-loader image
+# installs the same pin from agents/zenas/requirements.txt.
+pypdf==6.21.4
+pypdfium2==5.14.0
+
+# READ-1 visibility regressions must execute in a real browser in CI.
+playwright==1.64.1
+
+# MARKET-DOCS-1 runs the production PDF reader in offline tests.
+-r ../agents/market_lab/feeds/requirements.txt
+
+
+# Tiger alert delivery uses the same offline SMTP catcher as Rig's proof.
+aiosmtpd==1.4.6
+
+# Zenas contract assembly (agents/zenas/core/assembly.py); same pins as agents/zenas/requirements.txt.
+Mako==1.4.2
+docxtpl==0.20.2
+
+# Ephemeral local PostgreSQL for Zenas alert persistence/claim tests; no DSN or key.
+pgserver==0.1.4
+
+# Radix passive-scan DNS proof tests; same pin as the Radix image.
+dnspython==2.9.0
+
+# Trigger's style checks (tests/skala_intake, tests/trigger_*); same pin as agents/trigger/requirements.txt.
+-r ../agents/trigger/requirements.txt

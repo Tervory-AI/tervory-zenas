@@ -1,0 +1,111 @@
+.tvy-admin {
+  --fg: #001840;
+  --bg: #f4f6fb;
+  --card: #ffffff;
+  --line: #b8bfd0;
+  --muted: #4a5672;
+  --red: #e80008;
+  --r1: #001840;
+  --r2: #3d5a80;
+  --r3: #8aa0c0;
+  --r4: #d5dbe6;
+  --ink: #001840;
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  overflow: auto;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-inter), Inter, sans-serif;
+  font-size: 14px;
+  line-height: 1.45;
+}
+@media (prefers-color-scheme: dark) {
+  .tvy-admin {
+    --fg: #f4f6fb;
+    --bg: #001840;
+    --card: #071633;
+    --line: #3a4d73;
+    --muted: #b8bfd0;
+    --r1: #f4f6fb;
+    --r2: #b7c3da;
+    --r3: #7e90b0;
+    --r4: #31425f;
+    --ink: #f4f6fb;
+  }
+}
+.tvy-admin h1, .tvy-admin h2, .tvy-admin h3 {
+  font-family: var(--font-jost), Jost, sans-serif;
+  font-weight: 300;
+  letter-spacing: 0.01em;
+  margin: 0;
+}
+.tvy-admin .num { font-family: var(--font-mono), "JetBrains Mono", ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+.tvy-admin .shell { max-width: 1120px; margin: 0 auto; padding: 28px 24px 80px; }
+.tvy-admin .head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 8px; }
+.tvy-admin .head img { height: 28px; width: auto; }
+.tvy-admin .back { color: var(--muted); text-decoration: none; font-size: 13px; display: block; margin-top: 8px; text-align: right; }
+.tvy-admin .back:hover { color: var(--fg); }
+.tvy-admin .lede { color: var(--muted); margin: 0 0 6px; max-width: 62ch; }
+.tvy-admin .note { color: var(--muted); font-size: 13px; margin: 0 0 22px; }
+.tvy-admin .range { display: flex; gap: 6px; justify-content: flex-end; }
+.tvy-admin .range a { color: var(--fg); text-decoration: none; border: 1px solid var(--line); border-radius: 999px; padding: 4px 10px; font-size: 13px; }
+.tvy-admin .range a.on { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+.tvy-admin .flags { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
+.tvy-admin .flag { border: 1px solid var(--line); background: var(--card); border-radius: 10px; padding: 8px 12px; font-size: 13px; }
+.tvy-admin .counters { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; margin-bottom: 28px; }
+.tvy-admin .counter { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px 12px 10px; min-width: 0; }
+.tvy-admin .counter span { display: block; color: var(--muted); font-size: 12px; }
+.tvy-admin .counter b { display: block; font-size: 26px; font-weight: 500; margin: 4px 0 2px; }
+.tvy-admin .counter em { display: block; font-style: normal; color: var(--muted); font-size: 12px; }
+.tvy-admin .section { margin-top: 28px; }
+.tvy-admin .section h2 { font-size: 26px; margin-bottom: 4px; }
+.tvy-admin .section .hint { color: var(--muted); margin: 0 0 12px; font-size: 13px; }
+.tvy-admin .focus { display: flex; flex-direction: column; gap: 8px; }
+.tvy-admin .focus-row { text-align: left; background: var(--card); color: inherit; border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; cursor: pointer; font: inherit; width: 100%; }
+.tvy-admin .focus-row.on { border-color: var(--fg); }
+.tvy-admin .focus-top { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; }
+.tvy-admin .focus-name { font-weight: 600; }
+.tvy-admin .track { height: 8px; background: color-mix(in srgb, var(--line) 65%, transparent); border-radius: 99px; margin: 8px 0; overflow: hidden; }
+.tvy-admin .track i { display: block; height: 100%; background: var(--r1); border-radius: 99px; }
+.tvy-admin .evidence { color: var(--muted); font-size: 12px; }
+.tvy-admin .chip { font-size: 11px; border: 1px solid var(--line); border-radius: 999px; padding: 2px 8px; color: var(--muted); white-space: nowrap; }
+.tvy-admin .chip.testing { color: var(--fg); border-color: var(--fg); }
+.tvy-admin .chip.ready { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+.tvy-admin .chip.proven { color: var(--fg); border-color: var(--fg); }
+.tvy-admin .legend { display: flex; flex-wrap: wrap; gap: 12px; color: var(--muted); font-size: 12px; margin-bottom: 8px; }
+.tvy-admin .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
+.tvy-admin .swatch.line { width: 16px; height: 0; border-top: 2px solid var(--ink); border-radius: 0; }
+.tvy-admin .swatch.dashed { border-top-style: dashed; }
+.tvy-admin .chart-card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px; position: relative; }
+.tvy-admin .chart-card svg { width: 100%; height: auto; display: block; }
+.tvy-admin .tip { position: fixed; z-index: 40; background: var(--fg); color: var(--bg); padding: 6px 8px; border-radius: 8px; font-size: 12px; pointer-events: none; max-width: 280px; }
+.tvy-admin .tables { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.tvy-admin .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; background: var(--card); }
+.tvy-admin table { width: 100%; border-collapse: collapse; margin: 0; }
+.tvy-admin th, .tvy-admin td { text-align: right; padding: 8px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.tvy-admin th:first-child, .tvy-admin td:first-child { text-align: left; }
+.tvy-admin th { color: var(--muted); font-weight: 600; font-size: 12px; }
+.tvy-admin th button { background: none; border: 0; color: inherit; font: inherit; cursor: pointer; padding: 0; }
+.tvy-admin tr.picked td { background: color-mix(in srgb, var(--fg) 6%, transparent); }
+.tvy-admin tr.clickable { cursor: pointer; }
+.tvy-admin .drill { margin-top: 12px; }
+.tvy-admin .price-grid { display: grid; grid-template-columns: 280px 1fr; gap: 16px; align-items: start; }
+.tvy-admin .price-form { display: flex; flex-direction: column; gap: 8px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
+.tvy-admin .price-form label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
+.tvy-admin .price-form input { border: 1px solid var(--line); background: transparent; color: var(--fg); border-radius: 8px; padding: 8px 10px; font: inherit; }
+.tvy-admin .price-form button.save { background: var(--red); border: 1px solid var(--red); color: #fff; border-radius: 8px; padding: 8px 12px; font: inherit; cursor: pointer; }
+.tvy-admin .price-form button.save:disabled { opacity: 0.6; }
+.tvy-admin .form-error { color: var(--fg); font-size: 13px; margin: 0; }
+.tvy-admin .load-error { margin: 24px; }
+.tvy-admin .empty { color: var(--muted); margin: 0; }
+.tvy-admin .ladder-block { margin: 0 0 14px; }
+.tvy-admin .ladder-block h3 { font-size: 18px; margin: 0 0 6px; }
+.tvy-admin .ladder-meta { display: flex; justify-content: space-between; gap: 12px; align-items: center; margin: 0 0 8px; }
+.tvy-admin button.quiet { background: transparent; border: 1px solid var(--line); color: var(--fg); border-radius: 8px; padding: 6px 10px; font: inherit; font-size: 13px; cursor: pointer; }
+.tvy-admin button.quiet:hover { border-color: var(--fg); }
+@media (max-width: 980px) {
+  .tvy-admin .counters { grid-template-columns: repeat(2, 1fr); }
+  .tvy-admin .tables, .tvy-admin .price-grid { grid-template-columns: 1fr; }
+  .tvy-admin .counter b { font-size: 22px; }
+}

@@ -1,0 +1,23 @@
+/* Figma 559:3085 / 561:3445 and their paused, saved and source states. */
+.paid-settings { display:flex; flex-direction:column; gap:16px; padding:24px; color:var(--tr-ink); min-width:0; }
+.trigger-console .paid-settings h1 { font:600 32px/45px var(--font-inter),Inter,sans-serif; }
+.trigger-console .paid-settings h2 { font:600 20px/28px var(--font-inter),Inter,sans-serif; overflow-wrap:anywhere; }
+.trigger-console .paid-settings h3 { margin:0; font:600 18px/26px var(--font-inter),Inter,sans-serif; overflow-wrap:anywhere; }
+.paid-settings p { font-size:14px; line-height:20px; overflow-wrap:anywhere; }
+.paid-settings .paid-owner { font-weight:600; }
+.paid-panel { display:flex; flex-direction:column; gap:16px; padding:16px; border:1px solid var(--tr-input); border-radius:8px; background:var(--tr-paper); min-width:0; }
+.paid-groups { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
+.paid-task { display:flex; flex-direction:column; gap:16px; min-width:0; }
+.paid-panel.paid-step { gap:8px; }
+.paid-step p { font-size:12px; line-height:17px; }
+.paid-modes { display:flex; gap:8px; }
+.paid-settings .paid-modes button { width:120px; max-width:calc((100% - 8px)/2); height:44px; border-color:var(--tr-ink); font-size:13px; font-weight:600; }
+.paid-settings .paid-modes button[aria-pressed=true] { background:var(--tr-ink); color:white; }
+.paid-settings.is-paused .paid-modes button[aria-pressed=true] { background:var(--tr-canvas); color:var(--tr-ink); border-color:transparent; }
+.paid-settings .paid-wide { width:280px; max-width:100%; height:48px; font-size:13px; font-weight:600; }
+.paid-skeleton { height:48px; background:var(--tr-canvas); }
+@media(max-width:760px) { .paid-groups { grid-template-columns:minmax(0,1fr); } .trigger-console .paid-settings h1 { font-size:28px; line-height:39px; } .paid-settings .paid-wide { width:100%; } }
+.trigger-content:has(> .paid-settings) { padding:0; display:block; }
+.trigger-content > .paid-settings { width:100%; }
+
+@media(max-width:767px) { .trigger-content:has(> .paid-settings) { padding-top:64px; } }

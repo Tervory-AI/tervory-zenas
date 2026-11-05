@@ -1,0 +1,14 @@
+id: base.normalize
+version: 1.0.1
+agent: base
+rung: 3
+description: >
+  Pass 1a. Cleans a raw business record (name, address, city, state, zip, phone) into
+  canonical fields with a source and confidence on each, plus a match key for entity resolution.
+input:
+  type: object
+  properties: {name: {type: string}, address: {type: string}, city: {type: string}, state: {type: string}, zip: {type: string}, phone: {type: string}}
+output:
+  type: object
+  properties: {fields: {type: object}, match_key: {type: string}}
+eval_threshold: 1.0

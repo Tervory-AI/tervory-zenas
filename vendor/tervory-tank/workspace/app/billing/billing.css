@@ -1,0 +1,178 @@
+.billing {
+  --bill-fg: #001840;
+  --bill-red: #E80008;
+  --bill-line: #B8BFD0;
+  --bill-muted: #4a5570;
+  --bill-faint: #7e88a0;
+  --bill-tint: #F4F6FB;
+  --bill-card: #ffffff;
+  --bill-paid: #1f7a4d;
+  color: var(--bill-fg);
+  background: var(--bill-tint);
+  margin: -24px -16px -120px;
+  padding: 36px 8px 72px;
+}
+
+.billing h1,
+.billing h2 {
+  font-family: var(--font-jost), "Jost", sans-serif;
+  font-weight: 300;
+  color: var(--bill-fg);
+  letter-spacing: 0;
+}
+
+.billing h1 { font-size: 40px; line-height: 1.15; margin: 0 0 8px; }
+.billing h2 { font-size: 28px; line-height: 1.2; margin: 0; }
+.billing p { margin: 0; }
+.billing .kicker {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--bill-faint);
+}
+.billing .lede { color: var(--bill-muted); max-width: 62ch; margin-bottom: 4px; }
+.billing .caption { color: var(--bill-muted); font-size: 13px; }
+.billing .amount {
+  font-family: var(--font-mono), "JetBrains Mono", ui-monospace, monospace;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.billing .tile b.plan-name,
+.billing .plan-name {
+  font-family: var(--font-jost), "Jost", sans-serif;
+  font-weight: 300;
+  font-size: 22px;
+  overflow-wrap: anywhere;
+}
+.billing .tile b.amount {
+  font-family: var(--font-mono), "JetBrains Mono", ui-monospace, monospace;
+  font-weight: 500;
+}
+
+.billing .tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  margin: 18px 0;
+}
+.billing .tabs a {
+  color: var(--bill-muted);
+  text-decoration: none;
+  font-weight: 500;
+  padding-bottom: 6px;
+  border-bottom: 2px solid transparent;
+}
+.billing .tabs a.here { color: var(--bill-fg); border-bottom-color: var(--bill-red); }
+.billing .tabs a:focus-visible,
+.billing a:focus-visible,
+.billing button:focus-visible {
+  outline: 2px solid var(--bill-fg);
+  outline-offset: 2px;
+}
+
+.billing .panel {
+  background: var(--bill-card);
+  border: 1px solid var(--bill-line);
+  border-radius: 12px;
+  padding: 20px;
+}
+.billing .panel h2 { margin-bottom: 8px; }
+.billing .panel p + p,
+.billing .panel h2 + p { margin-top: 8px; }
+.billing .plan { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.billing .plan h2,
+.billing .plan p { margin: 0; }
+.billing .plan .amount { font-size: 32px; line-height: 1.2; }
+.billing .plan form { margin-top: 8px; }
+
+.billing .plan-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+}
+.billing .plan-row + .caption { margin-top: 12px; }
+
+.billing .chip {
+  display: inline-block;
+  background: var(--bill-red);
+  color: #fff;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.3;
+  padding: 3px 8px;
+}
+
+.billing button.primary {
+  background: var(--bill-red);
+  border: 1px solid var(--bill-red);
+  color: #fff;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 500;
+  border-radius: 10px;
+  padding: 10px 16px;
+}
+.billing button.primary:disabled { opacity: 0.45; cursor: default; }
+
+.billing .tiles {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.billing .tile {
+  background: var(--bill-card);
+  border: 1px solid var(--bill-line);
+  border-radius: 12px;
+  padding: 14px;
+}
+.billing .tile b { display: block; font-size: 22px; line-height: 1.25; margin-bottom: 4px; }
+.billing .tile span { color: var(--bill-muted); font-size: 13px; }
+
+.billing .sheet { margin-top: 12px; }
+.billing .sheet .head,
+.billing .sheet .line {
+  display: grid;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 0;
+}
+.billing .sheet.lines .head,
+.billing .sheet.lines .line { grid-template-columns: 1.4fr 0.6fr 0.8fr; }
+.billing .sheet.invoices .head,
+.billing .sheet.invoices .line { grid-template-columns: 1.1fr 1.3fr 0.8fr 0.9fr auto; }
+.billing .sheet .head {
+  color: var(--bill-faint);
+  font-size: 13px;
+  font-weight: 500;
+  padding-top: 0;
+}
+.billing .sheet .line { border-top: 1px solid var(--bill-line); }
+.billing .sheet a { color: var(--bill-fg); font-weight: 500; }
+.billing .paid { color: var(--bill-paid); font-weight: 500; }
+.billing .panel .caption { margin-top: 12px; }
+
+.billing .notice,
+.billing .problem {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--bill-card);
+  border: 1px solid var(--bill-line);
+}
+.billing .problem { color: var(--bill-fg); }
+
+@media (max-width: 720px) {
+  .billing { padding: 28px 4px 48px; }
+  .billing h1 { font-size: 32px; }
+  .billing h2 { font-size: 24px; }
+  .billing .tiles { grid-template-columns: 1fr; }
+  .billing .sheet.lines .head,
+  .billing .sheet.invoices .head { display: none; }
+  .billing .sheet.lines .line,
+  .billing .sheet.invoices .line { grid-template-columns: 1fr; gap: 4px; }
+  .billing .plan .amount { font-size: 28px; }
+}

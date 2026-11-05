@@ -1,0 +1,17 @@
+id: tier0.draft
+version: 1.0.0
+agent: tier0
+rung: 1
+task_type: tier0.draft
+description: >
+  Drafts short business writing (email, message, note) in plain direct English, no preamble.
+input:
+  type: object
+  required: [text]
+  properties:
+    text: {type: string}
+output:
+  type: object
+  properties:
+    text: {type: string}
+eval_threshold: 0.8

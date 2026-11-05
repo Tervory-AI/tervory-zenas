@@ -1,0 +1,16 @@
+id: github
+version: 1.0.0
+name: GitHub
+products:
+  - radix
+servers:
+  - url: https://api.githubcopilot.com/mcp/
+    tools:
+      list_issues: read
+      issue_read: read
+      list_pull_requests: read
+      pull_request_read: read
+      actions_list: read
+      actions_get: read
+skills: []
+code_mode: true

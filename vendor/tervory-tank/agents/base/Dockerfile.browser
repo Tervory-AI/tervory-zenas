@@ -1,0 +1,11 @@
+FROM python:3.12-slim-bookworm
+RUN apt-get update && apt-get install -y --no-install-recommends chromium ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && pip install --no-cache-dir playwright==1.64.1 pypdf==6.21.2 fastapi==0.162.0 starlette==1.10.0 uvicorn==0.54.0 httpx==0.28.1 cryptography==50.0.2 \
+    && useradd --create-home --uid 1000 browser \
+    && mkdir -p /browser-data && chown browser:browser /browser-data
+WORKDIR /app
+COPY agents/_brain /app/brain
+RUN chmod -R a+rX /app/brain
+USER browser
+CMD ["uvicorn", "brain.browser:app", "--host", "0.0.0.0", "--port", "3000", "--no-access-log", "--no-proxy-headers"]

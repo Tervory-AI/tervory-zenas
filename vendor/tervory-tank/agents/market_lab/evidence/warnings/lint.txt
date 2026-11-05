@@ -1,0 +1,4 @@
+.venv/bin/ruff check tank tests --select E9,F --per-file-ignores 'tank/skills/base.socials/1.0.0/run.py:F401'
+All checks passed!
+.venv/bin/ruff check agents/market_lab/core agents/market_lab/warning_proof agents/market_lab/engines/ffl/warnings.py --select E9,F
+All checks passed!

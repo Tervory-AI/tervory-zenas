@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "ownership": "approved",
+  "destinations": [
+    {
+      "host": "lokd.co.za",
+      "port": 443
+    },
+    {
+      "host_from_env": "R2_ACCOUNT_ID",
+      "suffix": ".r2.cloudflarestorage.com",
+      "port": 443
+    }
+  ],
+  "max_concurrent": 2,
+  "max_requests_per_minute": 6,
+  "max_response_bytes": 1000000,
+  "max_duration_seconds": 20,
+  "storage_limits": {
+    "max_concurrent": 2,
+    "max_requests_per_minute": 120,
+    "max_response_bytes": 67108864,
+    "max_duration_seconds": 180
+  }
+}

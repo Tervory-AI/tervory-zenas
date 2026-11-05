@@ -1,0 +1,5 @@
+{"name": "simple fact", "input": {"text": "What does VAT stand for?"}, "expected": {"text": "value added tax"}, "tolerance": "contains"}
+{"name": "defers research", "input": {"text": "Find me the 50 largest packaging suppliers in Ohio with contact emails."}, "expected": {"text": "research"}, "tolerance": "contains"}
+{"name": "math", "input": {"text": "If I sell 1,200 units at $18 each, what is my revenue? Give the number."}, "expected": {"text": "21,600"}, "tolerance": "contains"}
+{"name": "definition", "input": {"text": "In one sentence, what is gross margin?"}, "expected": {"text": "cost"}, "tolerance": "contains"}
+{"name": "short", "input": {"text": "What is the capital of South Africa for executive purposes? One word."}, "expected": {"text": "pretoria"}, "tolerance": "contains"}

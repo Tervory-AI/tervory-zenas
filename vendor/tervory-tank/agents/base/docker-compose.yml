@@ -1,0 +1,178 @@
+# coolify: raw compose
+# Base. Deploy this file as its own Coolify resource, with Raw Compose Deployment
+# turned on (Coolify > app > Advanced). Raw mode deploys this file exactly as
+# written: Coolify adds only its labels, no app network and no env_file. In normal
+# mode Coolify would attach its own internet-facing network to every service,
+# including the sealed sandbox and browser (SEAL-1). tests/test_room_seal.py fails
+# if this marker is removed while a sealed service is in the file.
+# Build context is the repo root, because the chassis (agents/_chassis) and the engine data files
+# (tank/skills/*.profile/*/data) both live outside this folder.
+# The room retains its external gateway. Its brain and browser gateway join that
+# corridor; the sandbox exec service and browser each stay on a separate internal net.
+# Every variable reaches a service through explicit environment: interpolation.
+# No service publishes ports.
+services:
+  agent-base:
+    build:
+      context: ../..
+      dockerfile: agents/base/Dockerfile
+    restart: unless-stopped
+    mem_limit: 512m
+    cpus: 0.5
+    environment:
+      AGENT_NAME: base
+      R2_BUCKET: tervory-base
+      R2_ACCOUNT_ID: ${R2_ACCOUNT_ID:-}
+      R2_ACCESS_KEY_ID_BASE: ${R2_ACCESS_KEY_ID_BASE:-}
+      R2_SECRET_ACCESS_KEY_BASE: ${R2_SECRET_ACCESS_KEY_BASE:-}
+      TANK_REGION: us-east
+      DATABASE_URL: postgresql://agent_base:${AGENT_DB_PASSWORD_BASE}@postgres:5432/${POSTGRES_DB:-tervory}
+      CHASSIS_ADMIN_DATABASE_URL: ${CHASSIS_ADMIN_DATABASE_URL:-}
+      CHASSIS_RLS_ADMIN_ROLE: ${CHASSIS_RLS_ADMIN_ROLE:-}
+      TANK_URL: http://tank:8000
+      TANK_KEY: ${TANK_KEY_BASE:-}
+      BASE_BRAIN_URL: http://base-brain:8001
+      BASE_REFERENCE_FILE_URL: ${BASE_REFERENCE_FILE_URL:-}
+      SEARXNG_URL: http://searxng:8080
+      HERMES_URL: http://hermes:8000
+      DATA_DIR: /data
+      CONTEXT_DEV_API_KEY: ${CONTEXT_DEV_API_KEY:-}
+      CONTEXT_DEV_MAX_CREDITS: ${CONTEXT_DEV_MAX_CREDITS:-500}
+    volumes:
+      - agent_base_data:/data
+      # Same Base room spool; only agent-base uploads and deletes evidence.
+      - base_browser_data:/browser-evidence
+    networks:
+      - gw
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    expose:
+      - "8000"
+
+  base-brain:
+    build:
+      context: ../..
+      dockerfile: agents/base/Dockerfile.brain
+    restart: unless-stopped
+    mem_limit: 2g
+    cpus: 1
+    environment:
+      TANK_URL: http://tank:8000
+      TANK_KEY: ${TANK_KEY_BASE:-}
+      TANK_REGION: us-east
+      HERMES_URL: http://hermes:8000
+      BASE_ROOM_URL: http://agent-base:8000
+      BASE_BROWSER_URL: http://base-browser-gateway:3000
+      DATA_DIR: /data
+      BASE_SANDBOX_URL: http://base-sandbox:8002
+      SANDBOX_KEY: ${SANDBOX_KEY:?Set the Base-only sandbox API key}
+    volumes:
+      - base_brain_data:/data
+    networks: [gw, sandbox]
+    depends_on:
+      base-sandbox:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+
+  # An unprivileged sibling exec service, with only per-run tmpfs workspaces.
+  # No Docker daemon/socket, brain volume, provider key or host path is mounted.
+  base-sandbox:
+    build:
+      context: ../..
+      dockerfile: agents/base/Dockerfile.sandbox
+    restart: unless-stopped
+    mem_limit: 512m
+    cpus: 0.5
+    environment:
+      SANDBOX_KEY: ${SANDBOX_KEY:?Set the Base-only sandbox API key}
+    pids_limit: 64
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=32m
+      - /work:rw,nosuid,nodev,size=128m,uid=1000,gid=1000,mode=0700
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    networks: [sandbox]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8002/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
+  base-browser:
+    build:
+      context: ../..
+      dockerfile: agents/base/Dockerfile.browser
+    restart: unless-stopped
+    mem_limit: 2g
+    cpus: 0.5
+    shm_size: 256m
+    # No Tank key: only the gateway can send work to this sealed browser.
+    environment:
+      ACCESS_ROOM: base
+      ACCESS_BROWSER_KEY_BASE: ${ACCESS_BROWSER_KEY_BASE}
+    volumes:
+      - base_browser_data:/browser-data
+    networks: [browser]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:3000/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+
+  base-browser-gateway:
+    build:
+      context: ../..
+      dockerfile: agents/base/Dockerfile.gateway
+    restart: unless-stopped
+    mem_limit: 128m
+    cpus: 0.25
+    environment:
+      TANK_KEY: ${TANK_KEY_BASE:-}
+      TANK_REGION: us-east
+      ACCESS_ROOM: base
+      BROWSER_HOST: base-browser
+    networks: [gw, browser]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:3000/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+
+# The same volumes the room used before the raw-compose switch, by their live
+# names, so the data survives. external: compose reuses them and never recreates
+# them. On a new server, create them once first: docker volume create <name>
+volumes:
+  agent_base_data:
+    external: true
+    name: r8aprclj8nooe9keywrp9dmb_agent-base-data
+  base_brain_data:
+    external: true
+    name: r8aprclj8nooe9keywrp9dmb_base-brain-data
+  base_browser_data:
+    external: true
+    name: r8aprclj8nooe9keywrp9dmb_base-browser-data
+
+networks:
+  sandbox:
+    internal: true
+  browser:
+    internal: true
+  gw:
+    external: true
+    name: tervory-gw-base

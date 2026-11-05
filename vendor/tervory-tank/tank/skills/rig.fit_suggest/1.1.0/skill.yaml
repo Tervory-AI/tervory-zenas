@@ -1,0 +1,23 @@
+id: rig.fit_suggest
+version: 1.1.0
+agent: rig
+rung: 3
+task_type: rig.fit_suggest
+description: >
+  Answers from fitment already in the catalogue. Exact product fits come
+  first, then a family the catalogue names. The model writes one sentence
+  and cannot add a part. Evals can move it to staging. A person signs off before it serves shoppers.
+input:
+  type: object
+  properties:
+    part_sku: {type: string}
+    focus_sku: {type: string}
+    products: {type: array}
+    fits: {type: array}
+    model_text: {type: string}
+output:
+  type: object
+  properties:
+    fits: {type: array}
+    explanation: {type: string}
+eval_threshold: 1.0

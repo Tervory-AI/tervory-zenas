@@ -1,0 +1,17 @@
+id: base.verify
+version: 1.0.1
+agent: base
+rung: 3
+description: >
+  Pass 7, verification and the 0-100 confidence score. Cross-checks phone and email domain against
+  the site, flags missing registry match, lapsed licence, renewal window, thin or stale sites, and
+  scores six capped layers (identity, registry, web, contacts, facts, vertical) into the Build Pack
+  tiers: ready / use with awareness / review / requeue. Pure code.
+input:
+  type: object
+  required: [profile]
+  properties: {profile: {type: object}, raw: {type: object}, engine_profile: {type: object}}
+output:
+  type: object
+  properties: {confidence: {type: integer}, tier: {type: string}, layers: {type: object}, checks: {type: object}, flags: {type: array}}
+eval_threshold: 1.0

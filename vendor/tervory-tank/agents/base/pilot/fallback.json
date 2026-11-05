@@ -1,0 +1,184 @@
+{
+  "task_id": "b3459068-3845-4f22-b87f-b3ff2caa5b1d",
+  "tenant_id": "2d80a73b-106e-4367-ab52-2ff3c4f5ab9c",
+  "status": "done",
+  "processed": 2,
+  "receipt": {
+    "tenant_id": "2d80a73b-106e-4367-ab52-2ff3c4f5ab9c",
+    "task_id": "b3459068-3845-4f22-b87f-b3ff2caa5b1d",
+    "room": "base",
+    "model_receipts": [],
+    "steps": [
+      {
+        "action": "pipeline_fallback",
+        "reason": "brain failed before pipeline_run"
+      }
+    ],
+    "status": "fallback",
+    "error": "Brain unavailable before pipeline; default pipeline used."
+  },
+  "events": [
+    {
+      "sequence": 65,
+      "method": "POST",
+      "path": "/unavailable-brain/tasks",
+      "room_key_valid": true,
+      "status": 404
+    },
+    {
+      "sequence": 66,
+      "method": "DELETE",
+      "path": "/unavailable-brain/tasks/b3459068-3845-4f22-b87f-b3ff2caa5b1d",
+      "room_key_valid": true,
+      "status": 404
+    },
+    {
+      "sequence": 67,
+      "method": "GET",
+      "path": "/v1/agents/base/receipts",
+      "room_key_valid": true,
+      "status": 200
+    },
+    {
+      "sequence": 68,
+      "method": "POST",
+      "path": "/v1/skala/ffl.ingest/run",
+      "room_key_valid": true,
+      "status": 200
+    },
+    {
+      "sequence": 69,
+      "method": "POST",
+      "path": "/v1/skala/ffl.ingest/run",
+      "room_key_valid": true,
+      "status": 200
+    },
+    {
+      "sequence": 70,
+      "method": "POST",
+      "path": "/v1/skala/base.normalize/run",
+      "room_key_valid": true,
+      "status": 200
+    },
+    {
+      "sequence": 71,
+      "method": "POST",
+      "path": "/v1/skala/base.normalize/run",
+      "room_key_valid": true,
+      "status": 200
+    },
+    {
+      "sequence": 72,
+      "method": "POST",
+      "path": "/v1/skala/base.normalize/run",
+      "room_key_valid": true,
+      "status": 200
+    },
+    {
+      "sequence": 73,
+      "method": "POST",
+      "path": "/v1/skala/base.resolve/run",
+      "room_key_valid": true,
+      "status": 200
+    },
+    {
+      "sequence": 74,
+      "method": "POST",
+      "path": "/v1/skala/base.find_site/run",
+      "room_key_valid": true,
+      "status": 200
+    },
+    {
+      "sequence": 75,
+      "method": "POST",
+      "path": "/v1/skala/base.contacts/run",
+      "room_key_valid": true,
+      "status": 200
+    },
+    {
+      "sequence": 76,
+      "method": "POST",
+      "path": "/v1/skala/base.socials/run",
+      "room_key_valid": true,
+      "status": 200
+    },
+    {
+      "sequence": 77,
+      "method": "POST",
+      "path": "/v1/skala/ffl.profile/run",
+      "room_key_valid": true,
+      "status": 200
+    },
+    {
+      "sequence": 78,
+      "method": "POST",
+      "path": "/v1/skala/base.business_data/run",
+      "room_key_valid": true,
+      "status": 200
+    },
+    {
+      "sequence": 79,
+      "method": "POST",
+      "path": "/v1/skala/base.verify/run",
+      "room_key_valid": true,
+      "status": 200
+    },
+    {
+      "sequence": 80,
+      "method": "POST",
+      "path": "/v1/skala/base.normalize/run",
+      "room_key_valid": true,
+      "status": 200
+    },
+    {
+      "sequence": 81,
+      "method": "POST",
+      "path": "/v1/skala/base.resolve/run",
+      "room_key_valid": true,
+      "status": 200
+    },
+    {
+      "sequence": 82,
+      "method": "POST",
+      "path": "/v1/skala/base.find_site/run",
+      "room_key_valid": true,
+      "status": 200
+    },
+    {
+      "sequence": 83,
+      "method": "POST",
+      "path": "/v1/skala/base.contacts/run",
+      "room_key_valid": true,
+      "status": 200
+    },
+    {
+      "sequence": 84,
+      "method": "POST",
+      "path": "/v1/skala/base.socials/run",
+      "room_key_valid": true,
+      "status": 200
+    },
+    {
+      "sequence": 85,
+      "method": "POST",
+      "path": "/v1/skala/ffl.profile/run",
+      "room_key_valid": true,
+      "status": 200
+    },
+    {
+      "sequence": 86,
+      "method": "POST",
+      "path": "/v1/skala/base.business_data/run",
+      "room_key_valid": true,
+      "status": 200
+    },
+    {
+      "sequence": 87,
+      "method": "POST",
+      "path": "/v1/skala/base.verify/run",
+      "room_key_valid": true,
+      "status": 200
+    }
+  ],
+  "additional_model_calls": 0
+}

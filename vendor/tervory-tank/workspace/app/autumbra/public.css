@@ -1,0 +1,79 @@
+.autumbra-public {
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 2.5rem 1.25rem 4rem;
+  color: #e8e6e3;
+  background: #0f1210;
+  min-height: 100vh;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  line-height: 1.5;
+}
+.autumbra-public-head h1 {
+  font-size: clamp(2rem, 5vw, 3rem);
+  line-height: 1.1;
+  margin: 0.35rem 0 1rem;
+  font-weight: 650;
+}
+.autumbra-public-eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 0.75rem;
+  color: #9bc4a8;
+  margin: 1rem 0 0;
+}
+.autumbra-public-lede { color: #b9b6b0; max-width: 40rem; }
+.autumbra-public-fixture {
+  margin: 1.5rem 0;
+  padding: 0.75rem 1rem;
+  border: 1px solid #2a4a35;
+  background: #152018;
+  border-radius: 8px;
+  color: #c5e0cc;
+  font-size: 0.95rem;
+}
+.autumbra-public-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  margin: 1.5rem 0;
+}
+.autumbra-public-grid article,
+.autumbra-public-threats li,
+.autumbra-public-roles article {
+  background: #161a17;
+  border: 1px solid #2a302c;
+  border-radius: 10px;
+  padding: 1rem 1.1rem;
+}
+.autumbra-public-grid h2,
+.autumbra-public-threats h2,
+.autumbra-public-roles h2 {
+  font-size: 1rem;
+  margin: 0 0 0.5rem;
+  color: #9bc4a8;
+}
+.autumbra-public-grid ul,
+.autumbra-public-threats ul { margin: 0.5rem 0 0; padding-left: 1.1rem; }
+.autumbra-public-count {
+  display: inline-block;
+  font-size: 1.75rem;
+  font-weight: 650;
+  color: #f0eee9;
+}
+.autumbra-public-threats { margin: 2rem 0; }
+.autumbra-public-threats > ul { list-style: none; padding: 0; display: grid; gap: 0.75rem; }
+.autumbra-public-threats li > div { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+.autumbra-public-pill {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  background: #243528;
+  color: #b7d4c0;
+}
+.autumbra-public-meta { color: #8a8780; font-size: 0.85rem; }
+.autumbra-public-roles > div { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+.autumbra-public-foot { margin-top: 2.5rem; color: #8a8780; font-size: 0.9rem; }
+.autumbra-public-foot a { color: #9bc4a8; }
+.autumbra-public code { font-size: 0.85em; color: #c5e0cc; }

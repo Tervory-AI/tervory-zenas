@@ -1,0 +1,289 @@
+# Tervory in South Africa. One stack, one server, no link to the United States.
+# Coolify deploys this file on the SA server and attaches za.tervory.com to tank
+# (port 8000). Every other service stays internal.
+# Own Postgres, Redis, Qdrant, Hermes, Tank, LiteLLM, files and backups.
+# r2-backup-za archives encrypted Postgres dumps and Qdrant snapshots nightly to R2_BUCKET_ZENAS_ZA.
+# The Zenas room deploys separately: agents/zenas/docker-compose.za.yml.
+# No replication. No shared network with the other region. Do not add a US hostname here.
+
+services:
+  postgres:
+    image: postgres:16.15
+    restart: unless-stopped
+    environment:
+      TANK_REGION: za
+      POSTGRES_USER: ${POSTGRES_USER:-tervory}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-tervory}
+    volumes:
+      - za_pgdata:/var/lib/postgresql/data
+      - za_backups:/backups
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-tervory}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - default
+      - tervory-gw-zenas
+
+  redis:
+    # 7.4.12 is the current 7.4 patch. It carries the 7.4.11 fix for CVE-2026-81934
+    # and the 7.4.9 fix for CVE-2026-23479.
+    # Multi-arch index digest; keep identical in docker-compose.yml and docker-compose.za.yml.
+    image: redis:7.4.12@sha256:bd28fff4b665fdf1b73e8b5b73ec05d2f858f4fa3c8ea0d7c9bc09f7f6bf7039
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    environment:
+      TANK_REGION: za
+    volumes:
+      - za_redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - default
+
+  qdrant:
+    image: qdrant/qdrant:v1.20.0
+    restart: unless-stopped
+    environment:
+      TANK_REGION: za
+      QDRANT__SERVICE__API_KEY: ${QDRANT_API_KEY}
+    volumes:
+      - za_qdrantdata:/qdrant/storage
+    healthcheck:
+      # The image has bash and no HTTP client. An open port is the check it ships with.
+      test: ["CMD-SHELL", "bash -c ':> /dev/tcp/127.0.0.1/6333' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - default
+
+  hermes:
+    build:
+      context: .
+      dockerfile: hermes/Dockerfile
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-tervory}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-tervory}
+      TANK_REGION: za
+      QDRANT_URL: http://qdrant:6333
+      QDRANT_API_KEY: ${QDRANT_API_KEY}
+      TANK_API_KEY: ${TANK_API_KEY}
+      TANK_KEY_ZENAS: ${TANK_KEY_ZENAS:-}
+      HERMES_EMBED_MODEL: ${HERMES_EMBED_MODEL:-BAAI/bge-small-en-v1.5}
+    depends_on:
+      - qdrant
+      - postgres
+    networks:
+      - default
+      - tervory-gw-zenas
+    expose:
+      - "8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  litellm:
+    build: ./litellm
+    restart: unless-stopped
+    command: ["--config", "/app/config.za.yaml", "--port", "4000"]
+    environment:
+      TANK_REGION: za
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      XAI_API_KEY: ${XAI_API_KEY:-}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      MOONSHOT_API_KEY: ${MOONSHOT_API_KEY:-}
+      PERPLEXITY_API_KEY: ${PERPLEXITY_API_KEY:-}
+      # MODELS-3: inference-only Hugging Face token. LiteLLM only; never Tank or a room.
+      HF_INFERENCE_TOKEN: ${HF_INFERENCE_TOKEN:-}
+      # Dedicated shared key for the private llama.cpp route; never a provider token.
+      ZENAS_OWN_MODEL_KEY: ${ZENAS_OWN_MODEL_KEY:-}
+      # Build-only ChatGPT sign-in. Not a secret value: the token file lives on the volume below.
+      CHATGPT_TOKEN_DIR: /var/lib/litellm-chatgpt
+    volumes:
+      # Writable and persistent: LiteLLM rewrites the token on every refresh (about every
+      # ten days) and each refresh token works once. See docs/ops/CHATGPT-BUILD-MODEL.md.
+      - za_litellm_chatgpt_token:/var/lib/litellm-chatgpt
+    healthcheck:
+      # Port only. The image is Python; this does not send the master key.
+      test: ["CMD", "python", "-c", "import socket; s=socket.create_connection(('127.0.0.1',4000),3); s.close()"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks:
+      - default
+      - tervory-own-zenas-za
+
+  tank:
+    build:
+      context: ./tank
+      args:
+        # A local build can pass GIT_SHA. On Coolify, Tank reads SOURCE_COMMIT at run time
+        # (tank_sha in tank/main.py). Do not use SOURCE_COMMIT as a compose variable: Coolify
+        # then creates an empty app variable of that name, which hides the commit it injects.
+        GIT_SHA: ${GIT_SHA:-}
+    restart: unless-stopped
+    environment:
+      TRIGGER_SIGNIN_CONFIG_TOKEN: ${TRIGGER_SIGNIN_CONFIG_TOKEN:?founder sets read-only directory capability}
+      FOUNDER_REPORT_TO: ${FOUNDER_REPORT_TO:-}
+      FOUNDER_REPORT_SMTP_HOST: ${FOUNDER_REPORT_SMTP_HOST:-}
+      FOUNDER_REPORT_SMTP_PORT: ${FOUNDER_REPORT_SMTP_PORT:-}
+      FOUNDER_REPORT_SMTP_USER: ${FOUNDER_REPORT_SMTP_USER:-}
+      FOUNDER_REPORT_SMTP_PASSWORD: ${FOUNDER_REPORT_SMTP_PASSWORD:-}
+      FOUNDER_REPORT_SMTP_FROM: ${FOUNDER_REPORT_SMTP_FROM:-}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      TRIGGER_BOT_TRUSTED_PROXY_CIDRS: ${TRIGGER_BOT_TRUSTED_PROXY_CIDRS:-}
+      TRIGGER_BOT_HANDOVER_ADDRESSES: ${TRIGGER_BOT_HANDOVER_ADDRESSES:-}
+      TRIGGER_GOOGLE_OAUTH_CLIENT_ID: ${TRIGGER_GOOGLE_OAUTH_CLIENT_ID:-}
+      TRIGGER_GOOGLE_OAUTH_CLIENT_SECRET: ${TRIGGER_GOOGLE_OAUTH_CLIENT_SECRET:-}
+      TRIGGER_META_APP_ID: ${TRIGGER_META_APP_ID:-}
+      TRIGGER_META_APP_SECRET: ${TRIGGER_META_APP_SECRET:-}
+      TRIGGER_WHATSAPP_BINDINGS: ${TRIGGER_WHATSAPP_BINDINGS:-}
+      TRIGGER_WHATSAPP_APP_SECRET: ${TRIGGER_WHATSAPP_APP_SECRET:-}
+      TRIGGER_WHATSAPP_VERIFY_TOKEN: ${TRIGGER_WHATSAPP_VERIFY_TOKEN:-}
+      TRIGGER_WHATSAPP_TOKEN_CONNECTOR: ${TRIGGER_WHATSAPP_TOKEN_CONNECTOR:-}
+      TANK_VAULT_KEY: ${TANK_VAULT_KEY:-}
+      TANK_REGION: za
+      DATABASE_URL: postgresql://${POSTGRES_USER:-tervory}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-tervory}
+      TANK_ADMIN_DATABASE_URL: ${TANK_ADMIN_DATABASE_URL:-}
+      TANK_RLS_ADMIN_ROLE: ${TANK_RLS_ADMIN_ROLE:-}
+      REDIS_URL: redis://redis:6379/0
+      QDRANT_URL: http://qdrant:6333
+      QDRANT_API_KEY: ${QDRANT_API_KEY}
+      LITELLM_URL: http://litellm:4000
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY}
+      TANK_API_KEY: ${TANK_API_KEY}
+      HF_TOKEN: ${HF_TOKEN:-}
+      HF_ORG: ${HF_ORG:-}
+      TRAINING_JOB_KEY: ${TRAINING_JOB_KEY:-}
+      # Homes-only key: POST /v1/zenas/tenants with home za, nothing else.
+      TANK_HOMES_KEY: ${TANK_HOMES_KEY:-}
+      TRIGGER_SIGNIN_SESSIONS_KEY: ${TRIGGER_SIGNIN_SESSIONS_KEY:-}
+      TANK_KEY_ZENAS: ${TANK_KEY_ZENAS:-}
+      ZA_HOSTED_MODELS: ${ZA_HOSTED_MODELS:-}
+      TANK_PROVIDER_ALLOW: ${TANK_PROVIDER_ALLOW:-}
+      TANK_BUILD_TENANTS: ${TANK_BUILD_TENANTS:-}
+      ZENAS_MATTER_SHARING: ${ZENAS_MATTER_SHARING:-region}
+      ZENAS_AGENT_URL: http://agent-zenas:8000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      litellm:
+        condition: service_started
+    networks:
+      - default
+      - tervory-gw-zenas
+    # Coolify attaches za.tervory.com to this service only.
+    expose:
+      - "8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  # ZA only. Runs on every ordinary Coolify deploy (no profile), so redeploys
+  # keep it. Nightly 02:00 UTC: encrypted Postgres dump (Tank and the Zenas
+  # room share database tervory) plus Qdrant snapshots (mem_<agent> memory is
+  # a primary store, not rebuildable) to founder bucket tervory-zenas-za.
+  # Every value is compose interpolation from Coolify env, so the .env that
+  # Coolify writes on each deploy is enough; no side env_file is needed.
+  # Uses the Zenas R2 pair (same names as agents/zenas/docker-compose.za.yml).
+  # Public age recipient only. Private age identity never mounts here.
+  r2-backup-za:
+    build:
+      context: .
+      dockerfile: jobs/train/Dockerfile.backup
+    restart: unless-stopped
+    mem_limit: 512m
+    cpus: 0.5
+    read_only: true
+    volumes:
+      - za_r2_backup_spool:/tmp
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      TANK_REGION: za
+      AGENT_NAME: zenas
+      DATABASE_URL: postgresql://${POSTGRES_USER:-tervory}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-tervory}
+      QDRANT_URL: http://qdrant:6333
+      QDRANT_API_KEY: ${QDRANT_API_KEY}
+      R2_ACCOUNT_ID: ${R2_ACCOUNT_ID:-}
+      R2_BUCKET_ZENAS_ZA: ${R2_BUCKET_ZENAS_ZA:-}
+      R2_BUCKET: ${R2_BUCKET_ZENAS_ZA:-}
+      R2_ACCESS_KEY_ID_ZENAS: ${R2_ACCESS_KEY_ID_ZENAS:-}
+      R2_SECRET_ACCESS_KEY_ZENAS: ${R2_SECRET_ACCESS_KEY_ZENAS:-}
+      R2_BACKUP_RECIPIENT: ${R2_BACKUP_RECIPIENT:-}
+    command: ["python", "jobs/train/backup.py", "--owner", "zenas", "--target", "all", "--nightly"]
+    # Offline readiness only; completed backups are proved by their R2 manifests.
+    healthcheck:
+      test: ["CMD", "python", "-c", "import sys; sys.path.insert(0, 'jobs/train'); from backup import dump_configuration, qdrant_configuration; dump_configuration(); qdrant_configuration()"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+    networks:
+      - default
+
+  agent-roles:
+    build:
+      context: ./agents
+      dockerfile: Dockerfile.roles
+    restart: "on-failure"
+    exclude_from_hc: true
+    environment:
+      TANK_REGION: za
+      DATABASE_URL: postgresql://${POSTGRES_USER:-tervory}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-tervory}
+      AGENT_DB_PASSWORD_ZENAS: ${AGENT_DB_PASSWORD_ZENAS:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - default
+
+  # The Zenas room is NOT in this stack. It is its own Coolify resource
+  # (agents/zenas/docker-compose.za.yml) on the corridor tervory-gw-zenas, so it
+  # never sees this stack's env (model keys stay with litellm/tank only).
+
+volumes:
+  # Local to this server. Do not replicate these to the United States.
+  za_pgdata:
+  za_redisdata:
+  za_qdrantdata:
+  za_backups:
+  za_r2_backup_spool:
+  # Build-only ChatGPT token for LiteLLM. Never backed up or copied to the United States.
+  za_litellm_chatgpt_token:
+
+networks:
+  default:
+    name: tervory-za
+  tervory-gw-zenas:
+    name: tervory-gw-zenas
+  tervory-own-zenas-za:
+    name: tervory-own-zenas-za
+    internal: true

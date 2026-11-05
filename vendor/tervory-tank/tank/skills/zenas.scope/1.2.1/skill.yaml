@@ -1,0 +1,26 @@
+id: zenas.scope
+version: 1.2.1
+agent: zenas
+rung: 3
+task_type: zenas.scope
+cache_scope: tenant
+description: >
+  Scope gate for Zenas. Rules decide criminal matters, areas that are not
+  offered yet, and the launch list in areas.json. Text the rules do not
+  decide goes to the cheap model on task type zenas.scope, cached per tenant.
+  Criminal law is refused. A new area is a change to areas.json plus evals.
+input:
+  type: object
+  properties:
+    text: {type: string}
+    jurisdiction: {type: string}
+output:
+  type: object
+  properties:
+    in_scope: {type: boolean}
+    area: {type: string}
+    jurisdiction: {type: string}
+    criminal: {type: boolean}
+    needs_lawyer: {type: boolean}
+    reason: {type: string}
+eval_threshold: 1.0

@@ -1,0 +1,16 @@
+id: base.business_data
+version: 1.0.0
+agent: base
+rung: 1
+task_type: base.business_data
+description: >
+  Pass 5, business data enrichment. One small-model call estimates size band, revenue band, business
+  model and NAICS from the signals passes 1-4 established. Labelled as estimates; confidence capped
+  at 60. Reviews and BBB pullers arrive as later versions with provider keys.
+input:
+  type: object
+  properties: {name: {type: string}, description: {type: string}, categories: {type: array}, services: {type: array}, people: {type: array}}
+output:
+  type: object
+  properties: {size_band: {type: string}, revenue_band: {type: string}, business_model: {type: string}, naics: {type: string}}
+eval_threshold: 0.8

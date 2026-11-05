@@ -1,0 +1,20 @@
+id: tiger.price_ocr
+version: 1.0.0
+agent: tiger
+rung: 3
+description: >
+  Read a price from a screenshot when the page draws it as a picture.
+  Tesseract runs in the Tiger browser box. Confidence is lower than a price read from HTML.
+input:
+  type: object
+  properties:
+    text: {type: string}
+    png_base64: {type: string}
+    url: {type: string}
+output:
+  type: object
+  properties:
+    items: {type: array}
+    method: {type: string}
+    confidence: {type: number}
+eval_threshold: 1.0

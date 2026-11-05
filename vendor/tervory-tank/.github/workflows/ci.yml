@@ -1,0 +1,566 @@
+name: ci
+
+# Security runs on every PR, including docs-only changes. Build jobs still use ci_scope.py.
+on:
+  workflow_dispatch:
+  pull_request:
+  # Merge queue (3 Nov, founder): the queue tests each group of PRs merged onto main
+  # before it lands, so branches no longer merge main to stay current.
+  merge_group:
+    types: [checks_requested]
+  # No push trigger on main (3 Nov, founder): the merge queue (merge method MERGE) already
+  # ran this whole workflow on the exact commit that lands, so a run on the push was a
+  # pure repeat. workflow_dispatch (above) still runs everything on main by hand:
+  # ci_scope.py gets no DIFF_BASE for a dispatch and selects the full suite.
+
+permissions:
+  contents: read
+
+# Cancel superseded runs (CI-2). A newer push to the same pull request cancels the
+# older run. Merge-queue and manual runs are never cancelled: each gets its own group
+# (run_id), so it never waits behind or gets replaced by another run. Since
+# 27 Oct the deploy no longer waits for CI (deploy-on-merge runs on the push). (With a shared group, GitHub cancels a *pending*
+# run when a newer one queues, even with cancel-in-progress false.)
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  security:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          # Default ref: the PR merged with its base. Checking out the PR head alone broke every PR
+          # branched before #374 (the security scripts were not on that branch: exit 127).
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7
+        with:
+          python-version: "3.12.14"
+      - name: Install pinned security CLIs
+        id: tools
+        run: bash .github/scripts/install-security-tools.sh
+      - name: Test security gate policy
+        run: python3 -m unittest discover -s tests/ci_security -p test_security.py -v
+      - name: Gitleaks — PR commits or main push
+        if: ${{ !cancelled() && steps.tools.outcome == 'success' }}
+        run: python3 .github/scripts/security_scan.py gitleaks --event-context --output "$RUNNER_TEMP/security-results"
+      - name: Semgrep — new high findings
+        if: ${{ !cancelled() && steps.tools.outcome == 'success' }}
+        run: python3 .github/scripts/security_scan.py semgrep --event-context --output "$RUNNER_TEMP/security-results"
+      - name: OSV-Scanner — new vulnerable versions
+        if: ${{ !cancelled() && steps.tools.outcome == 'success' }}
+        run: python3 .github/scripts/security_scan.py osv --event-context --output "$RUNNER_TEMP/security-results"
+      - name: Save security results
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: security-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/security-results/*.json
+          if-no-files-found: warn
+          retention-days: 14
+
+  lint:
+    # Founder, 3 Nov: the full suite runs once, in the merge queue (the exact commit that lands).
+    # A pull request gets the fast checks only: this lint, security and the changes scope.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7
+        with:
+          python-version: "3.12.14"
+      - name: Lint
+        run: |
+          python -m pip install --disable-pip-version-check "ruff==0.17.2"
+          ruff check tank tests --select E9,F --per-file-ignores "tank/skills/base.socials/1.0.0/run.py:F401"
+
+  changes:
+    runs-on: ubuntu-latest
+    # 5, not 2 (3 Nov): in a merge-queue run the full-history checkout plus post steps took
+    # 2m22s, the job was cancelled, ci-ok failed and the queue dropped a green PR (#625).
+    timeout-minutes: 5
+    outputs:
+      run: ${{ steps.scope.outputs.run }}
+      full: ${{ steps.scope.outputs.full }}
+      tisan: ${{ steps.scope.outputs.tisan }}
+      tests: ${{ steps.scope.outputs.tests }}
+      savings: ${{ steps.scope.outputs.savings }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+      - name: Select checks from changed paths
+        id: scope
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          DIFF_BASE: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha || github.event.before }}
+          DIFF_HEAD: ${{ github.event.pull_request.head.sha || github.event.merge_group.head_sha || github.sha }}
+        run: python3 .github/scripts/ci_scope.py
+
+  # Picks where the real jobs run. It only runs when the founder has switched the
+  # self-hosted runner on (repository variable SELF_HOSTED_RUNNER_ONLINE=true) and
+  # the change is not from a fork. Otherwise it is skipped and the jobs below fall
+  # back to ubuntu-latest. See docs/ops/self-hosted-runner.md.
+  runner:
+    name: pick runner
+    if: >-
+      vars.SELF_HOSTED_RUNNER_ONLINE == 'true' &&
+      (github.event_name != 'pull_request' ||
+       github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    outputs:
+      runner: ${{ steps.pick.outputs.runner }}
+    steps:
+      - name: Pick runner
+        id: pick
+        env:
+          SELF_HOSTED_ONLINE: ${{ vars.SELF_HOSTED_RUNNER_ONLINE }}
+          EVENT_NAME: ${{ github.event_name }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          THIS_REPO: ${{ github.repository }}
+          # Optional. A fine-grained token that can only read this repository's
+          # runner list (Administration: read-only). Never a Coolify or Tank key.
+          RUNNER_STATUS_TOKEN: ${{ secrets.RUNNER_STATUS_TOKEN }}
+        run: |
+          runner='"ubuntu-latest"'
+          if [ "$EVENT_NAME" = "pull_request" ] && [ "$HEAD_REPO" != "$THIS_REPO" ]; then
+            echo "Pull request from a fork: GitHub-hosted runner only."
+          elif [ "${SELF_HOSTED_ONLINE:-}" != "true" ]; then
+            echo "SELF_HOSTED_RUNNER_ONLINE is not true: GitHub-hosted runner."
+          elif [ -z "${RUNNER_STATUS_TOKEN:-}" ]; then
+            echo "Switch is on and there is no status token: trusting the switch."
+            runner='["self-hosted","linux"]'
+          else
+            online=$(curl -fsS --max-time 10 \
+              -H "Authorization: Bearer $RUNNER_STATUS_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/$THIS_REPO/actions/runners?per_page=100" \
+              | jq '[.runners[]
+                     | select(.status == "online")
+                     | select([.labels[].name | ascii_downcase]
+                              | (index("self-hosted") != null and index("linux") != null))]
+                    | length') || online=0
+            case "$online" in ''|*[!0-9]*) online=0 ;; esac
+            if [ "$online" -gt 0 ]; then
+              echo "$online self-hosted runner(s) online."
+              runner='["self-hosted","linux"]'
+            else
+              echo "No self-hosted runner online (or the check failed): GitHub-hosted runner."
+            fi
+          fi
+          echo "runner=$runner" >> "$GITHUB_OUTPUT"
+
+  tank:
+    needs: [changes, runner]
+    # Run even when "pick runner" was skipped; then the runner falls back to ubuntu-latest.
+    if: ${{ !cancelled() && github.event_name != 'pull_request' && needs.changes.result == 'success' && needs.changes.outputs.run == 'true' }}
+    # Self-hosted only when "pick runner" chose it and the change is not from a fork.
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && needs.runner.outputs.runner && fromJSON(needs.runner.outputs.runner) || 'ubuntu-latest' }}
+    # Full suite: about 14 minutes on the hosted 4-core runner (run 41229068797: 808 s of tests in
+    # the main pass, 834 s for the whole suite, 15 min for the job); the per-test timeout is 5 minutes.
+    # 3 Nov 2026: the main pass reached about 1065 s, so the job allows 36 minutes. The main pass
+    # is now split across ten parallel shards (offline_suite.py, by collected test count); each
+    # isolated group runs on its own shard. 4 Nov 2026: six shards took about 11 minutes per queue entry.
+    timeout-minutes: 36
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: pooltest
+          # Disposable service: tests create LOGIN roles without passwords (tenant RLS)
+          # and Radix passive insists on a password-free URL, as in tenant-rls.yml.
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          # tests/test_tenant_rls.py compares routing bodies with an older commit.
+          fetch-depth: 0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            tank/requirements.txt
+            tank/requirements-dev.txt
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r tank/requirements.txt -r tank/requirements-dev.txt
+          pip install --require-hashes -r agents/rig/forge/requirements.lock
+      - name: Prepare video processing tools for offline acceptance
+        run: bash .github/scripts/install-video-test-tools.sh
+      - name: Prepare pinned k6 for offline Tisan smoke tests
+        run: |
+          python3 - <<'PYK6'
+          import hashlib, io, json, os, platform, re, tarfile, urllib.error, urllib.request
+          from pathlib import Path
+          source = Path("agents/tisan/Dockerfile").read_text()
+          def pin(name, pattern):
+              found = re.search(r"^ARG " + name + r"=(" + pattern + r")$", source, re.M)
+              if not found:
+                  raise SystemExit("missing Dockerfile k6 pin: " + name)
+              return found.group(1)
+          version = pin("K6_VERSION", r"[0-9]+\.[0-9]+\.[0-9]+")
+          architecture = {"x86_64": "amd64", "aarch64": "arm64"}[platform.machine()]
+          expected = pin("K6_SHA_" + architecture.upper(), r"[a-f0-9]{64}")
+          name = f"k6-v{version}-linux-{architecture}"
+          url = f"https://github.com/grafana/k6/releases/download/v{version}/{name}.tar.gz"
+          try:
+              with urllib.request.urlopen(url, timeout=60) as response:
+                  archive = response.read(100_000_001)
+          except (urllib.error.URLError, TimeoutError):
+              # Same official release asset through GitHub's API, never a mirror.
+              api = f"https://api.github.com/repos/grafana/k6/releases/tags/v{version}"
+              with urllib.request.urlopen(api, timeout=60) as response:
+                  release = json.load(response)
+              asset = next(item for item in release["assets"] if item["name"] == name + ".tar.gz")
+              asset_url = asset["url"]
+              if not re.fullmatch(r"https://api\.github\.com/repos/grafana/k6/releases/assets/[0-9]+", asset_url):
+                  raise SystemExit("unexpected k6 release asset URL")
+              request = urllib.request.Request(asset_url, headers={"Accept": "application/octet-stream"})
+              with urllib.request.urlopen(request, timeout=60) as response:
+                  archive = response.read(100_000_001)
+          if len(archive) > 100_000_000 or hashlib.sha256(archive).hexdigest() != expected:
+              raise SystemExit("k6 checksum mismatch")
+          folder = Path(os.environ["RUNNER_TEMP"]) / "tisan-k6"
+          folder.mkdir(exist_ok=True)
+          with tarfile.open(fileobj=io.BytesIO(archive), mode="r:gz") as packed:
+              binary = packed.extractfile(name + "/k6")
+              if binary is None:
+                  raise SystemExit("k6 executable missing")
+              (folder / "k6").write_bytes(binary.read())
+          (folder / "k6").chmod(0o755)
+          with open(os.environ["GITHUB_PATH"], "a") as output:
+              output.write(str(folder) + "\n")
+          PYK6
+      - name: Prepare Chromium for required READ-1 browser tests
+        run: |
+          browser=$(command -v chromium || command -v chromium-browser || command -v google-chrome || command -v google-chrome-stable || true)
+          if [ -n "$browser" ]; then
+            echo "READ1_CHROMIUM_EXECUTABLE=$browser" >> "$GITHUB_ENV"
+          else
+            python -m playwright install --with-deps chromium
+          fi
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: workspace/package-lock.json
+      - name: Install workspace packages for offline billing and Node tests
+        working-directory: workspace
+        run: npm ci --no-audit --no-fund
+      - name: Prepare pinned Tisan acceptance browser dependencies
+        working-directory: agents/tisan/templates/next-site
+        run: |
+          npm ci --no-audit --no-fund
+          npx --no-install playwright install chromium
+      - name: Prepare pinned Tiger acceptance browser dependencies
+        working-directory: tests/acceptance/tiger-browser
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npx --no-install playwright install chromium
+      - name: Prepare pinned Trigger acceptance browser dependencies
+        run: |
+          npm ci --prefix tests/trigger_browser_tools --ignore-scripts --no-audit --no-fund
+          tests/trigger_browser_tools/node_modules/.bin/playwright install chromium
+          echo "TRIGGER_BROWSER_TOOLS=$GITHUB_WORKSPACE/tests/trigger_browser_tools/node_modules" >> "$GITHUB_ENV"
+      - name: Prepare CLI acceptance fixtures
+        run: |
+          npm ci --prefix cli --ignore-scripts --no-audit --no-fund
+          # Setup may fetch pinned dependencies; the acceptance tests themselves stay offline.
+          node --input-type=module - <<'JS'
+          import { PLATFORMS } from './cli/scripts/build-release.mjs';
+          import { readFileSync } from 'node:fs';
+          import { execFileSync } from 'node:child_process';
+          const lock = JSON.parse(readFileSync('cli/package-lock.json'));
+          for (const platform of Object.keys(PLATFORMS)) {
+            const name = '@napi-rs/keyring-' + platform;
+            const version = lock.packages['node_modules/' + name].version;
+            execFileSync('npm', ['cache', 'add', name + '@' + version], { stdio: 'inherit' });
+          }
+          JS
+          if ! command -v bwrap >/dev/null; then
+            if [ "$RUNNER_ENVIRONMENT" != github-hosted ]; then
+              echo "Self-hosted CLI acceptance needs preinstalled Bubblewrap."
+              exit 1
+            fi
+            sudo apt-get update
+            sudo apt-get install -y bubblewrap
+          fi
+          # Kernel changes are restricted to disposable hosted runners.
+          if [ "$RUNNER_ENVIRONMENT" = github-hosted ] && test -f /proc/sys/kernel/apparmor_restrict_unprivileged_userns; then
+            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          fi
+      - name: Lint
+        # F401 in base.socials/1.0.0/run.py is a pre-existing unused import.
+        # This lane cannot edit an approved skill in place.
+        run: ruff check tank tests --select E9,F --per-file-ignores "tank/skills/base.socials/1.0.0/run.py:F401"
+      - name: Prepare test databases
+        # tests/test_radix_passive.py insists on a database named radix_passive_test.
+        # The Market Lab real-Postgres proofs insist on a loopback database ending in
+        # _test (DATABASE_URL below); tests/conftest.py gives each worker market_gwN_test.
+        run: |
+          python - <<'PY'
+          import asyncio, asyncpg
+          async def main():
+              conn = await asyncpg.connect("postgresql://postgres@127.0.0.1:5432/pooltest")
+              await conn.execute("CREATE DATABASE radix_passive_test")
+              await conn.execute("CREATE DATABASE market_test")
+              await conn.close()
+          asyncio.run(main())
+          PY
+      - name: Install pinned Rig host-split test proxy
+        run: bash .github/scripts/install-rig-traefik.sh
+      - name: Full offline test suite
+        # The whole suite gates every PR again (it was cut to 3 files on 27 Oct, #351,
+        # because it took 10-15 minutes serially and had not passed for three days).
+        # Now: pytest-xdist workers with one database each, a per-test timeout, no
+        # provider keys, and in-process sockets limited to loopback. Known failures on
+        # main are listed with reasons in tests/quarantine.txt and still reported.
+        # tests/test_skala_patch_code_unchanged.py (#484) runs as part of the suite.
+        run: python3 .github/scripts/offline_suite.py
+        env:
+          PYTHONPATH: tank
+          SUITE_SHARD: ${{ matrix.shard }}
+          SUITE_SHARDS: 10
+          # One Postgres service. tests/conftest.py gives each xdist worker its own
+          # database cloned by name from this one (pooltest_gw0, ...).
+          POOL_SCHEMA_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/pooltest
+          ZENAS_SCHEMA_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/pooltest
+          # Opt-in database tests: CI has a disposable Postgres, so they run here too.
+          MEMORY_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/pooltest
+          BASE_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/pooltest
+          RLS_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/pooltest
+          RADIX_PASSIVE_TEST_DATABASE_URL: postgresql://postgres@127.0.0.1:5432/radix_passive_test
+          SKALA_B3_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/pooltest
+          SKALA_INTAKE_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/pooltest
+          TIGER_MAIL_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/pooltest
+          RIG_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/pooltest
+          TRAINING_SCHEMA_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/pooltest
+          # Market Lab real-Postgres proofs (subscriptions, round trip, real Tank, documents,
+          # warning job); they skip without it. Tervory Review on #486, item 2.
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/market_test
+      - name: Runner memory and kernel log after a failed suite
+        # A crashed xdist worker looks the same whether pytest-timeout killed it or the
+        # kernel did (OOM). This prints the evidence; it never changes the result.
+        if: failure()
+        continue-on-error: true
+        timeout-minutes: 2
+        run: |
+          free -m || true
+          df -h /dev/shm /tmp || true
+          { sudo -n dmesg -T 2>/dev/null || echo "dmesg not readable on this runner"; } | grep -iE 'oom|killed process|segfault|out of memory|not readable' | tail -n 40
+
+  workspace:
+    needs: [changes, runner]
+    if: ${{ !cancelled() && github.event_name != 'pull_request' && needs.changes.result == 'success' && needs.changes.outputs.full == 'true' }}
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && needs.runner.outputs.runner && fromJSON(needs.runner.outputs.runner) || 'ubuntu-latest' }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: workspace/package-lock.json
+      - name: Install
+        working-directory: workspace
+        run: npm ci --no-audit --no-fund
+      - name: typecheck
+        working-directory: workspace
+        run: npx tsc --noEmit
+      - name: Chats contract and header
+        # Offline: the real chats contract/route and a server render of the window header.
+        run: |
+          node tests/command_1b_contract.cjs
+          node tests/command_window_header.cjs
+      - name: CLI device page error paths and timeouts under Next's render fetch
+        # Regressions from the #496 review: no hang on error answers, 10 s bound on a silent Tank.
+        run: |
+          node --expose-gc tests/device_login_next_fetch.cjs
+      - name: Chats loop (commandRequest, roster) ends at its bounds under stalls + GC
+        # Review of #506, B1 for /chats: headers, JSON body, error body, stalled stream, roster;
+        # heartbeats keep a live stream open; redirects refused; Next render fetch.
+        run: |
+          node --expose-gc tests/chats_command_stall.cjs
+      - name: CLI sign-ins list and revoke
+        # Review of #506, B3: per-region keys, active rows only, revoke scoped, bounded body, render.
+        run: |
+          node tests/cli_sign_ins.cjs
+      - name: Build
+        working-directory: workspace
+        run: npx next build
+        env:
+          NEXT_TELEMETRY_DISABLED: "1"
+
+  # Chat CLI cross-lane acceptance (#467, extended on #496). Runs the six tests in
+  # tests/command_acceptance_20261031/test_cross_lane.py with COMMAND_ACCEPTANCE_CLIENTS=1:
+  # real Postgres + schema.sql, the full Tank app on loopback HTTP, the actual Workspace PAT
+  # adapter (workspace/lib/tank.ts), the actual approval module (workspace/lib/device-login.ts)
+  # and the actual CLI (cli/src/client.mjs), including CLI device login for us-east (via the
+  # Workspace) and ZA (straight to Tank) with the approval click automated. No network,
+  # no model calls, no secrets: every key and token here is a fixed dummy.
+  # Any skipped or missing test fails the job, so it never passes silently.
+  command-acceptance:
+    needs: [changes]
+    if: ${{ !cancelled() && github.event_name != 'pull_request' && needs.changes.result == 'success' && needs.changes.outputs.full == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: pooltest
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            tank/requirements.txt
+            tank/requirements-dev.txt
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: cli/package-lock.json
+      - name: Install Tank and CLI
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r tank/requirements.txt -r tank/requirements-dev.txt
+          # The CLI devDependency provides the TypeScript the tests use to load workspace/*.ts.
+          npm ci --ignore-scripts --no-audit --no-fund --prefix cli
+          node --check cli/bin/tervory.mjs
+          node --check cli/src/client.mjs
+      - name: Cross-lane acceptance (COMMAND_ACCEPTANCE_CLIENTS=1)
+        env:
+          COMMAND_ACCEPTANCE_CLIENTS: "1"
+          COMMAND_TEST_TOOLS: ${{ github.workspace }}/cli/node_modules
+          PYTHONPATH: tank:tests
+          POOL_SCHEMA_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/pooltest
+        run: |
+          # Cross-lane (6, incl. CLI device login via Workspace and ZA direct to Tank),
+          # device-login + personal-token + CLI-token route-corridor units on real Postgres, and the proof_prices
+          # fresh-deploy/paused syncs. One junit file, so the skip gate covers all of it.
+          python -m pytest -q -s -rs tests/command_acceptance_20261031/test_cross_lane.py \
+            tests/test_device_login.py tests/test_personal_tokens.py tests/test_pat_route_corridor.py \
+            tests/test_core1_proof.py::test_paused_ticks_do_not_create_runs_audits_or_reservations_and_resume \
+            tests/test_core1_proof.py::test_fresh_deploy_populates_proof_prices_idempotently_before_any_tick \
+            --junitxml="$RUNNER_TEMP/command-acceptance.xml"
+      - name: Fail if any acceptance test was skipped
+        if: ${{ !cancelled() }}
+        run: |
+          python3 - "$RUNNER_TEMP/command-acceptance.xml" <<'PY'
+          import sys
+          import xml.etree.ElementTree as ET
+          root = ET.parse(sys.argv[1]).getroot()
+          suite = root if root.tag == "testsuite" else root.find("testsuite")
+          counts = {k: int(suite.get(k, 0)) for k in ("tests", "skipped", "failures", "errors")}
+          print(counts)
+          if counts["tests"] < 21 or counts["skipped"] or counts["failures"] or counts["errors"]:
+              sys.exit("Chat CLI acceptance must run all 21 tests (6 cross-lane, device login, proof_prices) with zero skips.")
+          PY
+
+  savings-page:
+    needs: [changes]
+    # Only when the savings pages (or what they render) change. Founder, 27 Oct: no
+    # check runs on a pull request it cannot affect.
+    if: ${{ !cancelled() && github.event_name != 'pull_request' && needs.changes.result == 'success' && needs.changes.outputs.savings == 'true' }}
+    # Chromium system dependencies need sudo; keep this job on GitHub hosted runners.
+    runs-on: ubuntu-latest
+    # 8 minutes timed out twice on 22 Oct and cancelled CI on main. Usually ~1 minute.
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: "22"
+      # This job installs npm packages and a Playwright Chromium every run, and no pip
+      # packages. Cache the npm download cache and the browser. There is no
+      # workspace/package-lock.json yet, so the npm key uses package.json.
+      - name: Cache npm downloads
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: ~/.npm
+          key: savings-page-npm-${{ runner.os }}-${{ hashFiles('workspace/package.json', 'workspace/package-lock.json') }}-esbuild0.28.2-playwright1.64.1
+          restore-keys: |
+            savings-page-npm-${{ runner.os }}-
+      - name: Cache Playwright browsers
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: savings-page-playwright-${{ runner.os }}-1.64.1-chromium
+      - name: Install workspace and browser test packages
+        run: |
+          if [ -f workspace/package-lock.json ]; then
+            npm --prefix workspace ci --no-audit --no-fund
+          else
+            npm --prefix workspace install --no-package-lock --no-audit --no-fund
+          fi
+          npm install --prefix "$RUNNER_TEMP/core2-browser" --no-audit --no-fund esbuild@0.28.2 playwright@1.64.1
+          browser=$(command -v chromium || command -v chromium-browser || command -v google-chrome || command -v google-chrome-stable || true)
+          if [ -n "$browser" ]; then
+            echo "CORE2_CHROMIUM=$browser" >> "$GITHUB_ENV"
+          else
+            "$RUNNER_TEMP/core2-browser/node_modules/.bin/playwright" install --with-deps chromium
+          fi
+      - name: Check savings pages at 375px and 1440px
+        run: |
+          CORE2_ESBUILD_PATH="$RUNNER_TEMP/core2-browser/node_modules/esbuild" \
+          CORE2_PLAYWRIGHT_PATH="$RUNNER_TEMP/core2-browser/node_modules/playwright" \
+          CORE2_SCREENSHOT_DIR="$RUNNER_TEMP/core2-screenshots" \
+          node tests/test_core2_savings_page.mjs
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        if: always()
+        with:
+          name: savings-page-screenshots
+          path: ${{ runner.temp }}/core2-screenshots
+          if-no-files-found: warn
+
+  # The one required check for the merge queue (3 Nov). Matrix and path-skipped jobs report
+  # under changing names (tank (1)..(3), or plain "tank" when skipped), so the ruleset
+  # requires only this job. It passes when every job below passed or was skipped, and fails
+  # when any failed or was cancelled.
+  ci-ok:
+    if: always()
+    needs: [security, lint, changes, tank, workspace, command-acceptance, savings-page]
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Every CI job passed or was skipped
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "Results: $RESULTS"
+          for r in $RESULTS; do
+            case "$r" in success|skipped) ;; *) echo "A required CI job ended: $r"; exit 1 ;; esac
+          done

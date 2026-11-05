@@ -1,0 +1,307 @@
+# coolify: raw compose
+# Radix, the security auditor. Deploy this file as its own Coolify resource, with
+# Raw Compose Deployment turned on (Coolify > app > Advanced). Raw mode deploys
+# this file exactly as written: Coolify adds only its labels, no app network and no
+# env_file, so no sealed service gains a route Coolify chose (SEAL-1).
+# tests/test_room_seal.py fails if this marker is removed.
+# Build context is agents/ (the parent of this file), because the chassis lives there.
+# Every variable reaches a service through explicit environment: interpolation.
+# No service publishes ports.
+#
+# tervory-gw-radix is an internal network, created once on the server with:
+#   docker network create --internal tervory-gw-radix
+# The agent reaches Tank, Postgres, and Hermes on that corridor.
+# It has no route to the public internet. Direct sockets to a site fail.
+#
+# Approved external names: lokd.co.za and the exact account R2 host, HTTPS 443.
+# egress-proxy is the only service on the egress network. Its process refuses
+# every other destination. This is not general internet, and this file does
+# not deploy the room.
+
+services:
+  agent-radix:
+    build:
+      context: ..
+      dockerfile: radix/Dockerfile
+    restart: unless-stopped
+    # ZAP's JVM is capped at 512 MiB; one passive scan runs at a time.
+    mem_limit: 1g
+    cpus: 0.25
+    cap_drop:
+      - NET_ADMIN
+      - NET_RAW
+    environment:
+      AGENT_NAME: radix
+      RADIX_BRAIN_ENABLED: ${RADIX_BRAIN_ENABLED:-false}
+      R2_BUCKET: tervory-radix
+      R2_ACCOUNT_ID: ${R2_ACCOUNT_ID:-}
+      R2_ACCESS_KEY_ID_RADIX: ${R2_ACCESS_KEY_ID_RADIX:-}
+      R2_SECRET_ACCESS_KEY_RADIX: ${R2_SECRET_ACCESS_KEY_RADIX:-}
+      TANK_REGION: ${TANK_REGION:-us-east}
+      DATABASE_URL: postgresql://agent_radix:${AGENT_DB_PASSWORD_RADIX}@postgres:5432/${POSTGRES_DB:-tervory}
+      CHASSIS_ADMIN_DATABASE_URL: ${CHASSIS_ADMIN_DATABASE_URL:-}
+      CHASSIS_RLS_ADMIN_ROLE: ${CHASSIS_RLS_ADMIN_ROLE:-}
+      TANK_URL: http://tank:8000
+      TANK_KEY: ${TANK_KEY_RADIX:-}
+      HERMES_URL: http://hermes:8000
+      RADIX_ALLOWED_HOSTS: lokd.co.za
+      RADIX_EGRESS_PROXY: http://egress-proxy:8080
+      DATA_DIR: /data
+    volumes:
+      - agent_radix_data:/data
+    networks:
+      - gw
+      - proxy-link
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    expose:
+      - "8000"
+
+  egress-proxy:
+    build:
+      context: ..
+      dockerfile: radix/Dockerfile
+    command: ["python", "egress.py"]
+    restart: unless-stopped
+    mem_limit: 128m
+    cpus: 0.25
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      R2_ACCOUNT_ID: ${R2_ACCOUNT_ID:-}
+      RADIX_EGRESS_POLICY: /app/egress-policy.json
+      PYTHONDONTWRITEBYTECODE: "1"
+    networks:
+      proxy-link:
+        interface_name: radix-link
+      egress: {}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; from egress import private_bind_address; c=chr(13)+chr(10); s=socket.create_connection((private_bind_address(),8080),3); s.sendall(('GET /health HTTP/1.1'+c+'Host: egress-proxy'+c+c).encode()); d=s.recv(80); s.close(); raise SystemExit(0 if b'200' in d else 1)"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    expose:
+      - "8080"
+
+  # DNS verification/control and ephemeral single-host scan tunnels. The scan
+  # CLIs remain in agent-radix, which has no internet route. No published port.
+  passive-egress:
+    build:
+      context: ..
+      dockerfile: radix/Dockerfile
+    command: ["uvicorn", "passive_gateway:app", "--host", "0.0.0.0", "--port", "8081"]
+    restart: unless-stopped
+    mem_limit: 128m
+    cpus: 0.25
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    environment:
+      DATABASE_URL: postgresql://agent_radix:${AGENT_DB_PASSWORD_RADIX}@postgres:5432/${POSTGRES_DB:-tervory}
+      RADIX_GATEWAY_ADMIN_DATABASE_URL: ${RADIX_GATEWAY_ADMIN_DATABASE_URL:-}
+      RADIX_GATEWAY_RLS_ADMIN_ROLE: ${RADIX_GATEWAY_RLS_ADMIN_ROLE:-}
+      PYTHONDONTWRITEBYTECODE: "1"
+    networks:
+      gw: {}
+      proxy-link:
+        interface_name: radix-link
+        aliases: [radix-passive-proxy]
+      egress: {}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8081/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    expose: ["8081", "8082"]
+
+# The volume the room used before the raw-compose switch, by its live name, so
+# the data survives. external: compose reuses it and never recreates it. On a new
+# server, create it once first: docker volume create <name>
+  radix-brain:
+    profiles:
+    - brain
+    build:
+      context: ../..
+      dockerfile: agents/rig/Dockerfile.brain
+    command:
+    - uvicorn
+    - brain.standby:app
+    - --host
+    - 0.0.0.0
+    - --port
+    - '8001'
+    - --no-access-log
+    restart: unless-stopped
+    mem_limit: 2g
+    cpus: 1
+    pids_limit: 128
+    read_only: true
+    tmpfs:
+    - /tmp:rw,noexec,nosuid,nodev,size=32m
+    environment:
+      BRAIN_ROOM: radix
+      TANK_REGION: us-east
+      TANK_URL: http://tank:8000
+      TANK_KEY: ${TANK_KEY_RADIX:-}
+      HERMES_URL: http://hermes:8000
+      RADIX_URL: http://agent-radix:8000
+      RADIX_SANDBOX_URL: http://radix-sandbox:8002
+      SANDBOX_KEY: ${SANDBOX_KEY_RADIX:-}
+      DATA_DIR: /data
+      RADIX_BROWSER_URL: http://radix-browser-gateway:3000
+    volumes:
+    - radix_brain_data:/data
+    networks:
+    - gw
+    - sandbox
+    depends_on:
+      radix-sandbox:
+        condition: service_healthy
+      radix-browser-gateway:
+        condition: service_healthy
+    healthcheck:
+      test:
+      - CMD
+      - python
+      - -c
+      - import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health', timeout=3)
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    security_opt:
+    - no-new-privileges:true
+    cap_drop:
+    - ALL
+  radix-sandbox:
+    profiles:
+    - brain
+    build:
+      context: ../..
+      dockerfile: agents/base/Dockerfile.sandbox
+    restart: unless-stopped
+    mem_limit: 512m
+    cpus: 0.5
+    pids_limit: 64
+    environment:
+      BRAIN_ROOM: radix
+      SANDBOX_KEY: ${SANDBOX_KEY_RADIX:-}
+    read_only: true
+    tmpfs:
+    - /tmp:rw,noexec,nosuid,nodev,size=32m
+    - /work:rw,nosuid,nodev,size=128m,uid=1000,gid=1000,mode=0700
+    networks:
+    - sandbox
+    healthcheck:
+      test:
+      - CMD
+      - python
+      - -c
+      - import urllib.request; urllib.request.urlopen('http://127.0.0.1:8002/health', timeout=3)
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    security_opt:
+    - no-new-privileges:true
+    cap_drop:
+    - ALL
+  radix-browser:
+    build:
+      context: ../..
+      dockerfile: agents/base/Dockerfile.browser
+    restart: unless-stopped
+    mem_limit: 2g
+    cpus: 0.5
+    shm_size: 256m
+    environment:
+      ACCESS_ROOM: radix
+      ACCESS_GATEWAY_URL: http://radix-browser-gateway:3000
+      BROWSER_PROXY_URL: http://radix-browser-gateway:3128
+    volumes:
+    - radix_browser_data:/browser-data
+    networks:
+    - browser
+    security_opt:
+    - no-new-privileges:true
+    cap_drop:
+    - ALL
+    healthcheck:
+      test:
+      - CMD
+      - python
+      - -c
+      - import urllib.request; urllib.request.urlopen('http://127.0.0.1:3000/health', timeout=3)
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    profiles:
+    - brain
+    read_only: true
+    pids_limit: 128
+    tmpfs:
+    - /tmp:rw,nosuid,nodev,size=128m
+    init: true
+  radix-browser-gateway:
+    build:
+      context: ../..
+      dockerfile: agents/base/Dockerfile.gateway
+    restart: unless-stopped
+    mem_limit: 128m
+    cpus: 0.25
+    environment:
+      TANK_KEY: ${TANK_KEY_RADIX:-}
+      TANK_REGION: us-east
+      ACCESS_ROOM: radix
+      BROWSER_HOST: radix-browser
+    networks:
+    - gw
+    - browser
+    security_opt:
+    - no-new-privileges:true
+    cap_drop:
+    - ALL
+    healthcheck:
+      test:
+      - CMD
+      - python
+      - -c
+      - import urllib.request; urllib.request.urlopen('http://127.0.0.1:3000/health', timeout=3)
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    profiles:
+    - brain
+    read_only: true
+    pids_limit: 128
+    tmpfs:
+    - /tmp:rw,nosuid,nodev,size=128m
+
+volumes:
+  agent_radix_data:
+    external: true
+    name: liv4x7vshraiwnnowjv0kgfd_agent-radix-data
+
+  radix_brain_data:
+    name: tervory-radix-brain-data
+  radix_browser_data:
+    name: tervory-radix-browser-data
+networks:
+  sandbox:
+    internal: true
+  browser:
+    internal: true
+  gw:
+    external: true
+    name: tervory-gw-radix
+  proxy-link:
+    internal: true
+  egress:
+    internal: false

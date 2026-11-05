@@ -1,0 +1,14 @@
+id: ffl.ingest
+version: 1.0.0
+agent: base
+rung: 3
+description: >
+  FFL engine intake. Maps a row of the ATF Federal Firearms Licensee list (LIC_REGN … VOICE_PHONE)
+  into Base's generic record and keeps the licence fields for pass 6. Non-ATF rows pass through
+  unchanged. Pure code.
+input:
+  type: object
+output:
+  type: object
+  properties: {record: {type: object}, engine: {type: object}, mapped: {type: boolean}}
+eval_threshold: 1.0

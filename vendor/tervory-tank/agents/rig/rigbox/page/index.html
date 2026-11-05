@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Find a product</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&family=JetBrains+Mono&family=Jost:wght@300&display=swap"
+    />
+    <link rel="stylesheet" href="/page/search.css" />
+  </head>
+  <body>
+    <header class="band">
+      <a href="/"><img src="/page/tervory-logo-on-white.png" alt="Tervory" /></a>
+    </header>
+    <main id="main">
+      <section id="search">
+        <h1>Find a product</h1>
+        <p class="lead">Search this catalogue. Each price is indicative.</p>
+        <form class="search" role="search">
+          <label for="q">Search</label>
+          <input id="q" name="q" type="search" autocomplete="off" enterkeyhint="search" placeholder="Search by name" />
+          <button type="submit">Search</button>
+        </form>
+        <p id="status" class="status" role="status"></p>
+        <ul id="results" class="results"></ul>
+      </section>
+      <section id="product" hidden>
+        <button type="button" id="back" class="text">Back</button>
+        <p id="product-name" class="product-name"></p>
+        <p id="product-price" class="price"></p>
+        <button type="button" id="show-accessories" class="prompt">See compatible accessories</button>
+        <div class="product-layout">
+          <div class="upgrades">
+            <p id="product-status" class="status" role="status"></p>
+            <div id="groups" hidden></div>
+          </div>
+          <aside class="bundle" aria-label="Your selection">
+            <h2>Your selection</h2>
+            <ul id="bundle-parts" class="bundle-parts"></ul>
+            <p id="bundle-total" class="total"></p>
+            <p class="hint">Indicative</p>
+            <button type="button" id="compare" class="secondary">Compare prices</button>
+            <div id="compare-lines" hidden></div>
+          </aside>
+        </div>
+      </section>
+    </main>
+    <script>
+      window.RIG_KEY = __RIG_PUBLISHABLE_KEY__;
+    </script>
+    <script src="/page/search.js"></script>
+  </body>
+</html>

@@ -1,0 +1,138 @@
+# coolify: raw compose
+# Per-client Autumbra Enforce. One project per client (Coolify by name).
+# Own entrypoint: ghost.enforce_app:app — NOT ghost.app. No TANK_KEY.
+# Internal network only. No public ports. No Docker socket. No host mounts.
+# THREAT_PAYLOAD_QUEUE mounts the per-client ThreatPayload queue volume (Watch writes, Enforce drains).
+# Optional edge credential: secret NAME held until a real connected edge client (agnostic; no CF name yet).
+# mem_limit below is a provisional placeholder — replace after ops/autumbra-enforce-memory-measure.sh on test host.
+# Substitute TENANT_ID before deploy. Never paste a secret value into this file.
+services:
+  enforce:
+    build:
+      context: ..
+      dockerfile: ghost/Dockerfile
+    command: ["uvicorn", "ghost.enforce_app:app", "--host", "127.0.0.1", "--port", "8000", "--no-access-log"]
+    restart: unless-stopped
+    # PROVISIONAL until dogfood RSS measured — do not treat 256m as the founder cap
+    mem_limit: 256m
+    cpus: 0.25
+    environment:
+      AGENT_NAME: autumbra-enforce
+      AUTUMBRA_ROLE: enforce
+      TENANT_ID: ${TENANT_ID}
+      # Edge credential env reserved; Coolify secret NAME held until a real edge client. Never commit values.
+      AUTUMBRA_EDGE_CREDENTIAL: ${AUTUMBRA_EDGE_CREDENTIAL:-}
+      # Same shared secret as Workspace + Watch (Coolify NAME). Act-email Undo links.
+      AUTUMBRA_UNDO_TOKEN_SECRET: ${AUTUMBRA_UNDO_TOKEN_SECRET:-}
+      THREAT_PAYLOAD_QUEUE: /queue
+      DATA_DIR: /data
+      SITE_NAME: ${SITE_NAME:-}
+      CLOUDFLARE_API_TOKEN_ENFORCE: ${CLOUDFLARE_API_TOKEN_ENFORCE:-}
+      HTTPS_PROXY: http://egress-proxy:8080
+      NO_PROXY: localhost,127.0.0.1
+      AUTUMBRA_HEALTH_SECRET: ${AUTUMBRA_HEALTH_SECRET:-}
+      AUTUMBRA_HEALTH_URL: ${AUTUMBRA_HEALTH_URL:-}
+      # Enforce never calls a model. No TANK_KEY here on purpose.
+    volumes:
+      - health_results:/health:ro
+      - enforce_data:/data
+      - threat_queue:/queue
+    networks: [enforce_internal]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    read_only: true
+    tmpfs: ["/tmp"]
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    # No ports: / no expose to public. Reachable only on the internal network + queue.
+  egress-proxy:
+    build:
+      context: ..
+      dockerfile: radix/Dockerfile
+    command:
+      - python
+      - -c
+      - >-
+        from egress import Proxy, Server, private_bind_address, system_resolve;
+        allowed = 'api.cloudflare.com';
+        proxy = Proxy(verified_host=allowed, allow_storage=False, require_sni=True,
+          resolve=lambda host: system_resolve(host, verified_host=allowed));
+        Server(proxy, host=private_bind_address(), port=8080).serve_forever()
+    restart: unless-stopped
+    mem_limit: 128m
+    cpus: 0.25
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    environment:
+      PYTHONDONTWRITEBYTECODE: "1"
+    networks:
+      enforce_internal:
+        interface_name: radix-link
+      egress: {}
+  health-observer:
+    build:
+      context: ..
+      dockerfile: ghost/Dockerfile
+    command: [python, -m, ghost.site_health]
+    restart: unless-stopped
+    mem_limit: 128m
+    cpus: 0.25
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    environment:
+      AUTUMBRA_HEALTH_SECRET: ${AUTUMBRA_HEALTH_SECRET:-}
+      AUTUMBRA_HEALTH_URL: ${AUTUMBRA_HEALTH_URL:-}
+      SITE_NAME: ${SITE_NAME:-}
+      PYTHONDONTWRITEBYTECODE: "1"
+    volumes:
+      - health_results:/data
+    networks: [health_internal]
+  health-egress-proxy:
+    build:
+      context: ..
+      dockerfile: radix/Dockerfile
+    command:
+      - python
+      - -c
+      - >-
+        from egress import Proxy, Server, private_bind_address, system_resolve;
+        allowed = 'tervory.com';
+        proxy = Proxy(verified_host=allowed, allow_storage=False, require_sni=True,
+          resolve=lambda host: system_resolve(host, verified_host=allowed));
+        Server(proxy, host=private_bind_address(), port=8080).serve_forever()
+    restart: unless-stopped
+    mem_limit: 128m
+    cpus: 0.25
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    environment:
+      PYTHONDONTWRITEBYTECODE: "1"
+    networks:
+      health_internal:
+        interface_name: radix-link
+      health_egress: {}
+
+volumes:
+  health_results:
+    name: autumbra-health-${TENANT_ID}
+  enforce_data:
+    name: ${ENFORCE_DATA_VOLUME}
+  threat_queue:
+    name: ${THREAT_PAYLOAD_QUEUE_VOLUME}
+networks:
+  egress: {}
+  health_egress: {}
+  health_internal:
+    internal: true
+  enforce_internal:
+    internal: true
+    name: ${ENFORCE_NETWORK_NAME}

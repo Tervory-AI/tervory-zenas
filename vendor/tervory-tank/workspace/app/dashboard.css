@@ -1,0 +1,48 @@
+/* Approved client dashboard content; shared founder dashboard styles stay unchanged. */
+.dash-client-root .dash-client-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+.dash-client-root .dash-client-columns{grid-template-columns:1fr}
+.dash-client-root .dash-label,.dash-client-root .dash-note{font-size:14px}
+.dash-client-root h2{font-size:17px;margin-bottom:10px}
+.dash-client-root .dash-row{font-size:15px;padding:6px 0;flex-wrap:nowrap}
+.dash-client-root .dash-row+.dash-row{border:0}
+.dash-client-root .dash-empty{font-size:15px;padding:0}
+.dash-client-root .dash-member{display:flex;flex-direction:column;gap:2px}
+.dash-client-root .dash-member strong{font-size:15px;font-weight:600}
+.dash-client-root .dash-member .dash-note{font-size:13px}
+.dash-client-root .dash-value{font-weight:300}
+.dashboard-source{color:inherit;text-decoration:none}
+.dash-status{display:flex;align-items:center;gap:10px;font-size:14px;color:#3d4a66;white-space:nowrap}
+.dash-status i{width:10px;height:10px;flex-shrink:0;border-radius:50%;background:#8c94a6}
+.dash-status-running i{background:#001840}.dash-status-done i{background:#1e7a46}.dash-status-failed i{background:#e80008}
+.dash-client-root a:focus-visible{outline:3px solid #7498d3;outline-offset:3px}
+@media(max-width:650px){.dash-client-root .dash-client-kpis{grid-template-columns:1fr}}
+
+/* The approved content fills the area provided by the existing shared shell. */
+.app-shell:has(.dash-client-root)>.shell-main>main{max-width:none;width:100%;margin:0;padding:0}
+.dash-client-root .dash-good .savings-number{color:#1e7a46;text-decoration:none}
+.dash-client-root .dash-label{line-height:normal}
+.dash-client-root .dash-value{margin:6px 0 0!important}
+.dash-client-root .dash-ask{margin:0}
+.dash-client-root .dash-client-columns>.dash-card{display:flex;flex-direction:column;gap:10px}
+.dash-client-root .dash-client-columns h2{margin:0}
+.dash-client-root .dash-row{width:100%}
+.dash-client-root .dash-member .dash-note{line-height:normal}
+
+/* Frame 12:2 owns its five-item navigation; other Workspace menus stay intact. */
+main:has(.dash-client-root){max-width:none;margin:0;padding:0;width:100%}
+.dash-client-root .dash-sidebar{width:220px;padding:22px 16px;display:flex;flex-direction:column;gap:6px;align-self:stretch}
+.dash-client-root .dash-logo{padding-bottom:18px}
+.dash-client-root .dash-sidebar img{display:block;width:180px;height:33px;object-fit:contain;margin:0}
+.dash-client-root .dash-nav{display:flex;flex-direction:column;gap:6px;width:100%}
+.dash-client-root .dash-nav a{font-size:15px;font-weight:500;line-height:normal;padding:10px 12px}
+.dash-client-root .dash-button{padding:8px 14px;border-radius:10px}
+.dash-client-root .dash-button.primary{border:0}
+.dash-client-root .dash-status img{width:10px;height:10px;flex:none}
+/* Keep the existing client-safe savings drilldown behind its existing link.
+ * Its expanded report has no frame in this dashboard export. */
+.dash-savings-report{display:none}
+.dash-savings-report:target{display:block}
+@media(max-width:650px){
+  .dash-client-root .dash-sidebar{width:100%;display:block;padding:16px}
+  .dash-client-root .dash-nav{flex-direction:row;flex-wrap:wrap}
+}

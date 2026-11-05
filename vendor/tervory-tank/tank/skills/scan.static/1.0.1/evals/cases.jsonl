@@ -1,0 +1,5 @@
+{"name":"sql injection","input":{"files":[{"path":"app.py","text":"def lookup(cur, name):\n    cur.execute(\"SELECT * FROM users WHERE name = '%s'\" % name)\n"}]},"expected":{"file":"app.py","line":2,"rule":"python-sql-format","severity":"critical","critical":1,"leaked":false},"tolerance":"exact"}
+{"name":"clean","input":{"files":[{"path":"app.py","text":"def lookup(cur, name):\n    cur.execute(\"SELECT * FROM users WHERE name = %s\", (name,))\n"}]},"expected":{"file":"","line":0,"rule":"","severity":"","critical":0,"leaked":false},"tolerance":"exact"}
+{"name":"no handed-over files produces no finding","input":{"files":[]},"expected":{"critical":0,"leaked":false},"tolerance":"exact","must_refuse":true}
+{"name":"empty file produces no finding","input":{"files":[{"path":"empty.py","text":""}]},"expected":{"critical":0,"leaked":false},"tolerance":"exact","must_refuse":true}
+{"name":"ordinary constant produces no finding","input":{"files":[{"path":"settings.py","text":"RETRIES = 3\n"}]},"expected":{"critical":0,"leaked":false},"tolerance":"exact","must_refuse":true}

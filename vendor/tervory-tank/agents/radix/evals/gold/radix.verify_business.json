@@ -1,0 +1,312 @@
+[
+  {
+    "name": "sourced client businesses",
+    "input": {
+      "business_fixture": true,
+      "lookup_id": "20000000-0000-0000-0000-000000000001"
+    },
+    "expected": {
+      "ok": true,
+      "verification": "verified_from_supplied_register",
+      "fields": {
+        "registration_number": {
+          "value": "US-DE:100000",
+          "sources": [
+            {
+              "source_id": "register",
+              "url": "client://00000000-0000-0000-0000-000000000001/fixtures/register",
+              "record_id": "20000000-0000-0000-0000-000000000001",
+              "base_record_id": null,
+              "field": "registration_number",
+              "retrieved_at": "2026-10-18T10:00:00Z",
+              "evidence_sha256": "086fbec633d1665b7a054e95a6e0006c7d63f35b79c8281b695b3eae43ebd98e"
+            }
+          ]
+        },
+        "cookie_notice": {
+          "value": true,
+          "sources": [
+            {
+              "source_id": "scan",
+              "url": "client://00000000-0000-0000-0000-000000000001/fixtures/scan",
+              "record_id": "20000000-0000-0000-0000-000000000001",
+              "base_record_id": null,
+              "field": "cookie_notice",
+              "retrieved_at": "2026-10-18T10:00:00Z",
+              "evidence_sha256": "3f10677b361f602926ad15f746f21e244b90fcb520cb13d40a0fbf4fb6ea00c1"
+            }
+          ]
+        },
+        "privacy_notice": {
+          "value": true,
+          "sources": [
+            {
+              "source_id": "scan",
+              "url": "client://00000000-0000-0000-0000-000000000001/fixtures/scan",
+              "record_id": "20000000-0000-0000-0000-000000000001",
+              "base_record_id": null,
+              "field": "privacy_notice",
+              "retrieved_at": "2026-10-18T10:00:00Z",
+              "evidence_sha256": "7ab98bbf4438c150c88e0ce97e85718242722a36b0033c9ac692b0dc35a089c9"
+            }
+          ]
+        },
+        "domain": {
+          "value": "acme-tools.example",
+          "sources": [
+            {
+              "source_id": "rdap",
+              "url": "client://00000000-0000-0000-0000-000000000001/fixtures/rdap",
+              "record_id": "20000000-0000-0000-0000-000000000001",
+              "base_record_id": null,
+              "field": "domain",
+              "retrieved_at": "2026-10-18T10:00:00Z",
+              "evidence_sha256": "8a2c8f4c236996948cb2189e316e34e0acaac12e9f1c0e05b725e8d93f07dc5d"
+            }
+          ]
+        },
+        "formed_on": {
+          "value": "2026-10-01",
+          "sources": [
+            {
+              "source_id": "register",
+              "url": "client://00000000-0000-0000-0000-000000000001/fixtures/register",
+              "record_id": "20000000-0000-0000-0000-000000000001",
+              "base_record_id": null,
+              "field": "formed_on",
+              "retrieved_at": "2026-10-18T10:00:00Z",
+              "evidence_sha256": "c0e70ad17c72daf7e4d6415fa46179dd2d1a9a383cad23764883b321135fbc4f"
+            }
+          ]
+        },
+        "company_name": {
+          "value": "Acme Tools LLC",
+          "sources": [
+            {
+              "source_id": "register",
+              "url": "client://00000000-0000-0000-0000-000000000001/fixtures/register",
+              "record_id": "20000000-0000-0000-0000-000000000001",
+              "base_record_id": null,
+              "field": "company_name",
+              "retrieved_at": "2026-10-18T10:00:00Z",
+              "evidence_sha256": "d52d63f99532f61d41bfa9d4271b2816fc7f8f97fc1f47f233b4ad45970f4efc"
+            }
+          ]
+        },
+        "officers": {
+          "value": [
+            "Example Published Officer"
+          ],
+          "sources": [
+            {
+              "source_id": "register",
+              "url": "client://00000000-0000-0000-0000-000000000001/fixtures/register",
+              "record_id": "20000000-0000-0000-0000-000000000001",
+              "base_record_id": null,
+              "field": "officers",
+              "retrieved_at": "2026-10-18T10:00:00Z",
+              "evidence_sha256": "c7faaf950106765032f6c8bfa52adbdd0ffd3731ff39f2a2529207db6be74ebb"
+            }
+          ]
+        },
+        "website_name": {
+          "value": "Acme Tools LLC",
+          "sources": [
+            {
+              "source_id": "site",
+              "url": "client://00000000-0000-0000-0000-000000000001/fixtures/site",
+              "record_id": "20000000-0000-0000-0000-000000000001",
+              "base_record_id": null,
+              "field": "website_name",
+              "retrieved_at": "2026-10-18T10:00:00Z",
+              "evidence_sha256": "fb4360286fcd54afdf7f4e485b0c87b9a3d1233e76cde1e0c563968d5b03aa54"
+            }
+          ]
+        },
+        "owner_organisation": {
+          "value": "Acme Tools LLC",
+          "sources": [
+            {
+              "source_id": "rdap",
+              "url": "client://00000000-0000-0000-0000-000000000001/fixtures/rdap",
+              "record_id": "20000000-0000-0000-0000-000000000001",
+              "base_record_id": null,
+              "field": "owner_organisation",
+              "retrieved_at": "2026-10-18T10:00:00Z",
+              "evidence_sha256": "342d1d7f568910d28fbda82a4122b5bffa242c7133ce36d1c00e8e6eaf83f51c"
+            }
+          ]
+        },
+        "website_template": {
+          "value": "example-template-v1",
+          "sources": [
+            {
+              "source_id": "site",
+              "url": "client://00000000-0000-0000-0000-000000000001/fixtures/site",
+              "record_id": "20000000-0000-0000-0000-000000000001",
+              "base_record_id": null,
+              "field": "website_template",
+              "retrieved_at": "2026-10-18T10:00:00Z",
+              "evidence_sha256": "3b8826ca3f6ef8d209b56cb7bb452019ef5a1b98e37d38fb498f9308da159ebb"
+            }
+          ]
+        },
+        "business_phone": {
+          "value": "+1 202 555 0100",
+          "sources": [
+            {
+              "source_id": "register",
+              "url": "client://00000000-0000-0000-0000-000000000001/fixtures/register",
+              "record_id": "20000000-0000-0000-0000-000000000001",
+              "base_record_id": null,
+              "field": "business_phone",
+              "retrieved_at": "2026-10-18T10:00:00Z",
+              "evidence_sha256": "e8ece8c5adc5b63d9e1a0ba899456fa383534842d9d42456db50c588eb19ba17"
+            }
+          ]
+        },
+        "licence_number": {
+          "value": "US-ATF:123456000000",
+          "sources": [
+            {
+              "source_id": "licence",
+              "url": "client://00000000-0000-0000-0000-000000000001/fixtures/licence",
+              "record_id": "20000000-0000-0000-0000-000000000001",
+              "base_record_id": null,
+              "field": "licence_number",
+              "retrieved_at": "2026-10-18T10:00:00Z",
+              "evidence_sha256": "8adc866f3165d1807400a6c3a370384525d3ce838a84d200a8e625faf88d6d2f"
+            }
+          ]
+        },
+        "exposed_admin": {
+          "value": false,
+          "sources": [
+            {
+              "source_id": "scan",
+              "url": "client://00000000-0000-0000-0000-000000000001/fixtures/scan",
+              "record_id": "20000000-0000-0000-0000-000000000001",
+              "base_record_id": null,
+              "field": "exposed_admin",
+              "retrieved_at": "2026-10-18T10:00:00Z",
+              "evidence_sha256": "5961d1fdbe14acfa9c16ea4621ce28f28de36a3b9038d1130dbf4dfb2b0d1da3"
+            }
+          ]
+        },
+        "domain_created_on": {
+          "value": "2026-10-01",
+          "sources": [
+            {
+              "source_id": "rdap",
+              "url": "client://00000000-0000-0000-0000-000000000001/fixtures/rdap",
+              "record_id": "20000000-0000-0000-0000-000000000001",
+              "base_record_id": null,
+              "field": "domain_created_on",
+              "retrieved_at": "2026-10-18T10:00:00Z",
+              "evidence_sha256": "ff5704f7cf363049d481e0f39cbe17f6595a27eb81cae65772d84ca3129a1d29"
+            }
+          ]
+        },
+        "licence_expires_on": {
+          "value": "2027-10-01",
+          "sources": [
+            {
+              "source_id": "licence",
+              "url": "client://00000000-0000-0000-0000-000000000001/fixtures/licence",
+              "record_id": "20000000-0000-0000-0000-000000000001",
+              "base_record_id": null,
+              "field": "licence_expires_on",
+              "retrieved_at": "2026-10-18T10:00:00Z",
+              "evidence_sha256": "310e0daf3bdf247f65fe6a92e6de1c048e7b8d28b576ede214d215155c902e20"
+            }
+          ]
+        },
+        "status": {
+          "value": "active",
+          "sources": [
+            {
+              "source_id": "register",
+              "url": "client://00000000-0000-0000-0000-000000000001/fixtures/register",
+              "record_id": "20000000-0000-0000-0000-000000000001",
+              "base_record_id": null,
+              "field": "status",
+              "retrieved_at": "2026-10-18T10:00:00Z",
+              "evidence_sha256": "f26a74004ff2a048dcba74882028883e9b3920e054036ece158f0d6793dacede"
+            }
+          ]
+        },
+        "licence_status": {
+          "value": "active",
+          "sources": [
+            {
+              "source_id": "licence",
+              "url": "client://00000000-0000-0000-0000-000000000001/fixtures/licence",
+              "record_id": "20000000-0000-0000-0000-000000000001",
+              "base_record_id": null,
+              "field": "licence_status",
+              "retrieved_at": "2026-10-18T10:00:00Z",
+              "evidence_sha256": "ba5d2b2057d73dfdb564c21ecdb29d2e8a21ce9b0a92a3136e1283c9daa08419"
+            }
+          ]
+        },
+        "website_address": {
+          "value": "10 N Main St",
+          "sources": [
+            {
+              "source_id": "site",
+              "url": "client://00000000-0000-0000-0000-000000000001/fixtures/site",
+              "record_id": "20000000-0000-0000-0000-000000000001",
+              "base_record_id": null,
+              "field": "website_address",
+              "retrieved_at": "2026-10-18T10:00:00Z",
+              "evidence_sha256": "e154bf4f9b689b8df62052a23359d8a1601fa898dfb7a121acd920c3643e9195"
+            }
+          ]
+        },
+        "registered_address": {
+          "value": "10 North Main Street",
+          "sources": [
+            {
+              "source_id": "register",
+              "url": "client://00000000-0000-0000-0000-000000000001/fixtures/register",
+              "record_id": "20000000-0000-0000-0000-000000000001",
+              "base_record_id": null,
+              "field": "registered_address",
+              "retrieved_at": "2026-10-18T10:00:00Z",
+              "evidence_sha256": "19bc7f26f330761476b429d3b1c57ee13ceb59935b613f274f0f6ca19d234066"
+            }
+          ]
+        },
+        "registered_agent": {
+          "value": "Example Agent Services LLC",
+          "sources": [
+            {
+              "source_id": "register",
+              "url": "client://00000000-0000-0000-0000-000000000001/fixtures/register",
+              "record_id": "20000000-0000-0000-0000-000000000001",
+              "base_record_id": null,
+              "field": "registered_agent",
+              "retrieved_at": "2026-10-18T10:00:00Z",
+              "evidence_sha256": "2c1085d1e7570f1a9733b7d3a4cf8d914b519694066ff4059bc22274c7908fd6"
+            }
+          ]
+        },
+        "domain_age_days": {
+          "value": 18,
+          "sources": [
+            {
+              "source_id": "rdap",
+              "url": "client://00000000-0000-0000-0000-000000000001/fixtures/rdap",
+              "record_id": "20000000-0000-0000-0000-000000000001",
+              "base_record_id": null,
+              "field": "domain_created_on",
+              "retrieved_at": "2026-10-18T10:00:00Z",
+              "evidence_sha256": "ff5704f7cf363049d481e0f39cbe17f6595a27eb81cae65772d84ca3129a1d29"
+            }
+          ]
+        }
+      }
+    },
+    "tolerance": "exact"
+  }
+]

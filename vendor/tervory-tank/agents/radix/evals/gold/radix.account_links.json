@@ -1,0 +1,87 @@
+[
+  {
+    "name": "sourced client businesses",
+    "input": {
+      "business_fixture": true,
+      "lookup_id": "20000000-0000-0000-0000-000000000001"
+    },
+    "expected": {
+      "ok": true,
+      "links": [
+        {
+          "account_ids": [
+            "30000000-0000-0000-0000-000000000001",
+            "30000000-0000-0000-0000-000000000002"
+          ],
+          "shared_fields": [
+            "payout_business_name",
+            "listing_template"
+          ],
+          "possible_returning_operation": true,
+          "finding": {
+            "code": "possible_returning_operation",
+            "message": "These client accounts share business details; review before taking action.",
+            "weight": 25,
+            "sources": [
+              {
+                "source_id": "platform",
+                "url": "client://00000000-0000-0000-0000-000000000001/fixtures/platform",
+                "record_id": "30000000-0000-0000-0000-000000000001",
+                "base_record_id": null,
+                "field": "payout_business_name",
+                "retrieved_at": "2026-10-18T10:00:00Z",
+                "evidence_sha256": "b470a0d7f99fc81ed311ba9aa5821e9aeecd19b90bd4eeb1c96ab7ab4741511d"
+              },
+              {
+                "source_id": "platform",
+                "url": "client://00000000-0000-0000-0000-000000000001/fixtures/platform",
+                "record_id": "30000000-0000-0000-0000-000000000002",
+                "base_record_id": null,
+                "field": "payout_business_name",
+                "retrieved_at": "2026-10-18T10:00:00Z",
+                "evidence_sha256": "473c9dc1bbfd8a7bbb8211416ceead3ea905db9ea0dd31a169b66fd71c9f8259"
+              },
+              {
+                "source_id": "platform",
+                "url": "client://00000000-0000-0000-0000-000000000001/fixtures/platform",
+                "record_id": "30000000-0000-0000-0000-000000000001",
+                "base_record_id": null,
+                "field": "listing_template",
+                "retrieved_at": "2026-10-18T10:00:00Z",
+                "evidence_sha256": "169dd557ebcfdea12b2c1fc90c6e2f52b7525169495a559df935e10cd262e6cc"
+              },
+              {
+                "source_id": "platform",
+                "url": "client://00000000-0000-0000-0000-000000000001/fixtures/platform",
+                "record_id": "30000000-0000-0000-0000-000000000002",
+                "base_record_id": null,
+                "field": "listing_template",
+                "retrieved_at": "2026-10-18T10:00:00Z",
+                "evidence_sha256": "05da546c557e71037dc4fe1e08dbec964cfec1a3fa00208181e067ae0282ba97"
+              },
+              {
+                "source_id": "platform",
+                "url": "client://00000000-0000-0000-0000-000000000001/fixtures/platform",
+                "record_id": "30000000-0000-0000-0000-000000000001",
+                "base_record_id": null,
+                "field": "status",
+                "retrieved_at": "2026-10-18T10:00:00Z",
+                "evidence_sha256": "22b9aae376c79aeffb25b402bd37c38e8804ef79d2bc007b7d46e884f1ec1352"
+              },
+              {
+                "source_id": "platform",
+                "url": "client://00000000-0000-0000-0000-000000000001/fixtures/platform",
+                "record_id": "30000000-0000-0000-0000-000000000002",
+                "base_record_id": null,
+                "field": "status",
+                "retrieved_at": "2026-10-18T10:00:00Z",
+                "evidence_sha256": "38d09974acae684725119ff2fd4b5b102d19d7d47e5020bfaa129f390b81b613"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "tolerance": "exact"
+  }
+]

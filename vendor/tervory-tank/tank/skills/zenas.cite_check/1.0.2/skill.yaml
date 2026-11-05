@@ -1,0 +1,18 @@
+id: zenas.cite_check
+version: 1.0.2
+agent: zenas
+rung: 3
+description: >
+  Check that every citation resolves to a pool passage and that every quote
+  matches that passage word for word. A miss blocks delivery.
+input:
+  type: object
+  properties:
+    statements: {type: array}
+    passages: {type: array}
+output:
+  type: object
+  properties:
+    passed: {type: boolean}
+    blocked: {type: boolean}
+eval_threshold: 1.0

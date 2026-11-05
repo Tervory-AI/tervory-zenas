@@ -1,0 +1,18 @@
+id: ffl.profile
+version: 1.1.1
+agent: base
+rung: 3
+description: >
+  Pass 6, FFL vertical module. Licence type and label, expiry date and renewal window from the ATF
+  expiry code, lapsed flag, segment (dealer, pawn, range, gunsmith, manufacturer, importer, collector,
+  online, sporting goods) and inventory signal from what the site says. SOT status and violations are
+  not in the public list and are left null, never guessed. data/site.json holds the name words,
+  dealer-site hosts, and inbox names the core skills accept from the caller. Pure code.
+input:
+  type: object
+  required: [engine]
+  properties: {engine: {type: object}, profile: {type: object}}
+output:
+  type: object
+  properties: {licence_type: {type: string}, licence_expires: {type: string}, renewal_window: {type: boolean}, segment: {type: string}, inventory_signal: {type: array}}
+eval_threshold: 1.0

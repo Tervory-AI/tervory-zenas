@@ -1,0 +1,20 @@
+id: base.find_site
+version: 1.4.0
+agent: base
+rung: 3
+description: >
+  Pass 2a. Finds a business's website: verified hint on the record, then Tervory's own search
+  (SearXNG, no key, no per-query cost), then Brave if a key exists, then domain guesses. A candidate
+  must be live, its page must name the business (distinctive words, not generic ones or the town),
+  and it must show the record's own phone, ZIP or street address (home or contact page). A domain
+  guessed from a name with two or more distinctive words may stand on the name alone. When a plain fetch sees a live site it
+  cannot read (slow, JavaScript-built, a self-clearing browser check), Tiger loads it in a real browser
+  and waits. Interactive human checks are recorded, never solved. Pure code.
+input:
+  type: object
+  required: [name]
+  properties: {name: {type: string}, city: {type: string}, state: {type: string}, phone: {type: string}, zip: {type: string}, address: {type: string, description: street line}, website: {type: string, description: a hint from the input record, verified not trusted}}
+output:
+  type: object
+  properties: {website: {type: object}}
+eval_threshold: 0.8

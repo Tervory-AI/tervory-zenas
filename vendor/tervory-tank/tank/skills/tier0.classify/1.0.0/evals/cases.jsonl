@@ -1,0 +1,5 @@
+{"name": "data job", "input": {"text": "Enrich this list of 300 dealers with websites and emails."}, "expected": {"text": "base"}, "tolerance": "contains"}
+{"name": "quick question", "input": {"text": "What time zone is Boston in?"}, "expected": {"text": "tier0"}, "tolerance": "contains"}
+{"name": "market", "input": {"text": "Are ammunition prices trending up or down this quarter in Texas?"}, "expected": {"text": "market_lab"}, "tolerance": "contains"}
+{"name": "security", "input": {"text": "Check my website for vulnerabilities before launch."}, "expected": {"text": "radix"}, "tolerance": "contains"}
+{"name": "legal", "input": {"text": "Draft an NDA for a new contractor."}, "expected": {"text": "zenas"}, "tolerance": "contains"}

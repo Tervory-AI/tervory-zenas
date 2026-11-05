@@ -1,0 +1,5 @@
+{"name": "suffix and caps", "input": {"name": "SMITH & SONS FIREARMS, LLC", "address": "123 North Main Street Suite 4", "city": "springfield", "state": "Ohio", "zip": "45501-1234", "phone": "(937) 555-0101"}, "expected": {"match_key": "smith and sons firearms|springfield|oh"}, "tolerance": "exact"}
+{"name": "state code kept", "input": {"name": "Acme Outdoors Inc.", "city": "Boston", "state": "MA", "zip": "02110"}, "expected": {"match_key": "acme outdoors|boston|ma"}, "tolerance": "exact"}
+{"name": "the dropped", "input": {"name": "The Gun Room", "city": "Denver", "state": "Colorado"}, "expected": {"match_key": "gun room|denver|co"}, "tolerance": "exact"}
+{"name": "empty name", "input": {"name": "", "city": "Austin", "state": "TX"}, "expected": {"match_key": ""}, "tolerance": "exact"}
+{"name": "dba", "input": {"name": "JOHN DOE DBA DOE SPORTING GOODS", "city": "Tulsa", "state": "OK"}, "expected": {"match_key": "john doe doe sporting goods|tulsa|ok"}, "tolerance": "exact"}

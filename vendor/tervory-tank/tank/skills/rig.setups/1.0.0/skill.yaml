@@ -1,0 +1,23 @@
+id: rig.setups
+version: 1.0.0
+agent: rig
+rung: 3
+description: >
+  Build setup tiers from approved fit rows, families, and setup templates.
+  One indicative total. Suggested fits stay out.
+input:
+  type: object
+  required: [product_id]
+  properties:
+    product_id: {type: string}
+    tenant_id: {type: string}
+    products: {type: array}
+    fits: {type: array}
+    templates: {type: object}
+output:
+  type: object
+  properties:
+    setups: {type: array}
+    part_ids: {type: array}
+    totals: {type: array}
+eval_threshold: 1.0

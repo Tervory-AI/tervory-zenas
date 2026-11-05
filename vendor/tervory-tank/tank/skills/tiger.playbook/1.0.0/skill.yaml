@@ -1,0 +1,16 @@
+id: tiger.playbook
+version: 1.0.0
+agent: tiger
+rung: 3
+description: Public shop layout eligibility, reading, three-page promotion and retirement from merged Tiger #391.
+input:
+  type: object
+  required: [operation]
+  properties:
+    operation: {type: string, enum: [public_page, public_marker, read_page, learn_layout, advance]}
+output:
+  type: object
+  properties:
+    value: {}
+    model_calls: {type: integer}
+eval_threshold: 1.0

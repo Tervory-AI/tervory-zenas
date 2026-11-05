@@ -1,0 +1,23 @@
+# syntax=docker/dockerfile:1
+FROM pytorch/pytorch:2.6.0-cuda12.4-cudnn9-devel@sha256:0cf3402e946b7c384ba943ee05c90b4c5a4a05227923921f2b0918c011cfaf56
+WORKDIR /opt/forge
+COPY gpu /opt/forge/gpu
+# Provide an offline, licensed checkpoint directory with --build-context weights=...
+# No HF Jobs token or model download token becomes an image layer or job variable.
+COPY --from=weights / /opt/models/
+ENV TORCH_CUDA_ARCH_LIST="8.0;8.6;8.9;9.0" MAX_JOBS=2 \
+    FLASH_ATTENTION_FORCE_BUILD=TRUE FORCE_CUDA=1 CUDA_HOME=/usr/local/cuda \
+    LIBRARY_PATH=/usr/local/cuda/lib64/stubs
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates git build-essential libjpeg-dev libgl1 \
+    && python -m pip install --no-cache-dir --require-hashes -r gpu/requirements.lock \
+    && python gpu/install_sources.py gpu/sources.lock.json \
+    && python -c "from gpu.install_sources import install; import json; from pathlib import Path; install(json.loads(Path('gpu/flash-attn.lock.json').read_text()), Path('/opt/flash-attn'))" \
+    && python -m pip install --no-deps --no-build-isolation /opt/flash-attn /opt/nvdiffrast \
+       /opt/nvdiffrec /opt/cumesh /opt/flexgemm /opt/utils3d /opt/trellis2/o-voxel \
+    && python gpu/prepare_models.py \
+    && rm -rf /var/lib/apt/lists/* /root/.cache/pip && useradd --uid 1000 --create-home forge \
+    && chmod -R a+rX /opt/forge /opt/models /opt/trellis2
+ENV PYTHONPATH=/opt/trellis2 PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 \
+    HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 HF_HUB_DISABLE_TELEMETRY=1
+USER forge
+CMD ["python", "/opt/forge/gpu/entrypoint.py", "trellis2"]

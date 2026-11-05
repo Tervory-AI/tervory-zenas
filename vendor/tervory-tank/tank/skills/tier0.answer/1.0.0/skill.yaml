@@ -1,0 +1,17 @@
+id: tier0.answer
+version: 1.0.0
+agent: tier0
+rung: 1
+task_type: tier0.answer
+description: >
+  Plain, brief answer to a business owner's question. Says which agent a bigger job belongs to rather than attempting it.
+input:
+  type: object
+  required: [text]
+  properties:
+    text: {type: string}
+output:
+  type: object
+  properties:
+    text: {type: string}
+eval_threshold: 0.8

@@ -1,0 +1,17 @@
+id: tier0.summarize
+version: 1.0.1
+agent: tier0
+rung: 1
+task_type: tier0.answer
+description: >
+  Summarises a piece of text in at most three sentences, keeping names and numbers.
+input:
+  type: object
+  required: [text]
+  properties:
+    text: {type: string}
+output:
+  type: object
+  properties:
+    text: {type: string}
+eval_threshold: 0.8

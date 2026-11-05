@@ -1,0 +1,17 @@
+id: reason.brief
+version: 1.0.1
+agent: tier0
+rung: 1
+task_type: reason.brief
+description: >
+  Concise structured analysis for a business owner; leads with the conclusion.
+input:
+  type: object
+  required: [text]
+  properties:
+    text: {type: string}
+output:
+  type: object
+  properties:
+    text: {type: string}
+eval_threshold: 0.8

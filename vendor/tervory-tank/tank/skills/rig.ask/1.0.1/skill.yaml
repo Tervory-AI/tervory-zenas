@@ -1,0 +1,22 @@
+id: rig.ask
+version: 1.0.1
+agent: rig
+rung: 1
+task_type: rig.ask
+description: >
+  Answers only from the catalogue and fit rows it is given, citing product ids.
+  Otherwise it says it does not know.
+input:
+  type: object
+  required: [question]
+  properties:
+    question: {type: string}
+    products: {type: array}
+    fits: {type: array}
+    model_text: {type: string}
+output:
+  type: object
+  properties:
+    answer: {type: string}
+    cites: {type: array}
+eval_threshold: 1.0

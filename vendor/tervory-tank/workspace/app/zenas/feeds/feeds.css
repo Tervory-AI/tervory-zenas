@@ -1,0 +1,124 @@
+.zf {
+  min-height: 100vh;
+  max-width: 100%;
+  overflow-x: hidden;
+  background: #f4f6fb;
+  color: #001840;
+  font-family: var(--font-inter), Inter, sans-serif;
+}
+
+.zf-scroll {
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+.zf-scroll table {
+  width: max-content;
+  min-width: 100%;
+}
+
+.zf-scroll th,
+.zf-scroll td {
+  white-space: nowrap;
+}
+
+.zf header,
+.zf main {
+  width: min(960px, calc(100% - 32px));
+  margin: 0 auto;
+}
+
+.zf header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 16px;
+  padding: 28px 0 12px;
+  border-bottom: 1px solid #b8bfd0;
+}
+
+.zf img {
+  height: 28px;
+  width: auto;
+}
+
+.zf h1 {
+  margin: 8px 0 0;
+  font-family: var(--font-jost), Jost, sans-serif;
+  font-weight: 300;
+  font-size: 32px;
+}
+
+.zf a.back {
+  color: #001840;
+}
+
+.zf .switch {
+  display: flex;
+  gap: 8px;
+  margin: 20px 0;
+}
+
+.zf button {
+  border: 1px solid #b8bfd0;
+  background: #fff;
+  color: #001840;
+  border-radius: 999px;
+  padding: 8px 14px;
+  cursor: pointer;
+}
+
+.zf button.on {
+  background: #e80008;
+  border-color: #e80008;
+  color: #fff;
+}
+
+.zf table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+}
+
+.zf th,
+.zf td {
+  text-align: left;
+  padding: 10px 12px;
+  border-bottom: 1px solid #b8bfd0;
+  vertical-align: top;
+}
+
+.zf .meta {
+  font-family: var(--font-mono), "JetBrains Mono", monospace;
+  font-size: 12px;
+}
+
+.zf .note {
+  color: #001840;
+}
+
+.zf h2 {
+  font-family: var(--font-jost), Jost, sans-serif;
+  font-weight: 300;
+  font-size: 22px;
+  margin: 28px 0 8px;
+}
+
+.zf a.why {
+  color: #001840;
+}
+
+.zf .why-panel {
+  margin-top: 8px;
+  background: #fff;
+  border: 1px solid #b8bfd0;
+  padding: 12px;
+}
+
+.zf .why-panel pre {
+  margin: 8px 0 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: var(--font-mono), "JetBrains Mono", monospace;
+  font-size: 12px;
+}

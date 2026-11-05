@@ -1,0 +1,35 @@
+{
+  "description": "Two synthetic Delaware ATF-format rows, using the column mapping in ffl.ingest evals. Names, addresses and licence values are fixtures, not an ATF download.",
+  "records": [
+    {
+      "LIC_REGN": "1",
+      "LIC_DIST": "51",
+      "LIC_CNTY": "001",
+      "LIC_TYPE": "01",
+      "LIC_XPRDTE": "9Z",
+      "LIC_SEQN": "00001",
+      "LICENSE_NAME": "FIXTURE DOVER ARMS LLC",
+      "BUSINESS_NAME": "FIXTURE DOVER ARMS LLC",
+      "PREMISE_STREET": "100 FIXTURE WAY",
+      "PREMISE_CITY": "DOVER",
+      "PREMISE_STATE": "DE",
+      "PREMISE_ZIP_CODE": "19901",
+      "VOICE_PHONE": "3025550100"
+    },
+    {
+      "LIC_REGN": "1",
+      "LIC_DIST": "51",
+      "LIC_CNTY": "001",
+      "LIC_TYPE": "01",
+      "LIC_XPRDTE": "9Z",
+      "LIC_SEQN": "00002",
+      "LICENSE_NAME": "FIXTURE WILMINGTON SUPPLY LLC",
+      "BUSINESS_NAME": "FIXTURE WILMINGTON SUPPLY LLC",
+      "PREMISE_STREET": "100 FIXTURE WAY",
+      "PREMISE_CITY": "WILMINGTON",
+      "PREMISE_STATE": "DE",
+      "PREMISE_ZIP_CODE": "19801",
+      "VOICE_PHONE": "3025550100"
+    }
+  ]
+}

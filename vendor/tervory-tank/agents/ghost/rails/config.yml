@@ -1,0 +1,30 @@
+# Autumbra air-gap rails config (NeMo-shaped, tank-only stub)
+# Vault reference: /workspace/autumbra-oss-vault/nemo-guardrails (TERVORY.md)
+# Product: Autumbra Watch / Enforce only. Not live LLMRails until customise PR + CI.
+#
+# Non-negotiables:
+# - Zero-ingestion / onsite-first — no client payload to Tervory cloud
+# - ThreatPayload-only past the air gap before Enforce
+# - Tank models until GPU — do not require vLLM / NVIDIA bunker here
+# - Telemetry off (no NVIDIA/community usage snapshot)
+
+models:
+  - type: main
+    engine: tank
+    model: tank-local
+    # TODO: pin onsite model path when GPU bunker exists
+
+rails:
+  config:
+    autumbra_airgap:
+      threat_payload_only: true
+      zero_ingestion: true
+      telemetry: false
+      enforce_default: off
+  input:
+    flows:
+      - autumbra injection burn
+      - autumbra pii redact
+  output:
+    flows:
+      - autumbra threatpayload only before enforce

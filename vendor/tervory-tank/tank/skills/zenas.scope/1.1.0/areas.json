@@ -1,0 +1,51 @@
+{
+  "allowed": [
+    {"id": "international_shipping", "phrases": ["bill of lading", "ocean carriage", "cogsa"]},
+    {"id": "ip_trademark", "phrases": ["trademark", "trade mark", "intellectual property"]},
+    {"id": "employment", "phrases": ["employment contract", "bcea"]},
+    {"id": "property", "phrases": ["commercial lease", "lease of"]},
+    {"id": "corporate", "phrases": ["shareholder agreement", "board resolution", "companies act", "cross-border merger", "corporation"]},
+    {"id": "trade", "phrases": ["international trade", "terms of trade"]},
+    {"id": "regulatory_compliance", "phrases": ["regulatory compliance", "compliance programme", "compliance program"]},
+    {"id": "commercial", "phrases": ["commercial dispute", "sale of goods"]},
+    {"id": "contracts", "phrases": ["mutual nda", "supply agreement"]}
+  ],
+  "not_yet": [
+    {"id": "family", "phrases": ["family law", "divorce", "child custody", "child maintenance"]},
+    {"id": "ccma_representation", "phrases": ["ccma"]},
+    {"id": "consumer_debt", "phrases": ["consumer debt", "debt review", "debt collection"]},
+    {"id": "personal_injury", "phrases": ["personal injury", "car accident claim"]}
+  ],
+  "regulatory": [
+    {"id": "export_controls", "phrases": ["export control", "ear licence", "ear license", "itar"]},
+    {"id": "customs", "phrases": ["customs classification", "customs entry", "customs duty"]},
+    {"id": "sanctions", "phrases": ["sanctions screening", "sanctions compliance", "ofac"]},
+    {"id": "firearms_permits", "phrases": ["firearms import", "firearms export"]}
+  ],
+  "criminal_phrases": [
+    "criminal defence",
+    "criminal defense",
+    "criminal charge",
+    "criminal charges",
+    "criminal case",
+    "criminal trial",
+    "criminal law",
+    "bail hearing",
+    "bail application",
+    "sentencing",
+    "prosecution",
+    "under arrest",
+    "been charged",
+    "charged with",
+    "indictment",
+    "police matter",
+    "plead guilty",
+    "bail",
+    "theft",
+    "thefts"
+  ],
+  "jurisdiction_phrases": {
+    "us": ["united states", "u.s.", "delaware", "new york", "texas", "ofac", "itar"],
+    "za": ["south africa", "south african", "popia", "johannesburg", "cape town", "durban", "bcea"]
+  }
+}

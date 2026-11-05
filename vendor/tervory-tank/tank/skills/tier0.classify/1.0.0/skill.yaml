@@ -1,0 +1,17 @@
+id: tier0.classify
+version: 1.0.0
+agent: orchestrator
+rung: 1
+task_type: route.request
+description: >
+  Classifies a request into the agent that should handle it: tier0, base, tiger, market_lab, radix, tisan or zenas. Label only.
+input:
+  type: object
+  required: [text]
+  properties:
+    text: {type: string}
+output:
+  type: object
+  properties:
+    text: {type: string}
+eval_threshold: 0.8

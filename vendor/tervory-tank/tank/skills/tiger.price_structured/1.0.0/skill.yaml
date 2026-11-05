@@ -1,0 +1,17 @@
+id: tiger.price_structured
+version: 1.0.0
+agent: tiger
+rung: 3
+description: Read explicit Product prices from JSON-LD or scoped microdata without a model. Abstain on missing prices and aggregate ranges.
+input:
+  type: object
+  properties:
+    html: {type: string}
+    url: {type: string}
+output:
+  type: object
+  properties:
+    items: {type: array}
+    method: {type: [string, 'null']}
+    confidence: {type: number}
+eval_threshold: 1.0

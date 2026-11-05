@@ -1,0 +1,75 @@
+{
+  "label": "local, fixture page",
+  "rows": {
+    "observations": 123,
+    "notices": 60
+  },
+  "checks": [
+    {
+      "width": 1440,
+      "kind": "event",
+      "index": 5,
+      "page": 2,
+      "href": "/market-lab/sources/2515e246-4540-49ac-89bd-c49eb6eae8c4?row=5&kind=event#event-5",
+      "highlighted": true
+    },
+    {
+      "width": 1440,
+      "kind": "event",
+      "index": 59,
+      "page": 1,
+      "href": "/market-lab/sources/2515e246-4540-49ac-89bd-c49eb6eae8c4?row=59&kind=event#event-59",
+      "highlighted": true
+    },
+    {
+      "width": 1440,
+      "kind": "point",
+      "index": 0,
+      "page": 3,
+      "href": "/market-lab/sources/2515e246-4540-49ac-89bd-c49eb6eae8c4?row=0#point-0",
+      "highlighted": true
+    },
+    {
+      "width": 1440,
+      "kind": "point",
+      "index": 122,
+      "page": 1,
+      "href": "/market-lab/sources/2515e246-4540-49ac-89bd-c49eb6eae8c4?row=122#point-122",
+      "highlighted": true
+    },
+    {
+      "width": 375,
+      "kind": "event",
+      "index": 5,
+      "page": 2,
+      "href": "/market-lab/sources/2515e246-4540-49ac-89bd-c49eb6eae8c4?row=5&kind=event#event-5",
+      "highlighted": true
+    },
+    {
+      "width": 375,
+      "kind": "event",
+      "index": 59,
+      "page": 1,
+      "href": "/market-lab/sources/2515e246-4540-49ac-89bd-c49eb6eae8c4?row=59&kind=event#event-59",
+      "highlighted": true
+    },
+    {
+      "width": 375,
+      "kind": "point",
+      "index": 0,
+      "page": 3,
+      "href": "/market-lab/sources/2515e246-4540-49ac-89bd-c49eb6eae8c4?row=0#point-0",
+      "highlighted": true
+    },
+    {
+      "width": 375,
+      "kind": "point",
+      "index": 122,
+      "page": 1,
+      "href": "/market-lab/sources/2515e246-4540-49ac-89bd-c49eb6eae8c4?row=122#point-122",
+      "highlighted": true
+    }
+  ],
+  "errors": [],
+  "result": "passed"
+}

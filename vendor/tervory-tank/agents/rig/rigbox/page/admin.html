@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Fits to review</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&family=JetBrains+Mono&family=Jost:wght@300&display=swap"
+    />
+    <link rel="stylesheet" href="/page/search.css" />
+  </head>
+  <body>
+    <header class="band">
+      <a href="/"><img src="/page/tervory-logo-on-white.png" alt="Tervory" /></a>
+    </header>
+    <main>
+      <h1>Fits to review</h1>
+      <p class="lead">Suggested fits stay hidden from shoppers until you approve them.</p>
+      <p id="admin-status" class="status" role="status"></p>
+      <form id="key-form" class="search">
+        <label for="admin-key">Admin key</label>
+        <input id="admin-key" type="password" autocomplete="off" placeholder="Admin key" />
+        <button type="submit">Continue</button>
+      </form>
+      <section id="review" hidden>
+        <p id="empty" class="empty" hidden>Nothing waiting for review</p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Part</th>
+                <th>Fits with</th>
+                <th>Confidence</th>
+                <th>Note</th>
+                <th><span class="clip">Actions</span></th>
+              </tr>
+            </thead>
+            <tbody id="rows"></tbody>
+          </table>
+        </div>
+        <button type="button" id="suggest" class="secondary">Suggest new fits</button>
+        <button type="button" id="change-key" class="text">Use a different key</button>
+      </section>
+    </main>
+    <script src="/page/admin.js"></script>
+  </body>
+</html>

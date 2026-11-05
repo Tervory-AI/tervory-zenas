@@ -1,0 +1,8 @@
+{
+  "name": "market-lab-fixture-proof",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "playwright": "1.55.0"
+  }
+}

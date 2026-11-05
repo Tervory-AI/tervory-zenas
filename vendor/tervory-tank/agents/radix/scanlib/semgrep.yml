@@ -1,0 +1,11 @@
+rules:
+  - id: python-sql-format
+    languages: [python]
+    severity: ERROR
+    message: SQL is built with string formatting.
+    pattern-regex: '\.execute\(\s*(?:f["'']|["''][^"'']*["'']\s*(?:%|\+|\.format\())'
+  - id: javascript-sql-concat
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: SQL is built by joining strings.
+    pattern-regex: '(?:query|execute)\(\s*(?:`[^`]*\$\{|["''][^"'']*["'']\s*\+)'

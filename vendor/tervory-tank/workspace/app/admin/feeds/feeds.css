@@ -1,0 +1,10 @@
+.zenas-feeds button.save {
+  background: var(--red);
+  border: 1px solid var(--red);
+  color: #fff;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font: inherit;
+  cursor: pointer;
+}
+.zenas-feeds button.save:disabled { opacity: 0.6; }

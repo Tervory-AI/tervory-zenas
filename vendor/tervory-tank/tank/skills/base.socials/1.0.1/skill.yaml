@@ -1,0 +1,15 @@
+id: base.socials
+version: 1.0.1
+agent: base
+rung: 3
+description: >
+  Pass 4, social media discovery. Canonicalises the social links found on the site into platform,
+  profile URL and handle; drops share/login/plugin links; reports presence. Activity scoring is a
+  later version. Pure code.
+input:
+  type: object
+  properties: {socials: {type: object}}
+output:
+  type: object
+  properties: {profiles: {type: object}, platforms: {type: array}, count: {type: integer}, presence: {type: string}}
+eval_threshold: 1.0

@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Sample item</title>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    "name": "Sample item",
+    "sku": "SKU-S",
+    "offers": {
+      "@type": "Offer",
+      "url": "https://example.test/sale",
+      "priceCurrency": "USD",
+      "availability": "https://schema.org/InStock",
+      "priceSpecification": [
+        {"@type": "UnitPriceSpecification", "price": "19.99", "priceCurrency": "USD", "priceType": "https://schema.org/ListPrice"},
+        {"@type": "UnitPriceSpecification", "price": "9.99", "priceCurrency": "USD", "priceType": "https://schema.org/SalePrice"}
+      ]
+    }
+  }
+  </script>
+</head>
+<body>
+  <h1>Sample item</h1>
+  <p>Was $19.99</p>
+</body>
+</html>

@@ -1,0 +1,44 @@
+......................................................s...............s. [ 31%]
+.....................................................s.................. [ 63%]
+.........................................ss............................. [ 95%]
+...........                [100%]
+=============================== warnings summary ===============================
+tank/main.py:675
+  /workspace/market-lab-warnings/tank/main.py:675: DeprecationWarning:
+          on_event is deprecated, use lifespan event handlers instead.
+
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+
+    @app.on_event("startup")
+
+.venv/lib/python3.12/site-packages/fastapi/applications.py:4599
+.venv/lib/python3.12/site-packages/fastapi/applications.py:4599
+  /workspace/market-lab-warnings/.venv/lib/python3.12/site-packages/fastapi/applications.py:4599: DeprecationWarning:
+          on_event is deprecated, use lifespan event handlers instead.
+
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+
+    return self.router.on_event(event_type)
+
+tank/main.py:710
+  /workspace/market-lab-warnings/tank/main.py:710: DeprecationWarning:
+          on_event is deprecated, use lifespan event handlers instead.
+
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+
+    @app.on_event("shutdown")
+
+tank/agent_skills.py:523
+  /workspace/market-lab-warnings/tank/agent_skills.py:523: DeprecationWarning:
+          on_event is deprecated, use lifespan event handlers instead.
+
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+
+    @router.on_event("startup")
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+222 passed, 5 skipped, 5 warnings, 622 subtests passed in 12.02s

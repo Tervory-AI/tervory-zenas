@@ -1,0 +1,4 @@
+Source: https://github.com/disposable-email-domains/disposable-email-domains
+Commit: aa73ac1b77f440ebdcca0872cf2ebbd73fadce70
+License: CC0-1.0 (LICENSE.txt)
+No runtime downloads. Exact-domain and parent-domain matching.

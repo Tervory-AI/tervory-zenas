@@ -1,0 +1,227 @@
+# coolify: raw compose
+# Market Lab. Deploy this file as its own Coolify resource.
+# Build context is agents/ (the parent of this file), because the chassis lives there.
+# Room data stays on its existing volume. Optional private tools require Raw
+# Compose Deployment; preserve the existing Compose project identity.
+
+services:
+  agent-market-lab:
+    build:
+      context: ..
+      dockerfile: market_lab/Dockerfile
+    restart: unless-stopped
+    mem_limit: 512m
+    cpus: 0.5
+    environment:
+      AGENT_NAME: market_lab
+      MARKET_LAB_BRAIN_ENABLED: ${MARKET_LAB_BRAIN_ENABLED:-false}
+      R2_BUCKET: tervory-market-lab
+      R2_ACCOUNT_ID: ${R2_ACCOUNT_ID:-}
+      R2_ACCESS_KEY_ID_MARKET_LAB: ${R2_ACCESS_KEY_ID_MARKET_LAB:-}
+      R2_SECRET_ACCESS_KEY_MARKET_LAB: ${R2_SECRET_ACCESS_KEY_MARKET_LAB:-}
+      DATABASE_URL: postgresql://agent_market_lab:${AGENT_DB_PASSWORD_MARKET_LAB}@postgres:5432/${POSTGRES_DB:-tervory}
+      CHASSIS_ADMIN_DATABASE_URL: ${CHASSIS_ADMIN_DATABASE_URL:-}
+      CHASSIS_RLS_ADMIN_ROLE: ${CHASSIS_RLS_ADMIN_ROLE:-}
+      TANK_URL: http://tank:8000
+      TANK_KEY: ${TANK_KEY_MARKET_LAB:-}
+      TANK_REGION: ${TANK_REGION:-us-east}
+      HERMES_URL: http://hermes:8000
+      # Feed keys. Empty leaves that feed off. Values stay in Coolify. Never commit them.
+      FRED_API_KEY: ${FRED_API_KEY:-}
+      CENSUS_API_KEY: ${CENSUS_API_KEY:-}
+      LEGISCAN_API_KEY: ${LEGISCAN_API_KEY:-}
+      EIA_API_KEY: ${EIA_API_KEY:-}
+      NOAA_TOKEN: ${NOAA_TOKEN:-}
+      USPTO_API_KEY: ${USPTO_API_KEY:-}
+      MARKET_LAB_SMTP_HOST: ${MARKET_LAB_SMTP_HOST:-}
+      MARKET_LAB_SMTP_PORT: ${MARKET_LAB_SMTP_PORT:-}
+      MARKET_LAB_SMTP_USER: ${MARKET_LAB_SMTP_USER:-}
+      MARKET_LAB_SMTP_PASSWORD: ${MARKET_LAB_SMTP_PASSWORD:-}
+      MARKET_LAB_SMTP_FROM: ${MARKET_LAB_SMTP_FROM:-}
+      MARKET_LAB_SMTP_ALERT_ADDRESSES: ${MARKET_LAB_SMTP_ALERT_ADDRESSES:-}
+      DATA_DIR: /data
+    volumes:
+      - agent_market_lab_data:/data
+    networks:
+      - gw
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    expose:
+      - "8000"
+
+  market-lab-brain:
+    profiles:
+    - brain
+    build:
+      context: ../..
+      dockerfile: agents/rig/Dockerfile.brain
+    command:
+    - uvicorn
+    - brain.standby:app
+    - --host
+    - 0.0.0.0
+    - --port
+    - '8001'
+    - --no-access-log
+    restart: unless-stopped
+    mem_limit: 2g
+    cpus: 1
+    pids_limit: 128
+    read_only: true
+    tmpfs:
+    - /tmp:rw,noexec,nosuid,nodev,size=32m
+    environment:
+      BRAIN_ROOM: market_lab
+      TANK_REGION: us-east
+      TANK_URL: http://tank:8000
+      TANK_KEY: ${TANK_KEY_MARKET_LAB:-}
+      HERMES_URL: http://hermes:8000
+      MARKET_LAB_URL: http://agent-market-lab:8000
+      MARKET_LAB_SANDBOX_URL: http://market-lab-sandbox:8002
+      SANDBOX_KEY: ${SANDBOX_KEY_MARKET_LAB:-}
+      DATA_DIR: /data
+      MARKET_LAB_BROWSER_URL: http://market-lab-browser-gateway:3000
+    volumes:
+    - market_lab_brain_data:/data
+    networks:
+    - gw
+    - sandbox
+    depends_on:
+      market-lab-sandbox:
+        condition: service_healthy
+      market-lab-browser-gateway:
+        condition: service_healthy
+    healthcheck:
+      test:
+      - CMD
+      - python
+      - -c
+      - import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health', timeout=3)
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    security_opt:
+    - no-new-privileges:true
+    cap_drop:
+    - ALL
+  market-lab-sandbox:
+    profiles:
+    - brain
+    build:
+      context: ../..
+      dockerfile: agents/base/Dockerfile.sandbox
+    restart: unless-stopped
+    mem_limit: 512m
+    cpus: 0.5
+    pids_limit: 64
+    environment:
+      BRAIN_ROOM: market_lab
+      SANDBOX_KEY: ${SANDBOX_KEY_MARKET_LAB:-}
+    read_only: true
+    tmpfs:
+    - /tmp:rw,noexec,nosuid,nodev,size=32m
+    - /work:rw,nosuid,nodev,size=128m,uid=1000,gid=1000,mode=0700
+    networks:
+    - sandbox
+    healthcheck:
+      test:
+      - CMD
+      - python
+      - -c
+      - import urllib.request; urllib.request.urlopen('http://127.0.0.1:8002/health', timeout=3)
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    security_opt:
+    - no-new-privileges:true
+    cap_drop:
+    - ALL
+  market-lab-browser:
+    build:
+      context: ../..
+      dockerfile: agents/base/Dockerfile.browser
+    restart: unless-stopped
+    mem_limit: 2g
+    cpus: 0.5
+    shm_size: 256m
+    environment:
+      ACCESS_ROOM: market_lab
+      ACCESS_GATEWAY_URL: http://market-lab-browser-gateway:3000
+      BROWSER_PROXY_URL: http://market-lab-browser-gateway:3128
+    volumes:
+    - market_lab_browser_data:/browser-data
+    networks:
+    - browser
+    security_opt:
+    - no-new-privileges:true
+    cap_drop:
+    - ALL
+    healthcheck:
+      test:
+      - CMD
+      - python
+      - -c
+      - import urllib.request; urllib.request.urlopen('http://127.0.0.1:3000/health', timeout=3)
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    profiles:
+    - brain
+    read_only: true
+    pids_limit: 128
+    tmpfs:
+    - /tmp:rw,nosuid,nodev,size=128m
+    init: true
+  market-lab-browser-gateway:
+    build:
+      context: ../..
+      dockerfile: agents/base/Dockerfile.gateway
+    restart: unless-stopped
+    mem_limit: 128m
+    cpus: 0.25
+    environment:
+      TANK_KEY: ${TANK_KEY_MARKET_LAB:-}
+      TANK_REGION: us-east
+      ACCESS_ROOM: market_lab
+      BROWSER_HOST: market-lab-browser
+    networks:
+    - gw
+    - browser
+    security_opt:
+    - no-new-privileges:true
+    cap_drop:
+    - ALL
+    healthcheck:
+      test:
+      - CMD
+      - python
+      - -c
+      - import urllib.request; urllib.request.urlopen('http://127.0.0.1:3000/health', timeout=3)
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    profiles:
+    - brain
+    read_only: true
+    pids_limit: 128
+    tmpfs:
+    - /tmp:rw,nosuid,nodev,size=128m
+
+volumes:
+  agent_market_lab_data:
+
+  market_lab_brain_data:
+    name: tervory-market-lab-brain-data
+  market_lab_browser_data:
+    name: tervory-market-lab-browser-data
+networks:
+  sandbox:
+    internal: true
+  browser:
+    internal: true
+  gw:
+    external: true
+    name: tervory-gw-market_lab

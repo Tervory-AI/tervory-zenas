@@ -1,0 +1,8 @@
+# Live month-by-state PDF tables. CI installs tank/requirements-dev.txt only.
+# This lane cannot edit tank/ or the workflow, so install this file too
+# before the PDF test: pip install -r agents/market_lab/feeds/requirements.txt
+# First compatible pair fixing CVE-2025-64512 and CVE-2025-70559.
+pdfplumber==0.11.9
+pdfminer.six==20251230
+# Parse RSS and Atom from bounded response bytes, without opening URLs itself.
+feedparser==6.0.14

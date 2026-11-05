@@ -1,0 +1,4 @@
+FROM alpine:3.22
+USER 1000
+HEALTHCHECK CMD true
+CMD ["true"]

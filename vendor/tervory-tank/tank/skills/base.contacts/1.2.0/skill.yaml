@@ -1,0 +1,28 @@
+id: base.contacts
+version: 1.2.0
+agent: base
+rung: 3
+description: >
+  Pass 3, contact discovery. Separates generic inboxes from people, learns the business's email
+  pattern from its own addresses, gives each named person an observed or pattern-derived address
+  (labelled as such), names the decision maker, and checks the domain accepts mail (MX over
+  DNS-over-HTTPS). Extra generic inbox names come from the caller, on top of a neutral default.
+  Adds source-backed libphonenumber phone quality and per-address RFC 5321 syntax, role,
+  pinned CC0 disposable-domain classification and MX. No SMTP probes. Unapproved candidate.
+  Never invents a person. Pure code.
+input:
+  type: object
+  properties:
+    website: {type: string}
+    emails: {type: array}
+    people: {type: array}
+    phones: {type: array}
+    country: {type: string, description: ISO 3166-1 alpha-2 region; absent means unknown}
+    primary_phone: {type: string}
+    primary_email: {type: string}
+    email_evidence: {type: array}
+    generic_words: {type: array, description: extra inbox names to treat as generic, added to the neutral default}
+output:
+  type: object
+  properties: {fields: {type: object}, phone_quality: {type: array}, email_quality: {type: array}, generic_emails: {type: array}, personal_emails: {type: array}, email_pattern: {type: string}, contacts: {type: array}, decision_maker: {type: object}}
+eval_threshold: 1.0

@@ -1,0 +1,31 @@
+id: market.series_fetch
+version: 1.1.1
+agent: market_lab
+rung: 3
+description: >
+  Fetch one time series from a source adapter. Adapters: fred (read on demand,
+  never stored), a csv upload, an xlsx upload, or a monthly listing file counted
+  by the feeds package. A batch that fails the series checks is held and not
+  stored. Returns the series id, dated points, the source, and
+  when it was fetched.
+input:
+  type: object
+  required: [adapter]
+  properties:
+    adapter: {type: string}
+    series_id: {type: string}
+    source: {type: string}
+    text: {type: string}
+    xlsx: {type: string}
+    observations: {type: array}
+    ref: {type: string}
+    engine: {type: string}
+output:
+  type: object
+  properties:
+    series_id: {type: string}
+    points: {type: array}
+    source: {type: string}
+    fetched_at: {type: string}
+    stored: {type: boolean}
+eval_threshold: 1.0

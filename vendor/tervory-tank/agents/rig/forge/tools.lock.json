@@ -1,0 +1,44 @@
+{
+  "platform": "linux-x86_64",
+  "assets": [
+    {
+      "name": "blender",
+      "version": "4.5.3",
+      "url": "https://download.blender.org/release/Blender4.5/blender-4.5.3-linux-x64.tar.xz",
+      "sha256": "975c58fcb244273838534bba771e64ad87739216b0f9b39a888531a49a72d845",
+      "published": "https://download.blender.org/release/Blender4.5/blender-4.5.3.sha256"
+    },
+    {
+      "name": "gltfpack",
+      "version": "0.25",
+      "url": "https://github.com/zeux/meshoptimizer/releases/download/v0.25/gltfpack-ubuntu.zip",
+      "sha256": "78fe884c216cf14434b11d932940891e891b9fa021082e4eeb6460e633d90d12",
+      "published": "https://api.github.com/repos/zeux/meshoptimizer/releases/tags/v0.25"
+    },
+    {
+      "name": "ktx",
+      "version": "4.4.2",
+      "url": "https://github.com/KhronosGroup/KTX-Software/releases/download/v4.4.2/KTX-Software-4.4.2-Linux-x86_64.tar.bz2",
+      "sha256": "a8781bad05f9624edbf910b7f258cd0a4ba7d3e63b49ecc0a0ab440bf6a0a245",
+      "published": "https://api.github.com/repos/KhronosGroup/KTX-Software/releases/tags/v4.4.2"
+    },
+    {
+      "name": "@gltf-transform/cli",
+      "version": "4.2.1",
+      "url": "https://registry.npmjs.org/@gltf-transform/cli/-/cli-4.2.1.tgz",
+      "sha256": "3203895d3dfd8652490e34dc29da6cad3701fda333f080810320dd08817a8b97",
+      "published": "https://registry.npmjs.org/@gltf-transform/cli/4.2.1",
+      "upstream_integrity": "sha512-xnN8oJVQx4Sj3YX1uFkAR1dZ5PD8eEfh6BVijbGyI6XIbCb4CgAPm2x54NVbKWJTnapqoe1kyMxnfdzdKr0OEw==",
+      "sha256_provenance": "computed after upstream SHA512 verification; founder-approved exception"
+    },
+    {
+      "name": "gltf-validator",
+      "version": "2.0.0-dev.3.10",
+      "url": "https://registry.npmjs.org/gltf-validator/-/gltf-validator-2.0.0-dev.3.10.tgz",
+      "sha256": "4e03dbdc3bc0d1342afd5d2d7ae341a7e3474502ccb872b02dbbaddaee0fdec6",
+      "published": "https://registry.npmjs.org/gltf-validator/2.0.0-dev.3.10",
+      "upstream_integrity": "sha512-odJ4k0tRkGXiDGn78yDBg+fBbAIvBnXxh3RwAta0emSxGtyagFE8B4xELB1oYe3S5RD8Ci3uZAsZaascH2LAEQ==",
+      "sha256_provenance": "computed after upstream SHA512 verification; founder-approved exception"
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+.moot-watch {
+  max-width: 720px;
+  margin: 2rem auto;
+  padding: 0 1rem;
+  font-family: Georgia, "Times New Roman", serif;
+  color: #0b1c2c;
+  box-sizing: border-box;
+  width: 100%;
+  overflow-x: hidden;
+}
+.moot-watch * {
+  box-sizing: border-box;
+  max-width: 100%;
+}
+.moot-watch h1 {
+  font-size: 1.6rem;
+  margin: 0 0 0.75rem;
+}
+.moot-watch h2 {
+  font-size: 1.15rem;
+  margin: 1.25rem 0 0.5rem;
+  border-bottom: 1px solid #c9d2dc;
+  padding-bottom: 0.25rem;
+}
+.moot-watch section {
+  margin-bottom: 0.5rem;
+}
+.moot-watch .moot-turn {
+  margin: 0.35rem 0;
+  padding: 0.5rem 0.65rem;
+  background: #f4f7fa;
+  border-left: 3px solid #0b1c2c;
+}
+.moot-watch .moot-turn-role {
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #3a5166;
+}
+.moot-watch ul {
+  padding-left: 1.2rem;
+}
+.moot-watch a {
+  color: #0b3d91;
+  word-break: break-word;
+}

@@ -1,0 +1,18 @@
+id: zenas.plain_language
+version: 1.0.1
+agent: zenas
+rung: 1
+task_type: zenas.plain_language
+description: >
+  Rewrite a memo for a business reader. The legal effect and the citations stay.
+input:
+  type: object
+  properties:
+    text: {type: string}
+    citations: {type: array}
+output:
+  type: object
+  properties:
+    kept_original: {type: boolean}
+    text: {type: string}
+eval_threshold: 1.0

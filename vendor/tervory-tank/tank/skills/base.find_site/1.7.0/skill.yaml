@@ -1,0 +1,38 @@
+id: base.find_site
+version: 1.7.0
+agent: base
+rung: 3
+description: >
+  Pass 2a. Finds a business's website: verified hint on the record, then Tervory's own search
+  (SearXNG, no key, no per-query cost), then Brave if a key exists, then domain guesses. A candidate
+  must be live, its page must name the business (distinctive words, not generic ones or the town),
+  and it must show the record's own phone, ZIP or street address (home or contact page). A domain
+  guessed from a name with two or more distinctive words may stand on the name alone. A guess whose
+  host is exactly a one-word name may also stand on the name. A distinctive word has to be a whole
+  host label, not the start of a longer label. A live candidate the name check refuses is still
+  accepted when the site itself (home, contact or about page) shows this record's exact phone number
+  or its street number followed by its street name; city, ZIP, state or a name word alone never
+  count on that path. When a plain fetch sees a live site it
+  cannot read (slow, JavaScript-built, a self-clearing browser check), Tiger loads it in a real browser
+  and waits. Interactive human checks are recorded, never solved. Pure code.
+input:
+  type: object
+  required: [name]
+  properties:
+    name: {type: string}
+    city: {type: string}
+    state: {type: string}
+    phone: {type: string}
+    zip: {type: string}
+    address: {type: string, description: street line}
+    website: {type: string, description: a hint from the input record, verified not trusted}
+    generic_words: {type: array, description: extra name words to ignore, added to the neutral default}
+    blocked_hosts: {type: array, description: extra hosts to skip, added to the neutral default}
+output:
+  type: object
+  properties:
+    website: {type: object}
+    name_words: {type: array, description: distinctive name words after the neutral list and any caller words}
+    hint_blocked: {type: boolean, description: the hint's host was on the block list}
+    evidence: {type: string, description: "input, name, phone, zip, street, or (1.7.0) first_party:phone / first_party:address"}
+eval_threshold: 0.8

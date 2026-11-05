@@ -1,0 +1,4 @@
+{"name": "email has subject", "input": {"text": "An email to a supplier asking for volume pricing on 5,000 units."}, "expected": {"text": "subject"}, "tolerance": "contains"}
+{"name": "mentions quantity", "input": {"text": "An email to a supplier asking for volume pricing on 5,000 units."}, "expected": {"text": "5,000"}, "tolerance": "contains"}
+{"name": "decline politely", "input": {"text": "A two-line message declining a meeting request for Friday and offering Monday instead."}, "expected": {"text": "monday"}, "tolerance": "contains"}
+{"name": "reminder", "input": {"text": "A short payment reminder for invoice 1042, due last week."}, "expected": {"text": "1042"}, "tolerance": "contains"}

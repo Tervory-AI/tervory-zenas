@@ -1,0 +1,17 @@
+id: base.extract
+version: 1.0.0
+agent: base
+rung: 1
+task_type: base.extract
+description: >
+  Pass 2c. Reads the scraped text of a business site and returns structured facts: what they sell
+  (categories), services, a one-line description, and any named people with roles. Small model,
+  strict JSON out. Confidence comes from how explicit the text was.
+input:
+  type: object
+  required: [name, text]
+  properties: {name: {type: string}, text: {type: string}}
+output:
+  type: object
+  properties: {categories: {type: array}, services: {type: array}, description: {type: string}, people: {type: array}}
+eval_threshold: 0.8

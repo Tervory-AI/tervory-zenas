@@ -1,0 +1,24 @@
+id: market.gap_score
+version: 1.1.1
+agent: market_lab
+rung: 3
+description: >
+  Where demand is outrunning supply. For each area and segment, show the
+  demand index, the supply index (per capita when population is known), the
+  gap, saturation, reachability, and the gap's trend over 3, 6, and 12 months.
+  The list is ranked. A single score is never the only output.
+input:
+  type: object
+  required: [areas]
+  properties:
+    areas: {type: array}
+output:
+  type: object
+  properties:
+    status: {type: string}
+    reason: {type: string}
+    by_area_segment: {type: object}
+    ranked: {type: array}
+    top_area: {type: string}
+    top_recommendation: {type: string}
+eval_threshold: 1.0

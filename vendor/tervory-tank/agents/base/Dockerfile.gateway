@@ -1,0 +1,8 @@
+FROM python:3.12-slim
+RUN pip install --no-cache-dir fastapi==0.133.1 starlette==1.3.1 uvicorn==0.32.1 httpx==0.28.1 \
+    && useradd --create-home gateway
+WORKDIR /app
+COPY agents/_brain /app/brain
+RUN chmod -R a+rX /app/brain
+USER gateway
+CMD ["uvicorn", "brain.browser_gateway:app", "--host", "0.0.0.0", "--port", "3000", "--no-access-log"]

@@ -1,0 +1,16 @@
+{
+  "result": "passed",
+  "daily_resolution_job": "done",
+  "active_warnings": 1,
+  "history_episodes": 3,
+  "insufficient_history": "1 of 3 past episodes",
+  "resolutions": [
+    "came true",
+    "did not come true",
+    "not measurable"
+  ],
+  "feedback_pairs": 2,
+  "resolution_pairs": 3,
+  "other_tenant_pairs": 0,
+  "model_calls": 0
+}

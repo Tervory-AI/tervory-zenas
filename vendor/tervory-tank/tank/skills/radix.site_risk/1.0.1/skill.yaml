@@ -1,0 +1,398 @@
+{
+  "id": "radix.site_risk",
+  "version": "1.0.1",
+  "agent": "radix",
+  "rung": 3,
+  "description": "Analyse supplied tenant-owned business evidence. No person lookups, no network, no model. Sources on every finding.",
+  "input": {
+    "$defs": {
+      "Account": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "tenant_id": {
+            "title": "Tenant Id",
+            "type": "string"
+          },
+          "business_id": {
+            "title": "Business Id",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/$defs/Fact"
+          },
+          "payout_business_name": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/Fact"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "listing_template": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/Fact"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          }
+        },
+        "required": [
+          "id",
+          "tenant_id",
+          "business_id",
+          "status"
+        ],
+        "title": "Account",
+        "type": "object"
+      },
+      "BaseBinding": {
+        "additionalProperties": false,
+        "properties": {
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "source_ids": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 10,
+            "minItems": 1,
+            "title": "Source Ids",
+            "type": "array"
+          },
+          "issuer": {
+            "anyOf": [
+              {
+                "pattern": "^[A-Z][A-Z0-9_-]{1,30}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Issuer"
+          }
+        },
+        "required": [
+          "path",
+          "source_ids"
+        ],
+        "title": "BaseBinding",
+        "type": "object"
+      },
+      "BaseImport": {
+        "additionalProperties": false,
+        "properties": {
+          "record": {
+            "title": "Record",
+            "type": "object"
+          },
+          "bindings": {
+            "additionalProperties": {
+              "$ref": "#/$defs/BaseBinding"
+            },
+            "title": "Bindings",
+            "type": "object"
+          },
+          "tenant_id": {
+            "title": "Tenant Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "record",
+          "bindings",
+          "tenant_id"
+        ],
+        "title": "BaseImport",
+        "type": "object"
+      },
+      "Business": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "tenant_id": {
+            "title": "Tenant Id",
+            "type": "string"
+          },
+          "entity_type": {
+            "const": "business",
+            "title": "Entity Type",
+            "type": "string"
+          },
+          "facts": {
+            "additionalProperties": {
+              "$ref": "#/$defs/Fact"
+            },
+            "title": "Facts",
+            "type": "object"
+          },
+          "base_record_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Base Record Id"
+          }
+        },
+        "required": [
+          "id",
+          "tenant_id",
+          "entity_type",
+          "facts"
+        ],
+        "title": "Business",
+        "type": "object"
+      },
+      "Fact": {
+        "additionalProperties": false,
+        "properties": {
+          "value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              }
+            ],
+            "title": "Value"
+          },
+          "source_ids": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 10,
+            "minItems": 1,
+            "title": "Source Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "value",
+          "source_ids"
+        ],
+        "title": "Fact",
+        "type": "object"
+      },
+      "Lookup": {
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "enum": [
+              "business_id",
+              "company_name",
+              "registration_number",
+              "domain",
+              "licence_number"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "value": {
+            "maxLength": 253,
+            "minLength": 1,
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "value"
+        ],
+        "title": "Lookup",
+        "type": "object"
+      },
+      "Source": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "pattern": "^[a-zA-Z0-9_-]{1,80}$",
+            "title": "Id",
+            "type": "string"
+          },
+          "tenant_id": {
+            "title": "Tenant Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "state_register",
+              "sec_edgar",
+              "atf_ffl",
+              "cipc",
+              "rdap",
+              "website",
+              "client_platform",
+              "rx_scan"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "url": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Url",
+            "type": "string"
+          },
+          "terms": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Terms",
+            "type": "string"
+          },
+          "region": {
+            "enum": [
+              "us-east",
+              "za"
+            ],
+            "title": "Region",
+            "type": "string"
+          },
+          "retrieved_at": {
+            "title": "Retrieved At",
+            "type": "string"
+          },
+          "key_env": {
+            "anyOf": [
+              {
+                "enum": [
+                  "RADIX_SOURCE_CIPC_KEY",
+                  "RADIX_SOURCE_REGISTER_KEY"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Key Env"
+          }
+        },
+        "required": [
+          "id",
+          "tenant_id",
+          "kind",
+          "url",
+          "terms",
+          "region",
+          "retrieved_at"
+        ],
+        "title": "Source",
+        "type": "object"
+      }
+    },
+    "additionalProperties": false,
+    "properties": {
+      "tenant_id": {
+        "title": "Tenant Id",
+        "type": "string"
+      },
+      "region": {
+        "enum": [
+          "us-east",
+          "za"
+        ],
+        "title": "Region",
+        "type": "string"
+      },
+      "as_of": {
+        "title": "As Of",
+        "type": "string"
+      },
+      "lookup": {
+        "$ref": "#/$defs/Lookup"
+      },
+      "sources": {
+        "items": {
+          "$ref": "#/$defs/Source"
+        },
+        "maxItems": 200,
+        "title": "Sources",
+        "type": "array"
+      },
+      "businesses": {
+        "items": {
+          "$ref": "#/$defs/Business"
+        },
+        "maxItems": 500,
+        "title": "Businesses",
+        "type": "array"
+      },
+      "base_imports": {
+        "items": {
+          "$ref": "#/$defs/BaseImport"
+        },
+        "maxItems": 200,
+        "title": "Base Imports",
+        "type": "array"
+      },
+      "accounts": {
+        "items": {
+          "$ref": "#/$defs/Account"
+        },
+        "maxItems": 500,
+        "title": "Accounts",
+        "type": "array"
+      },
+      "brand_domains": {
+        "items": {
+          "$ref": "#/$defs/Fact"
+        },
+        "maxItems": 20,
+        "title": "Brand Domains",
+        "type": "array"
+      }
+    },
+    "required": [
+      "tenant_id",
+      "region",
+      "as_of",
+      "lookup",
+      "sources",
+      "businesses"
+    ],
+    "title": "Request",
+    "type": "object"
+  },
+  "output": {
+    "type": "object",
+    "required": [
+      "ok"
+    ],
+    "properties": {
+      "ok": {
+        "type": "boolean"
+      }
+    }
+  },
+  "eval_threshold": 1.0
+}

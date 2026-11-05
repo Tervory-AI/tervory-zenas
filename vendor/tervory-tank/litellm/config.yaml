@@ -1,0 +1,835 @@
+# The model roster LiteLLM exposes to Tank.
+# Tank's policy table refers to models by the `model_name` on the left.
+# Provider keys come from the environment (see .env.example); nothing secret lives here.
+#
+# 14 Oct 2026: the funded providers (OpenAI, Google, xAI) carry the work over their APIs, never
+# OAuth sign-ins. A provider with no funds is skipped automatically; topping it up brings it back.
+# Prices are USD per token (per-million / 1e6), from each provider's pricing page on 14 Oct 2026:
+#   OpenAI GPT-6: platform.openai.com/docs/pricing; Gemini: ai.google.dev/pricing; xAI: docs.x.ai/developers/pricing.
+# 18 Oct 2026 (MODELS-1): DeepSeek and Moonshot (Kimi) are listed like any other provider; each entry
+# carries its price page and fetch date. The tenant allow-list (TANK_PROVIDER_ALLOW) and the South
+# Africa identifier rule apply to them exactly as to every other non-SA provider.
+
+# 31 Oct 2026 (prompt caching): OpenAI GPT-6 and Anthropic deployments mark every system message as a
+# cache breakpoint (LiteLLM cache_control_injection_points; Tank sends the fixed prompt first). It is set
+# here per deployment, never per request, so a fallback to Gemini or an OpenAI-compatible host is never
+# sent a cache marker (Gemini would create a billed context cache). Cache prices, USD per MTok, read/write:
+#   developers.openai.com/api/docs/pricing + /guides/prompt-caching (30 Oct 2026): reads 0.1x input
+#   (gpt-6.1-sol 0.05x), writes 1.25x input. platform.claude.com/docs/en/about-claude/pricing
+#   (31 Oct 2026): 5-minute writes 1.25x; hits 0.1x haiku-5-5, 0.05x sonnet/opus-5-5, 0.025x fable-5-1.
+# Without these keys LiteLLM bills cached tokens at the full input rate in x-litellm-response-cost.
+
+model_list:
+  # ---------- OpenAI (API key, Responses/Chat) ----------
+  - model_name: luna            # cheap, fast workhorse: classify, extract, short drafts
+    litellm_params:
+      model: openai/gpt-6-luna
+      cache_control_injection_points:
+        - location: message
+          role: system
+      api_key: os.environ/OPENAI_API_KEY
+    model_info:
+      input_cost_per_token: 0.0000001
+      cache_read_input_token_cost: 0.0000000100
+      cache_creation_input_token_cost: 0.0000001250
+      output_cost_per_token: 0.0000005
+
+  - model_name: sol             # analysis and longer writing
+    litellm_params:
+      model: openai/gpt-6-sol
+      cache_control_injection_points:
+        - location: message
+          role: system
+      api_key: os.environ/OPENAI_API_KEY
+    model_info:
+      input_cost_per_token: 0.000002
+      cache_read_input_token_cost: 0.0000002000
+      cache_creation_input_token_cost: 0.0000025000
+      output_cost_per_token: 0.00001
+
+  - model_name: astra           # hardest reasoning only
+    litellm_params:
+      model: openai/gpt-6-astra
+      cache_control_injection_points:
+        - location: message
+          role: system
+      api_key: os.environ/OPENAI_API_KEY
+    model_info:
+      input_cost_per_token: 0.00001
+      cache_read_input_token_cost: 0.0000010000
+      cache_creation_input_token_cost: 0.0000125000
+      output_cost_per_token: 0.00005
+
+  # ---------- Google Gemini (API key, paid tier: no training on our data) ----------
+  - model_name: flash-lite
+    litellm_params:
+      model: gemini/gemini-3.5-flash-lite
+      api_key: os.environ/GEMINI_API_KEY
+    model_info:
+      input_cost_per_token: 0.0000003
+      output_cost_per_token: 0.0000025
+
+  - model_name: flash
+    litellm_params:
+      model: gemini/gemini-3.8-flash
+      api_key: os.environ/GEMINI_API_KEY
+    model_info:
+      input_cost_per_token: 0.00000075     # introductory until 31 Dec 2026, then doubles
+      output_cost_per_token: 0.00000375
+
+  - model_name: argon
+    litellm_params:
+      model: gemini/gemini-4-argon
+      api_key: os.environ/GEMINI_API_KEY
+    model_info:
+      input_cost_per_token: 0.000002
+      output_cost_per_token: 0.00001
+
+  # ---------- xAI Grok (API key) ----------
+  - model_name: grok
+    litellm_params:
+      model: xai/grok-4.3
+      api_key: os.environ/XAI_API_KEY
+    model_info:
+      input_cost_per_token: 0.00000125
+      output_cost_per_token: 0.0000025
+
+  - model_name: grok-top
+    litellm_params:
+      model: xai/grok-4.7
+      api_key: os.environ/XAI_API_KEY
+    model_info:
+      input_cost_per_token: 0.000002
+      output_cost_per_token: 0.000006
+
+  - model_name: grok-build      # code work
+    litellm_params:
+      model: xai/grok-build-0.1
+      api_key: os.environ/XAI_API_KEY
+    model_info:
+      input_cost_per_token: 0.000001
+      output_cost_per_token: 0.000002
+
+  # ---------- DeepSeek (API key) ----------
+  # MODELS-1, 18 Oct 2026: the founder lifted the ban on China-hosted providers.
+  # Bench entries only: no existing fallback chain enters a new model on merge.
+  # Policy activation and founder promotion remain outside this roster change.
+  # Prices checked 2026-10-21 from https://api-docs.deepseek.com/quick_start/pricing/
+  # (cache-miss input, PEAK rate; off-peak is half). deepseek-flash serves DeepSeek-V4.1-Flash-1017,
+  # deepseek-v4-pro serves DeepSeek-V4-Pro-0813.
+  - model_name: deepseek-flash  # chat model (non-thinking and thinking modes)
+    litellm_params:
+      model: deepseek/deepseek-flash
+      api_key: os.environ/DEEPSEEK_API_KEY
+      input_cost_per_token: 0.0000003
+      output_cost_per_token: 0.0000012
+    model_info:
+      input_cost_per_token: 0.0000003
+      output_cost_per_token: 0.0000012
+      # Guaranteed recurring off-peak periods (UTC, end exclusive).
+      # Public holidays also qualify; only explicitly verified dates may be added.
+      offpeak:
+        timezone: UTC
+        charge_multiplier: 0.5
+        cache_read_input_cost_per_token: 0.000000006
+        windows:
+          - {days: [0, 1, 2, 3, 4], start: '00:00', end: '01:00'}
+          - {days: [0, 1, 2, 3, 4], start: '04:00', end: '06:00'}
+          - {days: [0, 1, 2, 3, 4], start: '10:00', end: '24:00'}
+          - {days: [5, 6], start: '00:00', end: '24:00'}
+
+  # Price checked 2026-10-21: https://api-docs.deepseek.com/quick_start/pricing/
+  # USD per MTok: $1.32 input / $3.96 output at peak, half off-peak.
+  - model_name: deepseek-pro    # reasoning model
+    litellm_params:
+      model: deepseek/deepseek-v4-pro
+      api_key: os.environ/DEEPSEEK_API_KEY
+      input_cost_per_token: 0.00000132
+      output_cost_per_token: 0.00000396
+    model_info:
+      input_cost_per_token: 0.00000132
+      output_cost_per_token: 0.00000396
+      offpeak:
+        timezone: UTC
+        charge_multiplier: 0.5
+        cache_read_input_cost_per_token: 0.000000044
+        windows:
+          - {days: [0, 1, 2, 3, 4], start: '00:00', end: '01:00'}
+          - {days: [0, 1, 2, 3, 4], start: '04:00', end: '06:00'}
+          - {days: [0, 1, 2, 3, 4], start: '10:00', end: '24:00'}
+          - {days: [5, 6], start: '00:00', end: '24:00'}
+
+  # ---------- Moonshot Kimi (API key) ----------
+  # Price checked 2026-10-21: https://platform.kimi.ai/ (K3 price card)
+  # Rules: https://platform.kimi.ai/docs/pricing/chat (formerly platform.moonshot.ai).
+  # USD per MTok: $3 input / $15 output; cache writes and hits are separate items.
+  - model_name: kimi
+    litellm_params:
+      model: moonshot/kimi-k3
+      api_key: os.environ/MOONSHOT_API_KEY
+      input_cost_per_token: 0.000003
+      output_cost_per_token: 0.000015
+    model_info:
+      id: kimi-direct
+      input_cost_per_token: 0.000003
+      output_cost_per_token: 0.000015
+
+  # Same weights through the existing HF token; direct deployment remains first.
+  - model_name: kimi
+    litellm_params:
+      model: openai/moonshotai/Kimi-K3:baseten
+      api_base: https://router.huggingface.co/v1
+      api_key: os.environ/HF_INFERENCE_TOKEN
+      input_cost_per_token: 0.0000030000
+      output_cost_per_token: 0.0000150000
+    model_info:
+      id: kimi-hf
+      input_cost_per_token: 0.0000030000
+      output_cost_per_token: 0.0000150000
+      open_weights: true
+      family: moonshot
+      size: flagship
+      host: baseten
+      hf_model_id: moonshotai/Kimi-K3
+      licence: Kimi K3 License
+      licence_url: https://huggingface.co/moonshotai/Kimi-K3/blob/main/LICENSE
+
+  # ---------- Anthropic (returns after the top-up) ----------
+  - model_name: haiku
+    litellm_params:
+      model: anthropic/claude-haiku-5-5
+      cache_control_injection_points:
+        - location: message
+          role: system
+      api_key: os.environ/ANTHROPIC_API_KEY
+    model_info:
+      input_cost_per_token: 0.0000001
+      cache_read_input_token_cost: 0.0000000100
+      cache_creation_input_token_cost: 0.0000001250
+      output_cost_per_token: 0.0000005
+
+  - model_name: sonnet
+    litellm_params:
+      model: anthropic/claude-sonnet-5-5
+      cache_control_injection_points:
+        - location: message
+          role: system
+      api_key: os.environ/ANTHROPIC_API_KEY
+    model_info:
+      input_cost_per_token: 0.000002
+      cache_read_input_token_cost: 0.0000001000
+      cache_creation_input_token_cost: 0.0000025000
+      output_cost_per_token: 0.00001
+
+  - model_name: opus
+    litellm_params:
+      model: anthropic/claude-opus-5-5
+      cache_control_injection_points:
+        - location: message
+          role: system
+      api_key: os.environ/ANTHROPIC_API_KEY
+    model_info:
+      input_cost_per_token: 0.000004
+      cache_read_input_token_cost: 0.0000002000
+      cache_creation_input_token_cost: 0.0000050000
+      output_cost_per_token: 0.00002
+
+  # ---------- MODELS-2: additional current flagship and cheaper text models ----------
+  # Price checked 2026-10-21: https://developers.openai.com/api/docs/pricing
+  # USD per MTok: input $2, output $10. Standard tier, short context; existing sol alias is unchanged.
+  - model_name: sol-next
+    litellm_params:
+      model: openai/gpt-6.1-sol
+      cache_control_injection_points:
+        - location: message
+          role: system
+      api_key: os.environ/OPENAI_API_KEY
+      input_cost_per_token: 0.0000020000
+      cache_read_input_token_cost: 0.0000001000
+      cache_creation_input_token_cost: 0.0000025000
+      output_cost_per_token: 0.0000100000
+    model_info:
+      input_cost_per_token: 0.0000020000
+      cache_read_input_token_cost: 0.0000001000
+      cache_creation_input_token_cost: 0.0000025000
+      output_cost_per_token: 0.0000100000
+
+  # Price checked 2026-10-21: https://platform.claude.com/docs/en/about-claude/pricing
+  # USD per MTok: input $10, output $50. Public flagship; Mythos requires separate verified access and is not listed.
+  - model_name: fable
+    litellm_params:
+      model: anthropic/claude-fable-5-1
+      cache_control_injection_points:
+        - location: message
+          role: system
+      api_key: os.environ/ANTHROPIC_API_KEY
+      input_cost_per_token: 0.0000100000
+      cache_read_input_token_cost: 0.0000002500
+      cache_creation_input_token_cost: 0.0000125000
+      output_cost_per_token: 0.0000500000
+    model_info:
+      input_cost_per_token: 0.0000100000
+      cache_read_input_token_cost: 0.0000002500
+      cache_creation_input_token_cost: 0.0000125000
+      output_cost_per_token: 0.0000500000
+
+  # Price checked 2026-10-21: https://ai.google.dev/gemini-api/docs/pricing
+  # USD per MTok: input $0.25, output $1.5. Paid standard tier, text/image/video input; audio input is $0.50/MTok.
+  - model_name: flash-lite-31
+    litellm_params:
+      model: gemini/gemini-3.1-flash-lite
+      api_key: os.environ/GEMINI_API_KEY
+      input_cost_per_token: 0.0000002500
+      output_cost_per_token: 0.0000015000
+    model_info:
+      input_cost_per_token: 0.0000002500
+      output_cost_per_token: 0.0000015000
+
+  # Price checked 2026-10-21: https://platform.kimi.ai/
+  # USD per MTok: input $0.95, output $4. Provider price cards; pricing rules: https://platform.kimi.ai/docs/pricing/chat
+  - model_name: kimi-code
+    litellm_params:
+      model: moonshot/kimi-k2.7-code
+      api_key: os.environ/MOONSHOT_API_KEY
+      input_cost_per_token: 0.0000009500
+      output_cost_per_token: 0.0000040000
+    model_info:
+      input_cost_per_token: 0.0000009500
+      output_cost_per_token: 0.0000040000
+
+  # Price checked 2026-10-21: https://platform.kimi.ai/
+  # USD per MTok: input $0.95, output $4. Provider price cards; pricing rules: https://platform.kimi.ai/docs/pricing/chat
+  - model_name: kimi-lite
+    litellm_params:
+      model: moonshot/kimi-k2.6
+      api_key: os.environ/MOONSHOT_API_KEY
+      input_cost_per_token: 0.0000009500
+      output_cost_per_token: 0.0000040000
+    model_info:
+      id: kimi-lite-direct
+      input_cost_per_token: 0.0000009500
+      output_cost_per_token: 0.0000040000
+
+  # Same weights through the existing HF token; direct deployment remains first.
+  - model_name: kimi-lite
+    litellm_params:
+      model: openai/moonshotai/Kimi-K2.6:novita
+      api_base: https://router.huggingface.co/v1
+      api_key: os.environ/HF_INFERENCE_TOKEN
+      input_cost_per_token: 0.0000008000
+      output_cost_per_token: 0.0000034000
+    model_info:
+      id: kimi-lite-hf
+      input_cost_per_token: 0.0000008000
+      output_cost_per_token: 0.0000034000
+      open_weights: true
+      family: moonshot
+      size: small
+      host: novita
+      hf_model_id: moonshotai/Kimi-K2.6
+      licence: Modified MIT
+      licence_url: https://huggingface.co/moonshotai/Kimi-K2.6/blob/main/LICENSE
+
+  # Price checked 2026-10-21: https://docs.x.ai/developers/pricing
+  # USD per MTok: input $2, output $6. Standard short context; at >=200k input tokens all tokens cost $4/$12 per MTok.
+  - model_name: grok-46
+    litellm_params:
+      model: xai/grok-4.6
+      api_key: os.environ/XAI_API_KEY
+      input_cost_per_token: 0.0000020000
+      output_cost_per_token: 0.0000060000
+    model_info:
+      input_cost_per_token: 0.0000020000
+      output_cost_per_token: 0.0000060000
+
+  # Price checked 2026-10-21: https://docs.x.ai/developers/pricing
+  # USD per MTok: input $2, output $6. Standard short context; at >=200k input tokens all tokens cost $4/$12 per MTok.
+  - model_name: grok-45
+    litellm_params:
+      model: xai/grok-4.5
+      api_key: os.environ/XAI_API_KEY
+      input_cost_per_token: 0.0000020000
+      output_cost_per_token: 0.0000060000
+    model_info:
+      input_cost_per_token: 0.0000020000
+      output_cost_per_token: 0.0000060000
+
+  # ---------- Perplexity research presets; founder promotion required ----------
+  # Price checked 2026-10-21: https://docs.perplexity.ai/docs/getting-started/pricing
+  # Token rates: https://docs.perplexity.ai/docs/agent-api/models
+  # Preset config: https://docs.perplexity.ai/docs/agent-api/presets
+  # Current short-context USD/MTok $0.2 input / $1 output (fast uses priority).
+  # Dynamic preset rates can change; receipt uses provider total, never this estimate.
+  # Fast Search $0.001/invocation; fetch_url $0.0005/invocation where used.
+  - model_name: research-fast
+    litellm_params:
+      model: perplexity/preset/fast
+      api_key: os.environ/PERPLEXITY_API_KEY
+      input_cost_per_token: 0.0000002000
+      output_cost_per_token: 0.0000010000
+    model_info:
+      mode: responses
+      research_only: true
+      input_cost_per_token: 0.0000002000
+      output_cost_per_token: 0.0000010000
+      search_fee_per_request: 0.001
+
+  # Price checked 2026-10-21: https://docs.perplexity.ai/docs/getting-started/pricing
+  # Token rates: https://docs.perplexity.ai/docs/agent-api/models
+  # Preset config: https://docs.perplexity.ai/docs/agent-api/presets
+  # Current short-context USD/MTok $0.1 input / $0.5 output (fast uses priority).
+  # Dynamic preset rates can change; receipt uses provider total, never this estimate.
+  # Fast Search $0.001/invocation; fetch_url $0.0005/invocation where used.
+  - model_name: research-low
+    litellm_params:
+      model: perplexity/preset/low
+      api_key: os.environ/PERPLEXITY_API_KEY
+      input_cost_per_token: 0.0000001000
+      output_cost_per_token: 0.0000005000
+    model_info:
+      mode: responses
+      research_only: true
+      input_cost_per_token: 0.0000001000
+      output_cost_per_token: 0.0000005000
+      search_fee_per_request: 0.001
+
+  # Price checked 2026-10-21: https://docs.perplexity.ai/docs/getting-started/pricing
+  # Token rates: https://docs.perplexity.ai/docs/agent-api/models
+  # Preset config: https://docs.perplexity.ai/docs/agent-api/presets
+  # Current short-context USD/MTok $0.1 input / $0.5 output (fast uses priority).
+  # Dynamic preset rates can change; receipt uses provider total, never this estimate.
+  # Fast Search $0.001/invocation; fetch_url $0.0005/invocation where used.
+  - model_name: research-medium
+    litellm_params:
+      model: perplexity/preset/medium
+      api_key: os.environ/PERPLEXITY_API_KEY
+      input_cost_per_token: 0.0000001000
+      output_cost_per_token: 0.0000005000
+    model_info:
+      mode: responses
+      research_only: true
+      input_cost_per_token: 0.0000001000
+      output_cost_per_token: 0.0000005000
+      search_fee_per_request: 0.001
+
+  # Price checked 2026-10-21: https://docs.perplexity.ai/docs/getting-started/pricing
+  # Token rates: https://docs.perplexity.ai/docs/agent-api/models
+  # Preset config: https://docs.perplexity.ai/docs/agent-api/presets
+  # Current short-context USD/MTok $2 input / $10 output (fast uses priority).
+  # Dynamic preset rates can change; receipt uses provider total, never this estimate.
+  # Fast Search $0.001/invocation; fetch_url $0.0005/invocation where used.
+  - model_name: research-high
+    litellm_params:
+      model: perplexity/preset/high
+      api_key: os.environ/PERPLEXITY_API_KEY
+      input_cost_per_token: 0.0000020000
+      output_cost_per_token: 0.0000100000
+    model_info:
+      mode: responses
+      research_only: true
+      input_cost_per_token: 0.0000020000
+      output_cost_per_token: 0.0000100000
+      search_fee_per_request: 0.001
+
+  # ---------- MODELS-3: open-weight models via Hugging Face Inference Providers ----------
+  # One least-privilege token, HF_INFERENCE_TOKEN ("Make calls to Inference Providers" only),
+  # billed to Tervory's Hugging Face account. Not the training HF_TOKEN. Each entry pins the
+  # cheapest host that answered a live call on the build day. Hugging Face host roster prices
+  # are estimates, to be reconciled against the first Hugging Face invoice.
+  # family = the model maker (never the host); TANK_PROVIDER_ALLOW applies by model name.
+  # Route: LiteLLM's OpenAI-compatible client on the Hugging Face router (model id + ':' + host).
+  # LiteLLM v1.106.0's huggingface/ prefix prices every call at $0, which would zero the receipt;
+  # this route reaches the same router with the same token and records the cost.
+  # Bench entries only: no serving chain falls back to them and no policy row names them.
+  # Catalogue: https://huggingface.co/api/models?inference_provider=all&pipeline_tag=text-generation&author=<org>&sort=downloads
+  # Hosts and prices: https://router.huggingface.co/v1/models/<hf id> (USD per MTok), checked 2026-10-21.
+
+  # meta flagship. Host: Novita via Hugging Face. Licence: Llama 4 Community License, https://huggingface.co/meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8/blob/main/LICENSE
+  # Licence conditions: Acceptable use policy https://www.llama.com/llama4/use-policy ; licence from Meta needed above 700M MAU; show "Built with Llama"; a fine-tuned model's name must start with "Llama"; multimodal rights not granted to EU-based companies.
+  # Price checked 2026-10-21: https://router.huggingface.co/v1/models/meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8
+  # USD per MTok: input $0.27, output $0.85 (novita row).
+  - model_name: llama
+    litellm_params:
+      model: openai/meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8:novita
+      api_base: https://router.huggingface.co/v1
+      api_key: os.environ/HF_INFERENCE_TOKEN
+      input_cost_per_token: 0.0000002700
+      output_cost_per_token: 0.0000008500
+    model_info:
+      input_cost_per_token: 0.0000002700
+      output_cost_per_token: 0.0000008500
+      open_weights: true
+      family: meta
+      size: flagship
+      host: novita
+      hf_model_id: meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8
+      licence: Llama 4 Community License
+      licence_url: https://huggingface.co/meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8/blob/main/LICENSE
+
+  # meta small. Host: Novita via Hugging Face. Licence: Llama 3.1 Community License, https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct/blob/main/LICENSE
+  # Licence conditions: Acceptable use policy https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct/blob/main/USE_POLICY.md ; licence from Meta needed above 700M MAU; show "Built with Llama"; a fine-tuned model's name must start with "Llama".
+  # Price checked 2026-10-21: https://router.huggingface.co/v1/models/meta-llama/Llama-3.1-8B-Instruct
+  # USD per MTok: input $0.02, output $0.05 (novita row).
+  - model_name: llama-small
+    litellm_params:
+      model: openai/meta-llama/Llama-3.1-8B-Instruct:novita
+      api_base: https://router.huggingface.co/v1
+      api_key: os.environ/HF_INFERENCE_TOKEN
+      input_cost_per_token: 0.0000000200
+      output_cost_per_token: 0.0000000500
+    model_info:
+      input_cost_per_token: 0.0000000200
+      output_cost_per_token: 0.0000000500
+      open_weights: true
+      family: meta
+      size: small
+      host: novita
+      hf_model_id: meta-llama/Llama-3.1-8B-Instruct
+      licence: Llama 3.1 Community License
+      licence_url: https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct/blob/main/LICENSE
+
+  # alibaba flagship. Host: Novita via Hugging Face. Licence: Qwen3.8-Max License, https://huggingface.co/Qwen/Qwen3.8-2.4T-A95B/blob/main/LICENSE
+  # Licence conditions: Fine-tuning and selling allowed. A Model-as-a-Service business above US$50M revenue in 12 months needs a separate Qwen licence; above 100M MAU or US$20M monthly revenue the model name must be shown.
+  # Price checked 2026-10-21: https://router.huggingface.co/v1/models/Qwen/Qwen3.8-2.4T-A95B
+  # USD per MTok: input $2, output $6 (novita row).
+  - model_name: qwen
+    litellm_params:
+      model: openai/Qwen/Qwen3.8-2.4T-A95B:novita
+      api_base: https://router.huggingface.co/v1
+      api_key: os.environ/HF_INFERENCE_TOKEN
+      input_cost_per_token: 0.0000020000
+      output_cost_per_token: 0.0000060000
+    model_info:
+      input_cost_per_token: 0.0000020000
+      output_cost_per_token: 0.0000060000
+      open_weights: true
+      family: alibaba
+      size: flagship
+      host: novita
+      hf_model_id: Qwen/Qwen3.8-2.4T-A95B
+      licence: Qwen3.8-Max License
+      licence_url: https://huggingface.co/Qwen/Qwen3.8-2.4T-A95B/blob/main/LICENSE
+
+  # alibaba small. Host: OVHcloud via Hugging Face. Licence: Apache 2.0, https://huggingface.co/Qwen/Qwen3.5-9B/blob/main/LICENSE
+  # Licence conditions: None beyond Apache 2.0 notices.
+  # Price checked 2026-10-21: https://router.huggingface.co/v1/models/Qwen/Qwen3.5-9B
+  # USD per MTok: input $0.12, output $0.18 (ovhcloud row).
+  - model_name: qwen-small
+    litellm_params:
+      model: openai/Qwen/Qwen3.5-9B:ovhcloud
+      api_base: https://router.huggingface.co/v1
+      api_key: os.environ/HF_INFERENCE_TOKEN
+      input_cost_per_token: 0.0000001200
+      output_cost_per_token: 0.0000001800
+    model_info:
+      input_cost_per_token: 0.0000001200
+      output_cost_per_token: 0.0000001800
+      open_weights: true
+      family: alibaba
+      size: small
+      host: ovhcloud
+      hf_model_id: Qwen/Qwen3.5-9B
+      licence: Apache 2.0
+      licence_url: https://huggingface.co/Qwen/Qwen3.5-9B/blob/main/LICENSE
+
+  # google flagship. Host: Novita via Hugging Face. Licence: Apache 2.0 (Gemma 4), https://ai.google.dev/gemma/docs/gemma_4_license
+  # Licence conditions: None beyond Apache 2.0 notices.
+  # Price checked 2026-10-21: https://router.huggingface.co/v1/models/google/gemma-4-31B-it
+  # USD per MTok: input $0.14, output $0.4 (novita row).
+  - model_name: gemma
+    litellm_params:
+      model: openai/google/gemma-4-31B-it:novita
+      api_base: https://router.huggingface.co/v1
+      api_key: os.environ/HF_INFERENCE_TOKEN
+      input_cost_per_token: 0.0000001400
+      output_cost_per_token: 0.0000004000
+    model_info:
+      input_cost_per_token: 0.0000001400
+      output_cost_per_token: 0.0000004000
+      open_weights: true
+      family: google
+      size: flagship
+      host: novita
+      hf_model_id: google/gemma-4-31B-it
+      licence: Apache 2.0 (Gemma 4)
+      licence_url: https://ai.google.dev/gemma/docs/gemma_4_license
+
+  # google small. Host: Novita via Hugging Face. Licence: Apache 2.0 (Gemma 4), https://ai.google.dev/gemma/docs/gemma_4_license
+  # Licence conditions: None beyond Apache 2.0 notices.
+  # Price checked 2026-10-21: https://router.huggingface.co/v1/models/google/gemma-4-26B-A4B-it
+  # USD per MTok: input $0.13, output $0.4 (novita row).
+  - model_name: gemma-small
+    litellm_params:
+      model: openai/google/gemma-4-26B-A4B-it:novita
+      api_base: https://router.huggingface.co/v1
+      api_key: os.environ/HF_INFERENCE_TOKEN
+      input_cost_per_token: 0.0000001300
+      output_cost_per_token: 0.0000004000
+    model_info:
+      input_cost_per_token: 0.0000001300
+      output_cost_per_token: 0.0000004000
+      open_weights: true
+      family: google
+      size: small
+      host: novita
+      hf_model_id: google/gemma-4-26B-A4B-it
+      licence: Apache 2.0 (Gemma 4)
+      licence_url: https://ai.google.dev/gemma/docs/gemma_4_license
+
+  # openai flagship. Host: Novita via Hugging Face. Licence: Apache 2.0, https://huggingface.co/openai/gpt-oss-120b/blob/main/LICENSE
+  # Licence conditions: Apache 2.0 plus OpenAI's gpt-oss usage policy https://huggingface.co/openai/gpt-oss-120b/blob/main/USAGE_POLICY .
+  # Price checked 2026-10-21: https://router.huggingface.co/v1/models/openai/gpt-oss-120b
+  # USD per MTok: input $0.05, output $0.25 (novita row).
+  - model_name: gpt-oss
+    litellm_params:
+      model: openai/openai/gpt-oss-120b:novita
+      api_base: https://router.huggingface.co/v1
+      api_key: os.environ/HF_INFERENCE_TOKEN
+      input_cost_per_token: 0.0000000500
+      output_cost_per_token: 0.0000002500
+    model_info:
+      input_cost_per_token: 0.0000000500
+      output_cost_per_token: 0.0000002500
+      open_weights: true
+      family: openai
+      size: flagship
+      host: novita
+      hf_model_id: openai/gpt-oss-120b
+      licence: Apache 2.0
+      licence_url: https://huggingface.co/openai/gpt-oss-120b/blob/main/LICENSE
+
+  # openai small. Host: OVHcloud via Hugging Face. Licence: Apache 2.0, https://huggingface.co/openai/gpt-oss-20b/blob/main/LICENSE
+  # Licence conditions: Apache 2.0 plus OpenAI's gpt-oss usage policy https://huggingface.co/openai/gpt-oss-20b/blob/main/USAGE_POLICY .
+  # Price checked 2026-10-21: https://router.huggingface.co/v1/models/openai/gpt-oss-20b
+  # USD per MTok: input $0.05, output $0.18 (ovhcloud row).
+  - model_name: gpt-oss-small
+    litellm_params:
+      model: openai/openai/gpt-oss-20b:ovhcloud
+      api_base: https://router.huggingface.co/v1
+      api_key: os.environ/HF_INFERENCE_TOKEN
+      input_cost_per_token: 0.0000000500
+      output_cost_per_token: 0.0000001800
+    model_info:
+      input_cost_per_token: 0.0000000500
+      output_cost_per_token: 0.0000001800
+      open_weights: true
+      family: openai
+      size: small
+      host: ovhcloud
+      hf_model_id: openai/gpt-oss-20b
+      licence: Apache 2.0
+      licence_url: https://huggingface.co/openai/gpt-oss-20b/blob/main/LICENSE
+
+  # deepseek flagship. Host: Novita via Hugging Face. Licence: MIT, https://huggingface.co/deepseek-ai/DeepSeek-V4-Pro-0813/blob/main/LICENSE
+  # Licence conditions: None beyond MIT notice. Same weights as the deepseek-pro API entry.
+  # Price checked 2026-10-21: https://router.huggingface.co/v1/models/deepseek-ai/DeepSeek-V4-Pro-0813
+  # USD per MTok: input $1.32, output $3.96 (novita row).
+  - model_name: deepseek-open
+    litellm_params:
+      model: openai/deepseek-ai/DeepSeek-V4-Pro-0813:novita
+      api_base: https://router.huggingface.co/v1
+      api_key: os.environ/HF_INFERENCE_TOKEN
+      input_cost_per_token: 0.0000013200
+      output_cost_per_token: 0.0000039600
+    model_info:
+      input_cost_per_token: 0.0000013200
+      output_cost_per_token: 0.0000039600
+      open_weights: true
+      family: deepseek
+      size: flagship
+      host: novita
+      hf_model_id: deepseek-ai/DeepSeek-V4-Pro-0813
+      licence: MIT
+      licence_url: https://huggingface.co/deepseek-ai/DeepSeek-V4-Pro-0813/blob/main/LICENSE
+
+  # deepseek small. Host: Novita via Hugging Face. Licence: MIT, https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash-1017/blob/main/LICENSE
+  # Licence conditions: None beyond MIT notice. Same weights as the deepseek-flash API entry.
+  # Price checked 2026-10-21: https://router.huggingface.co/v1/models/deepseek-ai/DeepSeek-V4.1-Flash-1017
+  # USD per MTok: input $0.3, output $1.2 (novita row).
+  - model_name: deepseek-open-small
+    litellm_params:
+      model: openai/deepseek-ai/DeepSeek-V4.1-Flash-1017:novita
+      api_base: https://router.huggingface.co/v1
+      api_key: os.environ/HF_INFERENCE_TOKEN
+      input_cost_per_token: 0.0000003000
+      output_cost_per_token: 0.0000012000
+    model_info:
+      input_cost_per_token: 0.0000003000
+      output_cost_per_token: 0.0000012000
+      open_weights: true
+      family: deepseek
+      size: small
+      host: novita
+      hf_model_id: deepseek-ai/DeepSeek-V4.1-Flash-1017
+      licence: MIT
+      licence_url: https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash-1017/blob/main/LICENSE
+
+  # moonshot flagship. Host: Baseten via Hugging Face. Licence: Kimi K3 License, https://huggingface.co/moonshotai/Kimi-K3/blob/main/LICENSE
+  # Licence conditions: Fine-tuning and selling allowed. A Model-as-a-Service business above US$20M revenue in 12 months needs a separate Moonshot agreement (not when served by certified inference partners); above 100M MAU or US$20M monthly revenue "Kimi K3" must be shown.
+  # Price checked 2026-10-21: https://router.huggingface.co/v1/models/moonshotai/Kimi-K3
+  # USD per MTok: input $3, output $15 (baseten row).
+  - model_name: kimi-open
+    litellm_params:
+      model: openai/moonshotai/Kimi-K3:baseten
+      api_base: https://router.huggingface.co/v1
+      api_key: os.environ/HF_INFERENCE_TOKEN
+      input_cost_per_token: 0.0000030000
+      output_cost_per_token: 0.0000150000
+    model_info:
+      input_cost_per_token: 0.0000030000
+      output_cost_per_token: 0.0000150000
+      open_weights: true
+      family: moonshot
+      size: flagship
+      host: baseten
+      hf_model_id: moonshotai/Kimi-K3
+      licence: Kimi K3 License
+      licence_url: https://huggingface.co/moonshotai/Kimi-K3/blob/main/LICENSE
+
+  # moonshot small. Host: Novita via Hugging Face. Licence: Modified MIT, https://huggingface.co/moonshotai/Kimi-K2.6/blob/main/LICENSE
+  # Licence conditions: Above 100M MAU or US$20M monthly revenue "Kimi K2.6" must be shown. No smaller Kimi is served; K2.6 is the cheaper previous generation.
+  # Price checked 2026-10-21: https://router.huggingface.co/v1/models/moonshotai/Kimi-K2.6
+  # USD per MTok: input $0.8, output $3.4 (novita row).
+  - model_name: kimi-open-small
+    litellm_params:
+      model: openai/moonshotai/Kimi-K2.6:novita
+      api_base: https://router.huggingface.co/v1
+      api_key: os.environ/HF_INFERENCE_TOKEN
+      input_cost_per_token: 0.0000008000
+      output_cost_per_token: 0.0000034000
+    model_info:
+      input_cost_per_token: 0.0000008000
+      output_cost_per_token: 0.0000034000
+      open_weights: true
+      family: moonshot
+      size: small
+      host: novita
+      hf_model_id: moonshotai/Kimi-K2.6
+      licence: Modified MIT
+      licence_url: https://huggingface.co/moonshotai/Kimi-K2.6/blob/main/LICENSE
+
+  # zhipu flagship. Host: Novita via Hugging Face. Licence: GLM-5.3 License, https://huggingface.co/zai-org/GLM-5.3/blob/main/LICENSE
+  # Licence conditions: Fine-tuning and selling allowed. A Model-as-a-Service business above US$10B revenue in 12 months must pass Z.AI's security review.
+  # Price checked 2026-10-21: https://router.huggingface.co/v1/models/zai-org/GLM-5.3
+  # USD per MTok: input $1.4, output $4.4 (novita row).
+  - model_name: glm
+    litellm_params:
+      model: openai/zai-org/GLM-5.3:novita
+      api_base: https://router.huggingface.co/v1
+      api_key: os.environ/HF_INFERENCE_TOKEN
+      input_cost_per_token: 0.0000014000
+      output_cost_per_token: 0.0000044000
+    model_info:
+      input_cost_per_token: 0.0000014000
+      output_cost_per_token: 0.0000044000
+      open_weights: true
+      family: zhipu
+      size: flagship
+      host: novita
+      hf_model_id: zai-org/GLM-5.3
+      licence: GLM-5.3 License
+      licence_url: https://huggingface.co/zai-org/GLM-5.3/blob/main/LICENSE
+
+  # zhipu small. Host: Novita via Hugging Face. Licence: MIT, https://huggingface.co/zai-org/GLM-5.3-Flash/blob/main/LICENSE
+  # Licence conditions: None beyond MIT notice.
+  # Price checked 2026-10-21: https://router.huggingface.co/v1/models/zai-org/GLM-5.3-Flash
+  # USD per MTok: input $0.15, output $0.5 (novita row).
+  - model_name: glm-small
+    litellm_params:
+      model: openai/zai-org/GLM-5.3-Flash:novita
+      api_base: https://router.huggingface.co/v1
+      api_key: os.environ/HF_INFERENCE_TOKEN
+      input_cost_per_token: 0.0000001500
+      output_cost_per_token: 0.0000005000
+    model_info:
+      input_cost_per_token: 0.0000001500
+      output_cost_per_token: 0.0000005000
+      open_weights: true
+      family: zhipu
+      size: small
+      host: novita
+      hf_model_id: zai-org/GLM-5.3-Flash
+      licence: MIT
+      licence_url: https://huggingface.co/zai-org/GLM-5.3-Flash/blob/main/LICENSE
+
+  # ---------- BUILD ONLY: ChatGPT subscription (OAuth device-code sign-in, no API key) ----------
+  # Added 31 Oct 2026 on the founder's instruction: "this is a part of the build, not selling to
+  # customers". For Tervory's own evals, the Zenas made-up-case self-test and test samples.
+  # Tank refuses every build-* model for any tenant except the platform tenant and
+  # TANK_BUILD_TENANTS, keeps it off the roster (no picker, override, bench, price search or
+  # graduation), never caches its answers and never lets it be the default policy row.
+  # No fallbacks to or from it. Sign-in and revoke: docs/ops/CHATGPT-BUILD-MODEL.md.
+  # The token lives in CHATGPT_TOKEN_DIR on a writable volume (see the compose file).
+  # $0 per token: the subscription is flat-rate, so spend shows as zero in the ledger.
+  - model_name: build-chatgpt
+    litellm_params:
+      model: chatgpt/gpt-6.1-sol
+    model_info:
+      input_cost_per_token: 0
+      output_cost_per_token: 0
+      build_only: true
+
+litellm_settings:
+  # Return the gateway's actual priced usage at the end of Command streams.
+  include_cost_in_streaming_usage: true
+  drop_params: true
+  set_verbose: false
+  num_retries: 0
+  # Cheapest AVAILABLE model, automatically (founder design): each chain runs cheapest first.
+  # A provider with no credit, no key or an outage fails fast and is cooled down, so the next
+  # cheapest funded provider does the job. Chains are sorted by price (input + output per token);
+  # tests/test_model_roster.py keeps them sorted. Every model here is approved for use; anything
+  # outside this roster (search APIs, data vendors) is a paid route that needs approval.
+  fallbacks:
+    - luna: ["haiku", "flash-lite", "grok", "flash"]
+    - haiku: ["luna", "flash-lite", "grok", "flash"]
+    - flash-lite: ["grok", "flash"]
+    - grok: ["flash"]
+    - grok-build: ["grok-top", "sol", "argon", "sonnet"]
+    - grok-top: ["sol", "argon", "sonnet"]
+    - sol: ["argon", "sonnet"]
+    - argon: ["sonnet"]
+    - opus: ["astra"]
+
+    # New bench entries have their own fallbacks; existing chains never enter the bench.
+    - deepseek-flash: ["luna", "haiku", "flash-lite", "grok", "flash"]
+    - deepseek-pro: ["luna", "haiku", "flash-lite", "grok", "flash", "grok-top", "sol"]
+    - kimi: ["grok-top", "sol", "argon", "sonnet"]
+    - sol-next: ["grok-top", "sol", "argon", "sonnet"]
+    - fable: ["opus", "astra"]
+    - flash-lite-31: ["luna", "haiku", "flash-lite", "grok", "flash"]
+    - kimi-code: ["grok-build", "grok-top", "sol", "sonnet"]
+    - kimi-lite: ["luna", "haiku", "flash-lite", "grok", "flash"]
+    - grok-46: ["grok-top", "sol", "argon", "sonnet"]
+    - grok-45: ["grok-top", "sol", "argon", "sonnet"]
+
+    # Research falls back only within Perplexity presets. Tank disables these on
+    # /v1/research so a fallback cannot bypass the promoted preset or tenant allow-list.
+    - research-fast: ["research-low", "research-medium", "research-high"]
+    - research-low: ["research-medium", "research-fast", "research-high"]
+    - research-medium: ["research-low", "research-fast", "research-high"]
+    - research-high: ["research-low", "research-medium", "research-fast"]
+
+    # MODELS-3 open-weight bench entries: fall back to existing serving models only, cheapest first.
+    - llama: ["luna", "haiku", "flash-lite", "grok", "flash"]
+    - llama-small: ["luna", "haiku", "flash-lite", "grok", "flash"]
+    - qwen: ["grok-top", "sol", "argon", "sonnet"]
+    - qwen-small: ["luna", "haiku", "flash-lite", "grok", "flash"]
+    - gemma: ["luna", "haiku", "flash-lite", "grok", "flash"]
+    - gemma-small: ["luna", "haiku", "flash-lite", "grok", "flash"]
+    - gpt-oss: ["luna", "haiku", "flash-lite", "grok", "flash"]
+    - gpt-oss-small: ["luna", "haiku", "flash-lite", "grok", "flash"]
+    - deepseek-open: ["grok-top", "sol", "argon", "sonnet"]
+    - deepseek-open-small: ["luna", "haiku", "flash-lite", "grok", "flash"]
+    - kimi-open: ["grok-top", "sol", "argon", "sonnet"]
+    - kimi-open-small: ["grok-top", "sol", "argon", "sonnet"]
+    - glm: ["grok-top", "sol", "argon", "sonnet"]
+    - glm-small: ["luna", "haiku", "flash-lite", "grok", "flash"]
+
+router_settings:
+  routing_strategy: cost-based-routing
+  allowed_fails: 1          # one refusal (no credit / bad key) and that model is skipped...
+  cooldown_time: 300        # ...for five minutes, so empty providers do not slow every call
+
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY

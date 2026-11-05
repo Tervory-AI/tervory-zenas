@@ -1,0 +1,17 @@
+# syntax=docker/dockerfile:1
+FROM nvidia/cuda:12.5.1-runtime-ubuntu24.04@sha256:447c60da64e4e18860b640289274ec0103816aa56d410041b162d48e85fb1058
+WORKDIR /opt/forge
+COPY gpu /opt/forge/gpu
+ENV PATH="/opt/forge/venv/bin:$PATH"
+RUN apt-get update && apt-get install -y --no-install-recommends python3 python3-venv ca-certificates \
+      libgl1 libglib2.0-0t64 libx11-6 libxrender1 libxi6 libsm6 libice6 libgomp1 libfontconfig1 libgssapi-krb5-2 \
+    && python3 -m venv /opt/forge/venv \
+    && python -m pip install --no-cache-dir --require-hashes -r gpu/meshroom-requirements.lock \
+    && python gpu/install_sources.py gpu/meshroom.lock.json \
+    && rm -rf /var/lib/apt/lists/* \
+    && usermod --login forge --home /home/forge --move-home ubuntu \
+    && groupmod --new-name forge ubuntu \
+    && chmod -R a+rX /opt/forge /opt/meshroom
+USER forge
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 QT_QPA_PLATFORM=offscreen
+CMD ["python", "/opt/forge/gpu/entrypoint.py", "photogrammetry"]

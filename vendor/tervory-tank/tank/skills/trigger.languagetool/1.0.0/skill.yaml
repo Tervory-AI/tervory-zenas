@@ -1,0 +1,17 @@
+id: trigger.languagetool
+version: 1.0.0
+agent: trigger
+rung: 3
+description: Pinned internal LanguageTool grammar checks; no model or public service.
+input:
+  type: object
+  required: [text]
+  properties:
+    text: {type: string, minLength: 1, maxLength: 20000}
+output:
+  type: object
+  properties:
+    issues: {type: array}
+    rules: {type: array}
+    model_calls: {type: integer}
+eval_threshold: 1.0

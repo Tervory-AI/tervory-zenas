@@ -1,0 +1,25 @@
+id: tiger.price_extract
+version: 1.1.1
+agent: tiger
+rung: 3
+description: >
+  Read a page and return prices it can point to. JSON-LD first, then microdata,
+  then Open Graph product meta, then a price element (sale mark, item price,
+  or a price shown on the product). A currency amount next to the title is
+  the last resort. A price on another product is not this one. Two amounts on
+  the product itself, with no sale price, is not a price. A sale price beside
+  a higher price for the same buyer is not a price. A member price is the
+  visible member amount. Instruction text is not a price. It does not invent
+  a price.
+input:
+  type: object
+  properties:
+    html: {type: string}
+    url: {type: string}
+output:
+  type: object
+  properties:
+    items: {type: array}
+    method: {type: string}
+    confidence: {type: number}
+eval_threshold: 1.0

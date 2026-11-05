@@ -1,0 +1,12 @@
+fastapi==0.162.0
+# Python 3.12 image. Starlette 1.10.0 is the current release.
+starlette==1.10.0
+uvicorn[standard]==0.54.0
+# Same pin as Tank: 2.10.6 matches frozen skill JSON schemas; 2.11+ does not.
+pydantic==2.10.6
+qdrant-client==1.20.0
+# Local embeddings. No provider key. The model is downloaded when the image is built.
+fastembed==0.9.1
+
+# Authoritative memory rows; same async driver as the agent chassis.
+asyncpg==0.30.0

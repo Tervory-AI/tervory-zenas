@@ -1,0 +1,10 @@
+{
+  "image": "meyay/languagetool:6.8-14@sha256:80de71abb2d797511240c3b47e0b4d1ed855ada49c92c8d2ee152f9aa1725aec",
+  "version": "6.8",
+  "buildDate": "1980-02-01 00:00:00 +0000",
+  "config_sha256": "68cccc1515e9059d464cc50d17b7d7b981dd0ac66b3680e9a743a9c454e706f4",
+  "memory_limit": "2GiB",
+  "java_heap": "1536MiB",
+  "licence": "LGPL-2.1",
+  "source": "https://github.com/languagetool-org/languagetool"
+}

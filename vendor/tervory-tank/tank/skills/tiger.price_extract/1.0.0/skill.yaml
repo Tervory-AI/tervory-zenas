@@ -1,0 +1,20 @@
+id: tiger.price_extract
+version: 1.0.0
+agent: tiger
+rung: 3
+description: >
+  Read a page and return prices it can point to. JSON-LD first, then microdata,
+  then Open Graph product meta, then a currency amount next to the title.
+  It does not invent a price.
+input:
+  type: object
+  properties:
+    html: {type: string}
+    url: {type: string}
+output:
+  type: object
+  properties:
+    items: {type: array}
+    method: {type: string}
+    confidence: {type: number}
+eval_threshold: 1.0

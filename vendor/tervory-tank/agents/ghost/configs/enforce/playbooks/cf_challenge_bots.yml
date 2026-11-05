@@ -1,0 +1,38 @@
+# Autumbra Enforce — Challenge bots (template)
+# Product: Autumbra Enforce (Watch/Enforce naming only).
+# Stronger-than-stock: autumbra_enforce_armed defaults false; check_mode / dry-run only.
+# Never use ansible shell/command/raw/script modules in this path.
+# Live Cloudflare edge raises stay on Autumbra Watch Shields Up (founder tap).
+# Vault pin: ansible/ansible @ 4761c59c9639ff70d4db2b91b7361e121d482301
+---
+- name: Autumbra Enforce dry plan — cf_challenge_bots
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    autumbra_enforce_armed: false
+    autumbra_shield_kind: challenge_bots
+    autumbra_playbook_id: cf_challenge_bots
+  tasks:
+    - name: Refuse unless Autumbra Enforce is explicitly armed
+      ansible.builtin.assert:
+        that:
+          - autumbra_enforce_armed | bool
+        fail_msg: >-
+          Autumbra Enforce is unarmed. Dry-run / plan only.
+          Founder Shield tap remains the live edge path.
+        success_msg: Autumbra Enforce arm token present (still no auto-apply here)
+      check_mode: false
+      when: false  # packaged stub never reaches assert — plan_from_threat is the gate
+
+    - name: Emit dry-run receipt (no Cloudflare API call from this playbook)
+      ansible.builtin.debug:
+        msg:
+          product: Autumbra Enforce
+          playbook: "{{ autumbra_playbook_id }}"
+          kind: "{{ autumbra_shield_kind }}"
+          armed: "{{ autumbra_enforce_armed }}"
+          applied: false
+          note: >-
+            Template only. No community.cloudflare / URI call in this stub.
+            Wire live CF through Autumbra Watch Shields Up propose→tap→undo.

@@ -1,0 +1,18 @@
+id: rig.explain
+version: 1.0.1
+agent: rig
+rung: 1
+task_type: rig.explain
+description: >
+  Writes the why lines for a setup from the fit rows it is given. It cannot add parts.
+input:
+  type: object
+  properties:
+    material: {type: array}
+    fallback_why: {type: array}
+    model_text: {type: string}
+output:
+  type: object
+  properties:
+    why: {type: array}
+eval_threshold: 1.0

@@ -1,0 +1,152 @@
+{
+  "label": "local, fixture page",
+  "question": "What are the latest population figures for California?",
+  "widths": [
+    1440,
+    375
+  ],
+  "screenshots": [
+    "no-match-1440.png",
+    "feeds-1440.png",
+    "no-data-1440.png",
+    "missing-source-1440.png",
+    "question-1440.png",
+    "brief-1440.png",
+    "source-1440.png",
+    "listing-brief-1440.png",
+    "listing-source-1440.png",
+    "no-match-375.png",
+    "feeds-375.png",
+    "no-data-375.png",
+    "missing-source-375.png",
+    "question-375.png",
+    "brief-375.png",
+    "source-375.png",
+    "listing-brief-375.png",
+    "listing-source-375.png"
+  ],
+  "citations": [
+    {
+      "statement": "Population, California: 110 people (2023).",
+      "href": "/market-lab/sources/846460df-32bf-4b85-9c5f-1b015dce7806?row=1#point-1",
+      "storedRow": [
+        "Population, California",
+        "California",
+        "2023",
+        "110",
+        "people"
+      ]
+    },
+    {
+      "statement": "Population, Los Angeles County, California: 50 people (2023).",
+      "href": "/market-lab/sources/846460df-32bf-4b85-9c5f-1b015dce7806?row=4#point-4",
+      "storedRow": [
+        "Population, Los Angeles County, California",
+        "Los Angeles County, California",
+        "2023",
+        "50",
+        "people"
+      ]
+    },
+    {
+      "statement": "Active listings in Alameda County, California: 1 listing (Feb 2024).",
+      "href": "/market-lab/sources/2ab30a00-9a0d-461f-86e1-e06b3fad85a4?row=5#point-5",
+      "storedRow": [
+        "Active listings in Alameda County, California",
+        "Alameda County, California",
+        "Feb 2024",
+        "1",
+        "listing"
+      ]
+    }
+  ],
+  "sourcePagesRead": [
+    {
+      "href": "/market-lab/sources/f5a684ee-2a0a-4cc6-bb22-b3b69a429279",
+      "title": "Federal notices about firearms and hazardous-materials shipping",
+      "publisherHref": "https://www.federalregister.gov/"
+    },
+    {
+      "href": "/market-lab/sources/714ecae4-7a26-4515-b57d-169ac742ae80",
+      "title": "U.S. diesel prices",
+      "publisherHref": "https://www.eia.gov/petroleum/gasdiesel/"
+    },
+    {
+      "href": "/market-lab/sources/2ab30a00-9a0d-461f-86e1-e06b3fad85a4",
+      "title": "Monthly licence listings, counts by place and type",
+      "publisherHref": "https://www.atf.gov/firearms/listing-federal-firearms-licensees"
+    },
+    {
+      "href": "/market-lab/sources/a19a4bb8-2046-45f4-b83b-653a283c4606",
+      "title": "Monthly background-check counts by state and type",
+      "publisherHref": "https://www.fbi.gov/how-we-can-help-you/more-fbi-services-and-information/nics"
+    },
+    {
+      "href": "/market-lab/sources/846460df-32bf-4b85-9c5f-1b015dce7806",
+      "title": "Census population by state and county",
+      "publisherHref": "https://www.census.gov/programs-surveys/acs/data.html"
+    },
+    {
+      "href": "/market-lab/sources/ad614c49-0e4b-4b65-aef7-c3929147db93",
+      "title": "State bill status changes",
+      "publisherHref": "https://legiscan.com/"
+    },
+    {
+      "href": "/market-lab/sources/b67a8e13-e2cb-4174-8530-ac482a6814b9",
+      "title": "Federal rules for shipping hazardous materials",
+      "publisherHref": "https://www.ecfr.gov/current/title-49"
+    },
+    {
+      "href": "/market-lab/sources/4de74c5a-a69b-4c40-b629-be2931e5d888",
+      "title": "Census trade: imports and exports by product, country and port",
+      "publisherHref": "https://www.census.gov/foreign-trade/data/index.html"
+    },
+    {
+      "href": "/market-lab/sources/98401dc7-d221-4b8f-bfd9-d707cbf0a09f",
+      "title": "World Bank monthly commodity prices",
+      "publisherHref": "https://www.worldbank.org/en/research/commodity-markets"
+    },
+    {
+      "href": "/market-lab/sources/952a3905-9941-412e-bb77-5fd2b83cc325",
+      "title": "Severe-weather alerts",
+      "publisherHref": "https://www.weather.gov/alerts"
+    },
+    {
+      "href": "/market-lab/sources/f4db1346-a835-4685-86ea-914b88ea854f",
+      "title": "Monthly temperature and precipitation by state",
+      "publisherHref": "https://www.ncei.noaa.gov/access/monitoring/climate-at-a-glance/statewide/time-series"
+    },
+    {
+      "href": "/market-lab/sources/e98cf048-68b4-414d-be17-b0a4b649d601",
+      "title": "Port of Los Angeles container volume",
+      "publisherHref": "https://www.portoflosangeles.org/business/statistics/container-statistics"
+    },
+    {
+      "href": "/market-lab/sources/757ca3b0-b4a5-4273-bd82-ae19fd93793e",
+      "title": "Freight volumes compared with 2000",
+      "publisherHref": "https://www.bts.gov/freight-transportation-services-index-tsi"
+    },
+    {
+      "href": "/market-lab/sources/97ff4928-b3ed-44ce-989a-62bf221b5f04",
+      "title": "Paid hunting licence holders by state",
+      "publisherHref": "https://www.fws.gov/program/wildlife-and-sport-fish-restoration/apportionments-and-licenses-data"
+    }
+  ],
+  "unrelatedQuestions": [
+    "What is the weather on Mars?",
+    "How many penguins are in California?",
+    "What is the copper price in Atlantis?",
+    "Which football team is on top?",
+    "How do I bake a cake?",
+    "What is on at the?",
+    "What was California population in 1800?",
+    "Who won the shipping award?",
+    "What is on in the US?",
+    "What are the dollars?"
+  ],
+  "missingSourceChecked": true,
+  "listingQuestion": "Active listings in Alameda",
+  "browserErrors": [],
+  "externalRequests": [],
+  "result": "passed"
+}

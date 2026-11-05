@@ -1,0 +1,74 @@
+[
+  {
+    "repository": "https://github.com/microsoft/TRELLIS.2",
+    "revision": "75fbf0183001ed9876c8dbb35de6b68552ee08bd",
+    "url": "https://codeload.github.com/microsoft/TRELLIS.2/tar.gz/75fbf0183001ed9876c8dbb35de6b68552ee08bd",
+    "sha256": "65729b2e0d6a96b429379e4cf04c67be38880fcca57e4673e94f300854e75389",
+    "destination": "trellis2",
+    "sha256_provenance": "Computed over official HTTPS archive; commit identifier published by upstream."
+  },
+  {
+    "repository": "https://gitlab.com/libeigen/eigen",
+    "revision": "21e4582d1739107337a03460c81412981130373e",
+    "url": "https://gitlab.com/libeigen/eigen/-/archive/21e4582d1739107337a03460c81412981130373e/eigen-21e4582d1739107337a03460c81412981130373e.tar.gz",
+    "sha256": "399bbf2c2239b286f21edfebfe1430a689c0995acd32e8017701346f6d35be7a",
+    "destination": "trellis2/o-voxel/third_party/eigen",
+    "sha256_provenance": "Computed over official HTTPS archive; commit identifier published by upstream."
+  },
+  {
+    "repository": "https://github.com/NVlabs/nvdiffrast",
+    "revision": "253ac4fcea7de5f396371124af597e6cc957bfae",
+    "url": "https://codeload.github.com/NVlabs/nvdiffrast/tar.gz/253ac4fcea7de5f396371124af597e6cc957bfae",
+    "sha256": "351a15c952448fdc24c069eeedb2f7836071ff87ab30792265cd0f43cc5fb0f8",
+    "destination": "nvdiffrast",
+    "sha256_provenance": "Computed over official HTTPS archive; commit identifier published by upstream."
+  },
+  {
+    "repository": "https://github.com/JeffreyXiang/nvdiffrec",
+    "revision": "b296927cc7fd01c2ac1087c8065c4d7248f72da4",
+    "url": "https://codeload.github.com/JeffreyXiang/nvdiffrec/tar.gz/b296927cc7fd01c2ac1087c8065c4d7248f72da4",
+    "sha256": "4b024c8a2d13bfd2df326c5ce70eff94996c0c692ecca4ab74ce30e35e335448",
+    "destination": "nvdiffrec",
+    "sha256_provenance": "Computed over official HTTPS archive; commit identifier published by upstream."
+  },
+  {
+    "repository": "https://github.com/JeffreyXiang/CuMesh",
+    "revision": "12289e1062f0603f2f0d0771b02e1395d247f26f",
+    "url": "https://codeload.github.com/JeffreyXiang/CuMesh/tar.gz/12289e1062f0603f2f0d0771b02e1395d247f26f",
+    "sha256": "2a61b3fca7cbc584af2daa7e8ac74a863525dfe3a538879bf73a60c153b057d5",
+    "destination": "cumesh",
+    "sha256_provenance": "Computed over official HTTPS archive; commit identifier published by upstream."
+  },
+  {
+    "repository": "https://github.com/JeffreyXiang/cubvh",
+    "revision": "ce92267a24ef6ad7d2c8ccbc2ae2c021a6597e70",
+    "url": "https://codeload.github.com/JeffreyXiang/cubvh/tar.gz/ce92267a24ef6ad7d2c8ccbc2ae2c021a6597e70",
+    "sha256": "e5414efdc0a25882478b6e5db253e8ec50d81f06133e1e1eab5295dca8405be1",
+    "destination": "cumesh/third_party/cubvh",
+    "sha256_provenance": "Computed over official HTTPS archive; commit identifier published by upstream."
+  },
+  {
+    "repository": "https://gitlab.com/libeigen/eigen",
+    "revision": "e63d9f6ccb7f6f29f31241b87c542f3f0ab3112b",
+    "url": "https://gitlab.com/libeigen/eigen/-/archive/e63d9f6ccb7f6f29f31241b87c542f3f0ab3112b/eigen-e63d9f6ccb7f6f29f31241b87c542f3f0ab3112b.tar.gz",
+    "sha256": "4474797c3b711dc23d010c25f6fb448715920ddf2fb6b3d8fff89f2cf4ab4911",
+    "destination": "cumesh/third_party/cubvh/third_party/eigen",
+    "sha256_provenance": "Computed over official HTTPS archive; commit identifier published by upstream."
+  },
+  {
+    "repository": "https://github.com/JeffreyXiang/FlexGEMM",
+    "revision": "6dd94a859c26ee8246888502eada3dd8ad85532e",
+    "url": "https://codeload.github.com/JeffreyXiang/FlexGEMM/tar.gz/6dd94a859c26ee8246888502eada3dd8ad85532e",
+    "sha256": "44f979f4b2686e425a22f022bc8cc438ebe8a0dec48f5585246aeaf73430a5b3",
+    "destination": "flexgemm",
+    "sha256_provenance": "Computed over official HTTPS archive; commit identifier published by upstream."
+  },
+  {
+    "repository": "https://github.com/EasternJournalist/utils3d",
+    "revision": "9a4eb15e4021b67b12c460c7057d642626897ec8",
+    "url": "https://codeload.github.com/EasternJournalist/utils3d/tar.gz/9a4eb15e4021b67b12c460c7057d642626897ec8",
+    "sha256": "15a6f943e5b8b5e29988f91db028f3ee0dc7f0b3ae7817f9ce39f73cd7149cc7",
+    "destination": "utils3d",
+    "sha256_provenance": "Computed over official HTTPS archive; commit identifier published by upstream."
+  }
+]

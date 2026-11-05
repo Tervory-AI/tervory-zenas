@@ -1,0 +1,186 @@
+.onboard {
+  --onb-fg: #001840;
+  --onb-red: #E80008;
+  --onb-line: #B8BFD0;
+  --onb-muted: #5B6478;
+  --onb-tint: #F4F6FB;
+  --onb-card: #ffffff;
+  color-scheme: light;
+  color: var(--onb-fg);
+  background: var(--onb-tint);
+  font-family: var(--onb-body), Inter, sans-serif;
+  margin: -24px -16px -120px;
+  padding: 28px 16px 72px;
+  min-height: calc(100vh - 56px);
+}
+
+.onboard h1,
+.onboard h2 {
+  font-family: var(--onb-heading), "Jost", sans-serif;
+  font-weight: 300;
+  color: var(--onb-fg);
+  letter-spacing: 0;
+}
+
+.onboard h1 { font-size: 32px; line-height: 1.15; margin: 12px 0 8px; }
+.onboard h2 { font-size: 22px; margin: 22px 0 8px; }
+.onboard p { margin: 0 0 12px; }
+.onboard .lede { color: var(--onb-muted); max-width: 62ch; }
+
+.onboard .logo { display: block; height: 28px; width: auto; }
+
+.onboard .steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  list-style: none;
+  margin: 0 0 22px;
+  padding: 0;
+  font-size: 13px;
+  color: var(--onb-muted);
+}
+.onboard .steps li { padding-bottom: 4px; border-bottom: 2px solid transparent; }
+.onboard .steps .here { color: var(--onb-fg); border-bottom-color: var(--onb-red); }
+.onboard .steps .done { color: var(--onb-fg); }
+
+.onboard .panel {
+  background: var(--onb-card);
+  border: 1px solid var(--onb-line);
+  border-radius: 12px;
+  padding: 18px 16px;
+}
+
+.onboard button,
+.onboard a.primary {
+  font-family: inherit;
+  font-size: 15px;
+  border-radius: 10px;
+  padding: 10px 16px;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-block;
+  line-height: 1.3;
+}
+.onboard button.primary,
+.onboard a.primary {
+  background: var(--onb-red);
+  border: 1px solid var(--onb-red);
+  color: #fff;
+}
+.onboard button.secondary {
+  background: transparent;
+  border: 1px solid var(--onb-line);
+  color: var(--onb-fg);
+}
+.onboard button:disabled { opacity: 0.45; cursor: default; }
+.onboard button:focus-visible,
+.onboard a.primary:focus-visible,
+.onboard select:focus-visible,
+.onboard input:focus-visible {
+  outline: 2px solid var(--onb-fg);
+  outline-offset: 2px;
+}
+
+.onboard .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+.onboard .org-name { font-size: 18px; margin: 0 0 8px; }
+
+.onboard .industries { display: flex; flex-direction: column; gap: 8px; border: 0; margin: 0; padding: 0; }
+.onboard .industries legend { font-family: var(--onb-heading), "Jost", sans-serif; font-weight: 300; font-size: 22px; margin-bottom: 10px; }
+.onboard .choice {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: var(--onb-card);
+  border: 1px solid var(--onb-line);
+  border-radius: 12px;
+  padding: 12px 14px;
+  cursor: pointer;
+}
+.onboard .choice:has(input:checked) { border-color: var(--onb-fg); }
+.onboard .choice small { display: block; color: var(--onb-muted); }
+
+.onboard .drop {
+  border: 1.5px dashed var(--onb-line);
+  border-radius: 12px;
+  background: var(--onb-card);
+  padding: 28px 16px;
+  text-align: center;
+}
+.onboard .drop.over { border-color: var(--onb-fg); background: #fff; }
+.onboard .drop { max-width: 100%; overflow: hidden; }
+.onboard .drop input { margin-top: 10px; max-width: 100%; width: 100%; }
+.onboard .map-row { min-width: 0; }
+.onboard select { min-width: 0; max-width: 100%; }
+.onboard .file-name { color: var(--onb-muted); font-size: 13px; margin-top: 8px; }
+
+.onboard .issues { list-style: none; margin: 12px 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.onboard .issues li { border-radius: 8px; padding: 8px 10px; }
+.onboard .issues .error { background: #fff; border: 1px solid var(--onb-red); color: #7A1020; }
+.onboard .issues .note { background: #fff; border: 1px solid var(--onb-line); color: var(--onb-fg); }
+
+.onboard .preview-wrap { display: block; width: 100%; max-width: 100%; overflow-x: auto; contain: inline-size; margin-top: 12px; border: 1px solid var(--onb-line); border-radius: 12px; background: #fff; }
+.onboard table { width: max-content; min-width: 100%; border-collapse: collapse; margin: 0; font-size: 14px; }
+.onboard th, .onboard td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--onb-line); white-space: nowrap; }
+.onboard th { color: var(--onb-muted); font-weight: 600; font-size: 12px; }
+
+.onboard .maps { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
+.onboard .map-row { display: grid; grid-template-columns: 160px 1fr; gap: 8px; align-items: center; }
+.onboard select, .onboard input[type="text"], .onboard input[type="email"], .onboard input[type="password"] {
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--onb-line);
+  background: #fff;
+  color: var(--onb-fg);
+  font: inherit;
+}
+
+.onboard .costs { list-style: none; margin: 0; padding: 0; }
+.onboard .costs li {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 2px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--onb-line);
+}
+.onboard .cost {
+  font-family: var(--onb-mono), "JetBrains Mono", ui-monospace, monospace;
+  font-size: 12px;
+  color: var(--onb-muted);
+}
+.onboard .meta-line {
+  font-family: var(--onb-mono), "JetBrains Mono", ui-monospace, monospace;
+  font-size: 13px;
+  color: var(--onb-muted);
+}
+
+.onboard .passes { list-style: none; margin: 12px 0 0; padding: 0; }
+.onboard .passes li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--onb-line);
+}
+.onboard .passes .detail {
+  font-family: var(--onb-mono), "JetBrains Mono", ui-monospace, monospace;
+  font-size: 12px;
+  color: var(--onb-muted);
+  white-space: nowrap;
+}
+.onboard .passes .working .detail { color: var(--onb-fg); }
+.onboard .passes .done .detail { color: #0f6b32; }
+
+.onboard .loading { color: var(--onb-muted); }
+
+@media (max-width: 420px) {
+  .onboard { padding: 20px 12px 64px; }
+  .onboard h1 { font-size: 26px; }
+  .onboard .map-row { grid-template-columns: 1fr; }
+  .onboard button.primary, .onboard a.primary { width: 100%; text-align: center; }
+}
+
+@media (min-width: 1440px) {
+  .onboard { padding-top: 40px; }
+  .onboard .panel, .onboard .drop { padding: 24px 22px; }
+}

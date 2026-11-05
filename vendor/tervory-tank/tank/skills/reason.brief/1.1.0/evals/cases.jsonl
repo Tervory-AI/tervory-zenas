@@ -1,0 +1,5 @@
+{"name":"leads with conclusion","input":{"text":"Should a 3-person online store switch from Shopify to a self-hosted shop to save $300/month? Lead with your recommendation in one line."},"expected":{"text":"recommend"},"tolerance":"contains"}
+{"name":"tradeoff","input":{"text":"Compare paying a $2,000 upfront fee vs $120/month for a tool, over 2 years. State which is cheaper and by how much."},"expected":{"text":"880"},"tolerance":"contains"}
+{"name":"missing input is refused","input":{},"expected":{"text":"","error":"empty input"},"tolerance":"exact","must_refuse":true}
+{"name":"whitespace input is refused","input":{"text":"   "},"expected":{"text":"","error":"empty input"},"tolerance":"exact","must_refuse":true}
+{"name":"blank input is refused","input":{"text":""},"expected":{"text":"","error":"empty input"},"tolerance":"exact","must_refuse":true}

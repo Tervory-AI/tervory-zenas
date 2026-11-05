@@ -1,0 +1,579 @@
+# Tervory platform — one stack, one deploy.
+# Coolify deploys this file. Stack services share one network and reach each other
+# by name (http://tank:8000, postgres:5432). Agent boxes are not in this file.
+# Each box is its own Coolify resource (agents/<name>/docker-compose.yml) and
+# reaches Tank and Postgres only through an external network, tervory-gw-<agent>,
+# created once on the server. Nothing else joins that network. Coolify attaches
+# app.tervory.com to workspace and tervory.com to site. Tank and the stores
+# are never exposed.
+
+# Coolify injects app-wide settings via env_file. Override the privileged setup
+# capability outside its intended service; empty/null can inherit the real key.
+services:
+  postgres:
+    image: postgres:16.15
+    restart: unless-stopped
+    environment:
+      TRIGGER_SIGNIN_SETUP_TOKEN: "disabled"
+      POSTGRES_USER: ${POSTGRES_USER:-tervory}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-tervory}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-tervory}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - default
+      - tervory-gw-template
+      - tervory-gw-tiger
+      - tervory-gw-trigger
+      - tervory-gw-market_lab
+      - tervory-gw-radix
+      - tervory-gw-tisan
+      - tervory-gw-zenas
+      - tervory-gw-base
+      - tervory-gw-rig
+      - tervory-gw-ghost
+      - tervory-gw-trigger-crm
+
+  redis:
+    environment:
+      TRIGGER_SIGNIN_SETUP_TOKEN: "disabled"
+    # 7.4.12 is the current 7.4 patch. It carries the 7.4.11 fix for CVE-2026-81934
+    # and the 7.4.9 fix for CVE-2026-23479.
+    # Multi-arch index digest; keep identical in docker-compose.yml and docker-compose.za.yml.
+    image: redis:7.4.12@sha256:bd28fff4b665fdf1b73e8b5b73ec05d2f858f4fa3c8ea0d7c9bc09f7f6bf7039
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  qdrant:
+    # Same pin as the South Africa stack. :latest made the two regions drift.
+    image: qdrant/qdrant:v1.20.0
+    restart: unless-stopped
+    environment:
+      TRIGGER_SIGNIN_SETUP_TOKEN: "disabled"
+      QDRANT__SERVICE__API_KEY: ${QDRANT_API_KEY}
+    volumes:
+      - qdrantdata:/qdrant/storage
+    healthcheck:
+      # The image has bash and no HTTP client. An open port is the check it ships with.
+      test: ["CMD-SHELL", "bash -c ':> /dev/tcp/127.0.0.1/6333' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  # Shared memory. On the main network so it can reach Qdrant, and on every
+  # agent corridor. Today that is tervory-gw-template. A later agent task adds
+  # its tervory-gw-<agent> network here, and TANK_KEY_<AGENT> in the environment
+  # below. No public domain. Agents call this service. They never call Qdrant.
+  hermes:
+    build:
+      context: .
+      dockerfile: hermes/Dockerfile
+    restart: unless-stopped
+    environment:
+      TRIGGER_SIGNIN_SETUP_TOKEN: "disabled"
+      DATABASE_URL: postgresql://${POSTGRES_USER:-tervory}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-tervory}
+      TANK_REGION: us-east
+      QDRANT_URL: http://qdrant:6333
+      QDRANT_API_KEY: ${QDRANT_API_KEY}
+      TANK_API_KEY: ${TANK_API_KEY}
+      TANK_KEY_TEMPLATE: ${TANK_KEY_TEMPLATE:-}
+      TANK_KEY_TIGER: ${TANK_KEY_TIGER:-}
+      TANK_KEY_TRIGGER: ${TANK_KEY_TRIGGER:-}
+      TANK_KEY_GHOST: ${TANK_KEY_GHOST:-}
+      TANK_KEY_MARKET_LAB: ${TANK_KEY_MARKET_LAB:-}
+      TANK_KEY_RADIX: ${TANK_KEY_RADIX:-}
+      TANK_KEY_TISAN: ${TANK_KEY_TISAN:-}
+      TANK_KEY_ZENAS: ${TANK_KEY_ZENAS:-}
+      TANK_KEY_BASE: ${TANK_KEY_BASE:-}
+      TANK_KEY_RIG: ${TANK_KEY_RIG:-}
+      HERMES_EMBED_MODEL: ${HERMES_EMBED_MODEL:-BAAI/bge-small-en-v1.5}
+    depends_on:
+      - qdrant
+      - postgres
+    networks:
+      - default
+      - tervory-gw-template
+      - tervory-gw-tiger
+      - tervory-gw-trigger
+      - tervory-gw-ghost
+      - tervory-gw-market_lab
+      - tervory-gw-radix
+      - tervory-gw-tisan
+      - tervory-gw-zenas
+      - tervory-gw-base
+      - tervory-gw-rig
+    expose:
+      - "8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  litellm:
+    build: ./litellm
+    restart: unless-stopped
+    command: ["--config", "/app/config.yaml", "--port", "4000"]
+    environment:
+      TRIGGER_SIGNIN_SETUP_TOKEN: "disabled"
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      XAI_API_KEY: ${XAI_API_KEY:-}
+      MISTRAL_API_KEY: ${MISTRAL_API_KEY:-}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      MOONSHOT_API_KEY: ${MOONSHOT_API_KEY:-}
+      PERPLEXITY_API_KEY: ${PERPLEXITY_API_KEY:-}
+      # MODELS-3: inference-only Hugging Face token. LiteLLM only; never Tank or a room.
+      HF_INFERENCE_TOKEN: ${HF_INFERENCE_TOKEN:-}
+      # Build-only ChatGPT sign-in. Not a secret value: the token file lives on the volume below.
+      CHATGPT_TOKEN_DIR: /var/lib/litellm-chatgpt
+    volumes:
+      # Writable and persistent: LiteLLM rewrites the token on every refresh (about every
+      # ten days) and each refresh token works once. See docs/ops/CHATGPT-BUILD-MODEL.md.
+      - litellm_chatgpt_token:/var/lib/litellm-chatgpt
+    healthcheck:
+      # Port only. The image is Python; this does not send the master key.
+      test: ["CMD", "python", "-c", "import socket; s=socket.create_connection(('127.0.0.1',4000),3); s.close()"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  # Ferry. SearXNG sends engine requests here. Ferry leaves through Tor.
+  # SOCKS stays on the stack network. No host port.
+  # A forward proxy on this same server is not here: the engines would still see Boston.
+  # The image tag is lowercase because Docker rejects a capital letter in a repository name.
+  Ferry:
+    environment:
+      TRIGGER_SIGNIN_SETUP_TOKEN: "disabled"
+    image: ferry
+    build: ./tor
+    restart: unless-stopped
+    networks:
+      - default
+    expose:
+      - "9050"
+    healthcheck:
+      test: ["CMD-SHELL", "set -o pipefail; curl -fsS --socks5-hostname 127.0.0.1:9050 --max-time 20 https://check.torproject.org/api/ip | grep -Eq '\"IsTor\"[[:space:]]*:[[:space:]]*true'"]
+      interval: 20s
+      timeout: 25s
+      retries: 15
+      start_period: 60s
+
+  searxng:
+    build: ./searxng
+    restart: unless-stopped
+    environment:
+      TRIGGER_SIGNIN_SETUP_TOKEN: "disabled"
+      SEARXNG_SECRET: ${SEARXNG_SECRET:-change-me-in-coolify}
+      SEARXNG_BASE_URL: http://searxng:8080/
+    depends_on:
+      Ferry:
+        condition: service_healthy
+    networks:
+      - default
+      - tervory-gw-base
+      - research-internal
+    expose:
+      - "8080"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 45s
+
+  # No host port, provider key, shared history, or connection to LiteLLM/stores.
+  # The public network is only for reading search-result pages.
+  market-research:
+    build: ./researcher
+    restart: unless-stopped
+    environment:
+      TRIGGER_SIGNIN_SETUP_TOKEN: "disabled"
+      TANK_KEY: ${TANK_KEY_MARKET_LAB:-}
+    networks:
+      - research-internal
+      - research-egress
+    expose:
+      - "8000"
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+
+  tiger:
+    build: ./tiger
+    restart: unless-stopped
+    shm_size: "1gb"            # Chromium needs shared memory
+    environment:
+      TRIGGER_SIGNIN_SETUP_TOKEN: "disabled"
+      TIGER_MAX_PAGES: ${TIGER_MAX_PAGES:-4}
+    volumes:
+      - tiger_data:/data
+    networks:
+      - default
+      - tervory-gw-tiger
+    expose:
+      - "3000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:3000/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  tank:
+    build:
+      context: ./tank
+      args:
+        # A local build can pass GIT_SHA. On Coolify, Tank reads SOURCE_COMMIT at run time
+        # (tank_sha in tank/main.py). Do not use SOURCE_COMMIT as a compose variable: Coolify
+        # then creates an empty app variable of that name, which hides the commit it injects.
+        GIT_SHA: ${GIT_SHA:-}
+    restart: unless-stopped
+    environment:
+      TRIGGER_SIGNIN_CONFIG_TOKEN: ${TRIGGER_SIGNIN_CONFIG_TOKEN:?founder sets read-only directory capability}
+      TRIGGER_SIGNIN_SETUP_TOKEN: ${TRIGGER_SIGNIN_SETUP_TOKEN:?founder sets Boston setup token}
+      FOUNDER_REPORT_TO: ${FOUNDER_REPORT_TO:-}
+      FOUNDER_REPORT_SMTP_HOST: ${FOUNDER_REPORT_SMTP_HOST:-}
+      FOUNDER_REPORT_SMTP_PORT: ${FOUNDER_REPORT_SMTP_PORT:-}
+      FOUNDER_REPORT_SMTP_USER: ${FOUNDER_REPORT_SMTP_USER:-}
+      FOUNDER_REPORT_SMTP_PASSWORD: ${FOUNDER_REPORT_SMTP_PASSWORD:-}
+      FOUNDER_REPORT_SMTP_FROM: ${FOUNDER_REPORT_SMTP_FROM:-}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      TRIGGER_BOT_TRUSTED_PROXY_CIDRS: ${TRIGGER_BOT_TRUSTED_PROXY_CIDRS:-}
+      TRIGGER_BOT_HANDOVER_ADDRESSES: ${TRIGGER_BOT_HANDOVER_ADDRESSES:-}
+      TRIGGER_GOOGLE_OAUTH_CLIENT_ID: ${TRIGGER_GOOGLE_OAUTH_CLIENT_ID:-}
+      TRIGGER_GOOGLE_OAUTH_CLIENT_SECRET: ${TRIGGER_GOOGLE_OAUTH_CLIENT_SECRET:-}
+      TRIGGER_META_APP_ID: ${TRIGGER_META_APP_ID:-}
+      TRIGGER_META_APP_SECRET: ${TRIGGER_META_APP_SECRET:-}
+      TRIGGER_WHATSAPP_BINDINGS: ${TRIGGER_WHATSAPP_BINDINGS:-}
+      TRIGGER_WHATSAPP_APP_SECRET: ${TRIGGER_WHATSAPP_APP_SECRET:-}
+      TRIGGER_WHATSAPP_VERIFY_TOKEN: ${TRIGGER_WHATSAPP_VERIFY_TOKEN:-}
+      TRIGGER_WHATSAPP_TOKEN_CONNECTOR: ${TRIGGER_WHATSAPP_TOKEN_CONNECTOR:-}
+      R2_ACCOUNT_ID: ${R2_ACCOUNT_ID:-}
+      R2_ACCESS_KEY_ID_UPLOADS: ${R2_ACCESS_KEY_ID_UPLOADS:-}
+      R2_SECRET_ACCESS_KEY_UPLOADS: ${R2_SECRET_ACCESS_KEY_UPLOADS:-}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-tervory}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-tervory}
+      TANK_ADMIN_DATABASE_URL: ${TANK_ADMIN_DATABASE_URL:-}
+      TANK_RLS_ADMIN_ROLE: ${TANK_RLS_ADMIN_ROLE:-}
+      REDIS_URL: redis://redis:6379/0
+      QDRANT_URL: http://qdrant:6333
+      QDRANT_API_KEY: ${QDRANT_API_KEY}
+      LITELLM_URL: http://litellm:4000
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY}
+      TANK_API_KEY: ${TANK_API_KEY}
+      # Founder-only repository reads; absent means the tools are not offered.
+      TANK_GITHUB_READ_TOKEN: ${TANK_GITHUB_READ_TOKEN:-}
+      # Tisan publish (docs/ops/TISAN-PUBLISH.md): the private sites repository and its
+      # one-repository token (Contents + Workflows read/write). Empty keeps publish off.
+      TISAN_SITES_REPO: ${TISAN_SITES_REPO:-}
+      TISAN_GITHUB_TOKEN: ${TISAN_GITHUB_TOKEN:-}
+      HF_TOKEN: ${HF_TOKEN:-}
+      HF_ORG: ${HF_ORG:-}
+      TRAINING_JOB_KEY: ${TRAINING_JOB_KEY:-}
+      TANK_KEY_TEMPLATE: ${TANK_KEY_TEMPLATE:-}
+      TANK_KEY_TIGER: ${TANK_KEY_TIGER:-}
+      TANK_KEY_TRIGGER: ${TANK_KEY_TRIGGER:-}
+      TRIGGER_CRM_URL: ${TRIGGER_CRM_URL:-http://trigger-crm-backend:8000}
+      TRIGGER_CRM_TENANT_BINDINGS: ${TRIGGER_CRM_TENANT_BINDINGS:-}
+      TRIGGER_CRM_PAT_CONNECTOR: ${TRIGGER_CRM_PAT_CONNECTOR:-}
+      TANK_KEY_MARKET_LAB: ${TANK_KEY_MARKET_LAB:-}
+      TANK_KEY_RADIX: ${TANK_KEY_RADIX:-}
+      TANK_KEY_TISAN: ${TANK_KEY_TISAN:-}
+      TANK_KEY_ZENAS: ${TANK_KEY_ZENAS:-}
+      TANK_KEY_BASE: ${TANK_KEY_BASE:-}
+      TANK_VAULT_KEY: ${TANK_VAULT_KEY}
+      ACCESS_BROWSER_KEY_BASE: ${ACCESS_BROWSER_KEY_BASE}
+      ACCESS_BROWSER_KEY_TIGER: ${ACCESS_BROWSER_KEY_TIGER}
+      META_APP_ID: ${META_APP_ID}
+      META_APP_REVIEW_APPROVED: ${META_APP_REVIEW_APPROVED}
+      META_ACCESS_TOKEN: ${META_ACCESS_TOKEN}
+      META_GRAPH_VERSION: ${META_GRAPH_VERSION}
+      META_IG_BUSINESS_ID: ${META_IG_BUSINESS_ID}
+      TANK_KEY_RIG: ${TANK_KEY_RIG:-}
+      AUTUMBRA_LIFECYCLE_KEY: ${AUTUMBRA_LIFECYCLE_KEY:-}
+      RIG_LIFECYCLE_KEY: ${RIG_LIFECYCLE_KEY:-}
+      TANK_KEY_GHOST: ${TANK_KEY_GHOST:-}
+      TANK_KEY_WORKERS: ${TANK_KEY_WORKERS:-}
+      RIG_RETAILER_KEY: ${RIG_RETAILER_KEY:-}
+      TANK_REGION: ${TANK_REGION:-us-east}
+      TANK_BUILD_TENANTS: ${TANK_BUILD_TENANTS:-}
+      BASE_AGENT_URL: http://agent-base:8000
+      BASE_REFERENCE_FILE_URL: ${BASE_REFERENCE_FILE_URL:-}
+      SEARXNG_URL: http://searxng:8080
+      TIGER_URL: http://tiger:3000
+      BRAVE_API_KEY: ${BRAVE_API_KEY:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      litellm:
+        condition: service_started
+    networks:
+      - tervory-gw-trigger-signin
+      - default
+      - tervory-gw-template
+      - tervory-gw-tiger
+      - tervory-gw-trigger
+      - tervory-gw-trigger-crm
+      - tervory-gw-market_lab
+      - tervory-gw-radix
+      - tervory-gw-tisan
+      - tervory-gw-zenas
+      - tervory-gw-base
+      - tervory-gw-rig
+      - tervory-gw-ghost
+      - research-internal
+    # Host loopback only, for the workers service on the Boston host (workers/host/).
+    # Never a public address: Tank stays off the internet.
+    ports:
+      - "127.0.0.1:8100:8000"
+    expose:
+      - "8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  # Boston only. Keep the founder-enabled backup in every normal redeployment.
+  # Public recipient and UPLOADS credential values stay in Coolify.
+  r2-backup:
+    build:
+      context: .
+      dockerfile: jobs/train/Dockerfile.backup
+    restart: unless-stopped
+    mem_limit: 512m
+    cpus: 0.5
+    read_only: true
+    volumes:
+      - r2_backup_spool:/tmp
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      TRIGGER_SIGNIN_SETUP_TOKEN: "disabled"
+      TANK_REGION: us-east
+      DATABASE_URL: postgresql://${POSTGRES_USER:-tervory}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-tervory}
+      QDRANT_URL: http://qdrant:6333
+      QDRANT_API_KEY: ${QDRANT_API_KEY}
+      R2_ACCOUNT_ID: ${R2_ACCOUNT_ID:-}
+      R2_ACCESS_KEY_ID_UPLOADS: ${R2_ACCESS_KEY_ID_UPLOADS:-}
+      R2_SECRET_ACCESS_KEY_UPLOADS: ${R2_SECRET_ACCESS_KEY_UPLOADS:-}
+      R2_BACKUP_RECIPIENT: ${R2_BACKUP_RECIPIENT:-}
+    # Offline readiness only; completed backups are proved by their R2 manifests.
+    healthcheck:
+      test: ["CMD", "python", "-c", "import sys; sys.path.insert(0, 'jobs/train'); from backup import dump_configuration, qdrant_configuration; dump_configuration(); qdrant_configuration()"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+    networks:
+      - default
+
+  # One shot. Creates agent_<name> roles, then exits. Tank does not wait on it
+  # and does not mount this code. restart on-failure retries a failed run only.
+  agent-roles:
+    build:
+      context: ./agents
+      dockerfile: Dockerfile.roles
+    restart: "on-failure"
+    # One-shot job: it exits after setting up agent logins, so Coolify must not count it in the stack's health.
+    exclude_from_hc: true
+    environment:
+      TRIGGER_SIGNIN_SETUP_TOKEN: "disabled"
+      DATABASE_URL: postgresql://${POSTGRES_USER:-tervory}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-tervory}
+      AGENT_DB_PASSWORD_TEMPLATE: ${AGENT_DB_PASSWORD_TEMPLATE:-}
+      AGENT_DB_PASSWORD_TIGER: ${AGENT_DB_PASSWORD_TIGER:-}
+      AGENT_DB_PASSWORD_TRIGGER: ${AGENT_DB_PASSWORD_TRIGGER:-}
+      AGENT_DB_PASSWORD_MARKET_LAB: ${AGENT_DB_PASSWORD_MARKET_LAB:-}
+      AGENT_DB_PASSWORD_RADIX: ${AGENT_DB_PASSWORD_RADIX:-}
+      AGENT_DB_PASSWORD_TISAN: ${AGENT_DB_PASSWORD_TISAN:-}
+      AGENT_DB_PASSWORD_ZENAS: ${AGENT_DB_PASSWORD_ZENAS:-}
+      AGENT_DB_PASSWORD_BASE: ${AGENT_DB_PASSWORD_BASE:-}
+      AGENT_DB_PASSWORD_RIG: ${AGENT_DB_PASSWORD_RIG:-}
+      AGENT_DB_PASSWORD_GHOST: ${AGENT_DB_PASSWORD_GHOST:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - default
+
+  workspace:
+    build:
+      context: ./workspace
+      # The image builds the self-hosted CLI release from cli/ (served at /cli/).
+      additional_contexts:
+        cli: ./cli
+    restart: unless-stopped
+    environment:
+      TRIGGER_SIGNIN_SETUP_TOKEN: "disabled"
+      TANK_URL: http://tank:8000
+      NEXTAUTH_URL: https://app.tervory.com
+      TRIGGER_SIGNIN_CONFIG_TOKEN: ${TRIGGER_SIGNIN_CONFIG_TOKEN:?founder sets read-only directory capability}
+      TRIGGER_SIGNIN_WORKSPACE_SECRET: ${TRIGGER_SIGNIN_WORKSPACE_SECRET:?founder sets Workspace session secret}
+      TRIGGER_SIGNIN_DIRECTORY_TOKEN: ${TRIGGER_SIGNIN_DIRECTORY_TOKEN:-}
+      TRIGGER_SIGNIN_REVIEWERS: ${TRIGGER_SIGNIN_REVIEWERS:-}
+      TANK_API_KEY: ${TANK_API_KEY}
+      # Founder-only: set a za tenant's home on the ZA Tank (tenant id + region code only).
+      TANK_URL_ZA: ${TANK_URL_ZA:-}
+      TANK_API_KEY_ZA: ${TANK_API_KEY_ZA:-}
+      # Opt-in tenant content connection; homes/feeds credentials remain separate.
+      TANK_CONTENT_API_KEY_ZA: ${TANK_CONTENT_API_KEY_ZA:-}
+      TANK_CONTENT_API_KEY_US: ${TANK_CONTENT_API_KEY_US:-}
+      TRIGGER_SIGNIN_SESSIONS_KEY: ${TRIGGER_SIGNIN_SESSIONS_KEY:-}
+      # Shared with Watch + Enforce: signed owner Undo / receipts email links. Coolify secret NAME only.
+      AUTUMBRA_UNDO_TOKEN_SECRET: ${AUTUMBRA_UNDO_TOKEN_SECRET:-}
+      # W-2 billing. Empty until set in Coolify; the billing page then says pricing is being finalised.
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      STRIPE_PLAN_PRICE_IDS: ${STRIPE_PLAN_PRICE_IDS:-}
+      RIG_3D_PRICE_ID: ${RIG_3D_PRICE_ID:-}
+    depends_on:
+      - tank
+    # Coolify attaches the public domain to this service (port 3000).
+    expose:
+      - "3000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+
+  # Public one-page site. No secrets, no Tank, no sign-in, no marketing tool.
+  # A release address is appended to /data/release-signups.jsonl on site_signups.
+  # Coolify still has to attach https://tervory.com to this service on port 3000.
+  # app.tervory.com stays on workspace. /internal is on this same service and is noindex.
+  site:
+    environment:
+      TRIGGER_SIGNIN_SETUP_TOKEN: "disabled"
+    build: ./site
+    restart: unless-stopped
+    volumes:
+      - site_signups:/data
+    expose:
+      - "3000"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:3000/"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+  # Public Claude connector. Coolify attaches https://mcp.tervory.com to port 8000.
+  # Main network only, so it can reach Tank and Redis and no agent corridor.
+  mcp:
+    environment:
+      TRIGGER_SIGNIN_SETUP_TOKEN: "disabled"
+    build: ./mcp
+    restart: unless-stopped
+    depends_on:
+      - tank
+      - redis
+    networks:
+      - default
+    expose:
+      - "8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+volumes:
+  r2_backup_spool:
+  # Build-only ChatGPT token for LiteLLM. Never backed up to R2 or copied between regions.
+  litellm_chatgpt_token:
+  pgdata:
+  redisdata:
+  qdrantdata:
+  tiger_data:
+  site_signups:
+
+# Created once on the server before this stack is deployed:
+#   docker network create tervory-gw-template
+# A later agent gets tervory-gw-<agent>, joined here by tank and postgres only.
+networks:
+  tervory-gw-trigger-signin:
+    name: tervory-gw-trigger-signin
+    internal: true
+  research-internal:
+    internal: true
+  research-egress:
+  tervory-gw-template:
+    external: true
+    name: tervory-gw-template
+  # Created once on the server: docker network create tervory-gw-tiger
+  tervory-gw-tiger:
+    external: true
+    name: tervory-gw-tiger
+  # Created once on the server: docker network create tervory-gw-market_lab
+  tervory-gw-market_lab:
+    external: true
+    name: tervory-gw-market_lab
+  # Internal network, no internet. Created once on the server:
+  #   docker network create --internal tervory-gw-radix
+  # Radix reaches Tank, Postgres, and Hermes, and nothing else.
+  tervory-gw-radix:
+    external: true
+    name: tervory-gw-radix
+  # Created once on the server: docker network create tervory-gw-tisan
+  tervory-gw-tisan:
+    external: true
+    name: tervory-gw-tisan
+  # Created once on the server: docker network create tervory-gw-zenas
+  tervory-gw-zenas:
+    external: true
+    name: tervory-gw-zenas
+  # Compose creates this corridor on deploy. Base's own compose attaches as external.
+  # Not internal: Base's own browser gateway and SearXNG reach public websites.
+  tervory-gw-base:
+    name: tervory-gw-base
+  # Created by this stack on deploy (ROOMS.md). The Rig resource joins it as external.
+  tervory-gw-rig:
+    name: tervory-gw-rig
+  # Ghost alone uses this corridor; no other main-stack service joins it.
+  tervory-gw-ghost:
+    name: tervory-gw-ghost
+  # Created once: docker network create tervory-gw-trigger-crm
+  # BottleCRM / Trigger CRM Coolify resource joins as external.
+  tervory-gw-trigger-crm:
+    external: true
+    name: tervory-gw-trigger-crm
+
+  tervory-gw-trigger:
+    name: tervory-gw-trigger

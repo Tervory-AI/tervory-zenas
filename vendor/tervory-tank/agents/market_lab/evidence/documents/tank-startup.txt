@@ -1,0 +1,20 @@
+INFO:     Started server process [19837]
+INFO:     Uvicorn running on http://127.0.0.1:50423 (Press CTRL+C to quit)
+INFO:     Started server process [19856]
+INFO:     Uvicorn running on http://127.0.0.1:35507 (Press CTRL+C to quit)
+INFO:     Started server process [19874]
+INFO:     Waiting for application startup.
+redis unavailable, rung-4 cache off: Error 111 connecting to 127.0.0.1:1. Connection refused.
+Room gold response rejected: base
+Room gold response rejected: market_lab
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:45239 (Press CTRL+C to quit)
+The reference could not be loaded: The Base reference service returned HTTP 502. (error type: ReferenceFailure)
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [19874]
+INFO:     Shutting down
+INFO:     Finished server process [19856]
+INFO:     Shutting down
+INFO:     Finished server process [19837]

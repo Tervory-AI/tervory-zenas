@@ -1,0 +1,6 @@
+{"name": "reachable site returns text", "input": {"website": "https://example.com"}, "expected": {"pages": ["https://example.com"]}, "tolerance": "fields"}
+{"name": "unreachable", "input": {"website": "https://nonexistent-zzqx-tervory.invalid"}, "expected": {"error": "home page unreachable"}, "tolerance": "exact"}
+{"name": "empty", "input": {"website": ""}, "expected": {"emails": [], "pages": []}, "tolerance": "exact"}
+{"name": "html is present on an empty site", "input": {"website": ""}, "expected": {"html": "", "emails": [], "pages": []}, "tolerance": "exact"}
+{"name": "html is present when the site is unreachable", "input": {"website": "https://nonexistent-zzqx-tervory.invalid"}, "expected": {"html": "", "error": "home page unreachable"}, "tolerance": "exact"}
+{"name": "html is present and capped", "input": {"website": "https://example.com"}, "expected": {"html": "example domain"}, "tolerance": "contains"}

@@ -1,0 +1,23 @@
+id: scan.secrets
+version: 1.0.1
+agent: radix
+rung: 3
+description: >
+  Finds credentials in code that was handed over. Gitleaks when the Radix image
+  has it, otherwise the same rules in process. Reports type, file, line, and rule.
+  Never returns the secret value. No network.
+input:
+  type: object
+  required: [files]
+  properties:
+    files:
+      type: array
+output:
+  type: object
+  properties:
+    file: {type: string}
+    line: {type: integer}
+    rule: {type: string}
+    type: {type: string}
+    critical: {type: integer}
+eval_threshold: 1.0

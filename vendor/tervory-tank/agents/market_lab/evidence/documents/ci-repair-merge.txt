@@ -1,0 +1,3 @@
+PASS: Dockerfile exactly matches main.
+PASS: dependency entries and conflicting schema additions retained from both sides.
+PASS: all storage test names retained; both sides of the test conflict unchanged.

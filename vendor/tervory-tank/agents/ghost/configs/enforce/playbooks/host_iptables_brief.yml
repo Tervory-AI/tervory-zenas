@@ -1,0 +1,22 @@
+# Autumbra Enforce — host iptables brief (template, no host touch)
+# Product: Autumbra Enforce. Never applies iptables; emits a dry brief only.
+# No shell/command/raw/script modules. No host connection beyond localhost facts-off.
+---
+- name: Autumbra Enforce dry brief — host_iptables_brief
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    autumbra_enforce_armed: false
+    autumbra_playbook_id: host_iptables_brief
+  tasks:
+    - name: Emit iptables brief stub (never touches the host firewall)
+      ansible.builtin.debug:
+        msg:
+          product: Autumbra Enforce
+          playbook: "{{ autumbra_playbook_id }}"
+          armed: "{{ autumbra_enforce_armed }}"
+          applied: false
+          note: >-
+            Brief-only stub. No iptables, nftables, or firewalld changes.
+            Out of scope until founder arms Autumbra Enforce and reviews the brief.

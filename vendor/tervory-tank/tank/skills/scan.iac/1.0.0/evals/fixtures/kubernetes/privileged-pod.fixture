@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: placeholder-privileged
+spec:
+  containers:
+    - name: placeholder
+      image: nginx:1.27
+      securityContext:
+        privileged: true

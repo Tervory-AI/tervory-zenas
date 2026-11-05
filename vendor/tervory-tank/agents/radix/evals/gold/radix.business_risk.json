@@ -1,0 +1,289 @@
+[
+  {
+    "name": "sourced client businesses",
+    "input": {
+      "business_fixture": true,
+      "lookup_id": "20000000-0000-0000-0000-000000000002"
+    },
+    "expected": {
+      "ok": true,
+      "score": 95,
+      "factors": [
+        {
+          "code": "website_name_mismatch",
+          "message": "The website differs from the supplied business record; review it.",
+          "weight": 15,
+          "sources": [
+            {
+              "source_id": "register",
+              "url": "client://00000000-0000-0000-0000-000000000001/fixtures/register",
+              "record_id": "20000000-0000-0000-0000-000000000002",
+              "base_record_id": null,
+              "field": "company_name",
+              "retrieved_at": "2026-10-18T10:00:00Z",
+              "evidence_sha256": "dc9fb94c9eaf9cf0c64d3444a38b326bbdb136edc7b9de1ff885b7542212a023"
+            },
+            {
+              "source_id": "site",
+              "url": "client://00000000-0000-0000-0000-000000000001/fixtures/site",
+              "record_id": "20000000-0000-0000-0000-000000000002",
+              "base_record_id": null,
+              "field": "website_name",
+              "retrieved_at": "2026-10-18T10:00:00Z",
+              "evidence_sha256": "7aee806d442da363addac4f1404327009caa0a2a906a173caf2c133dfd775842"
+            }
+          ]
+        },
+        {
+          "code": "privacy_notice",
+          "message": "The supplied scan did not find a privacy notice.",
+          "weight": 5,
+          "sources": [
+            {
+              "source_id": "scan",
+              "url": "client://00000000-0000-0000-0000-000000000001/fixtures/scan",
+              "record_id": "20000000-0000-0000-0000-000000000002",
+              "base_record_id": null,
+              "field": "privacy_notice",
+              "retrieved_at": "2026-10-18T10:00:00Z",
+              "evidence_sha256": "b77032bf13032736ba181c52b26838b5e4719e353aa388545144ddadad6e79e4"
+            }
+          ]
+        },
+        {
+          "code": "cookie_notice",
+          "message": "The supplied scan did not find a cookie notice.",
+          "weight": 5,
+          "sources": [
+            {
+              "source_id": "scan",
+              "url": "client://00000000-0000-0000-0000-000000000001/fixtures/scan",
+              "record_id": "20000000-0000-0000-0000-000000000002",
+              "base_record_id": null,
+              "field": "cookie_notice",
+              "retrieved_at": "2026-10-18T10:00:00Z",
+              "evidence_sha256": "4fe9c2531480597a7619dcb3fd1dbee4d5ccf6ef9104ed5bb2a2e192dc126201"
+            }
+          ]
+        },
+        {
+          "code": "exposed_admin",
+          "message": "An admin page was exposed in the supplied scan.",
+          "weight": 20,
+          "sources": [
+            {
+              "source_id": "scan",
+              "url": "client://00000000-0000-0000-0000-000000000001/fixtures/scan",
+              "record_id": "20000000-0000-0000-0000-000000000002",
+              "base_record_id": null,
+              "field": "exposed_admin",
+              "retrieved_at": "2026-10-18T10:00:00Z",
+              "evidence_sha256": "2313c4975cabb5a5bc1edad4611978727d2ef15a46daf472bae7fd35b8b3821b"
+            }
+          ]
+        },
+        {
+          "code": "new_domain",
+          "message": "The supplied domain creation date is within 90 days; this alone is not wrongdoing.",
+          "weight": 5,
+          "sources": [
+            {
+              "source_id": "rdap",
+              "url": "client://00000000-0000-0000-0000-000000000001/fixtures/rdap",
+              "record_id": "20000000-0000-0000-0000-000000000002",
+              "base_record_id": null,
+              "field": "domain_created_on",
+              "retrieved_at": "2026-10-18T10:00:00Z",
+              "evidence_sha256": "8203cc7672bc0b28a34c99b22442db1b67ea306f2603de9ef5cb1c2f7ca4eea7"
+            }
+          ]
+        },
+        {
+          "code": "lookalike_domain",
+          "message": "The supplied domain resembles a client-provided brand domain; ownership is not inferred.",
+          "weight": 10,
+          "sources": [
+            {
+              "source_id": "rdap",
+              "url": "client://00000000-0000-0000-0000-000000000001/fixtures/rdap",
+              "record_id": "20000000-0000-0000-0000-000000000002",
+              "base_record_id": null,
+              "field": "domain",
+              "retrieved_at": "2026-10-18T10:00:00Z",
+              "evidence_sha256": "4299512592a6d977d25a92863dfda61d772fdee6be9d3f90ec5d0c9b4a45b63d"
+            },
+            {
+              "source_id": "platform",
+              "url": "client://00000000-0000-0000-0000-000000000001/fixtures/platform",
+              "record_id": "00000000-0000-0000-0000-000000000001",
+              "base_record_id": null,
+              "field": "brand_domain",
+              "retrieved_at": "2026-10-18T10:00:00Z",
+              "evidence_sha256": "00a49519f2381a3c9e7f90b3b596af820e3887154ecac55f84a8a43eec7ae010"
+            }
+          ]
+        },
+        {
+          "code": "shared_business_signals",
+          "message": "Shared business details are review signals, not proof of a shell company.",
+          "weight": 10,
+          "sources": [
+            {
+              "source_id": "register",
+              "url": "client://00000000-0000-0000-0000-000000000001/fixtures/register",
+              "record_id": "20000000-0000-0000-0000-000000000001",
+              "base_record_id": null,
+              "field": "registered_address",
+              "retrieved_at": "2026-10-18T10:00:00Z",
+              "evidence_sha256": "19bc7f26f330761476b429d3b1c57ee13ceb59935b613f274f0f6ca19d234066"
+            },
+            {
+              "source_id": "register",
+              "url": "client://00000000-0000-0000-0000-000000000001/fixtures/register",
+              "record_id": "20000000-0000-0000-0000-000000000002",
+              "base_record_id": null,
+              "field": "registered_address",
+              "retrieved_at": "2026-10-18T10:00:00Z",
+              "evidence_sha256": "e4a288e42575a3f49f80ad525072bafcfac55dacf538726da793fa2a3c9db526"
+            },
+            {
+              "source_id": "register",
+              "url": "client://00000000-0000-0000-0000-000000000001/fixtures/register",
+              "record_id": "20000000-0000-0000-0000-000000000001",
+              "base_record_id": null,
+              "field": "registered_agent",
+              "retrieved_at": "2026-10-18T10:00:00Z",
+              "evidence_sha256": "2c1085d1e7570f1a9733b7d3a4cf8d914b519694066ff4059bc22274c7908fd6"
+            },
+            {
+              "source_id": "register",
+              "url": "client://00000000-0000-0000-0000-000000000001/fixtures/register",
+              "record_id": "20000000-0000-0000-0000-000000000002",
+              "base_record_id": null,
+              "field": "registered_agent",
+              "retrieved_at": "2026-10-18T10:00:00Z",
+              "evidence_sha256": "e5e0be31a743f3f63228ca7baf3affd76912622f619a68e894df7bfd229c7a94"
+            },
+            {
+              "source_id": "register",
+              "url": "client://00000000-0000-0000-0000-000000000001/fixtures/register",
+              "record_id": "20000000-0000-0000-0000-000000000001",
+              "base_record_id": null,
+              "field": "business_phone",
+              "retrieved_at": "2026-10-18T10:00:00Z",
+              "evidence_sha256": "e8ece8c5adc5b63d9e1a0ba899456fa383534842d9d42456db50c588eb19ba17"
+            },
+            {
+              "source_id": "register",
+              "url": "client://00000000-0000-0000-0000-000000000001/fixtures/register",
+              "record_id": "20000000-0000-0000-0000-000000000002",
+              "base_record_id": null,
+              "field": "business_phone",
+              "retrieved_at": "2026-10-18T10:00:00Z",
+              "evidence_sha256": "45f9a63db579d9a739097cb2e3ea69f816bf9a651a27d0f9bef79e259064b8fa"
+            },
+            {
+              "source_id": "site",
+              "url": "client://00000000-0000-0000-0000-000000000001/fixtures/site",
+              "record_id": "20000000-0000-0000-0000-000000000001",
+              "base_record_id": null,
+              "field": "website_template",
+              "retrieved_at": "2026-10-18T10:00:00Z",
+              "evidence_sha256": "3b8826ca3f6ef8d209b56cb7bb452019ef5a1b98e37d38fb498f9308da159ebb"
+            },
+            {
+              "source_id": "site",
+              "url": "client://00000000-0000-0000-0000-000000000001/fixtures/site",
+              "record_id": "20000000-0000-0000-0000-000000000002",
+              "base_record_id": null,
+              "field": "website_template",
+              "retrieved_at": "2026-10-18T10:00:00Z",
+              "evidence_sha256": "d3061919e6dcd2e61e87389ba7655190722df70f931e8365e15311c404932871"
+            },
+            {
+              "source_id": "register",
+              "url": "client://00000000-0000-0000-0000-000000000001/fixtures/register",
+              "record_id": "20000000-0000-0000-0000-000000000001",
+              "base_record_id": null,
+              "field": "formed_on",
+              "retrieved_at": "2026-10-18T10:00:00Z",
+              "evidence_sha256": "c0e70ad17c72daf7e4d6415fa46179dd2d1a9a383cad23764883b321135fbc4f"
+            },
+            {
+              "source_id": "register",
+              "url": "client://00000000-0000-0000-0000-000000000001/fixtures/register",
+              "record_id": "20000000-0000-0000-0000-000000000002",
+              "base_record_id": null,
+              "field": "formed_on",
+              "retrieved_at": "2026-10-18T10:00:00Z",
+              "evidence_sha256": "65afc93db1322b68e4c12a87f0329205bbbdfcac4701be2757e591429d5fd06b"
+            }
+          ]
+        },
+        {
+          "code": "possible_returning_operation",
+          "message": "These client accounts share business details; review before taking action.",
+          "weight": 25,
+          "sources": [
+            {
+              "source_id": "platform",
+              "url": "client://00000000-0000-0000-0000-000000000001/fixtures/platform",
+              "record_id": "30000000-0000-0000-0000-000000000001",
+              "base_record_id": null,
+              "field": "payout_business_name",
+              "retrieved_at": "2026-10-18T10:00:00Z",
+              "evidence_sha256": "b470a0d7f99fc81ed311ba9aa5821e9aeecd19b90bd4eeb1c96ab7ab4741511d"
+            },
+            {
+              "source_id": "platform",
+              "url": "client://00000000-0000-0000-0000-000000000001/fixtures/platform",
+              "record_id": "30000000-0000-0000-0000-000000000002",
+              "base_record_id": null,
+              "field": "payout_business_name",
+              "retrieved_at": "2026-10-18T10:00:00Z",
+              "evidence_sha256": "473c9dc1bbfd8a7bbb8211416ceead3ea905db9ea0dd31a169b66fd71c9f8259"
+            },
+            {
+              "source_id": "platform",
+              "url": "client://00000000-0000-0000-0000-000000000001/fixtures/platform",
+              "record_id": "30000000-0000-0000-0000-000000000001",
+              "base_record_id": null,
+              "field": "listing_template",
+              "retrieved_at": "2026-10-18T10:00:00Z",
+              "evidence_sha256": "169dd557ebcfdea12b2c1fc90c6e2f52b7525169495a559df935e10cd262e6cc"
+            },
+            {
+              "source_id": "platform",
+              "url": "client://00000000-0000-0000-0000-000000000001/fixtures/platform",
+              "record_id": "30000000-0000-0000-0000-000000000002",
+              "base_record_id": null,
+              "field": "listing_template",
+              "retrieved_at": "2026-10-18T10:00:00Z",
+              "evidence_sha256": "05da546c557e71037dc4fe1e08dbec964cfec1a3fa00208181e067ae0282ba97"
+            },
+            {
+              "source_id": "platform",
+              "url": "client://00000000-0000-0000-0000-000000000001/fixtures/platform",
+              "record_id": "30000000-0000-0000-0000-000000000001",
+              "base_record_id": null,
+              "field": "status",
+              "retrieved_at": "2026-10-18T10:00:00Z",
+              "evidence_sha256": "22b9aae376c79aeffb25b402bd37c38e8804ef79d2bc007b7d46e884f1ec1352"
+            },
+            {
+              "source_id": "platform",
+              "url": "client://00000000-0000-0000-0000-000000000001/fixtures/platform",
+              "record_id": "30000000-0000-0000-0000-000000000002",
+              "base_record_id": null,
+              "field": "status",
+              "retrieved_at": "2026-10-18T10:00:00Z",
+              "evidence_sha256": "38d09974acae684725119ff2fd4b5b102d19d7d47e5020bfaa129f390b81b613"
+            }
+          ]
+        }
+      ],
+      "status": "complete"
+    },
+    "tolerance": "exact"
+  }
+]

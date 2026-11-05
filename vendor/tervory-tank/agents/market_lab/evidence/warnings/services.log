@@ -1,0 +1,29 @@
+INFO:     Started server process [315820]
+INFO:     Uvicorn running on http://127.0.0.1:41269 (Press CTRL+C to quit)
+INFO:     Started server process [315833]
+INFO:     Waiting for application startup.
+{"ts": "2026-10-27T12:12:57.192811+00:00", "level": "info", "agent": "tiger", "msg": "chassis ready"}
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:32781 (Press CTRL+C to quit)
+{"ts": "2026-10-27T12:12:57.199307+00:00", "level": "info", "agent": "tiger", "msg": "schedule enqueued", "tenant_id": "00000000-0000-0000-0000-000000000916"}
+{"ts": "2026-10-27T12:12:57.200286+00:00", "level": "info", "agent": "tiger", "msg": "schedule enqueued", "tenant_id": "00000000-0000-0000-0000-000000000917"}
+{"ts": "2026-10-27T12:12:57.201024+00:00", "level": "info", "agent": "tiger", "msg": "schedule enqueued", "tenant_id": "00000000-0000-0000-0000-000000000919"}
+INFO:     Started server process [315852]
+INFO:     Waiting for application startup.
+redis unavailable, rung-4 cache off: Error 111 connecting to 127.0.0.1:1. Connection refused.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:60695 (Press CTRL+C to quit)
+{"ts": "2026-10-27T12:12:59.200424+00:00", "level": "info", "agent": "tiger", "msg": "job started", "tenant_id": "00000000-0000-0000-0000-000000000916", "job_id": "f7757535-660f-431f-a45c-9d4d9503c604"}
+{"ts": "2026-10-27T12:12:59.206132+00:00", "level": "info", "agent": "tiger", "msg": "job done", "tenant_id": "00000000-0000-0000-0000-000000000916", "job_id": "f7757535-660f-431f-a45c-9d4d9503c604"}
+{"ts": "2026-10-27T12:13:01.208549+00:00", "level": "info", "agent": "tiger", "msg": "job started", "tenant_id": "00000000-0000-0000-0000-000000000917", "job_id": "5574194d-53d9-44e8-84cd-f30e6816d75f"}
+{"ts": "2026-10-27T12:13:01.211638+00:00", "level": "info", "agent": "tiger", "msg": "job done", "tenant_id": "00000000-0000-0000-0000-000000000917", "job_id": "5574194d-53d9-44e8-84cd-f30e6816d75f"}
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [315852]
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [315833]
+INFO:     Shutting down
+INFO:     Finished server process [315820]

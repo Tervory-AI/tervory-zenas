@@ -1,0 +1,22 @@
+id: zenas.case_facts
+version: 1.0.1
+agent: zenas
+rung: 1
+task_type: zenas.case_facts
+description: >
+  Read one judgment once and store the court's facts, element findings, and
+  outcome. A later call for the same judgment uses the stored row.
+input:
+  type: object
+  properties:
+    pool_doc_id: {type: string}
+    judgment: {type: string}
+    cached: {type: object}
+output:
+  type: object
+  properties:
+    cached: {type: boolean}
+    cost_usd: {type: number}
+    model_calls: {type: integer}
+    outcome: {type: string}
+eval_threshold: 1.0

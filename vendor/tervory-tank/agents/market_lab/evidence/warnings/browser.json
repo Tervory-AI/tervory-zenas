@@ -1,0 +1,77 @@
+{
+  "caption": "local, fixture page",
+  "widths": [
+    1440,
+    375
+  ],
+  "screenshots": [
+    "warning-1440.png",
+    "evidence-1440.png",
+    "evidence-1440.png",
+    "evidence-1440.png",
+    "one-episode-1440.png",
+    "came-true-1440.png",
+    "did-not-come-true-1440.png",
+    "not-measurable-1440.png",
+    "resolved-1440.png",
+    "warning-375.png",
+    "one-episode-375.png",
+    "resolved-375.png"
+  ],
+  "links": [
+    "/market-lab/sources/94ad2d99-7222-47b7-b687-14d8fc2ba76d#history",
+    "/market-lab/sources/94ad2d99-7222-47b7-b687-14d8fc2ba76d#upstream",
+    "/market-lab/sources/94ad2d99-7222-47b7-b687-14d8fc2ba76d#history",
+    "/market-lab/sources/94ad2d99-7222-47b7-b687-14d8fc2ba76d#history",
+    "/market-lab/sources/94ad2d99-7222-47b7-b687-14d8fc2ba76d#window"
+  ],
+  "reactions": [
+    {
+      "width": 1440,
+      "choice": "Useful",
+      "saved": true
+    },
+    {
+      "width": 1440,
+      "choice": "Not useful",
+      "saved": true
+    },
+    {
+      "width": 375,
+      "choice": "Useful",
+      "saved": true
+    },
+    {
+      "width": 375,
+      "choice": "Not useful",
+      "saved": true
+    }
+  ],
+  "statuses": [
+    {
+      "width": 1440,
+      "label": "Came true"
+    },
+    {
+      "width": 1440,
+      "label": "Did not come true"
+    },
+    {
+      "width": 1440,
+      "label": "Not measurable: there were not enough saved observations during the window."
+    },
+    {
+      "width": 375,
+      "label": "Came true"
+    },
+    {
+      "width": 375,
+      "label": "Did not come true"
+    },
+    {
+      "width": 375,
+      "label": "Not measurable: there were not enough saved observations during the window."
+    }
+  ],
+  "errors": []
+}

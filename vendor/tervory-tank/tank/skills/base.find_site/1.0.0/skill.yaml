@@ -1,0 +1,16 @@
+id: base.find_site
+version: 1.0.0
+agent: base
+rung: 3
+description: >
+  Pass 2a. Finds a business's website. Uses the Brave Search API when BRAVE_API_KEY is present in the
+  skill context, otherwise falls back to domain guesses from the name checked with a HEAD request.
+  Returns the URL, how it was found and a confidence.
+input:
+  type: object
+  required: [name]
+  properties: {name: {type: string}, city: {type: string}, state: {type: string}, website: {type: string, description: a hint from the input record, verified not trusted}}
+output:
+  type: object
+  properties: {website: {type: object}}
+eval_threshold: 0.8

@@ -1,0 +1,1 @@
+import{n as e,t}from"./assets/loader-CkgGHudR.js";function n(n,r,i,a,o,s){return t(n,new e(r,i),a,o,s)}export{n as mount};

@@ -1,0 +1,36 @@
+.tasks-page {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+.tasks-page .task-form input,
+.tasks-page .task-form textarea,
+.tasks-page .task-form select,
+.tasks-page .task-form button {
+  min-height: 44px;
+  box-sizing: border-box;
+}
+
+.tasks-page .task-form input,
+.tasks-page .task-form textarea,
+.tasks-page .task-form select {
+  width: 100%;
+}
+
+.tasks-page .task-form-row {
+  flex-wrap: wrap;
+}
+
+.tasks-page .task-form button {
+  min-width: 44px;
+}
+
+.tasks-page .board {
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 800px) {
+  .tasks-page .board {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}

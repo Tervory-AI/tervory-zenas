@@ -1,0 +1,9 @@
+{
+  "version": "2023.3.0",
+  "alicevision": "3.2.0",
+  "url": "https://github.com/alicevision/Meshroom/releases/download/v2023.3.0/Meshroom-2023.3.0-linux.tar.gz",
+  "sha256": "92b81246356df3fd37ea08e1d09519392897aaa730843eb9fd4bd0582916d391",
+  "size": 1244889970,
+  "sha256_provenance": "Computed over official HTTPS GitHub release asset; upstream publishes no checksum. Founder-approved fallback.",
+  "cuda_image": "nvidia/cuda:12.5.1-runtime-ubuntu24.04@sha256:447c60da64e4e18860b640289274ec0103816aa56d410041b162d48e85fb1058"
+}

@@ -1,0 +1,125 @@
+[
+  {
+    "name": "sourced client businesses",
+    "input": {
+      "business_fixture": true,
+      "lookup_id": "20000000-0000-0000-0000-000000000001"
+    },
+    "expected": {
+      "ok": true,
+      "links": [
+        {
+          "business_ids": [
+            "20000000-0000-0000-0000-000000000001",
+            "20000000-0000-0000-0000-000000000002"
+          ],
+          "shared_fields": [
+            "registered_address",
+            "registered_agent",
+            "business_phone",
+            "website_template"
+          ],
+          "newly_formed_cluster": true,
+          "finding": {
+            "code": "shared_business_signals",
+            "message": "Shared business details are review signals, not proof of a shell company.",
+            "weight": 10,
+            "sources": [
+              {
+                "source_id": "register",
+                "url": "client://00000000-0000-0000-0000-000000000001/fixtures/register",
+                "record_id": "20000000-0000-0000-0000-000000000001",
+                "base_record_id": null,
+                "field": "registered_address",
+                "retrieved_at": "2026-10-18T10:00:00Z",
+                "evidence_sha256": "19bc7f26f330761476b429d3b1c57ee13ceb59935b613f274f0f6ca19d234066"
+              },
+              {
+                "source_id": "register",
+                "url": "client://00000000-0000-0000-0000-000000000001/fixtures/register",
+                "record_id": "20000000-0000-0000-0000-000000000002",
+                "base_record_id": null,
+                "field": "registered_address",
+                "retrieved_at": "2026-10-18T10:00:00Z",
+                "evidence_sha256": "e4a288e42575a3f49f80ad525072bafcfac55dacf538726da793fa2a3c9db526"
+              },
+              {
+                "source_id": "register",
+                "url": "client://00000000-0000-0000-0000-000000000001/fixtures/register",
+                "record_id": "20000000-0000-0000-0000-000000000001",
+                "base_record_id": null,
+                "field": "registered_agent",
+                "retrieved_at": "2026-10-18T10:00:00Z",
+                "evidence_sha256": "2c1085d1e7570f1a9733b7d3a4cf8d914b519694066ff4059bc22274c7908fd6"
+              },
+              {
+                "source_id": "register",
+                "url": "client://00000000-0000-0000-0000-000000000001/fixtures/register",
+                "record_id": "20000000-0000-0000-0000-000000000002",
+                "base_record_id": null,
+                "field": "registered_agent",
+                "retrieved_at": "2026-10-18T10:00:00Z",
+                "evidence_sha256": "e5e0be31a743f3f63228ca7baf3affd76912622f619a68e894df7bfd229c7a94"
+              },
+              {
+                "source_id": "register",
+                "url": "client://00000000-0000-0000-0000-000000000001/fixtures/register",
+                "record_id": "20000000-0000-0000-0000-000000000001",
+                "base_record_id": null,
+                "field": "business_phone",
+                "retrieved_at": "2026-10-18T10:00:00Z",
+                "evidence_sha256": "e8ece8c5adc5b63d9e1a0ba899456fa383534842d9d42456db50c588eb19ba17"
+              },
+              {
+                "source_id": "register",
+                "url": "client://00000000-0000-0000-0000-000000000001/fixtures/register",
+                "record_id": "20000000-0000-0000-0000-000000000002",
+                "base_record_id": null,
+                "field": "business_phone",
+                "retrieved_at": "2026-10-18T10:00:00Z",
+                "evidence_sha256": "45f9a63db579d9a739097cb2e3ea69f816bf9a651a27d0f9bef79e259064b8fa"
+              },
+              {
+                "source_id": "site",
+                "url": "client://00000000-0000-0000-0000-000000000001/fixtures/site",
+                "record_id": "20000000-0000-0000-0000-000000000001",
+                "base_record_id": null,
+                "field": "website_template",
+                "retrieved_at": "2026-10-18T10:00:00Z",
+                "evidence_sha256": "3b8826ca3f6ef8d209b56cb7bb452019ef5a1b98e37d38fb498f9308da159ebb"
+              },
+              {
+                "source_id": "site",
+                "url": "client://00000000-0000-0000-0000-000000000001/fixtures/site",
+                "record_id": "20000000-0000-0000-0000-000000000002",
+                "base_record_id": null,
+                "field": "website_template",
+                "retrieved_at": "2026-10-18T10:00:00Z",
+                "evidence_sha256": "d3061919e6dcd2e61e87389ba7655190722df70f931e8365e15311c404932871"
+              },
+              {
+                "source_id": "register",
+                "url": "client://00000000-0000-0000-0000-000000000001/fixtures/register",
+                "record_id": "20000000-0000-0000-0000-000000000001",
+                "base_record_id": null,
+                "field": "formed_on",
+                "retrieved_at": "2026-10-18T10:00:00Z",
+                "evidence_sha256": "c0e70ad17c72daf7e4d6415fa46179dd2d1a9a383cad23764883b321135fbc4f"
+              },
+              {
+                "source_id": "register",
+                "url": "client://00000000-0000-0000-0000-000000000001/fixtures/register",
+                "record_id": "20000000-0000-0000-0000-000000000002",
+                "base_record_id": null,
+                "field": "formed_on",
+                "retrieved_at": "2026-10-18T10:00:00Z",
+                "evidence_sha256": "65afc93db1322b68e4c12a87f0329205bbbdfcac4701be2757e591429d5fd06b"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "tolerance": "exact"
+  }
+]

@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en" data-skin="__RIG_SKIN__">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Rig search</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Jost:wght@300;400&family=Barlow+Condensed:wght@500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/page/v5/rig.css">
+  <script>
+    window.RIG_KEY = __RIG_KEY__;
+    window.RIG_SHOP = __RIG_SHOP__;
+  </script>
+</head>
+<body data-view="landing">
+  <div class="bg" aria-hidden="true">
+    <div class="bg-glow g1"></div>
+    <div class="bg-glow g2"></div>
+    <div class="bg-print"></div>
+    <div class="bg-orbit o1"></div>
+    <div class="bg-orbit o2"></div>
+    <div class="bg-orbit o3"></div>
+    <div class="bg-vignette"></div>
+  </div>
+
+  <header class="top">
+    <a class="brand" href="?" aria-label="Start a new search">
+      <img class="logo logo-rig" src="/page/v5/media/tervory-logo.svg" alt="Tervory">
+      <img class="logo logo-cn" src="/page/v5/media/cn-logo.svg" alt="Custom Nation">
+    </a>
+
+    <div class="sumbar" id="sumbar" hidden>
+      <div class="sum-thumbs" id="sumThumbs"></div>
+      <div class="sum-cell">
+        <span class="caps" id="sumLabel">Build · live</span>
+        <strong class="num big" id="sumBuild">—</strong>
+      </div>
+      <span class="sum-div"></span>
+      <div class="sum-cell">
+        <span class="caps">Market avg</span>
+        <span class="num muted" id="sumMarket">—</span>
+      </div>
+      <div class="sum-cell">
+        <span class="caps">You save</span>
+        <span class="num pos" id="sumSave">—</span>
+      </div>
+      <div class="sum-cell sum-from" id="sumFrom" hidden>
+        <span class="caps">Best prices from</span>
+        <span class="from-bar" id="fromBar"></span>
+        <span class="from-legend" id="fromLegend"></span>
+      </div>
+      <button class="btn-action" id="quoteTop" type="button">Get A Quote <i class="ico ico-arrow"></i></button>
+    </div>
+
+    <div class="tools">
+      <button class="tool" id="recentBtn" type="button" aria-label="Recent searches"><i class="ico ico-clock"></i></button>
+      <button class="tool tool-save" id="saveBtn" type="button" aria-label="Copy a link to this search"><i class="ico ico-bookmark"></i></button>
+      <div class="recent" id="recent" hidden></div>
+    </div>
+  </header>
+
+  <main>
+    <!-- Landing -->
+    <section class="landing" id="landing">
+      <div class="land-print" aria-hidden="true"></div>
+      <h1 class="h-hero">What are you building?</h1>
+      <p class="sub">Only products from your distributors. Approved fits only.</p>
+      <form class="search search-hero" id="heroForm" autocomplete="off">
+        <i class="ico ico-search"></i>
+        <input id="heroInput" name="q" type="search" placeholder="Search a pistol, part or code" aria-label="Search a pistol, part or code">
+        <button class="btn-action" type="submit"><span class="lbl">Search</span> <i class="ico ico-arrow"></i></button>
+      </form>
+      <ul class="promise">
+        <li><span class="pi"><i class="ico ico-lock"></i></span><span><b>Closed catalogue</b></span></li>
+        <li><span class="pi"><i class="ico ico-shield"></i></span><span><b>Approved fits only</b><small>Nothing guessed</small></span></li>
+        <li><span class="pi"><i class="ico ico-pulse"></i></span><span><b>Market price</b><small>On the items you pick</small></span></li>
+      </ul>
+      <p class="foot-count" id="footCount"></p>
+    </section>
+
+    <!-- Result and build -->
+    <section class="stage" id="stage" hidden>
+      <div class="banner" id="banner" hidden></div>
+      <div class="col col-l" id="colL"></div>
+      <div class="pistol-wrap" id="pistolWrap">
+        <div class="pistol-floor" aria-hidden="true"></div>
+        <div class="pistol" id="pistol">
+          <img id="pistolImg" alt="">
+          <div class="hots" id="hots"></div>
+        </div>
+        <div class="photo-note" id="photoNote" hidden></div>
+      </div>
+      <div class="col col-r" id="colR"></div>
+      <svg class="wires" id="wires" aria-hidden="true"></svg>
+      <div class="hint" id="hint"></div>
+      <div class="carousel-dots" id="dots"></div>
+      <div class="pistols" id="pistols"></div>
+      <ul class="m-notes">
+        <li>Closed catalogue</li><li>Approved fits only</li><li>Market prices</li>
+      </ul>
+    </section>
+
+    <!-- I don't know -->
+    <section class="idk" id="idk" hidden>
+      <div class="land-print" aria-hidden="true"></div>
+      <span class="idk-ico"><i class="ico ico-search"></i></span>
+      <h1 class="h-hero">I don't know.</h1>
+      <p class="sub" id="idkLine"></p>
+      <p class="sub small" id="idkWhy"></p>
+      <div class="try" id="idkTry"><span class="caps">In the catalogue</span></div>
+      <div class="stats" id="idkStats"></div>
+      <span class="caps center">In the catalogue</span>
+    </section>
+  </main>
+
+  <footer class="dock" id="dock" hidden>
+    <ul class="notes">
+      <li><i class="ico ico-lock"></i>Closed catalogue</li>
+      <li><i class="ico ico-shield"></i>Approved fits only</li>
+
+    </ul>
+    <form class="search search-dock" id="dockForm" autocomplete="off">
+      <i class="ico ico-search"></i>
+      <div class="q-view" id="qView"></div>
+      <input id="dockInput" name="q" type="search" aria-label="Search a pistol, part or code" placeholder="Search a pistol, part or code">
+      <button class="go" type="submit" aria-label="Search"><i class="ico ico-arrow"></i></button>
+    </form>
+    <button class="btn-action m-quote" id="quoteBottom" type="button" hidden>Get A Quote · <span id="mQuoteTotal"></span> <i class="ico ico-arrow"></i></button>
+  </footer>
+
+  <!-- One item: suppliers and market -->
+  <div class="scrim" id="scrim" hidden></div>
+  <section class="sheet compare" id="compare" role="dialog" aria-modal="true" aria-labelledby="cmpName" hidden></section>
+  <section class="sheet quote" id="quote" role="dialog" aria-modal="true" aria-labelledby="qTitle" hidden></section>
+  <div class="toast" id="toast" role="status" hidden></div>
+
+  <script src="/page/v5/rig.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,227 @@
+# coolify: raw compose
+# Resource: agent-trigger. Grok provisions the corridor and role; founder sets values.
+services:
+  agent-trigger:
+    build:
+      context: ..
+      dockerfile: trigger/Dockerfile
+    restart: unless-stopped
+    mem_limit: 512m
+    cpus: 1
+    environment:
+      AGENT_NAME: trigger
+      TRIGGER_BRAIN_ENABLED: ${TRIGGER_BRAIN_ENABLED:-false}
+      DATABASE_URL: postgresql://agent_trigger:${AGENT_DB_PASSWORD_TRIGGER}@postgres:5432/${POSTGRES_DB:-tervory}
+      CHASSIS_ADMIN_DATABASE_URL: ${CHASSIS_ADMIN_DATABASE_URL:-}
+      CHASSIS_RLS_ADMIN_ROLE: ${CHASSIS_RLS_ADMIN_ROLE:-}
+      TANK_KEY: ${TANK_KEY_TRIGGER:-}
+      TANK_REGION: ${TANK_REGION:-us-east}
+    networks: [gw, checkers]
+    depends_on:
+      trigger-languagetool:
+        condition: service_healthy
+    expose: ["8000"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+
+  trigger-languagetool:
+    image: meyay/languagetool:6.8-14@sha256:80de71abb2d797511240c3b47e0b4d1ed855ada49c92c8d2ee152f9aa1725aec
+    restart: unless-stopped
+    mem_limit: 2g
+    cpus: 1
+    # Fixed Java invocation bypasses optional model downloads in the image entrypoint.
+    entrypoint: ["java", "-Xms256m", "-Xmx1536m", "-cp", "/languagetool/*", "org.languagetool.server.HTTPServer", "--config", "/etc/trigger-lt.properties", "--port", "8081", "--public"]
+    user: "783:783"
+    read_only: true
+    tmpfs: ["/tmp:size=128m"]
+    volumes: ["./languagetool.properties:/etc/trigger-lt.properties:ro"]
+    networks: [checkers]
+    expose: ["8081"]
+    healthcheck:
+      test: ["CMD", "wget", "-Y", "off", "-q", "-O", "/dev/null", "http://127.0.0.1:8081/v2/languages"]
+      interval: 15s
+      timeout: 5s
+      retries: 15
+      start_period: 60s
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+
+  trigger-brain:
+    profiles:
+    - brain
+    build:
+      context: ../..
+      dockerfile: agents/rig/Dockerfile.brain
+    command:
+    - uvicorn
+    - brain.standby:app
+    - --host
+    - 0.0.0.0
+    - --port
+    - '8001'
+    - --no-access-log
+    restart: unless-stopped
+    mem_limit: 2g
+    cpus: 1
+    pids_limit: 128
+    read_only: true
+    tmpfs:
+    - /tmp:rw,noexec,nosuid,nodev,size=32m
+    environment:
+      BRAIN_ROOM: trigger
+      TANK_REGION: us-east
+      TANK_URL: http://tank:8000
+      TANK_KEY: ${TANK_KEY_TRIGGER:-}
+      HERMES_URL: http://hermes:8000
+      TRIGGER_URL: http://agent-trigger:8000
+      TRIGGER_SANDBOX_URL: http://trigger-sandbox:8002
+      SANDBOX_KEY: ${SANDBOX_KEY_TRIGGER:-}
+      DATA_DIR: /data
+      TRIGGER_BROWSER_URL: http://trigger-browser-gateway:3000
+    volumes:
+    - trigger_brain_data:/data
+    networks:
+    - gw
+    - sandbox
+    depends_on:
+      trigger-sandbox:
+        condition: service_healthy
+      trigger-browser-gateway:
+        condition: service_healthy
+    healthcheck:
+      test:
+      - CMD
+      - python
+      - -c
+      - import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health', timeout=3)
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    security_opt:
+    - no-new-privileges:true
+    cap_drop:
+    - ALL
+  trigger-sandbox:
+    profiles:
+    - brain
+    build:
+      context: ../..
+      dockerfile: agents/base/Dockerfile.sandbox
+    restart: unless-stopped
+    mem_limit: 512m
+    cpus: 0.5
+    pids_limit: 64
+    environment:
+      BRAIN_ROOM: trigger
+      SANDBOX_KEY: ${SANDBOX_KEY_TRIGGER:-}
+    read_only: true
+    tmpfs:
+    - /tmp:rw,noexec,nosuid,nodev,size=32m
+    - /work:rw,nosuid,nodev,size=128m,uid=1000,gid=1000,mode=0700
+    networks:
+    - sandbox
+    healthcheck:
+      test:
+      - CMD
+      - python
+      - -c
+      - import urllib.request; urllib.request.urlopen('http://127.0.0.1:8002/health', timeout=3)
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    security_opt:
+    - no-new-privileges:true
+    cap_drop:
+    - ALL
+  trigger-browser:
+    build:
+      context: ../..
+      dockerfile: agents/base/Dockerfile.browser
+    restart: unless-stopped
+    mem_limit: 2g
+    cpus: 0.5
+    shm_size: 256m
+    environment:
+      ACCESS_ROOM: trigger
+      ACCESS_GATEWAY_URL: http://trigger-browser-gateway:3000
+      BROWSER_PROXY_URL: http://trigger-browser-gateway:3128
+    volumes:
+    - trigger_browser_data:/browser-data
+    networks:
+    - browser
+    security_opt:
+    - no-new-privileges:true
+    cap_drop:
+    - ALL
+    healthcheck:
+      test:
+      - CMD
+      - python
+      - -c
+      - import urllib.request; urllib.request.urlopen('http://127.0.0.1:3000/health', timeout=3)
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    profiles:
+    - brain
+    read_only: true
+    pids_limit: 128
+    tmpfs:
+    - /tmp:rw,nosuid,nodev,size=128m
+    init: true
+  trigger-browser-gateway:
+    build:
+      context: ../..
+      dockerfile: agents/base/Dockerfile.gateway
+    restart: unless-stopped
+    mem_limit: 128m
+    cpus: 0.25
+    environment:
+      TANK_KEY: ${TANK_KEY_TRIGGER:-}
+      TANK_REGION: us-east
+      ACCESS_ROOM: trigger
+      BROWSER_HOST: trigger-browser
+    networks:
+    - gw
+    - browser
+    security_opt:
+    - no-new-privileges:true
+    cap_drop:
+    - ALL
+    healthcheck:
+      test:
+      - CMD
+      - python
+      - -c
+      - import urllib.request; urllib.request.urlopen('http://127.0.0.1:3000/health', timeout=3)
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    profiles:
+    - brain
+    read_only: true
+    pids_limit: 128
+    tmpfs:
+    - /tmp:rw,nosuid,nodev,size=128m
+
+volumes:
+
+  trigger_brain_data:
+    name: tervory-trigger-brain-data
+  trigger_browser_data:
+    name: tervory-trigger-browser-data
+networks:
+  sandbox:
+    internal: true
+  browser:
+    internal: true
+  gw:
+    external: true
+    name: tervory-gw-trigger
+  checkers:
+    internal: true

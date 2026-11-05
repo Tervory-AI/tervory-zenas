@@ -1,0 +1,21 @@
+id: market.surge_detect
+version: 1.0.1
+agent: market_lab
+rung: 3
+description: >
+  Flag moves against a series' own history. A point is an event when its
+  z-score over a rolling window, or its percent change, is large. Each event
+  has a date, a kind, and a size.
+input:
+  type: object
+  required: [points]
+  properties:
+    points: {type: array}
+    window: {type: integer}
+    z_threshold: {type: number}
+    pct_threshold: {type: number}
+output:
+  type: object
+  properties:
+    events: {type: array}
+eval_threshold: 1.0

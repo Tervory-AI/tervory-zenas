@@ -1,0 +1,169 @@
+# coolify: raw compose
+# Tiger. Enable Raw Compose Deployment so Coolify cannot add an outbound network
+# to the sealed browser. Environment and networks are explicit on each service.
+# The /data volume is pinned to its live Boston name, as Base and Radix are.
+# Coolify 4.4.6 rejects ${VAR:?…} in an external volume name.
+
+services:
+  agent-tiger:
+    build:
+      context: ..
+      dockerfile: tiger/Dockerfile
+    restart: unless-stopped
+    mem_limit: 512m
+    cpus: 0.5
+    environment:
+      AGENT_NAME: tiger
+      R2_BUCKET: tervory-tiger
+      R2_ACCOUNT_ID: ${R2_ACCOUNT_ID:-}
+      R2_ACCESS_KEY_ID_TIGER: ${R2_ACCESS_KEY_ID_TIGER:-}
+      R2_SECRET_ACCESS_KEY_TIGER: ${R2_SECRET_ACCESS_KEY_TIGER:-}
+      TANK_REGION: ${TANK_REGION:-us-east}
+      DATABASE_URL: postgresql://agent_tiger:${AGENT_DB_PASSWORD_TIGER}@postgres:5432/${POSTGRES_DB:-tervory}
+      CHASSIS_ADMIN_DATABASE_URL: ${CHASSIS_ADMIN_DATABASE_URL:-}
+      CHASSIS_RLS_ADMIN_ROLE: ${CHASSIS_RLS_ADMIN_ROLE:-}
+      TANK_URL: http://tank:8000
+      TANK_KEY: ${TANK_KEY_TIGER:-}
+      TIGER_URL: http://tiger-browser-gateway:3000
+      # Reserved for a future caller; current extraction stays code-only.
+      TIGER_BRAIN_ENABLED: ${TIGER_BRAIN_ENABLED:-false}
+      HERMES_URL: http://hermes:8000
+      DATA_DIR: /data
+      DOMAIN_INTERVAL_S: "10"
+      TIGER_SMTP_HOST: ${TIGER_SMTP_HOST:-}
+      TIGER_SMTP_PORT: ${TIGER_SMTP_PORT:-587}
+      TIGER_SMTP_USER: ${TIGER_SMTP_USER:-}
+      TIGER_SMTP_PASSWORD: ${TIGER_SMTP_PASSWORD:-}
+      TIGER_SMTP_FROM: ${TIGER_SMTP_FROM:-}
+      TIGER_SMTP_ALERT_ADDRESSES: ${TIGER_SMTP_ALERT_ADDRESSES:-}
+    volumes:
+      - agent_tiger_data:/data
+    networks:
+      - gw
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    expose:
+      - "8000"
+
+  tiger-brain:
+    profiles: [brain]
+    build:
+      context: ../..
+      dockerfile: agents/rig/Dockerfile.brain
+    # Reuse the pinned Hermes build and shared adapter, never Rig's task API.
+    command: [uvicorn, "brain.standby:app", --host, "0.0.0.0", --port, "8001", --no-access-log]
+    restart: unless-stopped
+    mem_limit: 2g
+    cpus: 1
+    environment:
+      BRAIN_ROOM: tiger
+      TANK_URL: http://tank:8000
+      TANK_KEY: ${TANK_KEY_TIGER:-}
+      TANK_REGION: ${TANK_REGION:-us-east}
+      HERMES_URL: http://hermes:8000
+      TIGER_BROWSER_URL: http://tiger-browser-gateway:3000
+      TIGER_SANDBOX_URL: http://tiger-sandbox:8002
+      SANDBOX_KEY: ${SANDBOX_KEY_TIGER:-}
+      DATA_DIR: /data
+    volumes: [tiger_brain_data:/data]
+    networks: [gw, sandbox]
+    depends_on:
+      tiger-sandbox:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+
+  tiger-sandbox:
+    profiles: [brain]
+    build:
+      context: ../..
+      dockerfile: agents/base/Dockerfile.sandbox
+    restart: unless-stopped
+    mem_limit: 512m
+    cpus: 0.5
+    pids_limit: 64
+    environment:
+      BRAIN_ROOM: tiger
+      SANDBOX_KEY: ${SANDBOX_KEY_TIGER:-}
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=32m
+      - /work:rw,nosuid,nodev,size=128m,uid=1000,gid=1000,mode=0700
+    networks: [sandbox]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8002/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+
+  tiger-browser:
+    build:
+      context: ../..
+      dockerfile: agents/base/Dockerfile.browser
+    restart: unless-stopped
+    mem_limit: 2g
+    cpus: 0.5
+    shm_size: 256m
+    environment:
+      ACCESS_ROOM: tiger
+      ACCESS_BROWSER_KEY_TIGER: ${ACCESS_BROWSER_KEY_TIGER}
+      ACCESS_GATEWAY_URL: http://tiger-browser-gateway:3000
+      BROWSER_PROXY_URL: http://tiger-browser-gateway:3128
+    volumes: [tiger_browser_data:/browser-data]
+    networks: [browser]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:3000/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
+  tiger-browser-gateway:
+    build:
+      context: ../..
+      dockerfile: agents/base/Dockerfile.gateway
+    restart: unless-stopped
+    mem_limit: 128m
+    cpus: 0.25
+    environment:
+      TANK_KEY: ${TANK_KEY_TIGER:-}
+      TANK_REGION: us-east
+      ACCESS_ROOM: tiger
+      BROWSER_HOST: tiger-browser
+    networks: [gw, browser]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:3000/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  agent_tiger_data:
+    external: true
+    name: fro6z8xlh579owlp1wwrjr8n_agent-tiger-data
+  tiger_browser_data:
+    name: tervory-tiger-browser-data
+  tiger_brain_data:
+    name: tervory-tiger-brain-data
+
+networks:
+  sandbox:
+    internal: true
+  browser:
+    internal: true
+  gw:
+    external: true
+    name: tervory-gw-tiger

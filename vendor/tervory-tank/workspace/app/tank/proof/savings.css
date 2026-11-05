@@ -1,0 +1,60 @@
+.savings-set,.savings-founder,.savings-live { color:#001840; font-family:var(--font-inter),Inter,sans-serif; min-width:0; }
+.savings-live { margin:24px 0; }
+.savings-founder { max-width:1440px; padding:32px; margin:auto; background:#F4F6FB; box-sizing:border-box; }
+.savings-set { margin:24px 0 40px; }
+.savings-set h2,.savings-set h3,.savings-founder h1,.savings-founder h2,.savings-drawer h2,.savings-drawer h3 { font-family:var(--font-jost),Jost,sans-serif; font-weight:300; }
+.savings-founder h1 { font-size:40px; margin:12px 0; }
+.savings-set h2 { font-size:30px; margin:4px 0; }
+.savings-set h3 { font-size:22px; margin:0 0 16px; }
+.savings-heading,.savings-card-top { display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap; }
+.savings-heading p,.savings-note,.savings-legend,.savings-axis { font-size:12px; line-height:1.6; }
+.savings-eyebrow { text-transform:uppercase; letter-spacing:.12em; margin:0; }
+.savings-note { max-width:760px; color:#4B5B75; }
+.savings-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:24px; }
+.savings-card { padding:24px; border:1px solid #B8BFD0; background:white; border-radius:8px; min-width:0; }
+.savings-wide:last-child { grid-column:1/-1; }
+.savings-card p { line-height:1.6; }
+.savings-big { font-size:clamp(18px,2.4vw,30px); margin:10px 0; font-family:var(--font-mono),monospace; }
+.savings-number { background:none; border:0; padding:0; color:#001840; text-decoration:underline; text-underline-offset:4px; cursor:pointer; font:inherit; overflow-wrap:anywhere; text-align:left; }
+.savings-card label { font-size:12px; display:flex; align-items:center; gap:8px; }
+.savings-card select,.savings-founder select,.savings-founder form button,.savings-drawer button:not(.savings-number) { border:1px solid #B8BFD0; color:#001840; background:white; border-radius:4px; padding:9px; font:inherit; max-width:100%; }
+.savings-founder form { display:flex; flex-wrap:wrap; gap:16px; align-items:flex-end; }
+.savings-founder form label { display:grid; gap:8px; }
+.savings-founder form button { background:#001840; color:white; }
+.savings-chart { width:100%; height:auto; display:block; }
+.savings-axis { display:flex; justify-content:space-between; gap:8px; color:#4B5B75; flex-wrap:wrap; }
+.savings-member { margin:20px 0; }
+.savings-member>div:first-child { display:flex; justify-content:space-between; gap:12px; margin-bottom:9px; }
+.savings-bar { background:#F4F6FB; height:14px; border-radius:2px; }
+.savings-bar span { height:100%; background:#001840; display:block; }
+.savings-card meter { width:100%; height:18px; accent-color:#001840; }
+.savings-card summary { cursor:pointer; font-size:13px; }
+.savings-daily { max-height:260px; overflow:auto; font-size:12px; }
+.savings-daily>div { display:flex; justify-content:space-between; gap:12px; padding:10px 0; border-bottom:1px solid #B8BFD0; }
+.savings-drawer { position:fixed; margin:0 0 0 auto; inset:0; height:100dvh; max-height:100dvh; width:min(600px,100vw); max-width:100vw; border:0; padding:24px; box-sizing:border-box; color:#001840; overflow-y:auto; }
+.savings-drawer::backdrop { background:rgba(0,24,64,.4); }
+.savings-drawer header,.savings-drawer nav { display:flex; justify-content:space-between; align-items:center; gap:12px; }
+.savings-drawer p { line-height:1.6; font-size:13px; }
+.savings-drawer a { color:inherit; overflow-wrap:anywhere; }
+.savings-job { border-top:1px solid #B8BFD0; padding:18px 0; }
+.savings-job h3 { margin:0; font-size:22px; }
+.savings-job dl>div { display:flex; justify-content:space-between; gap:12px; padding:6px 0; font-size:12px; }
+.savings-job dd { margin:0; font-family:var(--font-mono),monospace; }
+.savings-internal { overflow-wrap:anywhere; }
+.savings-founder a { color:inherit; }
+.savings-founder .savings-exports { display:flex; gap:20px; margin:20px 0; }
+.savings-costs { margin:24px 0; padding:24px; border:1px solid #B8BFD0; background:white; border-radius:8px; }
+.savings-costs dl { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:20px; }
+.savings-costs dt { font-size:13px; }
+.savings-costs dd { margin:8px 0; overflow-wrap:anywhere; }
+.savings-cost-days { overflow:auto; max-height:320px; }
+.savings-cost-days table { font-size:12px; border-collapse:collapse; width:100%; }
+.savings-cost-days th,.savings-cost-days td { text-align:left; padding:12px; border-bottom:1px solid #B8BFD0; white-space:nowrap; }
+.savings-set :focus-visible,.savings-drawer :focus-visible { outline:2px solid #001840; outline-offset:4px; }
+@media(max-width:700px) { .savings-grid { grid-template-columns:1fr; } .savings-card { padding:18px; } .savings-founder { padding:18px 12px; } .savings-costs { padding:16px; } .savings-costs dl { grid-template-columns:1fr; } .savings-big { font-size:23px; } }
+.savings-card meter::-webkit-meter-optimum-value { background:#001840; }
+.savings-card meter::-moz-meter-bar { background:#001840; }
+.savings-headline { border-left:3px solid #001840; padding:14px 18px; background:white; margin-top:20px; line-height:1.7; }
+.savings-headline strong { font-size:22px; font-weight:500; }
+.savings-big { font-size:clamp(18px,2vw,25px); }
+.savings-member>div:first-child { align-items:baseline; font-size:13px; }

@@ -1,0 +1,5 @@
+# market.series_fetch
+
+## 1.0.0
+- First version. CSV and XLSX uploads, a monthly listing count through the feeds package, and a FRED read that is never stored.
+- Candidate eval fix: ship the unchanged feeds dependency closure and three listing fixtures inside this package, which Tank already copies into its image. Resolve the bundled pure module consistently in repository and Tank runs. All three evals run without network access.

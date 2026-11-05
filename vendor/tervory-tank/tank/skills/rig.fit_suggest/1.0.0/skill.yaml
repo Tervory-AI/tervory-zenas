@@ -1,0 +1,18 @@
+id: rig.fit_suggest
+version: 1.0.0
+agent: rig
+rung: 1
+task_type: rig.fit_suggest
+description: >
+  Proposes fit rows from product attributes. Every row is source suggested and
+  unapproved, so a shopper never sees it until a person approves it.
+input:
+  type: object
+  properties:
+    products: {type: array}
+    model_text: {type: string}
+output:
+  type: object
+  properties:
+    fits: {type: array}
+eval_threshold: 1.0

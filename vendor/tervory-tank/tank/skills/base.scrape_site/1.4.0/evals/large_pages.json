@@ -1,0 +1,35 @@
+[
+  {
+    "name": "unbroken text",
+    "repeat": "x",
+    "suffix": "",
+    "emails": []
+  },
+  {
+    "name": "oversized local part",
+    "repeat": "x",
+    "suffix": "@placeholder.example",
+    "emails": []
+  },
+  {
+    "name": "oversized domain",
+    "prefix": "info@",
+    "repeat": "x",
+    "suffix": ".example",
+    "emails": []
+  },
+  {
+    "name": "punctuation token",
+    "repeat": ".",
+    "suffix": "",
+    "emails": []
+  },
+  {
+    "name": "contact after long token",
+    "repeat": "x",
+    "suffix": " info@placeholder.example",
+    "emails": [
+      "info@placeholder.example"
+    ]
+  }
+]

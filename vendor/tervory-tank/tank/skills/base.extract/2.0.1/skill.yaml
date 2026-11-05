@@ -1,0 +1,27 @@
+id: base.extract
+version: 2.0.1
+agent: base
+rung: 3
+description: >
+  Pass 2c. Reads a business page and returns what they sell, what they do, a one-line
+  description, and named people. Structured data first, then headings and menus, then
+  the vocabulary the engine passed in. Pure code. Nothing is invented.
+input:
+  type: object
+  required: [name, text]
+  properties:
+    name: {type: string}
+    text: {type: string}
+    html: {type: string}
+    fixture: {type: string}
+    engine: {type: string, description: engine id whose data files supply term dictionaries}
+    vocabulary: {type: object, description: "{categories: {term: label}, services: {term: label}}"}
+output:
+  type: object
+  properties:
+    categories: {type: array}
+    services: {type: array}
+    description: {type: string}
+    people: {type: array}
+    fields: {type: object, description: method and confidence for each field}
+eval_threshold: 0.8

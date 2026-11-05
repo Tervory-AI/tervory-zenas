@@ -1,0 +1,20 @@
+id: zenas.match
+version: 1.0.1
+agent: zenas
+rung: 3
+description: >
+  Rank worked matters for a request by rule card, structured facts, then
+  meaning, and report which facts match element by element.
+input:
+  type: object
+  properties:
+    worked: {type: array}
+    features: {type: object}
+    rule_card_ids: {type: array}
+    tenant_id: {type: string}
+output:
+  type: object
+  properties:
+    top_id: {type: string}
+    same: {type: array}
+eval_threshold: 1.0

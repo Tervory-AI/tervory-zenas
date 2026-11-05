@@ -1,0 +1,18 @@
+id: trigger.agent_style
+version: 1.1.0
+agent: trigger
+rung: 3
+description: Pinned free agent style checks from Trigger; code only.
+input:
+  type: object
+  required: [text]
+  properties:
+    text: {type: string, minLength: 1, maxLength: 20000}
+    voice: {type: object}
+output:
+  type: object
+  properties:
+    issues: {type: array}
+    rules: {type: array}
+    model_calls: {type: integer}
+eval_threshold: 1.0

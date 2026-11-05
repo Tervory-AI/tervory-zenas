@@ -1,0 +1,23 @@
+id: zenas.draft
+version: 1.0.0
+agent: zenas
+rung: 3
+description: >
+  Build a contract from approved clauses and a term sheet. A sentence that is
+  not an approved clause is marked for review. No model call in this package.
+input:
+  type: object
+  properties:
+    template: {type: string}
+    clauses: {type: array}
+    terms: {type: object}
+    prior: {type: object}
+output:
+  type: object
+  properties:
+    text: {type: string}
+    library: {type: array}
+    review: {type: array}
+    reused: {type: boolean}
+    model_calls: {type: integer}
+eval_threshold: 1.0

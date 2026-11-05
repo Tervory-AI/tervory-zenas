@@ -1,0 +1,3 @@
+{"name": "verified hint", "input": {"name": "Example Domain", "website": "example.com"}, "expected": {"website": {"value": "https://example.com", "source": "input:verified", "confidence": 85}}, "tolerance": "exact"}
+{"name": "skips directory hint", "input": {"name": "Nonexistent Shop Zz", "website": "https://www.yelp.com/biz/x"}, "expected": {"website": {"value": null, "source": "none", "confidence": 0}}, "tolerance": "exact"}
+{"name": "nothing found", "input": {"name": "Qzxv Wplm Firearms Nope"}, "expected": {"website": {"value": null, "source": "none", "confidence": 0}}, "tolerance": "exact"}
