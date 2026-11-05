@@ -1139,7 +1139,7 @@ async def _link_converted_card(pool: Any, ladder: Any, model: Any, worked: dict[
         log.warning("converted rule card could not be built", exc_info=True)
 
 
-async def run_scheduled(conn: Any, *, region: str) -> None:
+async def run_scheduled(conn: Any, *, region: str) -> dict[str, Any]:
     """Nightly, after the pool load. A failure here does not change the pool report."""
     try:
         os.nice(19)
@@ -1169,15 +1169,12 @@ async def run_scheduled(conn: Any, *, region: str) -> None:
     raw = conn
     pool = conn if hasattr(conn, "acquire") else _Pool(conn)
     store = PgStore(pool)
-    try:
-        await store.apply_schema()
-    except Exception:
-        return
+    await store.apply_schema()
     ladder = PgLadder(pool)
-    law = PostgresStore(raw)
+    law = PostgresStore(raw, home_region=region)
     model, http = _night_model()
     try:
-        await convert_cases(law, ladder, model, region=region)
+        return await convert_cases(law, ladder, model, region=region)
     finally:
         if http is not None:
             await http.aclose()

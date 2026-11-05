@@ -159,7 +159,11 @@ async def test_main_exits_normally_when_global_deadline_defers_remaining_jobs(mo
     monkeypatch.setattr(nightly, "current_region", lambda: "za")
     monkeypatch.setattr(nightly, "monotonic", clock)
     monkeypatch.setattr(asyncpg, "connect", AsyncMock(return_value=conn))
-    monkeypatch.setattr(pool_store, "PostgresStore", lambda connection: store)
+    def regional_store(connection, *, home_region):
+        assert connection is conn and home_region == "za"
+        return store
+
+    monkeypatch.setattr(pool_store, "PostgresStore", regional_store)
 
     async def load(store, **kwargs):
         assert kwargs["deadline"] == 6000

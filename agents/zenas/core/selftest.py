@@ -1280,7 +1280,7 @@ async def list_scores(ladder: Any, *, region: str) -> dict[str, Any]:
     return {"ok": True, "region": box, "runs": [_public_run(row) for row in rows]}
 
 
-async def run_scheduled(conn: Any, *, region: str) -> None:
+async def run_scheduled(conn: Any, *, region: str) -> dict[str, Any]:
     """Nightly, after the pool load. This box's library is scored through answer_question.
 
     Model calls go to Tank on this box. A failure here does not change the pool report.
@@ -1313,15 +1313,12 @@ async def run_scheduled(conn: Any, *, region: str) -> None:
 
     pool = conn if hasattr(conn, "acquire") else _Pool(conn)
     store = PgStore(pool)
-    try:
-        await store.apply_schema()
-    except Exception:
-        return
+    await store.apply_schema()
     ladder = PgLadder(pool)
     library = await load_case_library(conn, region=region)
     model, http = _tank_model()
     try:
-        await run_selftest(ladder, region=region, library=library, model=model)
+        return await run_selftest(ladder, region=region, library=library, model=model)
     finally:
         if http is not None:
             await http.aclose()

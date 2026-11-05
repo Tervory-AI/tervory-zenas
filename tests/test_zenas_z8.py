@@ -373,7 +373,11 @@ async def test_nightly_converts_after_the_pool_load_and_before_the_self_test(mon
     monkeypatch.setenv("DATABASE_URL", "placeholder-offline")
     monkeypatch.delenv("POOL_USE_FIXTURES", raising=False)
     monkeypatch.setattr(asyncpg, "connect", AsyncMock(return_value=connection))
-    monkeypatch.setattr(store, "PostgresStore", lambda conn: SimpleNamespace(apply_schema=AsyncMock()))
+    def regional_store(conn, *, home_region):
+        assert conn is connection and home_region == "us-east"
+        return SimpleNamespace(apply_schema=AsyncMock(), home_region=home_region)
+
+    monkeypatch.setattr(store, "PostgresStore", regional_store)
 
     async def load(*args, **kwargs):
         calls.append("load")

@@ -777,9 +777,11 @@ async def _scheduled_jobs(conn, report, *, region, deadline=None, clock=None):
             except (DeadlineReached, TimeoutError) as exc:
                 if isinstance(exc, TimeoutError) and not window.expired():
                     report[name] = {"unavailable": 1}
+                    report.setdefault("failed_jobs", []).append(name)
                 else:
                     report.setdefault("deferred_jobs", []).append(name)
             except Exception:
+                report.setdefault("failed_jobs", []).append(name)
                 if name == "regulations":
                     report[name] = {"unavailable": 1}
         else:
@@ -788,6 +790,7 @@ async def _scheduled_jobs(conn, report, *, region, deadline=None, clock=None):
                 if name in {"regulations", "judgment_training"}:
                     report[name] = value
             except Exception:
+                report.setdefault("failed_jobs", []).append(name)
                 if name == "regulations":
                     report[name] = {"unavailable": 1}
 
@@ -820,7 +823,7 @@ async def _night_main(region, deadline):
     try:
         from agents.zenas.pool.store import PostgresStore
 
-        store = PostgresStore(conn)
+        store = PostgresStore(conn, home_region=region)
         await store.apply_schema()
         use_fixtures = os.environ.get("POOL_USE_FIXTURES", "").strip() in {"1", "true", "yes"}
         if use_fixtures:
