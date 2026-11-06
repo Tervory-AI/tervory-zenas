@@ -68,6 +68,10 @@ def test_layout(stage):
     if moot.is_file():
         run(['git', 'apply', '--check', moot], cwd=stage)
         run(['git', 'apply', moot], cwd=stage)
+    sdk_patch = ROOT / 'tank-patches/training-sdk.patch'
+    if sdk_patch.is_file():
+        run(['git', 'apply', '--check', sdk_patch], cwd=stage)
+        run(['git', 'apply', sdk_patch], cwd=stage)
     deps = CACHE / 'workspace'
     deps.mkdir(exist_ok=True)
     lock = (stage / 'workspace/package-lock.json').read_bytes()
@@ -99,6 +103,16 @@ def check_secrets():
 
 def tests(stage):
     import pytest
+    sdk = CACHE / 'hf-jobs'
+    python = sdk / 'bin/python'
+    expected = '1.7.2'
+    ready = python.is_file() and subprocess.run([str(python), '-c',
+        "import huggingface_hub; from huggingface_hub import HfApi; assert huggingface_hub.__version__ == '1.7.2'; assert callable(HfApi.list_jobs_hardware)"],
+        capture_output=True).returncode == 0
+    if not ready:
+        run(['uv', 'venv', sdk])
+        run(['uv', 'pip', 'install', '--python', python, 'huggingface-hub==1.7.2', 'asyncpg==0.30.0'])
+    os.environ['HF_JOBS_PYTHON'] = str(python.absolute())
     os.chdir(stage)
     sys.path.insert(0, str(stage))
     sys.path.insert(0, str(stage / 'tests'))

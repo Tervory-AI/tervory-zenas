@@ -1,0 +1,17 @@
+diff --git a/tank/Dockerfile b/tank/Dockerfile
+--- a/tank/Dockerfile
++++ b/tank/Dockerfile
+@@ -19,6 +19,13 @@
+ COPY fonts ./fonts
+ COPY skills ./skills
+ COPY training_jobs ./training_jobs
++# Zenas Jobs launch must never import Tank's older CPU-routing SDK.
++RUN --mount=type=secret,id=proxy_ca \
++    if [ -f /run/secrets/proxy_ca ]; then export PIP_CERT=/run/secrets/proxy_ca SSL_CERT_FILE=/run/secrets/proxy_ca; fi; \
++    python -m venv /opt/hf-jobs && \
++    /opt/hf-jobs/bin/pip install --no-cache-dir huggingface-hub==1.7.2 asyncpg==0.30.0 && \
++    /opt/hf-jobs/bin/python -c "from huggingface_hub import HfApi; assert callable(HfApi.list_jobs_hardware); assert callable(HfApi.run_uv_job)"
++ENV HF_JOBS_PYTHON=/opt/hf-jobs/bin/python
+ COPY plugin_packages ./plugin_packages
+ RUN useradd -m tank && chown -R tank /app
+ # Baked at image build when GIT_SHA (local build) or SOURCE_COMMIT (Coolify with

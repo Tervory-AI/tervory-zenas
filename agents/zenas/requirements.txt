@@ -17,3 +17,5 @@ patchright==1.64.3
 # layouts; docxtpl (LGPL-2.1) fills core/templates/document.docx. No server, no model.
 Mako==1.4.2
 docxtpl==0.20.2
+# HF Jobs hardware discovery and launch use the Jobs-capable SDK.
+huggingface-hub==1.7.2
