@@ -108,7 +108,7 @@ def passages_for_model(passages: list[dict[str, Any]], *, budget: int = _PASSAGE
 
 def rule_card_prompt(question: str, passages: list[dict[str, Any]]) -> str:
     kept, left_out = passages_for_model(passages)
-    body = json.dumps(kept)
+    body = json.dumps(kept, ensure_ascii=False, separators=(",", ":"))
     if left_out == 1:
         body += "\n1 passage was left out. Each passage above is whole."
     elif left_out:
@@ -970,7 +970,7 @@ async def apply_law(
         prompt = _APPLY_PROMPT.format(
             test=element.get("test") or "",
             citation=element.get("citation") or "",
-            facts=json.dumps(features),
+            facts=json.dumps(features, ensure_ascii=False, separators=(",", ":")),
         )
         called = await _masked_call(
             adapter,
@@ -1041,7 +1041,7 @@ async def write_memo(
     sharing: str | None = None,
     provider: str = "luna",
     tank: Any = None,
-    smooth: bool = True,
+    smooth: bool = False,
 ) -> dict[str, Any]:
     applied = await apply_law(
         ladder,
@@ -1066,24 +1066,8 @@ async def write_memo(
     cost = float(applied["cost_usd"])
     model_calls = int(applied.get("model_calls") or 0)
     smoothed = False
-    if smooth and model is not None:
-        adapter = ModelAdapter(model)
-        called = await _masked_call(
-            adapter,
-            _SMOOTH_PROMPT.format(text=memo["text"]),
-            home_region=home_region,
-            provider=provider,
-            task_type="zenas.compose",
-        )
-        if not called["ok"]:
-            return called
-        proposal = called["result"]["content"]
-        spent = float(called["result"]["cost_usd"])
-        cost += spent
-        model_calls += 1
-        if wording_keeps_law(memo["text"], proposal, memo["citations"]):
-            memo["text"] = proposal.strip()
-            smoothed = True
+    # Composition is a deterministic rendering of verified findings and citations.
+    # Keep the legacy smooth argument compatible without paying to format prose.
     memo["text"] = _with_legal_notice(memo["text"])
     return {
         "ok": True,

@@ -1,0 +1,24 @@
+{
+  "source": "tests/test_zenas_ladder.py recorded NDA workflow: one approved rule card, two repeated matter memos",
+  "before_messages": [
+    [
+      {
+        "role": "user",
+        "content": "Build a rule card from these passages only. Reply with JSON:\n{\"elements\":[{\"id\":\"\",\"test\":\"\",\"citation\":\"\",\"quote\":\"\"}],\"exceptions\":[],\"defences\":[],\"remedies\":[],\"decision_table\":[]}\nEvery quote must be copied from a passage. Do not add law. Do not include client facts.\nPrefer whole sentences that contain no dates, amounts, patent or case numbers, ID or phone numbers, email or street addresses, and keep those out of every other field too. They are masked in the card, so a quote without them reads clearly and is checked most simply.\n\nQuestion: Is a mutual NDA enforceable under Delaware law in the United States?\n\nPassages:\n[{\"doc_id\": \"d1\", \"version_id\": \"v1\", \"citation\": \"8 Del. C. \\u00a7 101\", \"text\": \"A written confidentiality promise is enforceable.\", \"jurisdiction\": \"us\", \"status\": \"effective\"}]\n"
+      }
+    ],
+    [
+      {
+        "role": "user",
+        "content": "Smooth the wording of this memo. Do not add law, citations, or facts.\nKeep every citation that is already there.\n\nIssue: Is a mutual NDA enforceable under Delaware law in the United States?\nRule: The promise is in writing. (8 Del. C. \u00a7 101) A written confidentiality promise is enforceable.\nApplication: written: met. form=written\nConclusion: Every element is met on these facts.\n"
+      }
+    ],
+    [
+      {
+        "role": "user",
+        "content": "Smooth the wording of this memo. Do not add law, citations, or facts.\nKeep every citation that is already there.\n\nIssue: Is a mutual NDA enforceable under Delaware law in the United States?\nRule: The promise is in writing. (8 Del. C. \u00a7 101) A written confidentiality promise is enforceable.\nApplication: written: met. form=written\nConclusion: Every element is met on these facts.\n"
+      }
+    ]
+  ],
+  "before_tokens": 375
+}

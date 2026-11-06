@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
@@ -111,6 +112,10 @@ async def test_nightly_split_path_calls_only_tank_court_text_writer(monkeypatch)
     class Response:
         status_code = 200
 
+        def json(self):
+            return {'cost':0,'would have cost':.0001,'baseline_model':'paid-default',
+                    'tokens_in':20,'tokens_out':10}
+
     class Client:
         async def __aenter__(self):
             return self
@@ -130,7 +135,14 @@ async def test_nightly_split_path_calls_only_tank_court_text_writer(monkeypatch)
         "split": 1,
         "excluded": 0,
     }
-    assert len(requests) == 1
+    # Court text still goes to the writer once. The additional code-only
+    # pricing request contains job counters, never the court-text payload.
+    assert len(requests) == 2
     assert requests[0][0].endswith("/v1/training/zenas/court-text")
     assert requests[0][1]["json"]["output"]["outcome"] == "granted"
     assert "model" not in requests[0][0]
+    assert requests[1][0].endswith('/v1/zenas/savings/quote')
+    reference=requests[1][1]['json']['reference']
+    assert json.loads(reference['input'])=={'job':'judgment_training','region':'za'}
+    assert json.loads(reference['output'])=={'status':'completed','result':{'split':1,'excluded':0}}
+    assert HEADED not in json.dumps(reference)

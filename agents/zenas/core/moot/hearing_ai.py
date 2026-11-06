@@ -117,7 +117,7 @@ class AIExecutor:
         context = hearing.ai_context(state, actor, token)
         task = "moot.judge" if state["floor"] == "judge" else "moot.counsel"
         instructions = REASONING_INSTRUCTIONS + "\nReturn a JSON turn only. Counsel kind=submission. Judge kind=question (target applicant/respondent), direction or ruling. Include text, authority_ids and reasoning. Ruling also includes order, reasons and decision (applicant/respondent/uncertain); never force a decision when evidence is insufficient, and never rule before both sides have submitted. Answer the pending question with responds_to equal to its turn number. Never include a source outside supplied authorities. reasoning schema: facts=[{id,position:sourced|contested|assumed,relevance}], rules=[{authority_id,court_weight,application}], comparisons=[{authority_id,similarities:[fact_id],differences:[{fact_id,explanation}],legal_significance}], opposing_argument:string,response:string,uncertainty:[string],conclusion:string. A judge may set issue_index to a supplied issue index."
-        messages = [{"role": "system", "content": instructions}, {"role": "user", "content": json.dumps(context)}]
+        messages = [{"role": "system", "content": instructions}, {"role": "user", "content": json.dumps(context, ensure_ascii=False, separators=(",", ":"))}]
         call = asyncio.create_task(self.tank.route(actor.tenant_id, task, messages))
         watch = asyncio.create_task(self._watch(actor, hearing_id, token, state["revision"]))
         receipt = None

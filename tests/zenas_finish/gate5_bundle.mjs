@@ -14,6 +14,7 @@ let entry=`
     import {ReviewDesk} from './workspace/app/review/desk';
     import {FeedSwitch} from './workspace/app/zenas/feeds/board';
     import {MootCourt} from './workspace/app/zenas/moot-court';
+    import {Receipts} from './workspace/app/zenas/receipts/view';
     import {MootScreen} from './workspace/app/zenas/moot-screen';
     import {WatchPanel} from './workspace/app/moot/WatchPanel';
     import {DeadlinesPanel} from './workspace/app/zenas/deadlines-panel';
@@ -23,7 +24,7 @@ let entry=`
     import './workspace/app/matters/matters.css'; import './workspace/app/review/review.css';
     const root=createRoot(document.getElementById('root'));
     window.renderScreen=(mode,props={})=>{
-      const screens={signup:<Signup/>,view:<ZenasView plugins={offPanel('Sign in to use Plugins.')} workspaceName={null}/>,
+      const screens={receipts:<main className="zn"><Receipts receipts={[]} {...props}/></main>,signup:<Signup/>,view:<ZenasView plugins={offPanel('Sign in to use Plugins.')} workspaceName={null}/>,
         matters:<main className="zenas-page"><MatterBoard initial={[]} note="" {...props}/></main>,
         review:<main className="zenas-page"><ReviewDesk items={[]} note="" {...props}/></main>,
         feeds:<main className="zf"><FeedSwitch initialRegion="us-east" initialSources={[]} initialScores={[]} initialReview="off" initialConvert={emptyConvert('us-east')} note="" {...props}/></main>,

@@ -4,6 +4,14 @@
 
 CREATE SCHEMA IF NOT EXISTS agent_zenas;
 
+CREATE TABLE IF NOT EXISTS agent_zenas.savings_receipts (
+    tenant_id uuid NOT NULL, id uuid NOT NULL,
+    receipt jsonb NOT NULL, created_at timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY(tenant_id,id)
+);
+CREATE INDEX IF NOT EXISTS savings_receipts_recent
+    ON agent_zenas.savings_receipts(tenant_id,created_at DESC,id DESC);
+
 CREATE TABLE IF NOT EXISTS agent_zenas.command_receipts (
     tenant_id uuid NOT NULL,
     request_id uuid NOT NULL,
@@ -692,3 +700,5 @@ CREATE TABLE IF NOT EXISTS agent_zenas.memory_publish_log (
 -- END GENERATED AGENT MEMORY
 
 DO $$ BEGIN IF EXISTS (SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='agent_zenas' AND c.relrowsecurity AND c.relname <> 'command_receipts') THEN ALTER TABLE agent_zenas.command_receipts ENABLE ROW LEVEL SECURITY; ALTER TABLE agent_zenas.command_receipts FORCE ROW LEVEL SECURITY; IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='agent_zenas' AND tablename='command_receipts' AND policyname='command_tenant') THEN CREATE POLICY command_tenant ON agent_zenas.command_receipts USING (tenant_id=NULLIF(current_setting('app.tenant_id',true),'')::uuid) WITH CHECK (tenant_id=NULLIF(current_setting('app.tenant_id',true),'')::uuid); END IF; END IF; END $$;
+
+DO $$ BEGIN IF EXISTS (SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='agent_zenas' AND c.relrowsecurity AND c.relname <> 'savings_receipts') THEN ALTER TABLE agent_zenas.savings_receipts ENABLE ROW LEVEL SECURITY; ALTER TABLE agent_zenas.savings_receipts FORCE ROW LEVEL SECURITY; IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='agent_zenas' AND tablename='savings_receipts' AND policyname='savings_tenant') THEN CREATE POLICY savings_tenant ON agent_zenas.savings_receipts USING (tenant_id=NULLIF(current_setting('app.tenant_id',true),'')::uuid) WITH CHECK (tenant_id=NULLIF(current_setting('app.tenant_id',true),'')::uuid); END IF; END IF; END $$;

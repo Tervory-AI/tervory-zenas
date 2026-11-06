@@ -84,7 +84,8 @@ async def _command(request, call_next):
         return JSONResponse({"detail": "tenant_mismatch"}, status_code=403)
     command = request.headers.get("idempotency-key")
     if request.method != "POST" or not command:
-        return await call_next(request)
+        from .savings import command as run_command
+        return await run_command(request, call_next, next(iter(owners), None))
     try:
         command = str(UUID(command))
     except ValueError:
@@ -116,8 +117,9 @@ async def _command(request, call_next):
                                 headers={"content-type": payload["type"], "idempotency-key": command})
     # The claim commits before any external effect. A process loss leaves it
     # pending, never eligible for automatic execution a second time.
-    response = await call_next(request)
-    content = b"".join([chunk async for chunk in response.body_iterator])
+    from .savings import command as run_command
+    response = await run_command(request, call_next, tenant)
+    content = response.body if hasattr(response, "body") else b"".join([chunk async for chunk in response.body_iterator])
     token = seal(json.dumps({"body": base64.b64encode(content).decode(),
                              "type": response.headers.get("content-type", "application/json")}), key)
     with tenant_scope(tenant):

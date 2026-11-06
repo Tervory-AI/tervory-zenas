@@ -131,7 +131,7 @@ class _TankModel:
         failed = route_failure(data)
         if failed is not None:
             return failed
-        return {
+        return {**data,
             "content": str(data.get("content") or ""),
             "cost_usd": float(data.get("cost_usd") or 0),
             "model": str(data.get("model") or ""),
@@ -140,6 +140,8 @@ class _TankModel:
 
 def _model(tenant_id: str) -> _TankModel:
     return _TankModel(app.state.tank, tenant_id)
+
+
 
 
 def _fail(result: dict[str, Any]) -> None:
@@ -375,6 +377,17 @@ async def configuration_guard(request, call_next):
     return await call_next(request)
 
 
+@app.get("/receipts")
+async def get_receipts(tenant_id: UUID, home_region: str) -> dict[str, Any]:
+    from agents.zenas.core.service import _use_home
+    from agents.zenas.core.savings import receipts
+    _home, refused = await _use_home(_store(), tenant_id=str(tenant_id),
+                                   home_region=home_region, box_region=_box_region())
+    if refused:
+        raise HTTPException(403, "wrong_region")
+    return {"receipts": await receipts(app.state.pool, str(tenant_id))}
+
+
 @app.post("/consents", status_code=201)
 async def post_consent(body: ConsentIn) -> dict[str, Any]:
     store = _store()
@@ -552,7 +565,7 @@ class ApplyIn(BaseModel):
     question: str = ""
     sharing: str | None = None
     provider: str = "luna"
-    smooth: bool = True
+    smooth: bool = False
 
 
 class PlainIn(BaseModel):

@@ -25,6 +25,9 @@ def exclusive_job(name):
                 async with claim(connection, region=region, name=name) as acquired:
                     if not acquired:
                         return {'ok': True, 'status': 'already running', 'split': 0, 'excluded': 0}
+                    if name in {'convert','selftest','regulations','judgment_training'}:
+                        from .savings import job
+                        return await job(connection, function, region=region, name=name)
                     return await function(connection, region=region)
             if hasattr(conn, 'acquire'):
                 async with conn.acquire() as connection:

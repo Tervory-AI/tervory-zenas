@@ -7,6 +7,7 @@ import json
 import os
 import sys
 from pathlib import Path
+from uuid import UUID,uuid4
 
 os.environ.setdefault("DATABASE_URL", "postgresql://x:y@localhost/z")
 os.environ.setdefault("LITELLM_MASTER_KEY", "test")
@@ -79,14 +80,30 @@ class _Response:
 
 
 class _TankHttp:
-    def __init__(self, timeout: int = 120) -> None:
+    instances=[]
+
+    def __init__(self, timeout: int = 120, *, follow_redirects=False) -> None:
+        assert follow_redirects is False
         self.timeout = timeout
         self.posts: list[dict] = []
         self.closed = False
         _TankHttp.latest = self
+        _TankHttp.instances.append(self)
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self,*_args):
+        await self.aclose()
 
     async def post(self, url: str, json: dict | None = None, headers: dict | None = None) -> _Response:
         self.posts.append({"url": url, "json": json or {}, "headers": headers or {}})
+        if url.endswith('/v1/zenas/savings/quote'):
+            assert json['tenant_id']==_PLATFORM
+            assert set(json['reference'])=={'input','output'}
+            return _Response({'cost':0,'would have cost':.01,'baseline_model':'paid-default',
+                              'ledger_ids':json['ledger_ids'],'tokens_in':1000,'tokens_out':100})
+        assert url.endswith('/v1/route')
         content = ""
         messages = (json or {}).get("messages") or []
         if messages:
@@ -94,6 +111,7 @@ class _TankHttp:
         return _Response(
             {
                 "content": json_dumps(_card_for(content)),
+                "ledger_id":str(uuid4()),
                 "cost_usd": 0,
                 "model": "script",
                 "finish_reason": "stop",
@@ -115,6 +133,12 @@ class _Rows:
         self.rows = rows
         self.jurisdiction = jurisdiction
         self.calls: list[tuple] = []
+        self.receipts=[]
+
+    async def execute(self,sql,*args):
+        assert 'INSERT INTO agent_zenas.savings_receipts' in sql
+        assert args[0]==UUID(_PLATFORM) and isinstance(args[1],UUID)
+        self.receipts.append(json.loads(args[2]))
 
     async def fetchval(self, sql, *args):
         assert sql in {'SELECT pg_try_advisory_lock($1)', 'SELECT pg_advisory_unlock($1)'}
@@ -171,6 +195,7 @@ def test_nightly_made_up_row_uses_answer_question_through_tank(monkeypatch: pyte
     monkeypatch.setattr(httpx, "AsyncClient", _TankHttp)
     monkeypatch.setenv("TANK_KEY", "box-key")
     monkeypatch.setenv("TANK_URL", "http://tank.this-box")
+    _TankHttp.instances=[]
     _RecordingLadder.made = []
     monkeypatch.setattr("agents.zenas.core.ladder_store.PgLadder", _RecordingLadder)
 
@@ -191,7 +216,7 @@ def test_nightly_made_up_row_uses_answer_question_through_tank(monkeypatch: pyte
     assert made["cases"] == 50
     assert made["detail"]["path"] == "answer_question"
     assert made["detail"]["skills_may_be_approved"] is True
-    client = _TankHttp.latest
+    client = next(c for c in _TankHttp.instances if any(p['url'].endswith('/v1/route') for p in c.posts))
     assert client.closed is True
     assert len(client.posts) >= 50
     first = client.posts[0]
@@ -202,6 +227,11 @@ def test_nightly_made_up_row_uses_answer_question_through_tank(monkeypatch: pyte
     assert first["headers"]["X-Tank-Key"] == "box-key"
     assert all(post["url"].endswith("/v1/route") for post in client.posts)
     assert "box-key" not in made["area"]
+    assert all(c.closed for c in _TankHttp.instances)
+    quotes=[p for c in _TankHttp.instances for p in c.posts if p['url'].endswith('/v1/zenas/savings/quote')]
+    assert len(quotes)==1 and len(conn.receipts)==1
+    assert conn.receipts[0]['cost']==0 and conn.receipts[0]['would have cost']==.01
+    assert 'box-key' not in json.dumps(conn.receipts)
 
 
 def test_nightly_without_a_tank_key_stays_not_run(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -223,6 +253,8 @@ def test_nightly_without_a_tank_key_stays_not_run(monkeypatch: pytest.MonkeyPatc
     made = next(row for row in _RecordingLadder.made[-1].selftests if str(row["area"]).startswith("Made-up"))
     assert made["area"] == "Made-up cases: not run."
     assert "50 of 50" not in made["area"]
+    assert len(conn.receipts)==1 and conn.receipts[0]['cost']==0
+    assert conn.receipts[0]['would have cost'] is None
 
 
 def test_the_us_box_asks_answer_question_about_its_own_library() -> None:

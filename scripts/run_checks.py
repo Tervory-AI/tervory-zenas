@@ -72,6 +72,10 @@ def test_layout(stage):
     if sdk_patch.is_file():
         run(['git', 'apply', '--check', sdk_patch], cwd=stage)
         run(['git', 'apply', sdk_patch], cwd=stage)
+    savings = ROOT / 'tank-patches/gate6.patch'
+    if savings.is_file():
+        run(['git', 'apply', '--check', savings], cwd=stage)
+        run(['git', 'apply', savings], cwd=stage)
     deps = CACHE / 'workspace'
     deps.mkdir(exist_ok=True)
     lock = (stage / 'workspace/package-lock.json').read_bytes()

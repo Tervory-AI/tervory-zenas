@@ -111,6 +111,20 @@ class HermesLawClient:
         key = os.environ.get("TANK_KEY", "")
         if not key:
             raise RuntimeError("Hermes is not configured")
+        if path == '/law/embeddings':
+            from agents.zenas.core.savings import Batch, current, observed
+            run=current.get()
+            tenant=run.tenant if run is not None and not isinstance(run,Batch) else '00000000-0000-0000-0000-000000000001'
+            if os.environ.get('TANK_URL','http://tank:8000').rstrip('/')!='http://tank:8000':
+                raise RegionError('Tank must be on this box')
+            async with httpx.AsyncClient(base_url='http://tank:8000',transport=self._transport,
+                    trust_env=False,follow_redirects=False,timeout=120) as client:
+                response=await client.post('/v1/zenas/law/embeddings',headers={'X-Tank-Key':key},json={
+                    'tenant_id':tenant,'jurisdiction':self.jurisdiction,'model':self.name,**payload})
+                if response.status_code!=200:raise RuntimeError('meaning search unavailable')
+                data=response.json()
+                observed(tenant,data)
+                return data
         async with httpx.AsyncClient(base_url=base, transport=self._transport, trust_env=False,
                                      follow_redirects=False, timeout=120) as client:
             response = await client.post(path, headers={"X-Tank-Key": key}, json={
