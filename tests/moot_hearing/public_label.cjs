@@ -5,10 +5,21 @@ const {createRequire} = require('node:module');
 const root = path.resolve(__dirname, '../..');
 const deps = createRequire(path.join(root, 'workspace/package.json'));
 const ts = deps('typescript');
-const filename = path.join(root, 'workspace/app/moot/WatchPanel.tsx');
-const compiled = ts.transpileModule(fs.readFileSync(filename, 'utf8'), {compilerOptions: {module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2022}}).outputText;
-const loaded = {exports: {}};
-new Function('require', 'module', 'exports', compiled)(deps, loaded, loaded.exports);
+function load(filename) {
+  const compiled=ts.transpileModule(fs.readFileSync(filename,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX,target:ts.ScriptTarget.ES2022}}).outputText;
+  const module={exports:{}};
+  const local=name=>{
+    if(name.startsWith('.')) {
+      const stem=path.resolve(path.dirname(filename),name);
+      const target=['','.ts','.tsx','.js'].map(ext=>stem+ext).find(file=>fs.existsSync(file)&&fs.statSync(file).isFile());
+      if(target)return load(target);
+    }
+    return deps(name);
+  };
+  new Function('require','module','exports',compiled)(local,module,module.exports);
+  return module.exports;
+}
+const loaded={exports:load(path.join(root,'workspace/app/moot/WatchPanel.tsx'))};
 const React = deps('react');
 const {renderToStaticMarkup} = deps('react-dom/server');
 for (const verificationStatus of [undefined, 'unverified', 'verified']) {

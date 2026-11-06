@@ -49,7 +49,7 @@ def validate_turn(state: dict[str, Any], payload: Any) -> dict[str, Any]:
         raise hearing.HearingError("invalid_turn")
     problem = state["problem"]
     kind = payload.get("kind")
-    fields = ("kind", "text", "target", "authority_ids", "order", "reasons", "responds_to", "issue_index", "decision")
+    fields = ("kind", "text", "target", "authority_ids", "order", "reasons", "responds_to", "issue_index", "decision", "voice")
     result = {k: payload[k] for k in fields if k in payload}
     if kind != "direction":
         result["reasoning"] = validate(problem, payload.get("reasoning"))

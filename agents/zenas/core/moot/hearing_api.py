@@ -42,6 +42,8 @@ def register_routes(app, pool, tenant_store, box_region, tank):
             tenant = str(UUID(tenant))
         except ValueError:
             raise HTTPException(401, "actor_required") from None
+        from chassis.tenant_db import activate_tenant
+        activate_tenant(tenant)
         region = box_region()
         from agents.zenas.core.service import _use_home
         _, refusal = await _use_home(tenant_store(), tenant_id=tenant, home_region=home, box_region=region)
@@ -108,10 +110,14 @@ def register_routes(app, pool, tenant_store, box_region, tank):
 
     @app.get("/moot/hearings/{hearing_id}")
     async def read(hearing_id: UUID, home_region: str, seat: Literal["applicant", "respondent", "judge"] | None = Query(default=None),
+        screen: Literal["bench", "citations", "feedback"] | None = Query(default=None),
         x_tank_key: str = Header(default=""), x_moot_tenant: str = Header(default=""),
         x_moot_actor: str = Header(default=""), x_moot_founder: str = Header(default="")):
         actor = await identity(home_region, x_tank_key, x_moot_tenant, x_moot_actor, x_moot_founder)
         try:
+            if screen is not None:
+                from .feedback import screen as project_screen
+                return {"screen": await project_screen(HearingStore(pool()), actor, str(hearing_id), screen)}
             state = await HearingStore(pool()).load(actor, str(hearing_id))
             return await present(state, actor, seat)
         except hearing.HearingError as exc:

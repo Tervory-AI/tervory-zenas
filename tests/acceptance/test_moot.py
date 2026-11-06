@@ -32,7 +32,8 @@ PLATFORM = UUID('00000000-0000-0000-0000-000000000001')
 def render(page, result, region='us-east'):
     run = subprocess.run(['node', 'tests/acceptance/moot.cjs'], cwd=ROOT,
         input=json.dumps({'page': page, 'result': result, 'region': region}),
-        text=True, capture_output=True, timeout=20, check=True)
+        text=True, capture_output=True, timeout=20)
+    assert run.returncode == 0, run.stderr
     return json.loads(run.stdout)
 
 

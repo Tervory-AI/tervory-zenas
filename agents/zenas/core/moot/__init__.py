@@ -1,4 +1,4 @@
-"""MOOT-1a: text moot court (no LiveKit / voice — that is MOOT-1b)."""
+"""Moot Court: durable hearings, local speech evidence and explicit publication."""
 
 from agents.zenas.core.moot.problem import (
     counsel_bundle,

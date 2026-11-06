@@ -14,6 +14,8 @@ let entry=`
     import {ReviewDesk} from './workspace/app/review/desk';
     import {FeedSwitch} from './workspace/app/zenas/feeds/board';
     import {MootCourt} from './workspace/app/zenas/moot-court';
+    import {MootScreen} from './workspace/app/zenas/moot-screen';
+    import {WatchPanel} from './workspace/app/moot/WatchPanel';
     import {DeadlinesPanel} from './workspace/app/zenas/deadlines-panel';
     import {offPanel} from './workspace/app/zenas/plugins';
     import {emptyConvert} from './workspace/app/api/zenas/feeds/public';
@@ -26,6 +28,7 @@ let entry=`
         review:<main className="zenas-page"><ReviewDesk items={[]} note="" {...props}/></main>,
         feeds:<main className="zf"><FeedSwitch initialRegion="us-east" initialSources={[]} initialScores={[]} initialReview="off" initialConvert={emptyConvert('us-east')} note="" {...props}/></main>,
         moot:<main className="zn" style={{display:'block',overflow:'auto',padding:16}}><MootCourt/></main>,
+        "moot-screen":<MootScreen {...props}/>,"moot-public":<WatchPanel {...props}/>,
         deadlines:<main className="zn"><DeadlinesPanel/></main>};
       root.render(screens[mode]);
     }; window.renderScreen(window.screenMode??'view',window.screenProps??{});

@@ -25,8 +25,10 @@ def client_bundle(tmp_path_factory):
     return script, css
 
 
-async def screen(browser, bundle, mode, props=None, api=None, width=390, slow=False):
+async def screen(browser, bundle, mode, props=None, api=None, width=390, slow=False, init_script=None):
     context = await browser.new_context(viewport={'width': width, 'height': 844}, reduced_motion='reduce')
+    if init_script:
+        await context.add_init_script(init_script)
     page = await context.new_page()
     if slow:
         cdp = await context.new_cdp_session(page)
@@ -46,7 +48,7 @@ async def screen(browser, bundle, mode, props=None, api=None, width=390, slow=Fa
             return await request.fulfill(content_type='application/javascript', body=script)
         if path.startswith('/brand/'):
             return await request.fulfill(status=404)
-        await request.fulfill(content_type='text/html',body='<html lang="en"><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0}'+css+'</style><div id="root"></div><script>window.screenMode='+json.dumps(mode)+';window.screenProps='+json.dumps(props or {})+'</script><script src="/client.js"></script></html>')
+        await request.fulfill(content_type='text/html',body='<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0}'+css+'</style><div id="root"></div><script>window.screenMode='+json.dumps(mode)+';window.screenProps='+json.dumps(props or {})+'</script><script src="/client.js"></script></html>')
     await page.route('**/*', route)
     await page.goto('https://placeholder.test/')
     return context, page, errors

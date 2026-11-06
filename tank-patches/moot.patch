@@ -1,0 +1,432 @@
+Subject: [PATCH] Moot local speech and saved hearing views
+Depends-On: gate4.patch, gate5.patch
+
+diff --git a/workspace/app/api/zenas/moot/[[...segments]]/route.ts b/workspace/app/api/zenas/moot/[[...segments]]/route.ts
+--- a/workspace/app/api/zenas/moot/[[...segments]]/route.ts
++++ b/workspace/app/api/zenas/moot/[[...segments]]/route.ts
+@@ -69,6 +69,11 @@
+       if (!SEATS.has(seat)) return reply({ error: "invalid_seat" }, 400);
+       params.set("seat", seat);
+     }
++    const screen = new URL(req.url).searchParams.get("screen");
++    if (screen) {
++      if (!["bench", "citations", "feedback"].includes(screen)) return reply({ error: "invalid_request" }, 400);
++      params.set("screen", screen);
++    }
+     let body: Record<string, unknown> | null = null;
+     if (req.method === "POST") {
+       body = await jsonBody(req);
+diff --git a/workspace/app/moot/WatchPanel.tsx b/workspace/app/moot/WatchPanel.tsx
+--- a/workspace/app/moot/WatchPanel.tsx
++++ b/workspace/app/moot/WatchPanel.tsx
+@@ -1,3 +1,6 @@
++"use client";
++import {useEffect,useState} from "react";
++import {LocalHearingVoice} from "../zenas/moot-voice";
+ /** Presentational watch panel — used by the public page and viewport fixture tests. */
+
+ export type WatchAuthority = { name: string; source_url?: string };
+@@ -19,11 +22,22 @@
+ };
+
+ export function WatchPanel({ row }: { row: WatchRecord }) {
++  const [speechError,setSpeechError]=useState("");
++  useEffect(()=>{
++    const voice=new LocalHearingVoice(setSpeechError);
++    function keyboard(event:KeyboardEvent){
++      if(!event.repeat&&event.altKey&&!event.ctrlKey&&!event.metaKey&&event.code==="KeyJ"){
++        event.preventDefault();voice.readPublished("",{order:row.judgmentOrder,reasons:row.judgmentReasons??[]});
++      }
++    }
++    window.addEventListener("keydown",keyboard);
++    return()=>{window.removeEventListener("keydown",keyboard);voice.close();};
++  },[row.matchId,row.judgmentOrder,row.judgmentReasons]);
+   return (
+     <main className="moot-watch" aria-label="Moot watch">
+       <h1>{row.title}</h1>
+       <p>unverified</p>
+-      <p>Public watch page (text edition). Nothing spoken here — that is later work.</p>
++
+
+       <section aria-label="Transcript">
+         <h2>Transcript</h2>
+@@ -39,7 +53,8 @@
+         )}
+       </section>
+
+-      <section aria-label="Judgment">
++      {speechError?<p role="alert">{speechError}</p>:null}
++      <section aria-label="Judgment" aria-keyshortcuts="Alt+J">
+         <h2>Judgment</h2>
+         <p>Order: {row.judgmentOrder}</p>
+         <ul>
+diff --git a/workspace/app/moot/page.tsx b/workspace/app/moot/page.tsx
+--- a/workspace/app/moot/page.tsx
++++ b/workspace/app/moot/page.tsx
+@@ -18,7 +18,7 @@
+     <main className="moot-watch" aria-label="Moot Court">
+       <h1>Moot Court</h1>
+       <p>
+-        This is where Zenas trains in text. Public watch pages only — nothing spoken here yet.
++        This is where Zenas trains in text. Public watch pages only.
+         Law students will use it later, for free.
+       </p>
+       <p>
+diff --git a/workspace/app/zenas/moot-court.tsx b/workspace/app/zenas/moot-court.tsx
+--- a/workspace/app/zenas/moot-court.tsx
++++ b/workspace/app/zenas/moot-court.tsx
+@@ -2,6 +2,7 @@
+
+ import { zenasFetch } from "@/app/zenas/request";
+
++import { LocalHearingVoice } from "./moot-voice";
+ import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+ import { MOOT_LABEL, MOOT_LEAD, MOOT_PARTS } from "./moot";
+ import { fairnessReading, type Fairness, newerHearing, SEATS, SEAT_LABELS, turnFromForm, type Hearing, type Seat } from "./moot-hearing-types";
+@@ -20,6 +21,7 @@
+ const FAILURE = "The request could not be completed. Check the details and try again.";
+
+ export function MootCourt() {
++  const voice = useRef<LocalHearingVoice | null>(null);
+   const [summaries, setSummaries] = useState<Summary[]>([]);
+   const [sources, setSources] = useState<{ id: string; title: string }[]>([]);
+   const [participants, setParticipants] = useState<Participant[]>([]);
+@@ -40,6 +42,21 @@
+   const aiRequest = useRef<string | null>(null);
+   const commandRequests = useRef(new Map<string, string>());
+   const [judgeKind, setJudgeKind] = useState("question");
++
++  useEffect(() => {
++    voice.current = new LocalHearingVoice(setMessage);
++    function keyboard(event: KeyboardEvent) {
++      if (event.repeat || !event.altKey || event.ctrlKey || event.metaKey) return;
++      if (event.code === "KeyJ") { event.preventDefault(); voice.current?.replayJudge(); return; }
++      const field = document.activeElement;
++      if (event.code === "KeyM" && field instanceof HTMLTextAreaElement && field.closest('form[data-moot-turn]')) {
++        event.preventDefault(); void voice.current?.dictate(field);
++      }
++    }
++    window.addEventListener("keydown", keyboard);
++    return () => { window.removeEventListener("keydown", keyboard); voice.current?.close(); };
++  }, []);
++  useEffect(() => { voice.current?.observe(hearing); }, [hearing]);
+
+   const accept = useCallback((candidate: Hearing, isOperator: boolean) => {
+     if (candidate.id !== selectedRef.current) return;
+@@ -174,9 +191,10 @@
+   }, [operator, hearing?.id, hearing?.phase, fairness?.pair_id, fairness?.status]);
+
+   function selectHearing(id: string) {
+-    aiAbort.current?.abort(); selectedRef.current = id; setSelected(id); setHearing(null); setFairness(null); seatRef.current = ""; setSeat(""); setMessage("");
++    voice.current?.close(); aiAbort.current?.abort(); selectedRef.current = id; setSelected(id); setHearing(null); setFairness(null); seatRef.current = ""; setSeat(""); setMessage("");
+   }
+   function selectSeat(value: Seat | "") {
++    voice.current?.close();
+     seatRef.current = value; setSeat(value);
+     // Drop the prior role's private projection immediately. An old response may
+     // not put it back after a role selection or controller handover.
+@@ -190,7 +208,7 @@
+   const draftKey = `${selected}:${seat}`;
+   const draft = drafts[draftKey] ?? {};
+   const putDraft = (name: string, value: string) => setDrafts(all => ({ ...all, [draftKey]: { ...(all[draftKey] ?? {}), [name]: value } }));
+-  const area = (name: string, label: string, required = false) => <label key={name}>{label}<textarea name={name} required={required} maxLength={12000} value={draft[name] ?? ""} onChange={e => putDraft(name, e.target.value)} /></label>;
++  const area = (name: string, label: string, required = false) => <label key={name}>{label}<textarea aria-keyshortcuts="Alt+M Alt+J" name={name} required={required} maxLength={12000} value={draft[name] ?? ""} onChange={e => putDraft(name, e.target.value)} /></label>;
+   async function create(event: FormEvent<HTMLFormElement>) {
+     event.preventDefault(); const form = new FormData(event.currentTarget); setBusy(true); setMessage("");
+     const seats = Object.fromEntries(SEATS.map(s => { const value = String(form.get(s)); return [s, value === "ai" ? { kind: "ai" } : { kind: "human", user_id: value }]; }));
+@@ -210,7 +228,9 @@
+   async function submit(event: FormEvent<HTMLFormElement>) {
+     event.preventDefault(); if (!hearing || !seat) return;
+     const form = event.currentTarget;
+-    if (await command("turn", turnFromForm(new FormData(form), hearing, seat))) {
++    const payload = turnFromForm(new FormData(form), hearing, seat);
++    const capture = voice.current?.metadata(payload.text);
++    if (await command("turn", { ...payload, ...(capture ? { voice: capture } : {}) })) {
+       setDrafts(all => ({ ...all, [draftKey]: {} })); form.reset();
+     }
+   }
+@@ -222,7 +242,7 @@
+     {message && <p role="alert">{message}</p>}
+     <label className="zn-select">The hearing<select value={selected} onChange={e => selectHearing(e.target.value)}><option value="">—</option>{summaries.map(s => <option value={s.id} key={s.id}>{s.title}{s.first_side === "respondent" ? " · Swapped seats" : ""}</option>)}</select></label>
+     <div className="zn-moot-ground">
+-      <article className="zn-card"><h2>{MOOT_PARTS[0].title}</h2>
++      <article className="zn-card"><h2>{hearing ? <a className="zn-moot-screen-link" href={`/zenas/moot/${hearing.id}/citations`}>{MOOT_PARTS[0].title}</a> : MOOT_PARTS[0].title}</h2>
+         {!hearing && <form onSubmit={create} inert={!founder} aria-hidden={!founder} style={{ visibility: founder ? "visible" : "hidden" }}>
+           <label className="zn-select">Civil appeal<select name="worked" required><option value="">—</option>{sources.map(s => <option value={s.id} key={s.id}>{s.title}</option>)}</select></label>
+           {SEATS.map(s => <label className="zn-select" key={s}>{SEAT_LABELS[s]}<select name={s} defaultValue="ai"><option value="ai">AI</option>{participants.map(p => <option value={p.user_id} key={p.user_id}>{p.name}</option>)}</select></label>)}
+@@ -236,7 +256,7 @@
+           {operator && hearing.phase === "locked" && <button className="zn-primary" disabled={busy} onClick={() => void command("start")}>Start hearing</button>}
+         </>}
+       </article>
+-      <article className="zn-card"><h2>{MOOT_PARTS[1].title}</h2>
++      <article className="zn-card"><h2>{hearing ? <a className="zn-moot-screen-link" href={`/zenas/moot/${hearing.id}/bench`}>{MOOT_PARTS[1].title}</a> : MOOT_PARTS[1].title}</h2>
+         {!hearing ? <p>{MOOT_PARTS[1].empty}</p> : <>
+           <p>Floor: {SEAT_LABELS[hearing.floor]} · {hearing.phase}</p>
+           {hearing.pending_ai && <p role="status">AI turn in progress</p>}
+@@ -245,7 +265,7 @@
+           {hearing.problem.bench_notes && <details><summary>Bench notes</summary><ul>{Object.values(hearing.problem.bench_notes).flatMap(value => Array.isArray(value) ? value : [value]).filter(value => typeof value === "string").map((value, i) => <li key={i}>{String(value)}</li>)}</ul></details>}
+           {hearing.pending_question && <p>{hearing.pending_question.text}</p>}
+           <ol className="zn-thread">{hearing.transcript.map(t => <li key={t.number}><strong>{SEAT_LABELS[t.seat]}</strong><p>{t.text}</p>{t.reasoning && <details><summary>Reasoning</summary><ReasonTrace trace={t.reasoning} problem={hearing.problem} /></details>}</li>)}</ol>
+-          {canSubmit && <form className="zn-composer" onSubmit={submit}>
++          {canSubmit && <form className="zn-composer" data-moot-turn="true" onSubmit={submit}>
+             {seat === "judge" && <><label className="zn-select">Current issue<select name="issue" defaultValue={hearing.current_issue}>{hearing.problem.issues.map((issue, i) => <option value={i} key={i}>{issue}</option>)}</select></label><label className="zn-select">Judge<select name="kind" value={judgeKind} onChange={e => setJudgeKind(e.target.value)}><option value="question">Question</option><option value="direction">Give the floor</option><option value="ruling">Judgment</option></select></label>{judgeKind !== "ruling" && <label className="zn-select">Counsel<select name="target"><option value="applicant">Applicant</option><option value="respondent">Respondent</option></select></label>}</>}
+             {area("text", "Submission", true)}
+             {(seat !== "judge" || judgeKind !== "direction") && <>
+@@ -263,7 +283,7 @@
+           {operator && hearing.pending_ai && <button className="zn-outline" disabled={busy} onClick={() => void command("abandon")}>Resolve pending turn</button>}
+         </>}
+       </article>
+-      <article className="zn-card"><h2>{MOOT_PARTS[2].title}</h2>
++      <article className="zn-card"><h2>{hearing ? <a className="zn-moot-screen-link" href={`/zenas/moot/${hearing.id}/feedback`}>{MOOT_PARTS[2].title}</a> : MOOT_PARTS[2].title}</h2>
+         {fairness && <section aria-label="Fairness check"><h3>Fairness check</h3><p>{fairnessReading(fairness)}</p>
+           {operator && fairness.status !== "incomplete" && <button className="zn-outline" onClick={() => selectHearing(fairness.first_hearing === hearing?.id ? fairness.second_hearing : fairness.first_hearing)}>View other hearing</button>}
+           {operator && fairness.status === "incomplete" && hearing?.id === fairness.first_hearing && <button className="zn-outline" disabled={busy} onClick={() => { swappedStart.current = null; void startSwapped(); }}>Run swapped seats</button>}
+@@ -279,7 +299,7 @@
+ }
+
+
+-function ReasonTrace({ trace, problem }: { trace: Record<string, unknown>; problem: Hearing["problem"] }) {
++export function ReasonTrace({ trace, problem }: { trace: Record<string, unknown>; problem: Hearing["problem"] }) {
+   const paragraphs = [trace.opposing_argument, trace.response, trace.conclusion];
+   const comparisons = Array.isArray(trace.comparisons) ? trace.comparisons as { legal_significance?: string; differences?: { explanation: string }[] }[] : [];
+   const rules = Array.isArray(trace.rules) ? trace.rules as { authority_id?: string; application?: string; court_weight?: string }[] : [];
+diff --git a/workspace/app/zenas/moot-screen.tsx b/workspace/app/zenas/moot-screen.tsx
+new file mode 100644
+--- /dev/null
++++ b/workspace/app/zenas/moot-screen.tsx
+@@ -0,0 +1,49 @@
++'use client';
++import {useEffect,useState} from 'react';
++import {zenasFetch} from '@/app/zenas/request';
++import {MOOT_PARTS} from '@/app/zenas/moot';
++import {SEAT_LABELS,type Hearing,type Seat} from '@/app/zenas/moot-hearing-types';
++import {ReasonTrace} from '@/app/zenas/moot-court';
++import {safeHref} from '@/app/prices/format';
++
++type Screen = {kind:string;id:string;revision:number;title:string;phase:string;floor:Seat;
++  problem:Hearing['problem'];transcript:Hearing['transcript'];ruling:Hearing['ruling'];reveal?:string;
++  authorities:Hearing['problem']['authorities'];
++  feedback:null|{court_holding:string;fairness:{reading:string};counsel:{seat:Seat;arguments:{number:number;text:string;reasoning?:Record<string,unknown>}[];authorities:Hearing['problem']['authorities']}[]}};
++
++export function MootScreen({id,kind}:{id:string;kind:'bench'|'citations'|'feedback'}){
++  const [screen,setScreen]=useState<Screen|null>(null),[error,setError]=useState(false);
++  useEffect(()=>{
++    let stopped=false,inflight=false;const controller=new AbortController();
++    async function refresh(){
++      if(inflight)return;inflight=true;
++      try{
++        const response=await zenasFetch(`/api/zenas/moot/hearings/${id}?screen=${kind}`,{signal:controller.signal});
++        const result=await response.json();if(stopped)return;
++        if(!response.ok||!result.screen){setError(true);setScreen(null);return;}
++        setScreen(current=>current&&current.revision>result.screen.revision?current:result.screen);setError(false);
++      }catch{if(!stopped){setError(true);setScreen(null);}}finally{inflight=false;}
++    }
++    function print(){document.querySelectorAll<HTMLDetailsElement>('.zn-moot-screen details').forEach(detail=>{detail.open=true;});}
++    window.addEventListener('beforeprint',print);
++    void refresh();const timer=setInterval(()=>void refresh(),1000);
++    return()=>{stopped=true;controller.abort();clearInterval(timer);window.removeEventListener('beforeprint',print);};
++  },[id,kind]);
++  const title=kind==='bench'?'The hearing':kind==='citations'?'Authorities':'Reasoning';
++  const caption=screen?.transcript.filter(turn=>turn.seat==='judge').at(-1)?.text;
++  return <main className="zn zn-moot-screen"><section className="zn-moot"><h1>Moot Court</h1><h2>{title}</h2>
++    {error?<p role="alert">Room unavailable</p>:!screen?<p>{MOOT_PARTS[0].empty}</p>:<>
++      <h3>{screen.title}</h3>
++      {kind==='bench'&&<><p role="status" aria-live="polite">{caption||MOOT_PARTS[0].empty}</p>
++        {screen.ruling&&<><h2>Judgment</h2><h3>{screen.ruling.order}</h3><ol>{screen.ruling.reasons.map((reason,i)=><li key={i}>{reason}</li>)}</ol></>}</>}
++      {kind==='citations'&&<section aria-label="Authorities">{screen.authorities.length===0?<p>0 · {MOOT_PARTS[0].empty}</p>:screen.authorities.map(authority=><article key={authority.id}><h3>{safeHref(authority.source_url)?<a href={authority.source_url}>{authority.name}</a>:authority.name}</h3><blockquote>{authority.quote}</blockquote><p>{authority.weight||'unknown'}</p></article>)}</section>}
++      {kind==='feedback'&&(!screen.feedback?<p>{MOOT_PARTS[2].empty}</p>:<>
++        {screen.feedback.counsel.map(counsel=><article className="zn-card" key={counsel.seat}><h2>{SEAT_LABELS[counsel.seat]}</h2>
++          {counsel.arguments.map(argument=><section key={argument.number}><p>{argument.text}</p>{argument.reasoning&&<details><summary>Reasoning</summary><ReasonTrace trace={argument.reasoning} problem={screen.problem}/></details>}</section>)}
++          <h3>Authorities</h3>{counsel.authorities.map(authority=><p key={authority.id}>{safeHref(authority.source_url)?<a href={authority.source_url}>{authority.name}</a>:authority.name}: {authority.weight||'unknown'}</p>)}</article>)}
++        {screen.ruling&&<><h2>Judgment</h2><p>Order: {screen.ruling.order}</p><ol>{screen.ruling.reasons.map((reason,i)=><li key={i}>{reason}</li>)}</ol></>}
++        <h2>What the court actually held</h2><p>{screen.feedback.court_holding}</p><h2>Fairness check</h2><p>{screen.feedback.fairness.reading}</p>
++      </>)}
++    </>}
++  </section></main>;
++}
+diff --git a/workspace/app/zenas/moot-voice.ts b/workspace/app/zenas/moot-voice.ts
+new file mode 100644
+--- /dev/null
++++ b/workspace/app/zenas/moot-voice.ts
+@@ -0,0 +1,138 @@
++/** On-device speech only. No audio or provider keys leave this browser. */
++import type { Hearing } from './moot-hearing-types';
++import { REQUEST_TIMEOUT_MS } from './request';
++
++type Segment = {text:string;start_ms:number;end_ms:number};
++type Capture = {engine:'web_speech_local';language:string;segments:Segment[]};
++type ResultEvent = {resultIndex:number;results:{length:number;[index:number]:{isFinal:boolean;0:{transcript:string}}}};
++type Recognition = {processLocally:boolean;lang:string;continuous:boolean;interimResults:boolean;
++  onresult:((event:ResultEvent)=>void)|null;onerror:(()=>void)|null;onend:(()=>void)|null;
++  start:()=>void;stop:()=>void;abort:()=>void};
++type Factory = {new():Recognition;available?:(options:{langs:string[];processLocally:true})=>Promise<string>;
++  install?:(options:{langs:string[];processLocally:true})=>Promise<boolean>};
++type LocalWindow = Window & {SpeechRecognition?:Factory;webkitSpeechRecognition?:Factory};
++const ERROR='Room unavailable';
++
++export class LocalHearingVoice {
++  private recognition:Recognition|null=null;
++  private generation=0;
++  private field:HTMLTextAreaElement|null=null;
++  private timer:ReturnType<typeof setTimeout>|null=null;
++  private captured:Capture|null=null;
++  private hearing:Hearing|null=null;
++  private seen=new Set<string>();
++  private enabled=false;
++  private speaking=false;
++  private playbackTimer:ReturnType<typeof setTimeout>|null=null;
++  constructor(private fail:(message:string)=>void) {window.speechSynthesis?.getVoices();}
++
++  private stop(abort=true) {
++    if(this.timer)clearTimeout(this.timer);
++    this.timer=null;
++    this.field?.setAttribute('aria-busy','false');
++    this.field?.removeAttribute('data-moot-listening');
++    const recognition=this.recognition;
++    this.recognition=null;
++    if(abort){this.generation++;recognition?.abort();}else recognition?.stop();
++  }
++  close(){this.stop();if(this.playbackTimer)clearTimeout(this.playbackTimer);window.speechSynthesis?.cancel();this.enabled=false;this.speaking=false;this.captured=null;}
++  metadata(text:string):Capture|undefined {
++    return this.captured&&this.captured.segments.map(row=>row.text).join(' ')===text.trim()
++      ? structuredClone(this.captured):undefined;
++  }
++  observe(hearing:Hearing|null){
++    if(!hearing||this.hearing?.id!==hearing.id){this.close();this.captured=null;}
++    if(this.hearing&&(this.hearing.floor!==hearing?.floor||this.hearing.seats[this.hearing.floor].epoch!==hearing?.seats[this.hearing.floor].epoch))this.stop();
++    const prior=this.hearing;this.hearing=hearing;
++    for(const turn of hearing?.transcript??[]){
++      const key=hearing!.id+':'+turn.number;
++      if(this.seen.has(key))continue;
++      this.seen.add(key);
++      if(prior?.id===hearing?.id&&this.enabled&&turn.seat==='judge')this.read(turn.text,turn.kind==='ruling'?hearing!.ruling:null);
++    }
++  }
++  replayJudge(){
++    this.enabled=true;
++    const last=this.hearing?.transcript.filter(turn=>turn.seat==='judge').at(-1);
++    if(last)this.read(last.text,last.kind==='ruling'?this.hearing!.ruling:null);
++  }
++  readPublished(text:string,ruling:Hearing['ruling']){this.enabled=true;this.read(text,ruling);}
++  private read(text:string,ruling:Hearing['ruling']){
++    this.stop();
++    const synthesis=window.speechSynthesis;
++    const voice=synthesis?.getVoices().filter(v=>v.localService&&v.lang.toLowerCase().startsWith('en')).sort((a,b)=>
++      Number(b.lang.toLowerCase()===(this.hearing?.region==='za'?'en-za':'en-us'))-Number(a.lang.toLowerCase()===(this.hearing?.region==='za'?'en-za':'en-us')))[0];
++    if(!voice||typeof SpeechSynthesisUtterance==='undefined'){this.fail(ERROR);return;}
++    synthesis.cancel();
++    const paragraphs=[text,...(ruling?[ruling.order,...ruling.reasons]:[])].filter(part=>part.trim());
++    const generation=this.generation;let index=0;
++    this.speaking=true;
++    const next=()=>{
++      if(generation!==this.generation)return;
++      const paragraph=paragraphs[index++];
++      if(!paragraph){this.speaking=false;return;}
++      const utterance=new SpeechSynthesisUtterance(paragraph);
++      utterance.voice=voice;utterance.lang=voice.lang;utterance.rate=1;
++      const timer=setTimeout(()=>{if(generation!==this.generation)return;synthesis.cancel();this.speaking=false;this.fail(ERROR);},Math.max(REQUEST_TIMEOUT_MS,paragraph.length*100));
++      this.playbackTimer=timer;
++      utterance.onend=()=>{clearTimeout(timer);next();};
++      utterance.onerror=()=>{clearTimeout(timer);if(generation===this.generation){this.speaking=false;this.fail(ERROR);}};
++      try{synthesis.speak(utterance);}catch{clearTimeout(timer);this.speaking=false;this.fail(ERROR);}
++    };
++    next();
++  }
++  async dictate(field:HTMLTextAreaElement){
++    if(this.recognition){this.stop(false);return;}
++    if(!this.hearing||this.hearing.phase!=='hearing'||!this.hearing.my_seats.includes(this.hearing.floor)||this.speaking){this.fail(ERROR);return;}
++    const Constructor=(window as LocalWindow).SpeechRecognition??(window as LocalWindow).webkitSpeechRecognition;
++    if(!Constructor){this.fail(ERROR);return;}
++    const recognition=new Constructor();
++    if(!('processLocally' in recognition)){this.fail(ERROR);return;}
++    let language=this.hearing.region==='za'?'en-ZA':'en-US';
++    const generation=++this.generation;
++    try{
++      if(Constructor.available){
++        const options={langs:[language],processLocally:true as const};
++        let timer:ReturnType<typeof setTimeout>|undefined;
++        try {
++          await Promise.race([(async()=>{
++            let available=await Constructor.available!(options);
++            if(available==='unavailable'&&language==='en-ZA'){
++              language='en-GB';options.langs=[language];available=await Constructor.available!(options);
++            }
++            if(available==='downloadable'&&Constructor.install)available=await Constructor.install(options)?'available':'unavailable';
++            if(available!=='available')throw Error(ERROR);
++          })(),new Promise<never>((_,reject)=>{timer=setTimeout(()=>reject(Error(ERROR)),REQUEST_TIMEOUT_MS);})]);
++        }finally{if(timer)clearTimeout(timer);}
++      }
++      if(generation!==this.generation)return;
++      window.speechSynthesis?.cancel();
++      recognition.processLocally=true;recognition.lang=language;recognition.continuous=true;recognition.interimResults=true;
++      this.recognition=recognition;this.field=field;this.enabled=true;
++      const prefix=field.value.trim();
++      const segments:Segment[]=this.captured&&prefix===this.captured.segments.map(s=>s.text).join(' ')?structuredClone(this.captured.segments):[];
++      const offset=segments.at(-1)?.end_ms??0;
++      const started=performance.now();let previous=offset;const finalized=new Set<number>();
++      let appended='';
++      recognition.onresult=event=>{
++        if(generation!==this.generation)return;
++        for(let i=event.resultIndex;i<event.results.length;i++){
++          const result=event.results[i];if(!result.isFinal||finalized.has(i))continue;
++          const text=result[0].transcript.trim();if(!text)continue;finalized.add(i);
++          const ended=offset+Math.max(0,performance.now()-started);
++          segments.push({text,start_ms:previous,end_ms:ended});previous=ended;
++          appended=[appended,text].filter(Boolean).join(' ');
++        }
++        const text=[prefix,appended].filter(Boolean).join(' ');
++        Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value')!.set!.call(field,text);
++        field.dispatchEvent(new Event('input',{bubbles:true}));
++        if(field.name==='text')this.captured=segments.map(row=>row.text).join(' ')===text?{engine:'web_speech_local',language,segments}:null;
++      };
++      recognition.onerror=()=>{if(generation===this.generation){this.stop();this.fail(ERROR);}};
++      recognition.onend=()=>{if(generation===this.generation){this.stop();}};
++      field.setAttribute('aria-busy','true');field.setAttribute('data-moot-listening','true');
++      recognition.start();
++      this.timer=setTimeout(()=>{this.stop();this.fail(ERROR);},REQUEST_TIMEOUT_MS);
++    }catch{if(generation===this.generation){this.stop();this.fail(ERROR);}}
++  }
++}
+diff --git a/workspace/app/zenas/moot/[hearing]/[screen]/page.tsx b/workspace/app/zenas/moot/[hearing]/[screen]/page.tsx
+new file mode 100644
+--- /dev/null
++++ b/workspace/app/zenas/moot/[hearing]/[screen]/page.tsx
+@@ -0,0 +1,11 @@
++import { currentTenant } from "@/lib/tenant";
++import { notFound } from "next/navigation";
++import { MootScreen } from "../../../moot-screen";
++import "../../../zenas.css";
++export default async function Page({ params }: { params: Promise<{hearing:string;screen:string}> }) {
++  try { await currentTenant(); } catch { notFound(); }
++  const {hearing,screen}=await params;
++  if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(hearing)
++      || !["bench","citations","feedback"].includes(screen))notFound();
++  return <MootScreen id={hearing} kind={screen as "bench"|"citations"|"feedback"}/>;
++}
+diff --git a/workspace/app/zenas/moot/page.tsx b/workspace/app/zenas/moot/page.tsx
+new file mode 100644
+--- /dev/null
++++ b/workspace/app/zenas/moot/page.tsx
+@@ -0,0 +1,8 @@
++import { currentTenant } from "@/lib/tenant";
++import { notFound } from "next/navigation";
++import { MootCourt } from "../moot-court";
++import "../zenas.css";
++export default async function Page() {
++  try { await currentTenant(); } catch { notFound(); }
++  return <main className="zn"><MootCourt/></main>;
++}
+diff --git a/workspace/app/zenas/zenas.css b/workspace/app/zenas/zenas.css
+--- a/workspace/app/zenas/zenas.css
++++ b/workspace/app/zenas/zenas.css
+@@ -1537,3 +1537,10 @@
+ .zn-panel :is(button,a,input,select):focus-visible { outline-color: #fff; }
+ .zn-avatar { color: #001840; }
+ .zn-panel .zn-muted, .zn-panel .zn-side p, .zn-panel .zn-side a { color: #c9d0e0; }
++
++.zn.zn-moot-screen { display: block; height: auto; min-height: 100dvh; padding: clamp(16px,4vw,64px); overflow: auto; }
++.zn-moot-screen .zn-moot { max-width: 1600px; margin: auto; }
++.zn-moot-screen [role="status"] { font-size: clamp(24px,3vw,56px); min-height: 3em; }
++@media print { .zn.zn-moot-screen { height: auto; overflow: visible; padding: 0; } .zn-moot-screen details > * { display: block; } }
++
++.zn-moot-screen-link { color: inherit; text-decoration: none; }

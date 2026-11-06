@@ -26,7 +26,11 @@ function load(file) {
       return {...React, useState: () => [values[index++], () => {}], useEffect() {},
         useCallback: fn => fn, useRef: value => ({current: value})};
     }
-    if (file.startsWith('../zenas/') && name.startsWith('./')) return load('../zenas/' + name.slice(2) + '.ts');
+    if (name.startsWith('.')) {
+      const stem=path.resolve(path.dirname(filename),name);
+      const target=['','.ts','.tsx','.js'].map(ext=>stem+ext).find(file=>fs.existsSync(file)&&fs.statSync(file).isFile());
+      if(target)return load(path.relative(path.join(root,'workspace/app/moot'),target));
+    }
     if (name === 'next/link') return ({href, children}) => React.createElement('a', {href}, children);
     if (name === 'next/navigation') return {notFound() {throw Error('404');}};
     if (name.endsWith('/WatchPanel')) return load('WatchPanel.tsx');

@@ -260,6 +260,14 @@ def turn(state: dict[str, Any], actor: Actor, revision: int, payload: dict[str, 
              "actor_id": actor.user_id if ai_token is None else None, "epoch": controller["epoch"],
              "kind": kind, "text": text, "authority_ids": list(dict.fromkeys(cited)),
              "issue": out["current_issue"]}
+    if payload.get("voice") is not None:
+        _require(ai_token is None, "human_voice_required")
+        from .voice import capture
+        entry["voice"] = capture(payload["voice"], text)
+    if "responds_to" in payload:
+        entry["responds_to"] = payload["responds_to"]
+    if kind in ("question", "direction") and "target" in payload:
+        entry["target"] = payload["target"]
     if payload.get("reasoning") is not None:
         from .reasoning import validate
         entry["reasoning"] = validate(out["problem"], payload["reasoning"])
@@ -345,6 +353,7 @@ def ai_context(state: dict[str, Any], actor: Actor, token: str) -> dict[str, Any
     context["seats"] = {s: {"kind": c["kind"], "epoch": c["epoch"]} for s, c in state["seats"].items()}
     for entry in context["transcript"]:
         entry.pop("actor_id", None)
+        entry.pop("voice", None)
     return context
 
 

@@ -64,6 +64,10 @@ def test_layout(stage):
     if gate5.is_file():
         run(['git', 'apply', '--check', gate5], cwd=stage)
         run(['git', 'apply', gate5], cwd=stage)
+    moot = ROOT / 'tank-patches/moot.patch'
+    if moot.is_file():
+        run(['git', 'apply', '--check', moot], cwd=stage)
+        run(['git', 'apply', moot], cwd=stage)
     deps = CACHE / 'workspace'
     deps.mkdir(exist_ok=True)
     lock = (stage / 'workspace/package-lock.json').read_bytes()

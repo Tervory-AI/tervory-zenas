@@ -1,4 +1,4 @@
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import vm from 'node:vm';
@@ -14,7 +14,7 @@ const Link = ({ children, ...props }) => React.createElement('a', props, childre
 function load(name) {
   name = path.normalize(name);
   if (cache.has(name)) return cache.get(name).exports;
-  const filename = ['', '.tsx', '.ts', '.js'].map(ext => path.join(root, name + ext)).find(existsSync);
+  const filename = ['', '.tsx', '.ts', '.js'].map(ext => path.join(root, name + ext)).find(file=>existsSync(file)&&statSync(file).isFile());
   if (!filename) throw Error('Missing UI module: ' + name);
   const module = { exports: {} };
   cache.set(name, module);

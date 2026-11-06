@@ -53,3 +53,4 @@ CREATE TABLE IF NOT EXISTS agent_zenas.moot_hearing_pairs (
     UNIQUE(tenant_id, first_hearing),
     UNIQUE(tenant_id, second_hearing)
 );
+ALTER TABLE agent_zenas.moot_hearing_pairs ADD COLUMN IF NOT EXISTS report jsonb;

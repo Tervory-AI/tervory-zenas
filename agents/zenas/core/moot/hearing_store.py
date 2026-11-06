@@ -115,12 +115,12 @@ class HearingStore:
         fingerprint = self.fingerprint({"action": action, "revision": revision, "payload": payload})
         async with self.pool.acquire() as conn:
             async with conn.transaction():
-                if action == "publish":
+                if action in ("publish", "turn", "ai_turn"):
                     pair_id = await conn.fetchval("""SELECT state->>'fairness_pair_id' FROM agent_zenas.moot_hearings
                         WHERE tenant_id=$1 AND region=$2 AND id=$3""", UUID(actor.tenant_id), actor.region, UUID(hearing_id))
                     if pair_id:
-                        # Serialize paired publications BEFORE locking either hearing.
-                        # Opposite simultaneous publish requests cannot deadlock A/B.
+                        # Serialize paired judgments/publication before either row
+                        # lock, so final fairness cannot be stale or deadlock A/B.
                         await conn.execute("SELECT pg_advisory_xact_lock(hashtextextended($1,0))", f"moot:{actor.tenant_id}:{actor.region}:{pair_id}")
                 state = await self._row(conn, actor, hearing_id, lock=True)
                 if await self._request(conn, actor, hearing_id, request_id, fingerprint):
@@ -130,6 +130,9 @@ class HearingStore:
                     updated[key] != state[key] for key in ("id", "tenant_id", "region", "owner_id")
                 ):
                     raise hearing.HearingError("invalid_transition")
+                if updated["phase"] == "closed" and state["phase"] != "closed":
+                    from .feedback import summarize
+                    updated["feedback"] = summarize(updated)
                 result = await conn.fetchval("""UPDATE agent_zenas.moot_hearings
                     SET state=$4::jsonb, revision=$5, updated_at=now()
                     WHERE tenant_id=$1 AND region=$2 AND id=$3 AND revision=$6 RETURNING revision""",
@@ -138,6 +141,8 @@ class HearingStore:
                 if result is None:
                     raise hearing.HearingError("stale_revision")
                 if updated["phase"] == "closed" and state["phase"] != "closed":
+                    if updated.get("fairness_pair_id"):
+                        await self._save_fairness(conn, actor, updated)
                     from .hearing_learning import candidates
                     for candidate in candidates(updated):
                         await conn.execute("""INSERT INTO agent_zenas.moot_hearing_learning
@@ -245,3 +250,17 @@ class HearingStore:
             first = await self._row(conn, actor, str(row["first_hearing"]))
             second = await self._row(conn, actor, str(row["second_hearing"]))
             return {"pair_id": pair_id, **evidence(first, second)}
+
+    async def _save_fairness(self, conn, actor, state):
+        from .fairness import evidence
+        pair_id = UUID(state["fairness_pair_id"])
+        row = await conn.fetchrow("""SELECT a.state AS first_state,b.state AS second_state
+            FROM agent_zenas.moot_hearing_pairs p
+            JOIN agent_zenas.moot_hearings a ON a.id=p.first_hearing AND a.tenant_id=p.tenant_id AND a.region=p.region
+            JOIN agent_zenas.moot_hearings b ON b.id=p.second_hearing AND b.tenant_id=p.tenant_id AND b.region=p.region
+            WHERE p.id=$1 AND p.tenant_id=$2 AND p.region=$3""", pair_id, UUID(actor.tenant_id), actor.region)
+        if row is None:
+            raise hearing.HearingError("pair_unavailable")
+        report = {"pair_id":str(pair_id), **evidence(self._decode(row["first_state"]),self._decode(row["second_state"]))}
+        await conn.execute("""UPDATE agent_zenas.moot_hearing_pairs SET report=$4::jsonb
+            WHERE id=$1 AND tenant_id=$2 AND region=$3""", pair_id, UUID(actor.tenant_id), actor.region, json.dumps(report))
