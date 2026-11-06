@@ -6,6 +6,7 @@ COPY zenas/requirements.txt ./zenas-requirements.txt
 # unprivileged process can launch them. SAFLII is the only caller.
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 RUN pip install --no-cache-dir -r requirements.txt -r zenas-requirements.txt "cryptography==50.0.2" \
+    && python -c "from huggingface_hub import HfApi, __version__; assert __version__ == '1.7.2'; assert callable(HfApi.list_jobs_hardware); assert callable(HfApi.run_uv_job)" \
     && python -m patchright install --with-deps chromium \
     && chmod -R a+rX /ms-playwright \
     && useradd --create-home --uid 1000 agent \

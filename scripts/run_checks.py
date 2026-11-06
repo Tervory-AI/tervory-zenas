@@ -76,6 +76,10 @@ def test_layout(stage):
     if savings.is_file():
         run(['git', 'apply', '--check', savings], cwd=stage)
         run(['git', 'apply', savings], cwd=stage)
+    launcher = ROOT / 'tank-patches/hf-launch-runtime.patch'
+    if launcher.is_file():
+        run(['git', 'apply', '--check', launcher], cwd=stage)
+        run(['git', 'apply', launcher], cwd=stage)
     deps = CACHE / 'workspace'
     deps.mkdir(exist_ok=True)
     lock = (stage / 'workspace/package-lock.json').read_bytes()
@@ -117,6 +121,17 @@ def tests(stage):
         run(['uv', 'venv', sdk])
         run(['uv', 'pip', 'install', '--python', python, 'huggingface-hub==1.7.2', 'asyncpg==0.30.0'])
     os.environ['HF_JOBS_PYTHON'] = str(python.absolute())
+    legacy = Path(sys.executable)
+    old_ready = subprocess.run([str(legacy), '-c',
+        "from huggingface_hub import HfApi, __version__; assert __version__ == '0.34.4'; assert not hasattr(HfApi, 'list_jobs_hardware')"],
+        capture_output=True).returncode == 0
+    if not old_ready:
+        legacy_env = CACHE / 'hf-jobs-legacy'
+        legacy = legacy_env / 'bin/python'
+        if not legacy.is_file():
+            run(['uv', 'venv', legacy_env])
+            run(['uv', 'pip', 'install', '--python', legacy, 'huggingface-hub==0.34.4'])
+    os.environ['HF_JOBS_LEGACY_PYTHON'] = str(legacy.absolute())
     os.chdir(stage)
     sys.path.insert(0, str(stage))
     sys.path.insert(0, str(stage / 'tests'))

@@ -1,0 +1,61 @@
+diff --git a/tank/training_jobs/run.py b/tank/training_jobs/run.py
+--- a/tank/training_jobs/run.py
++++ b/tank/training_jobs/run.py
+@@ -1,3 +1,7 @@
++# /// script
++# requires-python = ">=3.12"
++# dependencies = ["huggingface-hub==1.7.2", "asyncpg==0.30.0"]
++# ///
+ """Submit explicitly, estimate by live HF hardware price, reconcile billed receipts.
+
+ No production DB credential is ever sent to a GPU job. Shared training runs on
+@@ -13,6 +17,10 @@
+ from pathlib import Path
+ import re
+ import uuid
++
++if __name__ == '__main__':
++    from hf_jobs_runtime import ensure_jobs_runtime
++    ensure_jobs_runtime(__file__)
+
+ PLATFORM = uuid.UUID('00000000-0000-0000-0000-000000000001')
+ HARDWARE = frozenset({'a10g-small', 'a10g-large'})
+diff --git a/tank/training_jobs/hf_jobs_runtime.py b/tank/training_jobs/hf_jobs_runtime.py
+new file mode 100644
+--- /dev/null
++++ b/tank/training_jobs/hf_jobs_runtime.py
+@@ -0,0 +1,34 @@
++"""Keep the Jobs launcher off Tank's older CPU-router SDK."""
++from __future__ import annotations
++
++import os
++from pathlib import Path
++import sys
++
++JOBS_SDK_VERSION = '1.7.2'
++_BOOTSTRAPPED = '_TERVORY_HF_JOBS_BOOTSTRAPPED'
++_ERROR = 'HF Jobs requires huggingface-hub==1.7.2; rebuild the image with its isolated HF Jobs runtime.'
++
++
++def ensure_jobs_runtime(script: str) -> None:
++    if '--help' in sys.argv or '-h' in sys.argv:
++        return
++    try:
++        from huggingface_hub import HfApi, __version__
++        ready = __version__ == JOBS_SDK_VERSION and all(callable(getattr(HfApi, method, None))
++                                                       for method in ('list_jobs_hardware', 'run_uv_job'))
++    except ImportError:
++        ready = False
++    if ready:
++        return
++    if os.environ.get(_BOOTSTRAPPED):
++        raise SystemExit(_ERROR)
++    # Use only the existing image SDK: never install packages at launch, fall
++    # back to the CPU-router SDK, or get as far as a paid request before this.
++    python = os.environ.get('HF_JOBS_PYTHON') or '/opt/hf-jobs/bin/python'
++    child_env = dict(os.environ)
++    child_env[_BOOTSTRAPPED] = JOBS_SDK_VERSION
++    try:
++        os.execve(python, [python, str(Path(script).resolve()), *sys.argv[1:]], child_env)
++    except OSError:
++        raise SystemExit(_ERROR) from None

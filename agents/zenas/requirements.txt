@@ -17,5 +17,6 @@ patchright==1.64.3
 # layouts; docxtpl (LGPL-2.1) fills core/templates/document.docx. No server, no model.
 Mako==1.4.2
 docxtpl==0.20.2
-# HF Jobs hardware discovery and launch use the Jobs-capable SDK.
+# HfApi.list_jobs_hardware and run_uv_job require this Jobs-capable SDK.
+# Both Zenas image builds check the installed version and those exact methods.
 huggingface-hub==1.7.2
