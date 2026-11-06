@@ -87,6 +87,7 @@ async def test_the_room_stores_a_founder_sign_off_and_refuses_a_reviewer_without
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("TANK_REGION", "us-east")
+    monkeypatch.setenv("TANK_KEY", "placeholder-room-key")
     store = MemoryStore()
     ladder = LadderMemory()
     document_id = await _document(store)
@@ -97,6 +98,7 @@ async def test_the_room_stores_a_founder_sign_off_and_refuses_a_reviewer_without
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=room.app),
         base_url="http://zenas",
+        headers={"X-Tank-Key": "placeholder-room-key"},
     ) as client:
         founder = await client.post(
             f"/documents/{document_id}/reviews",

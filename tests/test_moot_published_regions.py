@@ -39,9 +39,10 @@ class LocalPublishedPool:
 @pytest.mark.parametrize('requested', ['us-east', 'za', 'eu-west', ''])
 async def test_only_known_matching_region_reads_local_published_tables(monkeypatch, box, requested):
     monkeypatch.setenv('TANK_REGION', box)
+    monkeypatch.setenv('TANK_KEY', 'placeholder-room-key')
     local = LocalPublishedPool(box)
     monkeypatch.setattr(room.app.state, 'pool', local, raising=False)
-    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=room.app), base_url='http://room') as client:
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=room.app), base_url='http://room', headers={'X-Tank-Key':'placeholder-room-key'}) as client:
         response = await client.get('/moot/published', params={'home_region': requested, 'match_id': str(MATCH)})
     if requested in {'us-east', 'za'} and requested == box:
         assert response.status_code == 200
@@ -58,6 +59,7 @@ async def test_only_known_matching_region_reads_local_published_tables(monkeypat
 @pytest.mark.parametrize('box', ['us-east', 'za'])
 async def test_unpublished_hearing_never_reaches_public_response(monkeypatch, box):
     monkeypatch.setenv('TANK_REGION', box)
+    monkeypatch.setenv('TANK_KEY', 'placeholder-room-key')
 
     class UnpublishedPool(LocalPublishedPool):
         async def fetch(self, query, *args):
@@ -69,7 +71,7 @@ async def test_unpublished_hearing_never_reaches_public_response(monkeypatch, bo
 
     local = UnpublishedPool(box)
     monkeypatch.setattr(room.app.state, 'pool', local, raising=False)
-    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=room.app), base_url='http://room') as client:
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=room.app), base_url='http://room', headers={'X-Tank-Key':'placeholder-room-key'}) as client:
         response = await client.get('/moot/published', params={'home_region': box, 'match_id': str(MATCH)})
     assert response.status_code == 200
     assert response.json() == {'matches': []}

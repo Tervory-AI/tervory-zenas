@@ -18,6 +18,7 @@ function load(file) {
   const mod = {exports: {}};
   function requireLocal(name) {
     if (name.endsWith('.css')) return {};
+    if (name === '@/app/zenas/request') return load('../zenas/request.ts');
     if (name === 'react' && input.page === 'panel') {
       const state = input.result.hearing;
       const values = [[], [], [], true, true, state.id, '', {}, state, null, '', false, false, 'question'];

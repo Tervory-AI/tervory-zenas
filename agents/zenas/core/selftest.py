@@ -497,7 +497,7 @@ def _tank_model() -> tuple[Any, Any]:
         return None, None
     try:
         import httpx
-        from chassis.tank import TankClient
+        from agents.zenas.core.outbound import TankClient
     except ImportError:
         return None, None
     http = httpx.AsyncClient(timeout=120)
@@ -1280,6 +1280,10 @@ async def list_scores(ladder: Any, *, region: str) -> dict[str, Any]:
     return {"ok": True, "region": box, "runs": [_public_run(row) for row in rows]}
 
 
+from agents.zenas.core.job_lock import exclusive_job
+
+
+@exclusive_job("selftest")
 async def run_scheduled(conn: Any, *, region: str) -> dict[str, Any]:
     """Nightly, after the pool load. This box's library is scored through answer_question.
 

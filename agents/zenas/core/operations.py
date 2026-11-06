@@ -55,7 +55,7 @@ async def connection(*, temporary=False):
     import asyncpg
     if not temporary:
         require("DATABASE_URL")
-        conn = await asyncpg.connect(os.environ["DATABASE_URL"])
+        conn = await asyncpg.connect(os.environ["DATABASE_URL"], command_timeout=120)
         try:
             yield conn
         finally:
@@ -186,6 +186,8 @@ async def prepare_court_text(region):
     async with connection() as conn:
         while True:
             batch = await run_scheduled(conn, region=region)
+            if batch.get("status") == "already running":
+                raise RuntimeError("court-text preparation is already running")
             for name in counts:
                 counts[name] += batch[name]
             if not sum(batch.values()):

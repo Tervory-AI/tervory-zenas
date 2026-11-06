@@ -75,6 +75,8 @@ async def erase(conn, *, tenant_id, region, matter_id=None):
                 f"DELETE FROM agent_zenas.{table} WHERE tenant_id=$1 AND matter_id=ANY($2::uuid[])", tenant, ids
             )
         await conn.execute("DELETE FROM agent_zenas.matters WHERE tenant_id=$1 AND id=ANY($2::uuid[])", tenant, ids)
+        await conn.execute("""UPDATE agent_zenas.command_receipts SET receipt=NULL,status=410
+            WHERE tenant_id=$1""", tenant)
         if matter is None:
             # Catalogue discovery covers optional alert tables and future tenant tables.
             # FK children precede parents; identifiers come solely from pg_catalog.
@@ -82,7 +84,7 @@ async def erase(conn, *, tenant_id, region, matter_id=None):
                 JOIN pg_namespace n ON n.oid=c.relnamespace
                 JOIN pg_attribute a ON a.attrelid=c.oid AND a.attname='tenant_id' AND NOT a.attisdropped
                 WHERE n.nspname='agent_zenas' AND c.relkind='r'
-                AND c.relname NOT IN ('tenants','memory_index_jobs')
+                AND c.relname NOT IN ('tenants','memory_index_jobs','command_receipts')
                 ORDER BY EXISTS(SELECT 1 FROM pg_constraint f WHERE f.contype='f' AND f.conrelid=c.oid) DESC,
                 c.relname"""
             )

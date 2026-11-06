@@ -224,7 +224,7 @@ def test_selftest_and_room_adapters_keep_only_structured_refusal_metadata(monkey
                     "body": "placeholder private response", "headers": {"placeholder": "private"}}
     monkeypatch.setenv("TANK_KEY", "placeholder-token")
     monkeypatch.setenv("TANK_URL", "http://placeholder-tank")
-    monkeypatch.setattr("chassis.tank.TankClient", Tank)
+    monkeypatch.setattr("agents.zenas.core.outbound.TankClient", Tank)
 
     async def run():
         nightly, http = selftest._tank_model()

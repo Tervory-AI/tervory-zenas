@@ -27,6 +27,10 @@ LIMIT $2
 """.strip()
 
 
+from agents.zenas.core.job_lock import exclusive_job
+
+
+@exclusive_job("judgment_training")
 async def run_scheduled(conn: Any, *, region: str) -> dict[str, int]:
     counts = {"split": 0, "excluded": 0}
     if region != "za":

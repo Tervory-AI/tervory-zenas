@@ -256,7 +256,8 @@ def test_answers_route_is_signed_in_tenant_scoped_and_plain() -> None:
 def test_ask_box_calls_the_route_with_loading_and_error_states() -> None:
     view = (ROOT / "workspace" / "app" / "zenas" / "view.tsx").read_text(encoding="utf-8")
     ask = view.split("async function onAsk", 1)[1].split("\n  }\n", 1)[0]
-    assert 'fetch("/api/zenas/answers"' in ask
+    assert 'zenasFetch("/api/zenas/answers"' in ask
+    assert 'REQUEST_TIMEOUT_MS = 120_000' in (ROOT / 'workspace/app/zenas/request.ts').read_text()
     assert "setAsking(true)" in ask and "setAsking(false)" in ask
     assert "catch" in ask
     assert "Zenas cannot answer from this page yet" not in view

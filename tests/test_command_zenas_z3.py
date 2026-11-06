@@ -156,6 +156,7 @@ async def test_confirm_watch_lifecycle_receipt_refusals_and_isolation(api, runti
 @pytest.mark.asyncio
 async def test_review_proxy_and_removed_paths(monkeypatch):
     from agents.zenas import app as room_module
+    monkeypatch.setenv("TANK_KEY", "placeholder-room-key")
     monkeypatch.setenv("TANK_REGION", "us-east")
     monkeypatch.setenv("ZENAS_AGENT_URL", "http://agent-zenas:8000")
     monkeypatch.setattr(tank_main, "TANK_API_KEY", "offline-workspace")
@@ -175,7 +176,7 @@ async def test_review_proxy_and_removed_paths(monkeypatch):
                        ("POST", "moot/problems/offline/edit"), ("POST", "moot/problems/offline/lock"),
                        ("POST", "moot/matches/ai-ai"), ("POST", "moot/matches/student"),
                        ("POST", f"moot/matches/{WATCH}/publish"), ("GET", "unlisted")]
-            async with httpx.AsyncClient(transport=httpx.ASGITransport(app=room_module.app), base_url="http://room") as direct:
+            async with httpx.AsyncClient(transport=httpx.ASGITransport(app=room_module.app), base_url="http://room", headers={"X-Tank-Key":"placeholder-room-key"}) as direct:
                 for method, path in removed:
                     response = await tank.request(method, "/v1/zenas/" + path, params={"home_region": "us-east"})
                     assert response.status_code == 404, response.text

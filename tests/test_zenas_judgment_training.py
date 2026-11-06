@@ -105,7 +105,7 @@ async def test_nightly_split_path_calls_only_tank_court_text_writer(monkeypatch)
         "title": "Placeholder civil matter",
         "text": HEADED,
     }
-    conn = SimpleNamespace(execute=AsyncMock(), fetch=AsyncMock(return_value=[row]))
+    conn = SimpleNamespace(execute=AsyncMock(), fetch=AsyncMock(return_value=[row]), fetchval=AsyncMock(return_value=True))
     requests = []
 
     class Response:

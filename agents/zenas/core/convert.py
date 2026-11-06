@@ -1139,6 +1139,10 @@ async def _link_converted_card(pool: Any, ladder: Any, model: Any, worked: dict[
         log.warning("converted rule card could not be built", exc_info=True)
 
 
+from agents.zenas.core.job_lock import exclusive_job
+
+
+@exclusive_job("convert")
 async def run_scheduled(conn: Any, *, region: str) -> dict[str, Any]:
     """Nightly, after the pool load. A failure here does not change the pool report."""
     try:
@@ -1187,7 +1191,7 @@ def _night_model() -> tuple[Any, Any]:
     if not key or not url:
         return None, None
     import httpx
-    from chassis.tank import TankClient
+    from agents.zenas.core.outbound import TankClient
 
     http = httpx.AsyncClient(timeout=120)
     client = TankClient(url, key, "zenas", http)

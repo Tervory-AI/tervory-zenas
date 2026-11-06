@@ -9,6 +9,10 @@ from __future__ import annotations
 from agents.zenas.pool.model import SourceSpec
 
 
+class SourceChallenge(RuntimeError):
+    """An upstream anti-bot page was refused; never retain its HTML or URL."""
+
+
 class PoolError(Exception):
     pass
 

@@ -60,6 +60,10 @@ def test_layout(stage):
     if gate4.is_file():
         run(['git', 'apply', '--check', gate4], cwd=stage)
         run(['git', 'apply', gate4], cwd=stage)
+    gate5 = ROOT / 'tank-patches/gate5.patch'
+    if gate5.is_file():
+        run(['git', 'apply', '--check', gate5], cwd=stage)
+        run(['git', 'apply', gate5], cwd=stage)
     deps = CACHE / 'workspace'
     deps.mkdir(exist_ok=True)
     lock = (stage / 'workspace/package-lock.json').read_bytes()
@@ -114,7 +118,7 @@ def tests(stage):
             for name in ['POOL_SCHEMA_DATABASE_URL', 'MOOT_TEST_DATABASE_URL', 'ZENAS_SCHEMA_DATABASE_URL']:
                 os.environ[name] = url
             results = CACHE / 'tests.xml'
-            result = pytest.main(targets + ['-q', '-x', '--disable-socket', '--allow-unix-socket',
+            result = pytest.main(targets + ['-q', '--disable-socket', '--allow-unix-socket',
                 '--allow-hosts=127.0.0.1,localhost,::1', '--timeout=120', '-p', 'no:cacheprovider',
                 '--junitxml=' + str(results)])
             if result:

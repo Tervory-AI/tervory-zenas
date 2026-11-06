@@ -116,6 +116,11 @@ class _Rows:
         self.jurisdiction = jurisdiction
         self.calls: list[tuple] = []
 
+    async def fetchval(self, sql, *args):
+        assert sql in {'SELECT pg_try_advisory_lock($1)', 'SELECT pg_advisory_unlock($1)'}
+        assert len(args) == 1 and isinstance(args[0], int)
+        return True
+
     async def fetch(self, sql: str, *args: object) -> list[dict]:
         self.calls.append((sql, args))
         assert args == (self.jurisdiction,)

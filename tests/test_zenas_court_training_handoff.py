@@ -28,6 +28,11 @@ class Connection:
         self.writes.append((sql, args))
         return 'INSERT 0 1'
 
+    async def fetchval(self, sql, *args):
+        assert sql in {'SELECT pg_try_advisory_lock($1)', 'SELECT pg_advisory_unlock($1)'}
+        assert len(args) == 1 and isinstance(args[0], int)
+        return True
+
     async def fetch(self, sql, sources, cap):
         assert 'd.source_id=ANY($1::text[])' in sql and cap == 500
         assert set(sources) == training.OFFICIAL_ZA_CASE_SOURCES

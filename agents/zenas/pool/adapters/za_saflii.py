@@ -11,6 +11,8 @@ and is not stored as a judgment.
 
 from __future__ import annotations
 
+from agents.zenas.pool.licence import SourceChallenge
+
 import logging
 import os
 import re
@@ -236,17 +238,17 @@ class SafliiAdapter:
             page = await get(url, headers)
             if _challenge(page):
                 challenges += 1
-                log.error("SAFLII returned a challenge page and it was not stored: %s", url)
+                log.error("SAFLII returned a challenge page and it was not stored")
                 continue
             for link in judgment_links(page, court)[:per_court]:
                 body = await get(link, headers)
                 if _challenge(body):
                     challenges += 1
-                    log.error("SAFLII returned a challenge page and it was not stored: %s", link)
+                    log.error("SAFLII returned a challenge page and it was not stored")
                     continue
                 blobs.append(body)
         if not blobs and challenges:
-            raise RuntimeError("SAFLII returned a challenge page and no judgment text")
+            raise SourceChallenge("SAFLII returned a challenge page and no judgment text")
         return blobs, ""
 
     def parse(self, blob: bytes, source: SourceSpec) -> list[LegalDocument]:

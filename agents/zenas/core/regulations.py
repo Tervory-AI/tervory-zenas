@@ -197,11 +197,15 @@ async def run_daily(
     return counts
 
 
+from agents.zenas.core.job_lock import exclusive_job
+
+
+@exclusive_job("regulations")
 async def run_scheduled(conn: Any, *, region: str) -> dict[str, Any]:
     """Called by the existing 02:00 regional pool task, after completed source loads."""
     import os
     import httpx
-    from chassis.tank import TankClient
+    from agents.zenas.core.outbound import TankClient
     from agents.zenas.core.store import schema_statements
 
     for statement in schema_statements():

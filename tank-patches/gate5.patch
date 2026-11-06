@@ -1,0 +1,917 @@
+Subject: [PATCH] Zenas launch boundaries and client journeys
+Depends-On: gate4.patch
+
+diff --git a/agents/_chassis/chassis/files.py b/agents/_chassis/chassis/files.py
+--- a/agents/_chassis/chassis/files.py
++++ b/agents/_chassis/chassis/files.py
+@@ -3,6 +3,7 @@
+ from __future__ import annotations
+
+ import os
++from contextlib import ExitStack
+ import re
+ from pathlib import Path, PurePosixPath
+
+@@ -25,6 +26,8 @@
+         raise UnsafePath("file name must stay under the tenant directory")
+     root_dir = root.resolve()
+     tenant_dir = (root_dir / tenant_id).resolve()
++    if tenant_dir != root_dir / tenant_id:
++        raise UnsafePath("tenant directory must not be a symlink")
+     dest = root_dir.joinpath(tenant_id, *parts).resolve()
+     if dest != tenant_dir and tenant_dir not in dest.parents:
+         raise UnsafePath("file name must stay under the tenant directory")
+@@ -35,14 +38,51 @@
+     return root if root is not None else Path(os.environ.get("DATA_DIR", "/data"))
+
+
++def _open(root: Path, tenant_id: str, name: str, *, write: bool):
++    tenant_file(root, tenant_id, name)
++    parts = (tenant_id, *PurePosixPath(name.replace("\\", "/")).parts)
++    with ExitStack() as stack:
++        try:
++            if write:
++                root.mkdir(parents=True, exist_ok=True)
++            directory = os.open(root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
++            stack.callback(os.close, directory)
++            for part in parts[:-1]:
++                if write:
++                    try:
++                        os.mkdir(part, mode=0o700, dir_fd=directory)
++                    except FileExistsError:
++                        pass
++                directory = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=directory)
++                stack.callback(os.close, directory)
++            flags = os.O_WRONLY | os.O_CREAT if write else os.O_RDONLY
++            handle = os.open(parts[-1], flags | os.O_NOFOLLOW | os.O_NONBLOCK, 0o600, dir_fd=directory)
++            try:
++                import stat
++                info = os.fstat(handle)
++                if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
++                    raise UnsafePath("file must be a private regular file")
++                if write:
++                    os.ftruncate(handle, 0)
++                return os.fdopen(handle, "wb" if write else "rb")
++            except BaseException:
++                os.close(handle)
++                raise
++        except OSError as exc:
++            if isinstance(exc, FileNotFoundError):
++                raise
++            raise UnsafePath("file must stay under the tenant directory") from exc
++
++
+ def save_file(tenant_id: str, name: str, data: bytes, *, root: Path | None = None) -> Path:
+     if not isinstance(data, (bytes, bytearray)):
+         raise TypeError("save_file expects bytes")
+-    path = tenant_file(_root(root), tenant_id, name)
+-    path.parent.mkdir(parents=True, exist_ok=True)
+-    path.write_bytes(bytes(data))
+-    return path
++    target_root = _root(root)
++    with _open(target_root, tenant_id, name, write=True) as file:
++        file.write(bytes(data))
++    return tenant_file(target_root, tenant_id, name)
+
+
+ def read_file(tenant_id: str, name: str, *, root: Path | None = None) -> bytes:
+-    return tenant_file(_root(root), tenant_id, name).read_bytes()
++    with _open(_root(root), tenant_id, name, write=False) as file:
++        return file.read()
+diff --git a/tank/main.py b/tank/main.py
+--- a/tank/main.py
++++ b/tank/main.py
+@@ -4037,7 +4037,14 @@
+     target = zenas_upstream(path)
+     if _http is None:
+         raise HTTPException(status_code=503, detail="Zenas room is unreachable")
+-    headers: dict[str, str] = {}
++    headers: dict[str, str] = {"X-Tank-Key": os.environ.get("TANK_KEY_ZENAS", "")}
++    for name in ("idempotency-key", "x-zenas-tenant"):
++        supplied = request.headers.get(name)
++        if supplied:
++            try:
++                headers[name] = str(uuid.UUID(supplied))
++            except ValueError:
++                raise HTTPException(422, "invalid_request") from None
+     if path.startswith("regulations/"):
+         headers["X-Tank-Key"] = os.environ.get("TANK_KEY_ZENAS", "")
+     if path.strip().strip("/").startswith("street-law/"):
+diff --git a/workspace/app/api/zenas/answers/route.ts b/workspace/app/api/zenas/answers/route.ts
+--- a/workspace/app/api/zenas/answers/route.ts
++++ b/workspace/app/api/zenas/answers/route.ts
+@@ -1,3 +1,4 @@
++import { createHash } from "node:crypto";
+ import { NextResponse } from "next/server";
+ import { currentTenant } from "@/lib/tenant";
+ import { homeRegion, zenas } from "../tank";
+@@ -28,11 +29,17 @@
+   } catch {
+     return NextResponse.json({ kind: "error", message: "Sign in to ask Zenas." }, { status: 401 });
+   }
++  const requestId = req.headers.get("idempotency-key");
++  const headersFor = (phase: string) => {
++    if (!requestId) return undefined;
++    const bytes = createHash("sha256").update(requestId + ":" + phase).digest("hex").slice(0,32);
++    return { "idempotency-key": `${bytes.slice(0,8)}-${bytes.slice(8,12)}-${bytes.slice(12,16)}-${bytes.slice(16,20)}-${bytes.slice(20)}` };
++  };
+   const home = homeRegion();
+   const jurisdiction = askJurisdiction(home);
+   try {
+     const opened = await zenas("matters", {
+-      method: "POST",
++      method: "POST", headers: headersFor("matter"),
+       body: JSON.stringify({
+         tenant_id: tenantId,
+         home_region: home,
+@@ -44,11 +51,11 @@
+       }),
+     });
+     const matter = await opened.json().catch(() => ({}));
+-    if (!opened.ok) return NextResponse.json(askRefusal(opened.status, matter));
++    if (!opened.ok) return NextResponse.json(askRefusal(opened.status, matter), { status: opened.status });
+     const matterId = typeof matter?.matter?.id === "string" ? matter.matter.id : null;
+     if (!matterId) return NextResponse.json({ kind: "error", message: ASK_ERROR }, { status: 502 });
+     const res = await zenas("answers", {
+-      method: "POST",
++      method: "POST", headers: headersFor("answer"),
+       body: JSON.stringify({
+         tenant_id: tenantId,
+         home_region: home,
+@@ -58,7 +65,7 @@
+       }),
+     });
+     const payload = await res.json().catch(() => ({}));
+-    if (!res.ok) return NextResponse.json(askRefusal(res.status, payload));
++    if (!res.ok) return NextResponse.json(askRefusal(res.status, payload), { status: res.status });
+     return NextResponse.json(presentAnswer(payload, matterId));
+   } catch {
+     return NextResponse.json({ kind: "error", message: ASK_ERROR }, { status: 502 });
+diff --git a/workspace/app/api/zenas/documents/[id]/reviews/route.ts b/workspace/app/api/zenas/documents/[id]/reviews/route.ts
+--- a/workspace/app/api/zenas/documents/[id]/reviews/route.ts
++++ b/workspace/app/api/zenas/documents/[id]/reviews/route.ts
+@@ -17,7 +17,7 @@
+   } | null;
+   const decision = body?.decision === "approved" || body?.decision === "rejected" ? body.decision : "";
+   const jurisdiction = body?.jurisdiction ?? "";
+-  const changes = (body?.changes ?? "").slice(0, 8000);
++  const changes = (typeof body?.changes === "string" ? body.changes : "").slice(0, 8000);
+   const refusal = signOffRefusal(reviewer, jurisdiction);
+   if (refusal) return NextResponse.json({ error: refusal }, { status: 403 });
+   const scope = reviewer.founder ? ["us", "za"] : reviewer.jurisdictions;
+@@ -27,7 +27,7 @@
+   try {
+     const { tenantId } = await currentTenant();
+     const res = await zenas(`documents/${id}/reviews`, {
+-      method: "POST",
++      method: "POST", headers: { "idempotency-key": req.headers.get("idempotency-key") || crypto.randomUUID() },
+       body: JSON.stringify({
+         tenant_id: tenantId,
+         home_region: homeRegion(),
+@@ -46,7 +46,7 @@
+     }
+     return NextResponse.json({ ok: true, reviewer: reviewer.name, admission_no: reviewer.admissionNo, decision }, { status: 201 });
+   } catch (err) {
+-    const message = err instanceof Error ? err.message : "The sign-off was not recorded.";
++    const message = "The sign-off was not recorded.";
+     return NextResponse.json({ error: message }, { status: 502 });
+   }
+ }
+diff --git a/workspace/app/api/zenas/feeds/load/route.ts b/workspace/app/api/zenas/feeds/load/route.ts
+--- a/workspace/app/api/zenas/feeds/load/route.ts
++++ b/workspace/app/api/zenas/feeds/load/route.ts
+@@ -10,13 +10,13 @@
+   const { userId } = await auth();
+   if (!isFounder(userId)) notFound();
+   const body = (await req.json().catch(() => null)) as { source?: string } | null;
+-  const source = body?.source?.trim() ?? "";
++  const source = typeof body?.source === "string" ? body.source.trim() : "";
+   if (!source || !/^[a-z0-9._-]{1,80}$/i.test(source)) {
+     return NextResponse.json({ error: "Name the source to load." }, { status: 400 });
+   }
+   try {
+     const res = await zenas(`pool/sources/${source}/load`, {
+-      method: "POST",
++      method: "POST", headers: { "idempotency-key": req.headers.get("idempotency-key") || crypto.randomUUID() },
+       body: JSON.stringify({ home_region: homeRegion() }),
+     });
+     if (res.status === 404) {
+@@ -27,7 +27,7 @@
+     const status = payload?.status === "already running" ? "already running" : "running";
+     return NextResponse.json({ ok: true, status, source });
+   } catch (err) {
+-    const message = err instanceof Error ? err.message : "The load did not start.";
++    const message = "The load did not start.";
+     return NextResponse.json({ error: message }, { status: 502 });
+   }
+ }
+diff --git a/workspace/app/api/zenas/feeds/region/convert/route.ts b/workspace/app/api/zenas/feeds/region/convert/route.ts
+--- a/workspace/app/api/zenas/feeds/region/convert/route.ts
++++ b/workspace/app/api/zenas/feeds/region/convert/route.ts
+@@ -37,7 +37,7 @@
+   if (!region) return NextResponse.json({ error: "Name US or South Africa." }, { status: 400 });
+   try {
+     const res = await zenasIn(region, "cases/convert", {
+-      method: "POST",
++      method: "POST", headers: { "idempotency-key": req.headers.get("idempotency-key") || crypto.randomUUID() },
+       body: JSON.stringify({ home_region: region }),
+     });
+     if (!res) return NextResponse.json({ error: "That box is not connected." }, { status: 404 });
+diff --git a/workspace/app/api/zenas/feeds/region/load/route.ts b/workspace/app/api/zenas/feeds/region/load/route.ts
+--- a/workspace/app/api/zenas/feeds/region/load/route.ts
++++ b/workspace/app/api/zenas/feeds/region/load/route.ts
+@@ -11,7 +11,7 @@
+   const { userId } = await auth();
+   if (!isFounder(userId)) notFound();
+   const body = (await req.json().catch(() => null)) as { source?: string; region?: string } | null;
+-  const source = body?.source?.trim() ?? "";
++  const source = typeof body?.source === "string" ? body.source.trim() : "";
+   const region: Region | null = body?.region === "za" || body?.region === "us-east" ? body.region : null;
+   if (!region) return NextResponse.json({ error: "Name US or South Africa." }, { status: 400 });
+   if (!source || !/^[a-z0-9._-]{1,80}$/i.test(source)) {
+@@ -20,7 +20,7 @@
+   const sent = loadBody(source, region);
+   try {
+     const res = await zenasIn(region, `pool/sources/${source}/load`, {
+-      method: "POST",
++      method: "POST", headers: { "idempotency-key": req.headers.get("idempotency-key") || crypto.randomUUID() },
+       body: JSON.stringify(sent),
+     });
+     if (!res) return NextResponse.json({ error: "That box is not connected." }, { status: 404 });
+diff --git a/workspace/app/api/zenas/feeds/route.ts b/workspace/app/api/zenas/feeds/route.ts
+--- a/workspace/app/api/zenas/feeds/route.ts
++++ b/workspace/app/api/zenas/feeds/route.ts
+@@ -18,7 +18,7 @@
+     const payload = await res.json();
+     return NextResponse.json(presentFeeds(payload));
+   } catch (err) {
+-    const message = err instanceof Error ? err.message : "Feeds could not be loaded.";
++    const message = "Feeds could not be loaded.";
+     return NextResponse.json({ error: message }, { status: 502 });
+   }
+ }
+diff --git a/workspace/app/api/zenas/matters/[id]/documents/route.ts b/workspace/app/api/zenas/matters/[id]/documents/route.ts
+--- a/workspace/app/api/zenas/matters/[id]/documents/route.ts
++++ b/workspace/app/api/zenas/matters/[id]/documents/route.ts
+@@ -15,7 +15,7 @@
+   try {
+     const { tenantId } = await currentTenant();
+     const res = await zenas(`matters/${id}/documents`, {
+-      method: "POST",
++      method: "POST", headers: { "idempotency-key": req.headers.get("idempotency-key") || crypto.randomUUID() },
+       body: JSON.stringify({
+         tenant_id: tenantId,
+         home_region: homeRegion(),
+@@ -34,7 +34,7 @@
+       { status: 201 },
+     );
+   } catch (err) {
+-    const message = err instanceof Error ? err.message : "The document was not saved.";
++    const message = "The document was not saved.";
+     return NextResponse.json({ error: message }, { status: 502 });
+   }
+ }
+diff --git a/workspace/app/api/zenas/matters/[id]/release/route.ts b/workspace/app/api/zenas/matters/[id]/release/route.ts
+--- a/workspace/app/api/zenas/matters/[id]/release/route.ts
++++ b/workspace/app/api/zenas/matters/[id]/release/route.ts
+@@ -30,7 +30,7 @@
+   } | null;
+   const documentId = typeof body?.document_id === "string" ? body.document_id.trim() : "";
+   const jurisdiction = typeof body?.jurisdiction === "string" ? body.jurisdiction : "";
+-  const changes = (body?.changes ?? "").slice(0, 8000);
++  const changes = (typeof body?.changes === "string" ? body.changes : "").slice(0, 8000);
+   const memo = (body?.memo ?? "").slice(0, 20000);
+   const area = (body?.area ?? "").slice(0, 200);
+   const outcome = (body?.outcome ?? "").slice(0, 200);
+@@ -46,7 +46,7 @@
+   try {
+     const { tenantId } = await currentTenant();
+     const res = await zenas(`matters/${id}/release`, {
+-      method: "POST",
++      method: "POST", headers: { "idempotency-key": req.headers.get("idempotency-key") || crypto.randomUUID() },
+       body: JSON.stringify({
+         tenant_id: tenantId,
+         home_region: homeRegion(),
+@@ -83,7 +83,7 @@
+       { status: 201 },
+     );
+   } catch (err) {
+-    const message = err instanceof Error ? err.message : "The draft was not released.";
++    const message = "The draft was not released.";
+     return NextResponse.json({ error: message }, { status: 502 });
+   }
+ }
+diff --git a/workspace/app/api/zenas/matters/route.ts b/workspace/app/api/zenas/matters/route.ts
+--- a/workspace/app/api/zenas/matters/route.ts
++++ b/workspace/app/api/zenas/matters/route.ts
+@@ -15,14 +15,14 @@
+     const payload = await res.json();
+     return NextResponse.json({ matters: presentMatters(payload) });
+   } catch (err) {
+-    const message = err instanceof Error ? err.message : "Matters could not be loaded.";
++    const message = "Matters could not be loaded.";
+     return NextResponse.json({ error: message }, { status: 502 });
+   }
+ }
+
+ export async function POST(req: Request) {
+   const body = (await req.json().catch(() => null)) as { title?: string; jurisdiction?: string } | null;
+-  const title = body?.title?.trim() ?? "";
++  const title = typeof body?.title === "string" ? body.title.trim() : "";
+   const jurisdiction = body?.jurisdiction ?? "";
+   if (!title || !["us", "za", "both"].includes(jurisdiction)) {
+     return NextResponse.json({ error: "A matter needs a title and a jurisdiction." }, { status: 400 });
+@@ -30,7 +30,7 @@
+   try {
+     const { tenantId, userId } = await currentTenant();
+     const res = await zenas("matters", {
+-      method: "POST",
++      method: "POST", headers: { "idempotency-key": req.headers.get("idempotency-key") || crypto.randomUUID() },
+       body: JSON.stringify({
+         tenant_id: tenantId,
+         home_region: homeRegion(),
+@@ -48,7 +48,7 @@
+     }
+     return NextResponse.json(payload, { status: 201 });
+   } catch (err) {
+-    const message = err instanceof Error ? err.message : "The matter was not opened.";
++    const message = "The matter was not opened.";
+     return NextResponse.json({ error: message }, { status: 502 });
+   }
+ }
+diff --git a/workspace/app/api/zenas/review-switch/route.ts b/workspace/app/api/zenas/review-switch/route.ts
+--- a/workspace/app/api/zenas/review-switch/route.ts
++++ b/workspace/app/api/zenas/review-switch/route.ts
+@@ -36,7 +36,7 @@
+   if (!region || !review) return NextResponse.json({ error: "Name the box and on or off." }, { status: 400 });
+   try {
+     const res = await zenasIn(region, "review-switch", {
+-      method: "POST",
++      method: "POST", headers: { "idempotency-key": req.headers.get("idempotency-key") || crypto.randomUUID() },
+       body: JSON.stringify({ home_region: region, review }),
+     });
+     if (!res) return NextResponse.json({ error: "That box is not connected." }, { status: 404 });
+diff --git a/workspace/app/api/zenas/review/route.ts b/workspace/app/api/zenas/review/route.ts
+--- a/workspace/app/api/zenas/review/route.ts
++++ b/workspace/app/api/zenas/review/route.ts
+@@ -22,7 +22,7 @@
+     const payload = await res.json();
+     return NextResponse.json({ items: presentReview(payload, reviewer.jurisdictions) });
+   } catch (err) {
+-    const message = err instanceof Error ? err.message : "The review queue could not be loaded.";
++    const message = "The review queue could not be loaded.";
+     return NextResponse.json({ error: message }, { status: 502 });
+   }
+ }
+diff --git a/workspace/app/api/zenas/rules.ts b/workspace/app/api/zenas/rules.ts
+--- a/workspace/app/api/zenas/rules.ts
++++ b/workspace/app/api/zenas/rules.ts
+@@ -96,7 +96,7 @@
+ const REVIEW_MISSING = "The review queue is not on this server yet.";
+ const REVIEW_GENERIC = "The review queue could not be loaded.";
+
+-const CONFIGURATION_SETTINGS = new Set(["DATABASE_URL", "TANK_REGION", "TANK_URL", "TANK_KEY", "ZENAS_PII_KEY", "CHASSIS_ADMIN_DATABASE_URL", "CHASSIS_RLS_ADMIN_ROLE"]);
++const CONFIGURATION_SETTINGS = new Set(["DATABASE_URL", "TANK_REGION", "TANK_URL", "TANK_KEY", "TANK_API_KEY", "ZENAS_PII_KEY", "CHASSIS_ADMIN_DATABASE_URL", "CHASSIS_RLS_ADMIN_ROLE"]);
+
+ export function configurationNote(payload: unknown): string {
+   if (!payload || typeof payload !== "object") return "";
+diff --git a/workspace/app/api/zenas/tank.ts b/workspace/app/api/zenas/tank.ts
+--- a/workspace/app/api/zenas/tank.ts
++++ b/workspace/app/api/zenas/tank.ts
+@@ -35,16 +35,19 @@
+ }
+
+ export async function zenas(path: string, init: RequestInit = {}): Promise<Response> {
+-  const {tenantDestination, requestTenant, isRedirect, RedirectError} = await import("@/lib/tank");
++  const missing = [!TANK_API_KEY ? "TANK_API_KEY" : "", !process.env.TANK_REGION ? "TANK_REGION" : ""].filter(Boolean);
++  if (missing.length) return Response.json({ needs_settings: missing }, { status: 503 });
++  const {tenantDestination, requestTenant, isRedirect, RedirectError, boundedFetch} = await import("@/lib/tank");
+   const tenant = requestTenant("/v1/zenas/" + path, init);
+   const target = tenant ? await tenantDestination(tenant) : {url: TANK_URL, key: TANK_API_KEY, home: null};
+   const call = withHome(path, init, target.home ?? homeRegion());
+   const headers = new Headers(call.init.headers);
+   if (!headers.has("content-type")) headers.set("content-type", "application/json");
+   headers.set("x-tank-key", target.key);
+-  const response = await fetch(new URL("/v1/zenas/" + call.path, target.url), {
++  if (tenant) headers.set("x-zenas-tenant", tenant);
++  const response = await boundedFetch(new URL("/v1/zenas/" + call.path, target.url), {
+     ...call.init, headers, cache: "no-store", redirect: "manual",
+-  });
++  }, 120_000, async response => new Response(await response.arrayBuffer(), { status: response.status, headers: response.headers }));
+   if (isRedirect(response)) {
+     await response.body?.cancel().catch(() => undefined);
+     throw new RedirectError(response.status);
+@@ -83,14 +86,16 @@
+ export async function zenasIn(region: Region, path: string, init: RequestInit = {}): Promise<Response | null> {
+   const tank = regionTank(region);
+   if (!tank) return null;
++  if (!tank.key) return Response.json({ needs_settings: ["TANK_API_KEY"] }, { status: 503 });
+   const call = withHome(path, init, region, true);
+-  return fetch(`${tank.url}/v1/zenas/${call.path}`, {
++  const { boundedFetch } = await import("@/lib/tank");
++  return boundedFetch(`${tank.url}/v1/zenas/${call.path}`, {
+     ...call.init,
+     headers: {
+       "content-type": "application/json",
+       "x-tank-key": tank.key,
+       ...(call.init.headers ?? {}),
+     },
+-    cache: "no-store",
+-  });
++    cache: "no-store", redirect: "manual",
++  }, 120_000, async response => new Response(await response.arrayBuffer(), { status: response.status, headers: response.headers }));
+ }
+diff --git a/workspace/app/api/zenas/tenants/route.ts b/workspace/app/api/zenas/tenants/route.ts
+--- a/workspace/app/api/zenas/tenants/route.ts
++++ b/workspace/app/api/zenas/tenants/route.ts
+@@ -26,7 +26,7 @@
+   }
+   try {
+     const res = await zenasIn(home, "tenants", {
+-      method: "POST",
++      method: "POST", headers: { "idempotency-key": req.headers.get("idempotency-key") || crypto.randomUUID() },
+       body: JSON.stringify({ tenant_id: tenantId, home_region: home }),
+     });
+     if (!res) return NextResponse.json({ error: NOT_CONNECTED }, { status: 503 });
+diff --git a/workspace/app/matters/board.tsx b/workspace/app/matters/board.tsx
+--- a/workspace/app/matters/board.tsx
++++ b/workspace/app/matters/board.tsx
+@@ -1,4 +1,6 @@
+ "use client";
++
++import { zenasFetch } from "@/app/zenas/request";
+
+ import { useRouter } from "next/navigation";
+ import { useState } from "react";
+@@ -15,7 +17,7 @@
+     const dataIn = new FormData(form);
+     setBusy(true);
+     setError(null);
+-    const res = await fetch("/api/zenas/matters", {
++    const res = await zenasFetch("/api/zenas/matters", {
+       method: "POST",
+       headers: { "content-type": "application/json" },
+       body: JSON.stringify({ title: dataIn.get("title"), jurisdiction: dataIn.get("jurisdiction") }),
+@@ -36,7 +38,7 @@
+     const dataIn = new FormData(form);
+     setBusy(true);
+     setError(null);
+-    const res = await fetch(`/api/zenas/matters/${matterId}/documents`, {
++    const res = await zenasFetch(`/api/zenas/matters/${matterId}/documents`, {
+       method: "POST",
+       headers: { "content-type": "application/json" },
+       body: JSON.stringify({ kind: dataIn.get("kind"), text: dataIn.get("text") }),
+@@ -55,7 +57,7 @@
+     <>
+       <form className="card" onSubmit={openMatter}>
+         <h2>Open a matter</h2>
+-        <input name="title" required placeholder="What is this matter about?" />
++        <input name="title" required aria-label="What is this matter about?" placeholder="What is this matter about?" />
+         <select name="jurisdiction" defaultValue="us" aria-label="Law">
+           <option value="us">United States law</option>
+           <option value="za">South African law</option>
+@@ -63,7 +65,7 @@
+         </select>
+         <button className="primary" disabled={busy} type="submit">Open</button>
+       </form>
+-      {error && <p className="error">{error}</p>}
++      {error && <p className="error" role="alert">{error}</p>}
+       {note && <p className="note">{note}</p>}
+       {initial.length === 0 && <p className="note">0 · Open a matter</p>}
+       {initial.map((matter) => (
+@@ -81,8 +83,8 @@
+             ))
+           )}
+           <form onSubmit={(event) => upload(event, matter.id)}>
+-            <input name="kind" required placeholder="Kind, for example notes" />
+-            <textarea name="text" required rows={4} placeholder="Document text" />
++            <input name="kind" required aria-label="Kind, for example notes" placeholder="Kind, for example notes" />
++            <textarea name="text" required rows={4} aria-label="Document text" placeholder="Document text" />
+             <button className="primary" disabled={busy} type="submit">Upload</button>
+           </form>
+         </article>
+diff --git a/workspace/app/matters/matters.css b/workspace/app/matters/matters.css
+--- a/workspace/app/matters/matters.css
++++ b/workspace/app/matters/matters.css
+@@ -58,3 +58,7 @@
+ @media (max-width: 800px) {
+   .zenas-page .split { grid-template-columns: 1fr; }
+ }
++
++.zenas-page { overflow-wrap: anywhere; }
++.zenas-page :is(button,a,input,textarea,select):focus-visible { outline: 2px solid #001840; outline-offset: 3px; }
++.zenas-page :is(input,textarea,select) { min-width: 0; max-width: 100%; }
+diff --git a/workspace/app/review/desk.tsx b/workspace/app/review/desk.tsx
+--- a/workspace/app/review/desk.tsx
++++ b/workspace/app/review/desk.tsx
+@@ -1,4 +1,6 @@
+ "use client";
++
++import { zenasFetch } from "@/app/zenas/request";
+
+ import Link from "next/link";
+
+@@ -23,7 +25,7 @@
+     setConfirm(null);
+
+     if (usesMatterRelease(decision, item.matterId)) {
+-      const res = await fetch(`/api/zenas/matters/${item.matterId}/release`, {
++      const res = await zenasFetch(`/api/zenas/matters/${item.matterId}/release`, {
+         method: "POST",
+         headers: { "content-type": "application/json" },
+         body: JSON.stringify({
+@@ -46,7 +48,7 @@
+       return;
+     }
+
+-    const res = await fetch(`/api/zenas/documents/${item.documentId}/reviews`, {
++    const res = await zenasFetch(`/api/zenas/documents/${item.documentId}/reviews`, {
+       method: "POST",
+       headers: { "content-type": "application/json" },
+       body: JSON.stringify({
+@@ -69,8 +71,8 @@
+     <section className="zr-card" aria-labelledby="waiting-title">
+       <h2 id="waiting-title">Waiting for review</h2>
+       {note && <p className="note">{note}</p>}
+-      {confirm && <p className="confirm">{confirm}</p>}
+-      {error && <p className="error">{error}</p>}
++      {confirm && <p className="confirm" role="status">{confirm}</p>}
++      {error && <p className="error" role="alert">{error}</p>}
+       {items.length === 0 && !note && <p className="note">0 · <Link href="/matters">Open a matter</Link></p>}
+       {items.map((item) => (
+         <article className="zr-item-card" key={item.documentId}>
+@@ -100,7 +102,7 @@
+             </section>
+           </div>
+           <form onSubmit={(event) => sign(event, item)}>
+-            <textarea name="changes" rows={4} placeholder="What you changed. Write none if you changed nothing." />
++            <textarea name="changes" rows={4} aria-label="What you changed. Write none if you changed nothing." placeholder="What you changed. Write none if you changed nothing." />
+             <div className="actions">
+               <button className="primary" disabled={busy} name="decision" value="approved" type="submit">
+                 {item.matterId ? "Release to client" : "Approve"}
+diff --git a/workspace/app/zenas/feeds/board.tsx b/workspace/app/zenas/feeds/board.tsx
+--- a/workspace/app/zenas/feeds/board.tsx
++++ b/workspace/app/zenas/feeds/board.tsx
+@@ -1,6 +1,8 @@
+ "use client";
+
+-import { useEffect, useState } from "react";
++import { zenasFetch } from "@/app/zenas/request";
++
++import { useEffect, useRef, useState } from "react";
+ import { emptyConvert, type PublicConvert, type PublicScore, type PublicSource } from "@/app/api/zenas/feeds/public";
+
+ type Region = "us-east" | "za";
+@@ -34,18 +36,23 @@
+   const [busy, setBusy] = useState("");
+   const [watching, setWatching] = useState(initialConvert.running);
+   const [why, setWhy] = useState("");
++  const selection = useRef(0);
+   const anyRunning = sources.some((row) => row.last_status === "running");
+
+   useEffect(() => {
+     if (!anyRunning) return;
+     let stop = false;
++    let fetching = false;
+     const timer = setInterval(() => {
+-      void refreshSources();
++      if (fetching) return;
++      fetching = true;
++      void refreshSources().finally(() => { fetching = false; });
+     }, 3000);
+
+     async function refreshSources() {
+-      const res = await fetch(`/api/zenas/feeds/region?region=${region}`);
+-      if (!res.ok || stop) return;
++      const res = await zenasFetch(`/api/zenas/feeds/region?region=${region}`);
++      if (stop) return;
++      if (!res.ok) { setMessage("Feeds could not be loaded."); return; }
+       const body = (await res.json()) as { sources?: PublicSource[] };
+       if (stop) return;
+       setSources(body.sources ?? []);
+@@ -60,13 +67,17 @@
+   useEffect(() => {
+     if (!watching) return;
+     let stop = false;
++    let fetching = false;
+     const timer = setInterval(() => {
+-      void refresh();
++      if (fetching) return;
++      fetching = true;
++      void refresh().finally(() => { fetching = false; });
+     }, 3000);
+
+     async function refresh() {
+-      const res = await fetch(`/api/zenas/feeds/region/convert?region=${region}`);
+-      if (!res.ok || stop) return;
++      const res = await zenasFetch(`/api/zenas/feeds/region/convert?region=${region}`);
++      if (stop) return;
++      if (!res.ok) { setMessage("Feeds could not be loaded."); return; }
+       const body = (await res.json()) as PublicConvert;
+       if (stop) return;
+       setCounts(body);
+@@ -83,15 +94,17 @@
+   }, [watching, region]);
+
+   async function choose(next: Region) {
++    const selected = ++selection.current;
+     setRegion(next);
+     setWhy("");
+     setMessage("");
+     const [feeds, scored, switched, converted] = await Promise.all([
+-      fetch(`/api/zenas/feeds/region?region=${next}`),
+-      fetch(`/api/zenas/selftest?region=${next}`),
+-      fetch(`/api/zenas/review-switch?region=${next}`),
+-      fetch(`/api/zenas/feeds/region/convert?region=${next}`),
++      zenasFetch(`/api/zenas/feeds/region?region=${next}`),
++      zenasFetch(`/api/zenas/selftest?region=${next}`),
++      zenasFetch(`/api/zenas/review-switch?region=${next}`),
++      zenasFetch(`/api/zenas/feeds/region/convert?region=${next}`),
+     ]);
++    if (selected !== selection.current) return;
+     if (!feeds.ok) {
+       setSources([]);
+       setMessage("Feeds could not be loaded.");
+@@ -123,7 +136,7 @@
+   async function convertCases() {
+     setBusy("convert");
+     setMessage("");
+-    const res = await fetch("/api/zenas/feeds/region/convert", {
++    const res = await zenasFetch("/api/zenas/feeds/region/convert", {
+       method: "POST",
+       headers: { "content-type": "application/json" },
+       body: JSON.stringify({ region }),
+@@ -147,7 +160,7 @@
+   async function flipReview() {
+     const next = review === "on" ? "off" : "on";
+     setBusy("review");
+-    const res = await fetch("/api/zenas/review-switch", {
++    const res = await zenasFetch("/api/zenas/review-switch", {
+       method: "POST",
+       headers: { "content-type": "application/json" },
+       body: JSON.stringify({ region, review: next }),
+@@ -164,7 +177,7 @@
+   async function load(source: string) {
+     setBusy(source);
+     setMessage("");
+-    const res = await fetch("/api/zenas/feeds/region/load", {
++    const res = await zenasFetch("/api/zenas/feeds/region/load", {
+       method: "POST",
+       headers: { "content-type": "application/json" },
+       body: JSON.stringify({ source, region }),
+@@ -191,7 +204,7 @@
+           South Africa
+         </button>
+       </div>
+-      {message ? <p className="note">{message}</p> : null}
++      {message ? <p className="note" role="status">{message}</p> : null}
+       <h2>Decided cases</h2>
+       <p className="note">
+         <span className="meta">{counts.decided}</span> decided cases loaded.{" "}
+diff --git a/workspace/app/zenas/feeds/feeds.css b/workspace/app/zenas/feeds/feeds.css
+--- a/workspace/app/zenas/feeds/feeds.css
++++ b/workspace/app/zenas/feeds/feeds.css
+@@ -122,3 +122,8 @@
+   font-family: var(--font-mono), "JetBrains Mono", monospace;
+   font-size: 12px;
+ }
++
++.zf { overflow-wrap: anywhere; }
++.zf .meta { color: #5c6884; }
++.zf :is(button,a,input,select):focus-visible { outline: 2px solid #001840; outline-offset: 3px; }
++.zf table { display: block; max-width: 100%; overflow-x: auto; }
+diff --git a/workspace/app/zenas/moot-court.tsx b/workspace/app/zenas/moot-court.tsx
+--- a/workspace/app/zenas/moot-court.tsx
++++ b/workspace/app/zenas/moot-court.tsx
+@@ -1,4 +1,6 @@
+ "use client";
++
++import { zenasFetch } from "@/app/zenas/request";
+
+ import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+ import { MOOT_LABEL, MOOT_LEAD, MOOT_PARTS } from "./moot";
+@@ -49,7 +51,7 @@
+     if (!id) return;
+     const requestedSeat = seatRef.current;
+     try {
+-      const res = await fetch(`${BASE}hearings/${id}${requestedSeat ? `?seat=${requestedSeat}` : ""}`, { cache: "no-store" });
++      const res = await zenasFetch(`${BASE}hearings/${id}${requestedSeat ? `?seat=${requestedSeat}` : ""}`, { cache: "no-store" });
+       if (selectedRef.current !== id || seatRef.current !== requestedSeat) return;
+       if (!res.ok) {
+         if ([401, 403, 404].includes(res.status)) { setHearing(null); setOperator(false); seatRef.current = ""; setSeat(""); }
+@@ -64,7 +66,7 @@
+       if (seatRef.current === requestedSeat) {
+         accept(data.hearing, data.operator);
+         if (data.hearing.fairness_pair_id) {
+-          const comparison = await fetch(`${BASE}hearings/${id}/fairness`, { cache: "no-store" });
++          const comparison = await zenasFetch(`${BASE}hearings/${id}/fairness`, { cache: "no-store" });
+           if (comparison.ok && selectedRef.current === id) setFairness((await comparison.json()).fairness);
+         } else setFairness(null);
+       }
+@@ -73,7 +75,7 @@
+
+   useEffect(() => {
+     let active = true;
+-    Promise.all([fetch(BASE + "hearings"), fetch(BASE + "sources"), fetch(BASE + "participants")]).then(async ([h, s, p]) => {
++    Promise.all([zenasFetch(BASE + "hearings"), zenasFetch(BASE + "sources"), zenasFetch(BASE + "participants")]).then(async ([h, s, p]) => {
+       if (!active) return;
+       if (h.ok) setSummaries((await h.json()).hearings);
+       else setMessage("Room unavailable");
+@@ -105,7 +107,7 @@
+     if (runAI) setAiBusy(true); else setBusy(true);
+     setMessage("");
+     try {
+-      const res = await fetch(`${BASE}hearings/${id}/${action}${requestedSeat ? `?seat=${requestedSeat}` : ""}`, {
++      const res = await zenasFetch(`${BASE}hearings/${id}/${action}${requestedSeat ? `?seat=${requestedSeat}` : ""}`, {
+         method: "POST", headers: { "content-type": "application/json" }, signal: controller?.signal,
+         body: JSON.stringify({ request_id: requestId, revision: current.revision, payload }),
+       });
+@@ -114,7 +116,7 @@
+       if (seatRef.current === requestedSeat) {
+         accept(data.hearing, data.operator);
+         if (data.hearing.fairness_pair_id) {
+-          const comparison = await fetch(`${BASE}hearings/${id}/fairness`, { cache: "no-store" });
++          const comparison = await zenasFetch(`${BASE}hearings/${id}/fairness`, { cache: "no-store" });
+           if (comparison.ok && selectedRef.current === id) setFairness((await comparison.json()).fairness);
+         } else setFairness(null);
+       }
+@@ -150,14 +152,14 @@
+     swappedStart.current = identity;
+     setBusy(true);
+     try {
+-      const res = await fetch(`${BASE}hearings/${target}`, { cache: "no-store" });
++      const res = await zenasFetch(`${BASE}hearings/${target}`, { cache: "no-store" });
+       if (!res.ok) { setMessage("Room unavailable"); return; }
+       const partner = (await res.json()).hearing as Hearing;
+       if (partner.phase === "locked") {
+         const fingerprint = `start-paired:${target}:${partner.revision}`;
+         const key = commandRequests.current.get(fingerprint) ?? crypto.randomUUID();
+         commandRequests.current.set(fingerprint, key);
+-        const started = await fetch(`${BASE}hearings/${target}/start`, { method: "POST", headers: { "content-type": "application/json" },
++        const started = await zenasFetch(`${BASE}hearings/${target}/start`, { method: "POST", headers: { "content-type": "application/json" },
+           body: JSON.stringify({ request_id: key, revision: partner.revision, payload: {} }) });
+         if (!started.ok) { setMessage(FAILURE); return; }
+       }
+@@ -196,7 +198,7 @@
+     const requestId = commandRequests.current.get(fingerprint) ?? crypto.randomUUID();
+     commandRequests.current.set(fingerprint, requestId);
+     try {
+-      const res = await fetch(BASE + "hearings", { method: "POST", headers: { "content-type": "application/json" },
++      const res = await zenasFetch(BASE + "hearings", { method: "POST", headers: { "content-type": "application/json" },
+         body: JSON.stringify({ request_id: requestId, worked_id: form.get("worked"), seats }) });
+       const data = await res.json();
+       if (!res.ok) { setMessage(ERROR[data.error] ?? FAILURE); return; }
+@@ -221,7 +223,7 @@
+     <label className="zn-select">The hearing<select value={selected} onChange={e => selectHearing(e.target.value)}><option value="">—</option>{summaries.map(s => <option value={s.id} key={s.id}>{s.title}{s.first_side === "respondent" ? " · Swapped seats" : ""}</option>)}</select></label>
+     <div className="zn-moot-ground">
+       <article className="zn-card"><h2>{MOOT_PARTS[0].title}</h2>
+-        {founder && !hearing && <form onSubmit={create}>
++        {!hearing && <form onSubmit={create} inert={!founder} aria-hidden={!founder} style={{ visibility: founder ? "visible" : "hidden" }}>
+           <label className="zn-select">Civil appeal<select name="worked" required><option value="">—</option>{sources.map(s => <option value={s.id} key={s.id}>{s.title}</option>)}</select></label>
+           {SEATS.map(s => <label className="zn-select" key={s}>{SEAT_LABELS[s]}<select name={s} defaultValue="ai"><option value="ai">AI</option>{participants.map(p => <option value={p.user_id} key={p.user_id}>{p.name}</option>)}</select></label>)}
+           <button className="zn-primary" disabled={busy || !sources.length}>Create hearing</button>
+diff --git a/workspace/app/zenas/plugins-dialog.tsx b/workspace/app/zenas/plugins-dialog.tsx
+--- a/workspace/app/zenas/plugins-dialog.tsx
++++ b/workspace/app/zenas/plugins-dialog.tsx
+@@ -59,7 +59,19 @@
+       setReplacing(null);
+       return;
+     }
++    const invoker = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+     closeRef.current?.focus();
++    function onKey(event: KeyboardEvent) {
++      if (event.key === "Escape") { event.preventDefault(); onClose(); return; }
++      if (event.key !== "Tab") return;
++      const dialog = closeRef.current?.closest('[role="dialog"]');
++      const controls = Array.from(dialog?.querySelectorAll<HTMLElement>('button:not(:disabled),a[href],input:not(:disabled),textarea:not(:disabled),select:not(:disabled),[tabindex="0"]') ?? []).filter(node => node.getClientRects().length);
++      const first = controls[0], last = controls[controls.length - 1];
++      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
++      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
++    }
++    window.addEventListener("keydown", onKey);
++    return () => { window.removeEventListener("keydown", onKey); if (invoker?.isConnected) invoker.focus(); };
+   }, [open]);
+
+   if (!open) return null;
+diff --git a/workspace/app/zenas/request.ts b/workspace/app/zenas/request.ts
+new file mode 100644
+--- /dev/null
++++ b/workspace/app/zenas/request.ts
+@@ -0,0 +1,36 @@
++/** Bounded JSON transport. Mutations are never replayed automatically. */
++export const REQUEST_TIMEOUT_MS = 120_000;
++const ERROR = "Zenas could not be reached. Check your connection and try again.";
++const pending = new Map<string, string>();
++
++export async function zenasFetch(input: string, init: RequestInit = {}): Promise<Response> {
++  const method = (init.method ?? "GET").toUpperCase();
++  const headers = new Headers(init.headers);
++  const signature = input + "\0" + String(init.body ?? "");
++  if (method === "POST" && !headers.has("idempotency-key")) {
++    if (!pending.has(signature)) pending.set(signature, crypto.randomUUID());
++    headers.set("idempotency-key", pending.get(signature)!);
++  }
++  for (let attempt = 0; attempt < (method === "GET" ? 2 : 1); attempt++) {
++    const controller = new AbortController();
++    const abort = () => controller.abort();
++    init.signal?.addEventListener("abort", abort, { once: true });
++    if (init.signal?.aborted) abort();
++    const timer = setTimeout(abort, REQUEST_TIMEOUT_MS);
++    try {
++      const response = await fetch(input, { ...init, headers, signal: controller.signal, redirect: "error" });
++      const text = await response.text(); // The deadline includes the response body.
++      const value = JSON.parse(text);
++      if (!value || typeof value !== "object") throw Error("invalid_response");
++      if (method === "GET" && [502, 503, 504].includes(response.status) && attempt === 0) continue;
++      if (method === "POST" && response.status < 500 && response.status !== 409) pending.delete(signature);
++      return new Response(text, { status: response.status, headers: response.headers });
++    } catch {
++      if (attempt === (method === "GET" ? 1 : 0) || init.signal?.aborted) break;
++    } finally {
++      clearTimeout(timer);
++      init.signal?.removeEventListener("abort", abort);
++    }
++  }
++  return Response.json({ kind: "error", message: ERROR, error: ERROR, detail: ERROR }, { status: 503 });
++}
+diff --git a/workspace/app/zenas/view.tsx b/workspace/app/zenas/view.tsx
+--- a/workspace/app/zenas/view.tsx
++++ b/workspace/app/zenas/view.tsx
+@@ -1,6 +1,9 @@
+ "use client";
+
++import { zenasFetch } from "@/app/zenas/request";
++
+ import Link from "next/link";
++import { safeHref } from "@/app/prices/format";
+ import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from "react";
+ import { DeadlinesPanel } from "./deadlines-panel";
+ import { AREAS, DEADLINE_ROWS, MATTER_ROWS, REVIEW_ROWS, SEARCH_KINDS, hitsFor, type SearchKind } from "./frame";
+@@ -80,6 +83,7 @@
+         searchRef.current?.focus();
+       }
+       if (event.key === "Escape") {
++        if (areasMenuRef.current?.contains(document.activeElement)) areasRef.current?.focus();
+         setSearchOpen(false);
+         setPluginsOpen(false);
+         setMenu(false);
+@@ -183,7 +187,7 @@
+     setActionNote("");
+     if (askRef.current) askRef.current.value = "";
+     try {
+-      const res = await fetch("/api/zenas/answers", {
++      const res = await zenasFetch("/api/zenas/answers", {
+         method: "POST",
+         headers: { "content-type": "application/json" },
+         body: JSON.stringify({ question: text }),
+@@ -317,7 +321,7 @@
+               id="zenas-search"
+               ref={searchRef}
+               value={query}
+-              placeholder={SEARCH_PLACEHOLDER}
++              aria-label={SEARCH_PLACEHOLDER} placeholder={SEARCH_PLACEHOLDER}
+               role="combobox"
+               aria-expanded={searchOpen}
+               aria-controls={listId}
+@@ -420,7 +424,7 @@
+                     <ul className="zn-cited">
+                       {reply.sources.map((source) => (
+                         <li key={`ask-${source.citation}`}>
+-                          <strong>{source.url ? <a href={source.url}>{source.citation}</a> : source.citation}</strong>
++                          <strong>{safeHref(source.url || "") ? <a href={safeHref(source.url || "")!}>{source.citation}</a> : source.citation}</strong>
+                           {source.quote ? <span>{source.quote}</span> : null}
+                         </li>
+                       ))}
+@@ -432,7 +436,7 @@
+                           bench_size: item.bench_size,
+                         }, rules);
+                         const href = item.url
+-                          ? `${item.url}${item.paragraph ? `#para-${item.paragraph}` : ""}`
++                          ? (/^https?:\/\//i.test(item.url) ? `${item.url}${item.paragraph ? `#para-${item.paragraph}` : ""}` : "")
+                           : "";
+                         return (
+                           <li key={`${item.citation}-${item.paragraph}`}>
+@@ -463,7 +467,7 @@
+                   + Attach
+                   <input
+                     className="zn-sr"
+-                    type="file"
++                    type="file" disabled title="Not offered yet."
+                     onChange={(event) => setAttached(event.target.files?.[0]?.name ?? null)}
+                   />
+                 </label>
+diff --git a/workspace/app/zenas/zenas.css b/workspace/app/zenas/zenas.css
+--- a/workspace/app/zenas/zenas.css
++++ b/workspace/app/zenas/zenas.css
+@@ -1529,3 +1529,11 @@
+ .zn-moot pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+ .zn-moot .zn-card { min-width: 0; overflow-wrap: anywhere; }
+ .zn-moot button { margin: 6px 6px 6px 0; }
++
++.zn :is(button, a, input, textarea, select):focus-visible { outline: 2px solid #001840; outline-offset: 3px; }
++.zn :is(input,textarea,select) { max-width: 100%; }
++.zn-main, .zn-body, .zn-thread, .zn-answer { min-width: 0; overflow-wrap: anywhere; }
++.zn-search-results { max-width: 100%; }
++.zn-panel :is(button,a,input,select):focus-visible { outline-color: #fff; }
++.zn-avatar { color: #001840; }
++.zn-panel .zn-muted, .zn-panel .zn-side p, .zn-panel .zn-side a { color: #c9d0e0; }
