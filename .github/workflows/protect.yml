@@ -1,0 +1,64 @@
+# Protect main (founder, 7 Nov 2026): every pull request gets a secret scan of its
+# commits and the diff gate (suppressions, eval/exec, wildcard CORS, risky containers,
+# protected files, weakened tests). About a minute. Make "secrets" and "diff-gate"
+# required checks. Only a founder-unlock label applied by the founder unlocks a
+# protected change.
+name: protect
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: protect-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  secrets:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+      - name: Gitleaks 8.30.1 on this PR's commits (pinned, checksum-verified)
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          curl -fLsS --retry 2 -o "$RUNNER_TEMP/gl.tgz" https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz
+          echo "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb  $RUNNER_TEMP/gl.tgz" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/gl.tgz" -C "$RUNNER_TEMP" gitleaks
+          "$RUNNER_TEMP/gitleaks" git --no-banner --redact --log-opts="$(git merge-base "$BASE" "$HEAD")..$HEAD" .
+
+  diff-gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+      - name: Founder unlock (only when the founder applied the label)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          FOUNDER: ${{ vars.FOUNDER_LOGIN || 'zenascapetown-code' }}
+        run: |
+          has=$(gh api "repos/$REPO/issues/$PR/labels" --jq '[.[].name] | index("founder-unlock") != null')
+          who=$(gh api --paginate "repos/$REPO/issues/$PR/events?per_page=100" \
+            --jq '.[] | select(.event == "labeled" and .label.name == "founder-unlock") | .actor.login' | tail -n1)
+          if [ "$has" = "true" ] && [ "$who" = "$FOUNDER" ]; then
+            echo "FOUNDER_UNLOCK=1" >> "$GITHUB_ENV"; echo "Unlocked by the founder."
+          elif [ "$has" = "true" ]; then
+            echo "::warning::founder-unlock was applied by '$who', not the founder; ignored."
+          fi
+      - name: Check the diff
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: python3 .github/scripts/diff_gate.py "$(git merge-base "$BASE" "$HEAD")" "$HEAD"
