@@ -1,0 +1,51 @@
+# Gates 7+8: UNAPPLIED. Apply AFTER gate4/gate5/moot/training-sdk/gate6/hf-launch-runtime
+# on the disposable check stage. Binds Trigger-sign-in (request.state.trigger_signin)
+# into Tank lifecycle HMAC with TANK_KEY_ZENAS for memory/* and signed answers.
+# Draft only — never deploy from this product tree.
+--- a/tank/main.py
++++ b/tank/main.py
+@@ -3863,6 +3863,7 @@
+ _LOCAL_ZENAS_HOSTS = frozenset({"agent-zenas", "localhost", "127.0.0.1"})
+ _ZENAS_PATH = re.compile(
+     r"^(consents|matters|pool|pool/status|health|review|selftest|review-switch|cases/convert|rule-cards|worked|matches|training-pairs|drafts|playbooks|tenants|answers|contract-reviews|receipts|moot/published)$"
++    r"|^memory/(records|edit|forget|switch)$"
+     r"|^(matters|documents|rule-cards|worked)/[0-9a-fA-F-]{36}$"
+     r"|^matters/[0-9a-fA-F-]{36}/documents$"
+     r"|^matters/[0-9a-fA-F-]{36}/release$"
+@@ -4055,6 +4056,36 @@
+                 headers[name] = str(uuid.UUID(supplied))
+             except ValueError:
+                 raise HTTPException(422, "invalid_request") from None
++    cleaned = path.strip().strip("/")
++    # Gates 7+8: bind Trigger-sign-in actor via Tank lifecycle HMAC (room key,
++    # timestamp\nMETHOD\npath\ntenant\nuser\n+body). Plain X-Tervory-* is not identity.
++    # Memory routes refuse without this proof; answers get it when sign-in is present.
++    memory_path = cleaned.startswith("memory/")
++    answers_path = cleaned == "answers"
++    signin = getattr(getattr(request, "state", None), "trigger_signin", None)
++    if memory_path or (answers_path and signin):
++        import hashlib
++        import hmac as _hmac
++        import time as _time
++        key = os.environ.get("TANK_KEY_ZENAS", "")
++        if not key:
++            raise HTTPException(503, "Zenas room is unreachable")
++        if not signin or not signin.get("user_id") or not signin.get("tenant_id"):
++            raise HTTPException(401, "Signed identity required")
++        tenant = str(signin["tenant_id"])
++        user = str(signin["user_id"])
++        room_path = "/" + cleaned
++        timestamp = str(int(_time.time()))
++        payload = raw if raw else b""
++        message = f"{timestamp}\n{request.method}\n{room_path}\n{tenant}\n{user}\n".encode() + payload
++        headers.update({
++            "X-Tank-Key": key,
++            "Content-Type": request.headers.get("content-type") or "application/json",
++            "X-Lifecycle-Timestamp": timestamp,
++            "X-Lifecycle-Signature": _hmac.new(key.encode(), message, hashlib.sha256).hexdigest(),
++            "X-Tervory-Tenant": tenant,
++            "X-Tervory-User": user,
++        })
+     if path.startswith("regulations/"):
+         headers["X-Tank-Key"] = os.environ.get("TANK_KEY_ZENAS", "")
+     if path.strip().strip("/").startswith("street-law/"):

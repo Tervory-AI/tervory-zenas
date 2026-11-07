@@ -36,6 +36,8 @@ def test_compose_keeps_both_runtimes_off_hardened_and_box_local(region):
     brain, sandbox = (config["services"][name] for name in ("zenas-brain", "zenas-sandbox"))
     assert text.startswith("# coolify: raw compose\n") and leaks(text) == []
     assert room["environment"]["ZENAS_BRAIN_ENABLED"] == "${ZENAS_BRAIN_ENABLED:-false}"
+    assert room["environment"]["ZENAS_BRAIN_URL"] == "http://zenas-brain:8001"
+    assert room["environment"]["ZENAS_MEMORY_ENABLED"] == "${ZENAS_MEMORY_ENABLED:-true}"
     assert brain["profiles"] == sandbox["profiles"] == ["brain"]
     assert brain["build"]["dockerfile"] == "agents/rig/Dockerfile.brain"
     assert brain["command"][1] == "brain.standby:app"
@@ -95,6 +97,7 @@ def test_existing_volume_entries_match_main_byte_for_byte(region):
 @pytest.mark.parametrize("region", FILES)
 @pytest.mark.parametrize("profile", [False, True])
 def test_real_compose_selects_only_existing_room_unless_profile_enabled(region, profile):
+    """Gates 7+8: brain stays opt-in (compose profile); default matches main (off)."""
     binary = shutil.which("docker-compose")
     command = [binary] if binary else [shutil.which("docker"), "compose"]
     assert command[0], "Real Compose CLI is required"
