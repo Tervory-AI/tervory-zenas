@@ -51,7 +51,9 @@ PROTECTED = [
 ]
 MANIFESTS = {"requirements.txt", "package.json", "package-lock.json", "pyproject.toml",
              "poetry.lock", "pnpm-lock.yaml", "yarn.lock", "uv.lock"}
-SCHEMA_RISK = re.compile(r"ROW LEVEL SECURITY|\bPOLICY\b|\bGRANT\b|\bREVOKE\b", re.I)
+# Statements only: CREATE/ALTER/DROP POLICY, RLS switches, GRANT/REVOKE. The word "policy" alone
+# also names routing tables (tank.policy) and appears in comments, which are not access rules.
+SCHEMA_RISK = re.compile(r"ROW\s+LEVEL\s+SECURITY|\b(?:CREATE|ALTER|DROP)\s+POLICY\b|(?:^|;)\s*(?:GRANT|REVOKE)\b", re.I)
 CONTAINER_FILES = ["Dockerfile*", "**/Dockerfile*", "docker-compose*.yml", "**/docker-compose*.yml"]
 CONTAINER_RISK = [
     (re.compile(r"privileged\s*:\s*true", re.I), "privileged container"),
