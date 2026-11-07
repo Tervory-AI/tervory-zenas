@@ -1,0 +1,178 @@
+# Gates 7+8 / t51: UNAPPLIED central user_id scoping for shared chassis + Hermes.
+# Apply AFTER gates-7-8.patch (lifecycle) on the disposable check stage only.
+# Chassis MemoryClient: remember/recall/records take user_id; personal meta.user_id stamped.
+# Hermes: refuse personal writes without user; filter recall/list by user_id before return.
+# NEVER /v1/memory. Draft only — do not apply to live Tank/vendor without authorization.
+diff -ruN a/agents/_chassis/chassis/memory.py b/agents/_chassis/chassis/memory.py
+--- a/agents/_chassis/chassis/memory.py	2026-11-07 06:33:11.613318194 -0800
++++ b/agents/_chassis/chassis/memory.py	2026-11-07 06:50:00.986246001 -0800
+@@ -33,9 +33,14 @@
+                        evidence: list[str] | None = None, confidence: float = .5,
+                        record_id: str | None = None, row_id: str | None = None,
+                        last_verified: str | None = None, meta: dict | None = None,
+-                       index: bool = True) -> dict[str, Any]:
++                       index: bool = True, user_id: str | None = None) -> dict[str, Any]:
+         from uuid import UUID
+         identity = {"id": str(UUID(record_id))} if record_id is not None else {}
++        # Gates 7+8 / t51: personal memory always carries meta.user_id from the
++        # verified actor (never a request body). Hermes scopes by it in SQL.
++        payload_meta = dict(meta or {})
++        if user_id is not None:
++            payload_meta.setdefault("user_id", str(user_id))
+         data = await self._send(
+             "POST",
+             "/memories",
+@@ -49,8 +54,9 @@
+                 "confidence": confidence,
+                 **({"id": row_id} if row_id else {}),
+                 **({"last_verified": last_verified} if last_verified else {}),
+-                **({"meta": meta} if meta is not None else {}),
++                **({"meta": payload_meta} if (meta is not None or user_id is not None) else {}),
+                 **({"index": False} if not index else {}),
++                **({"user_id": str(user_id)} if user_id is not None else {}),
+             },
+         )
+         if not isinstance(data, dict):
+@@ -65,6 +71,7 @@
+         kind: str | None = None,
+         limit: int | None = None,
+         tier: str = 'client',
++        user_id: str | None = None,
+     ) -> list[dict[str, Any]]:
+         if tier not in ('client', 'platform'):
+             raise ValueError('Reference corpora use their registered read-only endpoint')
+@@ -75,6 +82,8 @@
+             body["kind"] = kind
+         if limit is not None:
+             body["limit"] = limit
++        if user_id is not None:
++            body["user_id"] = str(user_id)
+         data = await self._send("POST", "/recall", body)
+         if not isinstance(data, dict) or not isinstance(data.get("memories"), list):
+             raise RuntimeError("hermes answer was not an object")
+@@ -85,7 +94,7 @@
+             memories.append(item)
+         return memories
+ 
+-    async def records(self, tenant_id: str, *, tier: str = "client") -> list[dict[str, Any]]:
++    async def records(self, tenant_id: str, *, tier: str = "client", user_id: str | None = None) -> list[dict[str, Any]]:
+         """SQL listing only; never performs recall or an embedding search."""
+         from uuid import UUID
+         from urllib.parse import urlencode
+@@ -93,8 +102,10 @@
+             raise ValueError("invalid memory tier")
+         rows = []
+         for offset in range(0, 20000, 200):
+-            data = await self._send("GET", "/records?" + urlencode({"tenant_id": str(UUID(tenant_id)), "tier": tier,
+-                                                                    "limit": 200, "offset": offset}))
++            params = {"tenant_id": str(UUID(tenant_id)), "tier": tier, "limit": 200, "offset": offset}
++            if user_id is not None:
++                params["user_id"] = str(user_id)
++            data = await self._send("GET", "/records?" + urlencode(params))
+             if not isinstance(data, dict) or not isinstance(data.get("memories"), list) or any(not isinstance(row, dict) for row in data["memories"]):
+                 raise RuntimeError("hermes answer was not an object")
+             page = data["memories"]
+diff -ruN a/hermes/record_routes.py b/hermes/record_routes.py
+--- a/hermes/record_routes.py	2026-11-07 06:34:55.341391373 -0800
++++ b/hermes/record_routes.py	2026-11-07 06:50:00.990246122 -0800
+@@ -85,11 +85,24 @@
+         agent: str | None = None,
+         tier: Literal["client", "platform"] = "client",
+         x_tank_key: str = Header(default=""),
++        user_id: str | None = Query(default=None, max_length=200),
+         limit: int = Query(default=50, ge=1, le=200),
+         offset: int = Query(default=0, ge=0),
+     ):
+         selected = resolve_agent(identify(x_tank_key), agent, write=False)
+-        return {"memories": await ready(selected).list(selected, str(tenant_id), tier, limit, offset)}
++        rows = await ready(selected).list(selected, str(tenant_id), tier, limit, offset)
++        # Gates 7+8 / t51: filter by user_id in SQL listing BEFORE product use.
++        # Tenant-wide kinds (no meta.user_id) pass; personal others are hidden.
++        if user_id:
++            kept = []
++            for row in rows:
++                meta = row.get("meta") or {}
++                owner = str(meta.get("user_id") or meta.get("user") or "")
++                kind = str(row.get("kind") or "")
++                if owner == str(user_id) or (not owner and kind.startswith("platform.")):
++                    kept.append(row)
++            rows = kept
++        return {"memories": rows}
+ 
+     @app.get("/reference-corpora")
+     async def references(
+diff -ruN a/hermes/service.py b/hermes/service.py
+--- a/hermes/service.py	2026-11-07 06:34:55.329391666 -0800
++++ b/hermes/service.py	2026-11-07 06:50:00.990246122 -0800
+@@ -28,6 +28,33 @@
+ log = logging.getLogger("hermes")
+ 
+ DEDUPE_SCORE = 0.97
++
++# Gates 7+8 / t51: kinds that may omit meta.user_id (tenant-wide). Empty by default;
++# products declare their own allowlist when calling with user_id omitted.
++TENANT_WIDE_KINDS: frozenset[str] = frozenset()
++
++
++def _personal_user(meta: dict, user_id: str | None, kind: str) -> str | None:
++    """Stamp / require user_id for personal kinds. Missing user on personal is refused."""
++    if kind in TENANT_WIDE_KINDS:
++        return user_id
++    owner = (user_id or (meta or {}).get("user_id") or (meta or {}).get("user") or "").strip()
++    if not owner:
++        raise HTTPException(422, "verified user is required for personal memory")
++    return owner
++
++
++def _visible_to_user(row: dict, user_id: str | None) -> bool:
++    """SQL/vector post-filter: personal rows only for owner; tenant-wide always (when declared)."""
++    if user_id is None:
++        return True
++    meta = row.get("meta") or {}
++    kind = str(row.get("kind") or "")
++    owner = str(meta.get("user_id") or meta.get("user") or "")
++    if kind in TENANT_WIDE_KINDS and not owner:
++        return True
++    return owner == str(user_id)
++
+ Connect = Callable[[], tuple[MemoryStore, Embedder]]
+ 
+ 
+@@ -44,6 +71,7 @@
+     last_verified: datetime | None = None
+     id: uuid.UUID | None = None
+     index: bool = True
++    user_id: str | None = Field(default=None, max_length=200)
+ 
+ 
+ class RecallIn(BaseModel):
+@@ -54,6 +82,7 @@
+     limit: int = Field(default=8, ge=1, le=50)
+     agent: str | None = Field(default=None, max_length=61)
+     tier: Literal['client', 'platform'] = 'client'
++    user_id: str | None = Field(default=None, max_length=200)
+ 
+ 
+ def create_app(
+@@ -146,6 +175,9 @@
+     @app.post("/memories")
+     async def remember(body: MemoryIn, x_tank_key: str = Header(default="")) -> JSONResponse:
+         _json_meta(body.meta)
++        owner = _personal_user(body.meta, body.user_id, body.kind)
++        if owner:
++            body.meta = {**body.meta, "user_id": owner}
+         caller = caller_agent(x_tank_key)
+         agent = resolve_agent(caller, body.agent, write=True)
+         if holder['records'] is not None:
+@@ -221,7 +253,10 @@
+         except Exception:
+             log.warning("recall failed")
+             raise HTTPException(status_code=503, detail="memory store unreachable") from None
+-        return {"memories": [_hit(hit) for hit in hits]}
++        memories = [_hit(hit) for hit in hits]
++        if body.user_id:
++            memories = [m for m in memories if _visible_to_user(m, body.user_id)]
++        return {"memories": memories}
+ 
+     @app.delete("/memories/{memory_id}")
+     async def forget(memory_id: uuid.UUID, tenant_id: uuid.UUID | None = None, x_tank_key: str = Header(default="")) -> dict[str, bool]:

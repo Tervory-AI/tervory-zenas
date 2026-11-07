@@ -35,7 +35,7 @@ from agents.zenas.core.law_pool import bind_law_pool  # noqa: E402
 from agents.zenas.pool.store import PostgresStore  # noqa: E402
 from chassis.app import create_app  # noqa: E402
 from chassis.jobs import JobContext  # noqa: E402
-from fastapi import HTTPException, Header, Query  # noqa: E402
+from fastapi import HTTPException, Header, Query, Request  # noqa: E402
 from pydantic import BaseModel, Field  # noqa: E402
 
 from agents.zenas.core.ladder_store import PgLadder  # noqa: E402
@@ -46,6 +46,7 @@ from agents.zenas.core.matters import (  # noqa: E402
     upload_document,
 )
 from agents.zenas.core.seal import key_from_env  # noqa: E402
+from agents.zenas import gates_memory  # noqa: E402
 from agents.zenas.core.service import (  # noqa: E402
     add_approved_clause,
     add_playbook,
@@ -1035,12 +1036,59 @@ class AnswerIn(BaseModel):
     features: dict[str, Any] = Field(default_factory=dict)
     matter_id: UUID | None = None
     provider: str = "luna"
+    user_id: str | None = None
+    firm_id: str | None = None
+    attorney_id: str | None = None
+    client_id: str | None = None
 
 
 @app.post("/answers", status_code=200)
-async def post_answer(body: AnswerIn) -> dict[str, Any]:
+async def post_answer(body: AnswerIn, request: Request) -> dict[str, Any]:
+    """Ask path. Memory uses signed-in Workspace identity only when present; body.user_id is never authority."""
+    from agents.zenas.memory_api import refuse_scope_widen, signed_in_actor
+
     store = _store()
     await store.apply_schema()
+    memory = getattr(app.state, "memory", None)
+    scope = {
+        "firm_id": str(body.firm_id) if body.firm_id else None,
+        "attorney_id": str(body.attorney_id) if body.attorney_id else None,
+        "client_id": str(body.client_id) if body.client_id else None,
+        "matter_id": str(body.matter_id) if body.matter_id else None,
+    }
+    payload = {
+        "question": body.question,
+        "jurisdiction": body.jurisdiction,
+        "features": body.features,
+        "matter_id": scope["matter_id"],
+    }
+    actor = None
+    # Optional memory bracket: only when Tank forwards a lifecycle-signed actor
+    # (room key alone / bare X-Tervory-* / body.user_id are never identity).
+    # Missing or forged signature skips the bracket — no memory read/write; ladder still runs.
+    if isinstance(request, Request) and memory is not None and gates_memory.memory_enabled_env():
+        try:
+            actor = await signed_in_actor(request)
+            refuse_scope_widen(actor, body_tenant_id=body.tenant_id, body_user_id=body.user_id)
+        except HTTPException:
+            actor = None
+    if actor is not None and memory is not None:
+        try:
+            gate = gates_memory.GateMemory(memory, str(actor.tenant_id), actor.user_id, **scope)
+            if await gate.enabled():
+                hit = await gate.lookup("zenas.apply", payload)
+                if hit is not None:
+                    meta = hit.get("meta") or {}
+                    source = "correction" if hit.get("kind") == gates_memory.CORRECTION else "memory"
+                    return {
+                        "ok": True,
+                        "result": meta.get("result"),
+                        "memory_hit": True,
+                        "brain_receipt": gates_memory.free_receipt(hit.get("id"), source),
+                        "delivered": True,
+                    }
+        except Exception as exc:  # noqa: BLE001 — fall through to the existing ladder
+            logging.getLogger("zenas.memory").warning("memory recall failed (%s)", type(exc).__name__)
     result = await answer_question(
         store,
         await _ready(),
@@ -1061,6 +1109,18 @@ async def post_answer(body: AnswerIn) -> dict[str, Any]:
     if str(result.get("reason") or "").startswith("could not verify"):
         return result
     _fail(result)
+    if actor is not None and memory is not None and result.get("ok"):
+        try:
+            gate = gates_memory.GateMemory(memory, str(actor.tenant_id), actor.user_id, **scope)
+            if await gate.enabled():
+                await gate.remember_result(
+                    "zenas.apply",
+                    payload,
+                    result,
+                    {"source": "tank", "paid_calls": None, "cost_usd": None, "tokens_in": 0, "tokens_out": 0, "ledger_ids": []},
+                )
+        except Exception as exc:  # noqa: BLE001 — answer already succeeded
+            logging.getLogger("zenas.memory").warning("memory remember failed (%s)", type(exc).__name__)
     return result
 
 
@@ -1178,4 +1238,6 @@ async def get_moot_published(home_region: str, match_id: UUID | None = None) -> 
 
 # Backend only. Street Law pages await the founder's Figma frames.
 from agents.zenas.core.street_law_api import register_routes as register_street_law_routes  # noqa: E402
+from agents.zenas.memory_api import register_routes as register_memory_routes  # noqa: E402
+register_memory_routes(app)
 register_street_law_routes(app, matters_factory=_store, box_region=_box_region)

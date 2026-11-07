@@ -66,6 +66,8 @@ tests/test_zenas_eur_lex.py
 tests/test_zenas_fix7_answers.py
 tests/test_zenas_founder_signoff.py
 tests/test_zenas_gate2_event_scope.py
+tests/test_zenas_gates_7_8_memory.py
+tests/test_zenas_gates_7_8_hermes_contract.py
 tests/test_zenas_gold_sources.py
 tests/test_zenas_govza_nightly_resume.py
 tests/test_zenas_judgment_training.py
