@@ -18,6 +18,8 @@ services:
       TANK_REGION: za
       AGENT_NAME: zenas
       ZENAS_BRAIN_ENABLED: ${ZENAS_BRAIN_ENABLED:-false}
+      ZENAS_BRAIN_URL: http://zenas-brain:8001
+      ZENAS_MEMORY_ENABLED: ${ZENAS_MEMORY_ENABLED:-true}
       LAWS_AFRICA_API_TOKEN: ${LAWS_AFRICA_API_TOKEN:-}
       # Founder creates Cloudflare R2 bucket tervory-zenas-za and sets this name.
       # US agent-zenas keeps R2_BUCKET: tervory-zenas unchanged.

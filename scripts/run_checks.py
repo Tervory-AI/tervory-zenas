@@ -80,6 +80,14 @@ def test_layout(stage):
     if launcher.is_file():
         run(['git', 'apply', '--check', launcher], cwd=stage)
         run(['git', 'apply', launcher], cwd=stage)
+    gates78 = ROOT / 'tank-patches/gates-7-8.patch'
+    if gates78.is_file():
+        run(['git', 'apply', '--check', gates78], cwd=stage)
+        run(['git', 'apply', gates78], cwd=stage)
+    central = ROOT / 'tank-patches/gates-7-8-central-user-memory.patch'
+    if central.is_file():
+        run(['git', 'apply', '--check', central], cwd=stage)
+        run(['git', 'apply', central], cwd=stage)
     deps = CACHE / 'workspace'
     deps.mkdir(exist_ok=True)
     lock = (stage / 'workspace/package-lock.json').read_bytes()
