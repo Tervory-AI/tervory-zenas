@@ -7,6 +7,7 @@ import json
 from uuid import UUID, uuid4
 
 from chassis.tenant_db import tenant_scope
+from agents.zenas.memory_api import is_moot_path
 
 
 @dataclass
@@ -93,7 +94,7 @@ async def command(request, call_next, tenant):
         return await call_next(request)
     from starlette.responses import Response
     run = Run(tenant, request.url.path, request.headers.get("idempotency-key") or str(uuid4()))
-    run.actor = getattr(request.state, "zenas_actor", None)
+    run.actor = getattr(request.state, "command_actor", None) or getattr(request.state, "zenas_actor", None)
     token = current.set(run)
     try:
         from .memory_task import prepare
@@ -101,10 +102,10 @@ async def command(request, call_next, tenant):
         from fastapi import HTTPException
         inputs = json.loads(getattr(request, "_body", b"") or b"{}")
         try:
-            task = await prepare(request, inputs)
+            task = None if is_moot_path(request.url.path) else await prepare(request, inputs)
         except HTTPException as exc:
             return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
-        cached = await task.cached(request)
+        cached = await task.cached(request) if task is not None else None
         if cached is not None:
             prior = task.hit.get('meta', {}).get('receipt') or {}
             run.baseline_ledgers = prior.get('ledger_ids') or []
@@ -122,12 +123,12 @@ async def command(request, call_next, tenant):
             inputs = json.loads(getattr(request, "_body", b"") or b"{}")
             receipt = await save(request.app.state.pool, getattr(request.app.state, "tank", None),
                                  run, inputs, output, failed=response.status_code >= 400)
-            receipt['memory_status'] = task.status
+            receipt['memory_status'] = task.status if task is not None else 'off'
             receipt['answered_from_memory'] = cached is not None
-            receipt['memory_id'] = task.hit.get('id') if task.hit else None
+            receipt['memory_id'] = task.hit.get('id') if task is not None and task.hit else None
             receipt['cost_usd'] = receipt['cost']
             receipt['would_have_cost'] = {'cost_usd': receipt['would have cost']}
-            if response.status_code < 400 and isinstance(output, dict) and output.get('ok', True):
+            if task is not None and response.status_code < 400 and isinstance(output, dict) and output.get('ok', True):
                 try:
                     await task.remember(output, receipt)
                 except HTTPException as exc:
@@ -136,13 +137,15 @@ async def command(request, call_next, tenant):
                     return JSONResponse({'detail': exc.detail, 'savings_receipt': receipt}, status_code=exc.status_code)
                 except Exception:
                     task.status = receipt['memory_status'] = 'memory unavailable'
-            receipt['memory_id'] = task.hit.get('id') if task.hit else None
+            receipt['memory_id'] = task.hit.get('id') if task is not None and task.hit else None
             with tenant_scope(run.tenant):
                 await request.app.state.pool.execute("UPDATE agent_zenas.savings_receipts SET receipt=$3::jsonb WHERE tenant_id=$1 AND id=$2",
                     UUID(run.tenant), UUID(run.id), json.dumps(receipt, allow_nan=False))
             if isinstance(output, dict) and "application/json" in response.headers.get("content-type", ""):
-                output['memory'] = {'enabled': task.enabled, 'status': task.status, 'hit': cached is not None,
-                                    'worked_law': task.worked_law, 'memory_id': receipt['memory_id']}
+                output['memory'] = {'enabled': task.enabled if task is not None else False,
+                                    'status': task.status if task is not None else 'off', 'hit': cached is not None,
+                                    'worked_law': task.worked_law if task is not None else 0,
+                                    'memory_id': receipt['memory_id']}
                 output['memory_hit'] = cached is not None
                 output["savings_receipt"] = receipt
                 # Existing Command/MCP receipt linking reads explicit envelopes.

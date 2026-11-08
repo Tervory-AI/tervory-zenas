@@ -20,7 +20,11 @@ class SignedInActor:
     role: str = "member"
 
 
-async def verified_actor(request: Request, tenant: str | None, *, required=False):
+def is_moot_path(path: str) -> bool:
+    return path == "/moot" or path.startswith("/moot/")
+
+
+async def verified_request_actor(request: Request, tenant: str | None, *, required=False):
     """Verify once before replay, then reuse request-local verified identity only."""
     from chassis.user_assertion import HEADER, signed_user
     present = bool(request.headers.get(HEADER))
@@ -36,6 +40,15 @@ async def verified_actor(request: Request, tenant: str | None, *, required=False
         if request.headers.get(field) not in (None, expected):
             raise HTTPException(403, "Memory ownership required")
     return SignedInActor(UUID(actor.tenant_id), actor.user_id, actor.role)
+
+
+async def verified_actor(request: Request, tenant: str | None, *, required=False):
+    """A valid Moot identity never grants access to Zenas personal memory."""
+    if is_moot_path(request.url.path):
+        if required:
+            raise HTTPException(403, "Memory ownership required")
+        return None
+    return await verified_request_actor(request, tenant, required=required)
 
 
 async def signed_in_actor(request: Request) -> SignedInActor:

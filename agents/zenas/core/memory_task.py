@@ -3,6 +3,7 @@ from dataclasses import dataclass
 import copy
 
 from agents.zenas import gates_memory as gm
+from agents.zenas.memory_api import is_moot_path
 
 # Only stateless business computations may replay across fresh command IDs.
 REUSABLE = frozenset({'/answers', '/drafts', '/contract-reviews', '/ladder/apply',
@@ -52,7 +53,7 @@ class Task:
         return value
 
     async def remember(self, output, bill):
-        if not self.enabled or self.hit:
+        if is_moot_path(self.action) or not self.enabled or self.hit:
             return
         fields = {**(self.payload.get('features') or {}), **self.payload}
         existing = await self.gate.view()
@@ -62,15 +63,12 @@ class Task:
                 await self.gate._remember(kind, 'zenas '+key, {'value': value})
         if self.action in REUSABLE:
             self.hit = await self.gate.remember_result(self.action, self.payload, output, bill)
-        elif self.action.startswith('/moot/'):
-            # Hearing state/revision/turn checks always execute. Remember context,
-            # never a reusable AI turn or an old judgment response.
-            await self.gate._remember(gm.VISITOR, 'zenas moot context',
-                                      {'value': self.payload, 'receipt': bill})
 
 
 async def prepare(request, payload):
     task = Task(payload=payload, action=request.url.path)
+    if is_moot_path(task.action):
+        return task
     actor = getattr(request.state, 'zenas_actor', None)
     memory = getattr(request.app.state, 'memory', None)
     if actor is None or memory is None or not gm.memory_enabled_env():

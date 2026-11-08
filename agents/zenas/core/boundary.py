@@ -89,10 +89,11 @@ async def _command(request, call_next):
     if len(owners) > 1:
         return JSONResponse({"detail": "tenant_mismatch"}, status_code=403)
     # Consume the shared assertion before any personal read or cached replay.
-    from agents.zenas.memory_api import verified_actor, refuse_scope_widen
-    actor = await verified_actor(request, next(iter(owners), None),
+    from agents.zenas.memory_api import is_moot_path, verified_request_actor, refuse_scope_widen
+    actor = await verified_request_actor(request, next(iter(owners), None),
                                  required=request.url.path.startswith("/memory/"))
-    request.state.zenas_actor = actor
+    request.state.command_actor = actor
+    request.state.zenas_actor = None if is_moot_path(request.url.path) else actor
     if actor is not None:
         refuse_scope_widen(actor, body_tenant_id=next(iter(owners), None), body_user_id=parsed.get("user_id"))
     command = request.headers.get("idempotency-key")
