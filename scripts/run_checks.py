@@ -86,11 +86,6 @@ def test_layout(stage):
     boundary = ROOT / 'tank-patches/gate78-boundary.patch'
     run(['git', 'apply', '--check', boundary], cwd=stage)
     run(['git', 'apply', boundary], cwd=stage)
-    # Worker code and opt-in deployment are separate proposals, never applied
-    # to the source/deployment checkout. Exercise their exact shipped command.
-    worker = ROOT / 'tank-patches/gate78-worker-runtime.patch'
-    run(['git', 'apply', '--check', worker], cwd=stage)
-    run(['git', 'apply', worker], cwd=stage)
     contribution = os.environ.get('ZENAS_GATE78_TEST_CHECKOUT')
     if contribution:
         for name in ('test_zenas.py', 'zenas.json', 'zenas_harness.py'):
@@ -161,8 +156,6 @@ def tests(stage):
     targets = [p for p in PATHS if p.startswith('tests/') and
                ((p.endswith('.py') and Path(p).name.startswith('test_')) or
                 ((stage / p).is_dir() and not p.startswith('tests/fixtures/')))]
-    if os.environ.get('ZENAS_GATE78_TEST_CHECKOUT'):
-        targets += ['tests/gates78/products/test_zenas.py']
     targets += ['tests/test_tank_one_door.py', 'tests/test_memory_runtime_packaging.py',
                 'tests/test_registry_frozen.py']
     with tempfile.TemporaryDirectory(prefix='zenas-postgres-') as directory:
@@ -190,6 +183,22 @@ def tests(stage):
             suites = list(ET.parse(results).getroot().iter('testsuite'))
             assert suites and sum(int(s.attrib['tests']) for s in suites) > 0
             assert not any(int(s.attrib.get('skipped', 0)) for s in suites), 'Skipped product tests are not allowed'
+            if os.environ.get('ZENAS_GATE78_TEST_CHECKOUT'):
+                # Preserve the entire original standby/config proof first.
+                # The enabled-worker candidate is a second explicit assembly;
+                # never alter the deployment checkout or weaken legacy tests.
+                worker = ROOT / 'tank-patches/gate78-worker-runtime.patch'
+                run(['git', 'apply', '--check', worker], cwd=stage)
+                run(['git', 'apply', worker], cwd=stage)
+                results = CACHE / 'worker-tests.xml'
+                result = pytest.main(['tests/gates78/products/test_zenas.py', '-q',
+                    '--disable-socket', '--allow-unix-socket', '--allow-hosts=127.0.0.1,localhost,::1',
+                    '--timeout=120', '-p', 'no:cacheprovider', '--junitxml=' + str(results)])
+                if result:
+                    raise SystemExit(result)
+                suites = list(ET.parse(results).getroot().iter('testsuite'))
+                assert suites and sum(int(s.attrib['tests']) for s in suites) > 0
+                assert not any(int(s.attrib.get('skipped', 0)) for s in suites), 'Skipped worker tests are not allowed'
         finally:
             try:
                 pgserver.pg_ctl(["-w", "stop", "-m", "fast"], pgdata=server.pgdata)

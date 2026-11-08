@@ -17,7 +17,7 @@ async def test_worker_starts_without_enabling_work(monkeypatch, configuration):
         monkeypatch.setenv("TANK_KEY" if configuration == "missing_database" else "DATABASE_URL", "placeholder")
     app = create_app()
     async with app.router.lifespan_context(app):
-        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://zenas-brain") as http:
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://localhost") as http:
             response = await http.get("/health")
     assert response.status_code == 200
     missing = {"unset": [], "missing_database": ["DATABASE_URL"], "missing_key": ["TANK_KEY"]}[configuration]
@@ -37,7 +37,7 @@ async def test_disabled_or_invalid_worker_never_dispatches(monkeypatch, change, 
     body = {"task_key": "zenas.rule_card", "input": {"messages": [{"role": "user", "content": "contract"}]},
             "recall": [], "run_id": "11111111-1111-4111-8111-111111111111", **change}
     async with app.router.lifespan_context(app):
-        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://zenas-brain") as http:
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://localhost") as http:
             response = await http.post("/tasks?tenant_id=11111111-1111-4111-8111-111111111111&user_id=placeholder", json=body)
     assert response.status_code == expected
     assert app.state.tank is None
@@ -59,12 +59,24 @@ async def test_moot_keeps_its_existing_tank_route_when_zenas_worker_is_enabled(m
     assert response["content"] == "placeholder existing Moot result"
 
 
-def test_opt_in_configuration_selects_the_packaged_worker():
+def test_opt_in_configuration_selects_the_packaged_worker(tmp_path):
     from pathlib import Path
+    import shutil
+    import subprocess
     import yaml
     root = Path(__file__).resolve().parents[2]
+    # Check the separate proposed configuration without rewriting the source
+    # Compose files exercised by every original standby/hardening proof.
+    proposed = tmp_path / 'agents/zenas'
+    proposed.mkdir(parents=True)
+    for name in ('docker-compose.yml', 'docker-compose.za.yml', 'Dockerfile'):
+        shutil.copy2(root / 'agents/zenas' / name, proposed / name)
+    subprocess.run(['git', 'apply', '--check', str(root / 'tank-patches/gate78-worker-runtime.patch')],
+                   cwd=tmp_path, check=True, capture_output=True)
+    subprocess.run(['git', 'apply', str(root / 'tank-patches/gate78-worker-runtime.patch')],
+                   cwd=tmp_path, check=True, capture_output=True)
     for name, region in (("docker-compose.yml", "us-east"), ("docker-compose.za.yml", "za")):
-        service = yaml.safe_load((root / "agents/zenas" / name).read_text())["services"]["zenas-brain"]
+        service = yaml.safe_load((proposed / name).read_text())["services"]["zenas-brain"]
         module, attribute = service["command"][1].split(":")
         assert module == "agents.zenas.core.brain_service" and attribute == "app"
         assert getattr(importlib.import_module(module), attribute) is not None
