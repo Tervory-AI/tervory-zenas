@@ -61,7 +61,7 @@ async def brain_then_route(http: Any, tank: Any, *, tenant_id: str,
         digest = hashlib.sha256(json.dumps(messages, sort_keys=True).encode()).hexdigest()
         run_id = run_id or str(uuid5(UUID(run.id), task_type + ':' + digest))
     meta: dict[str, Any] = {"enabled": brain_enabled(), "free_first": True, "code_first": True}
-    if brain_enabled() and actor is not None:
+    if brain_enabled() and actor is not None and task_type.startswith("zenas."):
         gap = await ask_brain_tasks(tank, actor=actor, run_id=run_id or str(uuid4()),
                                     tenant_id=tenant_id, task_type=task_type, messages=messages)
         meta["tasks"] = {key: gap[key] for key in ("status", "task_id", "gap_filled")}

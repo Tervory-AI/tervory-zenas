@@ -46,7 +46,7 @@ def configure_chromium():
 def test_layout(stage):
     # Explicit compatibility dependency: the reviewed shared core, unchanged.
     # Never apply the obsolete product lifecycle/Hermes proposals over #765.
-    shared_sha = "ea9f0d0418951ae7215a165e9df1e590902002fd"
+    shared_sha = "9636b9ae7efd64c3c43392699a74e638a2ae57e2"
     shared = Path(os.environ.get("ZENAS_TANK_CHECKOUT", str(CACHE / 'shared-tank.git')))
     if not shared.exists():
         run(['git', 'init', '--bare', shared])
@@ -86,6 +86,11 @@ def test_layout(stage):
     boundary = ROOT / 'tank-patches/gate78-boundary.patch'
     run(['git', 'apply', '--check', boundary], cwd=stage)
     run(['git', 'apply', boundary], cwd=stage)
+    # Worker code and opt-in deployment are separate proposals, never applied
+    # to the source/deployment checkout. Exercise their exact shipped command.
+    worker = ROOT / 'tank-patches/gate78-worker-runtime.patch'
+    run(['git', 'apply', '--check', worker], cwd=stage)
+    run(['git', 'apply', worker], cwd=stage)
     contribution = os.environ.get('ZENAS_GATE78_TEST_CHECKOUT')
     if contribution:
         for name in ('test_zenas.py', 'zenas.json', 'zenas_harness.py'):
