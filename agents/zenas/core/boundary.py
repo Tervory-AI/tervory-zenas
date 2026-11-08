@@ -114,12 +114,15 @@ async def _command(request, call_next):
     fingerprint = hmac.new(key, request.url.path.encode() + b"?" + request.url.query.encode() + b"\0" + identity + b"\0" + body,
                            hashlib.sha256).hexdigest()
     pool = request.app.state.pool
+    # The owner column serves Zenas memory invalidation only. Moot identity
+    # remains bound in the command fingerprint, outside legal forget/edit.
     with tenant_scope(tenant):
         async with pool.acquire() as conn:
             claimed = await conn.fetchval("""INSERT INTO agent_zenas.command_receipts
                 (tenant_id, request_id, fingerprint, user_id) VALUES ($1,$2,$3,$4)
                 ON CONFLICT (tenant_id,request_id) DO NOTHING RETURNING request_id""",
-                UUID(tenant), UUID(command), fingerprint, actor.user_id if actor else None)
+                UUID(tenant), UUID(command), fingerprint,
+                actor.user_id if actor and not is_moot_path(request.url.path) else None)
             if not claimed:
                 row = await conn.fetchrow("""SELECT fingerprint,status,receipt FROM agent_zenas.command_receipts
                     WHERE tenant_id=$1 AND request_id=$2""", UUID(tenant), UUID(command))

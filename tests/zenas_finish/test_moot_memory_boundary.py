@@ -41,6 +41,10 @@ async def test_signed_hearing_never_prepares_recalls_or_remembers_zenas_memory(d
             row = {'id': str(uuid4()), **json.loads(request.content)}
             rows.append(row)
             return httpx.Response(201, json=row)
+        if request.method == 'DELETE' and request.url.path.startswith('/memories/'):
+            ident = request.url.path.rsplit('/', 1)[1]
+            rows[:] = [row for row in rows if row['id'] != ident]
+            return httpx.Response(204)
         raise AssertionError('Unexpected memory request')
 
     class CodeQuote:
@@ -95,6 +99,10 @@ async def test_signed_hearing_never_prepares_recalls_or_remembers_zenas_memory(d
             assert legal.json()['memory']['enabled'] is True
             assert prepared == ['/matters']
             assert ('POST', '/recall') in calls and ('POST', '/memories') in calls and rows
+            forgotten = await send('/memory/forget', {'tenant_id': TENANT, 'memory_id': rows[0]['id']}, str(uuid4()))
+            assert forgotten.status_code == 200, forgotten.text
+            replay_after_forget = await send(path, payload, command)
+            assert replay_after_forget.status_code == 200 and replay_after_forget.json() == first.json()
 
 
 @pytest.mark.asyncio
