@@ -65,7 +65,7 @@
          target = "/tasks?" + urlencode({"tenant_id": actor.tenant_id, "user_id": actor.user_id})
          content = json.dumps({"task_key": body.task_key, "input": body.input,
                                "recall": body.recall, "run_id": str(body.run_id)}).encode()
-@@ -81,16 +81,37 @@
+@@ -81,16 +81,43 @@
              # Reuse Tank's production paid_http signing hook with the exact
              # configured origin, verified actor, raw target and body.
              with actor_scope(actor):
@@ -90,14 +90,20 @@
 +                from tenant_db import tenant_scope
 +                bill = data["receipt"]
 +                with tenant_scope(actor.tenant_id):
-+                    row = await tank.pool().fetchrow("""SELECT model,cost_usd,tokens_in,tokens_out FROM tank.ledger
-+                        WHERE tenant_id=$1 AND id=$2 AND task_id=$3 AND region=$4
-+                          AND agent='zenas' AND task_type='agent.zenas.think'""",
++                    row = await tank.pool().fetchrow("""SELECT a.receipt FROM tank.ledger l
++                        JOIN tank.agent_receipts a ON a.tenant_id=l.tenant_id AND a.ledger_id=l.id AND a.room='zenas'
++                        WHERE l.tenant_id=$1 AND l.id=$2 AND l.task_id=$3 AND l.region=$4
++                          AND l.agent='zenas' AND l.task_type='agent.zenas.think'""",
 +                        UUID(actor.tenant_id), UUID(bill["ledger_id"]),
 +                        UUID(paid_identity(actor.tenant_id, actor.user_id, str(body.run_id))),
 +                        local_region(tank, request.headers.get("x-home-region"), room=room))
-+                if row is None or row["model"] != bill.get("model") or any(
-+                        row[key] is None or float(row[key]) != bill[key] for key in ("cost_usd", "tokens_in", "tokens_out")):
++                # The ledger has fixed monetary precision; its canonical task
++                # receipt preserves provider precision. Compare the whole saved
++                # receipt rather than rejecting or rounding a valid cheap call.
++                stored = row["receipt"] if row else None
++                if isinstance(stored, str):
++                    stored = json.loads(stored)
++                if stored != bill:
 +                    raise ValueError("Unreconciled room receipt")
              return data
          except httpx.HTTPStatusError as exc:
