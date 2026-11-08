@@ -25,7 +25,7 @@ async def ping_brain(http: Any) -> dict[str, Any]:
     """Health probe used before paid work when the brain switch is on."""
     if not brain_enabled():
         return {"ok": False, "enabled": False}
-    response = await http.get(brain_url() + "/health")
+    response = await http.get(brain_url() + "/health", timeout=5)
     response.raise_for_status()
     data = response.json()
     if not isinstance(data, dict):
@@ -55,13 +55,13 @@ async def ask_brain_tasks(
         "batch": task_type,
         "count": 1,
     }
-    response = await http.post(brain_url() + "/tasks", json=payload)
+    response = await http.post(brain_url() + "/tasks", json=payload, timeout=5)
     if response.status_code in {404, 405}:
         return {"status": "standby", "task_id": task_id, "gap_filled": False}
     if response.status_code == 202:
         poll = await http.get(
             brain_url() + "/tasks/" + task_id,
-            params={"tenant_id": str(tenant_id), "home_region": payload["home_region"]},
+            params={"tenant_id": str(tenant_id), "home_region": payload["home_region"]}, timeout=5,
         )
         if poll.status_code == 202:
             return {"status": "running", "task_id": task_id, "gap_filled": False}
@@ -121,10 +121,19 @@ async def brain_then_route(
                 "task_id": gap.get("task_id"),
                 "gap_filled": bool(gap.get("gap_filled")),
             }
-            if gap.get("gap_filled") and gap.get("content") and not (
-                gap.get("receipt") or {}
-            ).get("model_receipts"):
-                brain_meta["gap_content_chars"] = len(str(gap["content"]))
+            evidence = gap.get("receipt") or {}
+            recorded = evidence.get("model_receipts") or []
+            if gap.get("gap_filled") and gap.get("content"):
+                if recorded and evidence.get('tenant_id') == str(tenant_id) and all(
+                        isinstance(row, dict) and row.get('ledger_id') for row in recorded):
+                    from agents.zenas.core.savings import observed
+                    for row in recorded:
+                        observed(tenant_id, row)
+                    return {"content": gap["content"], "model": evidence.get('model'),
+                            "cost_usd": evidence.get('cost_usd'), "brain": brain_meta}
+                if evidence.get('model') == 'code' and all(evidence.get(k) == 0 for k in ('cost_usd','tokens_in','tokens_out')):
+                    return {"content": gap["content"], "model": "code", "cost_usd": 0,
+                            "tokens_in": 0, "tokens_out": 0, "brain": brain_meta}
         except Exception as exc:  # noqa: BLE001 — paid Tank route still proceeds
             brain_meta["error"] = type(exc).__name__
             brain_meta["tasks"] = {"status": "unavailable", "gap_filled": False}

@@ -1,0 +1,351 @@
+--- a/tank/command_tools/zenas.py
++++ b/tank/command_tools/zenas.py
+@@ -1,13 +1,64 @@
+ """zenas command declarations; argument classes remain exported by command."""
++from typing import Any, Literal
++from uuid import UUID
++from pydantic import BaseModel, ConfigDict, Field
++
++class Arguments(BaseModel):
++    model_config = ConfigDict(extra='forbid')
++
++class RetrieveArgs(Arguments):
++    jurisdiction: Literal['us','za','both']
++    query: str = Field(default='', max_length=24000)
++    citation: str = Field(default='', max_length=1000)
++    as_at: str | None = Field(default=None, max_length=10)
++
++class ApplyArgs(Arguments):
++    card_id: UUID
++    features: dict[str, Any] = Field(default_factory=dict)
++    question: str = Field(default='', max_length=24000)
++
++class PlainArgs(Arguments):
++    text: str = Field(min_length=1, max_length=24000)
++    citations: list[str] = Field(default_factory=list, max_length=100)
++    jurisdiction: Literal['us','za','both']
++
++class MootReadArgs(Arguments):
++    hearing_id: UUID
++    screen: Literal['bench','citations','feedback'] | None = None
++
++class MootOpenArgs(Arguments):
++    request_id: UUID
++    worked_id: UUID
++    seats: dict[str, dict[str, Any]]
++
++class MootCommandArgs(Arguments):
++    hearing_id: UUID
++    action: Literal['turn','ai','start','lock','handover','issue','abandon','pair']
++    request_id: UUID
++    revision: int = Field(ge=0)
++    payload: dict[str, Any] = Field(default_factory=dict)
++
+ TOOLS = {'zenas': ['zenas.ask', 'zenas.matters', 'zenas.draft', 'zenas.review', 'zenas.playbook.add', 'zenas.playbooks', 'zenas.watch.add', 'zenas.watch.list', 'zenas.watch.enable', 'zenas.watch.disable']}
++TOOLS['zenas'] += ['zenas.receipts','zenas.retrieve','zenas.apply','zenas.compose','zenas.plain',
++                   'zenas.moot.list','zenas.moot.read','zenas.moot.open','zenas.moot.command']
+ FOUNDER_TOOLS = []
+ TENANT_ADMIN_TOOLS = []
+ ADMIN_ONLY_TOOLS = frozenset([])
+ REQUEST_BODY_TOOLS = frozenset([])
+ CONFIRMED = frozenset(['zenas.draft', 'zenas.playbook.add'])
++CONFIRMED |= frozenset(['zenas.moot.open','zenas.moot.command'])
+
+ def adapters(command):
+     return {
++        'zenas.receipts': command.Adapter('GET','/v1/zenas/receipts',command.EmptyArgs,'Receipts'),
++        'zenas.retrieve': command.Adapter('POST','/v1/zenas/ladder/retrieve',RetrieveArgs,'Retrieve law'),
++        'zenas.apply': command.Adapter('POST','/v1/zenas/ladder/apply',ApplyArgs,'Apply law',True,'paid_run'),
++        'zenas.compose': command.Adapter('POST','/v1/zenas/ladder/compose',ApplyArgs,'Compose memo',True,'paid_run'),
++        'zenas.plain': command.Adapter('POST','/v1/zenas/ladder/plain',PlainArgs,'Plain language',True,'paid_run'),
++        'zenas.moot.list': command.Adapter('GET','/v1/zenas/moot/hearings',command.EmptyArgs,'Moot Court'),
++        'zenas.moot.read': command.Adapter('GET','/v1/zenas/moot/hearings/{hearing_id}',MootReadArgs,'The hearing'),
++        'zenas.moot.open': command.Adapter('POST','/v1/zenas/moot/hearings',MootOpenArgs,'Open a hearing'),
++        'zenas.moot.command': command.Adapter('POST','/v1/zenas/moot/hearings/{hearing_id}/{action}',MootCommandArgs,'The hearing',True,'paid_run'),
+         'zenas.ask': command.Adapter('POST', '/v1/zenas/answers', command.ZenasAskArgs, 'Ask a civil law question', True, 'paid_run'),
+         'zenas.matters': command.Adapter('POST', '/v1/zenas/matters', command.MatterArgs, 'Create a matter'),
+         'zenas.draft': command.Adapter('POST', '/v1/zenas/drafts', command.ZenasDraftArgs, 'Draft a document', True, 'paid_run'),
+@@ -19,3 +70,24 @@
+         'zenas.watch.disable': command.Adapter('POST', '/v1/zenas/regulations/watches/{watch_id}', command.ZenasWatchIdArgs, 'zenas.watch.disable'),
+         'zenas.review': command.Adapter('POST', '/v1/zenas/contract-reviews', command.ReviewArgs, 'Review a contract', True, 'paid_run'),
+     }
++
++
++async def code_plan(actor,messages,task_id):
++    import json
++    import re
++    from types import SimpleNamespace
++    from fastapi import HTTPException
++    if not messages or messages[-1].get('role')!='user':return None
++    match=re.fullmatch(r'(zenas\.[a-z_.]+)(?:\s+(\{.*\}))?\s*',messages[-1].get('content','').strip(),re.S)
++    if not match or match[1] not in TOOLS['zenas']:return None
++    import command
++    actor=await command.authorized_actor(actor)
++    command.require_tool(actor,match[1])
++    try:
++        arguments=json.loads(match[2] or '{}')
++        action=command.validate_action(command.PlannedAction(tool=match[1],arguments=arguments),actor)
++    except (ValueError,TypeError):
++        raise HTTPException(422,'Invalid command') from None
++    from trigger_routes import code_receipt
++    receipt=await code_receipt(actor.tenant_id,'command.turn',task_id=task_id,agent='zenas')
++    return SimpleNamespace(content=json.dumps({'text':'','actions':[action.model_dump(mode='json')]}),ledger_id=receipt)
+--- /dev/null
++++ b/tank/training_jobs/hf_jobs_runtime.py
+@@ -0,0 +1,34 @@
++"""Keep the Jobs launcher off Tank's older CPU-router SDK."""
++from __future__ import annotations
++
++import os
++from pathlib import Path
++import sys
++
++JOBS_SDK_VERSION = '1.7.2'
++_BOOTSTRAPPED = '_TERVORY_HF_JOBS_BOOTSTRAPPED'
++_ERROR = 'HF Jobs requires huggingface-hub==1.7.2; rebuild the image with its isolated HF Jobs runtime.'
++
++
++def ensure_jobs_runtime(script: str) -> None:
++    if '--help' in sys.argv or '-h' in sys.argv:
++        return
++    try:
++        from huggingface_hub import HfApi, __version__
++        ready = __version__ == JOBS_SDK_VERSION and all(callable(getattr(HfApi, method, None))
++                                                       for method in ('list_jobs_hardware', 'run_uv_job'))
++    except ImportError:
++        ready = False
++    if ready:
++        return
++    if os.environ.get(_BOOTSTRAPPED):
++        raise SystemExit(_ERROR)
++    # Use only the existing image SDK: never install packages at launch, fall
++    # back to the CPU-router SDK, or get as far as a paid request before this.
++    python = os.environ.get('HF_JOBS_PYTHON') or '/opt/hf-jobs/bin/python'
++    child_env = dict(os.environ)
++    child_env[_BOOTSTRAPPED] = JOBS_SDK_VERSION
++    try:
++        os.execve(python, [python, str(Path(script).resolve()), *sys.argv[1:]], child_env)
++    except OSError:
++        raise SystemExit(_ERROR) from None
+--- a/tank/training_jobs/run.py
++++ b/tank/training_jobs/run.py
+@@ -1,3 +1,7 @@
++# /// script
++# requires-python = ">=3.12"
++# dependencies = ["huggingface-hub==1.7.2", "asyncpg==0.30.0"]
++# ///
+ """Submit explicitly, estimate by live HF hardware price, reconcile billed receipts.
+
+ No production DB credential is ever sent to a GPU job. Shared training runs on
+@@ -13,6 +17,10 @@
+ from pathlib import Path
+ import re
+ import uuid
++
++if __name__ == '__main__':
++    from hf_jobs_runtime import ensure_jobs_runtime
++    ensure_jobs_runtime(__file__)
+
+ PLATFORM = uuid.UUID('00000000-0000-0000-0000-000000000001')
+ HARDWARE = frozenset({'a10g-small', 'a10g-large'})
+--- /dev/null
++++ b/tank/zenas_law.py
+@@ -0,0 +1,52 @@
++"""Tank's same-region, local-only legal embedding route."""
++import os
++from uuid import UUID
++import httpx
++from fastapi import APIRouter, Depends, HTTPException
++from pydantic import BaseModel, ConfigDict, Field
++from tenant_db import tenant_scope
++
++MODEL='BAAI/bge-small-en-v1.5@aa8f8b060edb00e03bfdd08813a2949946c8ba55'
++
++class Embeddings(BaseModel):
++    model_config=ConfigDict(extra='forbid')
++    home_region: str | None = None
++    tenant_id: UUID
++    jurisdiction: str
++    model: str
++    texts: list[str] = Field(min_length=1,max_length=512)
++
++async def ledger(tenant):
++    from trigger_routes import code_receipt
++    return await code_receipt(tenant,'zenas.embeddings',agent='zenas')
++
++def build_router(tank):
++    router=APIRouter(prefix='/v1/zenas/law')
++    @router.post('/embeddings')
++    async def embeddings(body: Embeddings, caller=Depends(tank.require_key)):
++        if caller!='zenas':raise HTTPException(403,'Zenas room identity required')
++        region=tank.box_region()
++        if body.model!=MODEL or body.jurisdiction!=('za' if region=='za' else 'us'):
++            raise HTTPException(403,'wrong_region')
++        if sum(len(t) for t in body.texts)>1_000_000:raise HTTPException(413,'input_too_large')
++        with tenant_scope(body.tenant_id):
++            try:
++                async with httpx.AsyncClient(trust_env=False,follow_redirects=False,timeout=120,
++                                             transport=getattr(tank,'law_transport',None)) as client:
++                    response=await client.post('http://hermes:8000/law/embeddings',
++                        headers={'X-Tank-Key':os.environ.get('TANK_KEY_ZENAS','')},
++                        json=body.model_dump(mode='json',exclude={'tenant_id','home_region'}))
++                response.raise_for_status()
++                data=response.json()
++            except (httpx.HTTPError,ValueError):
++                raise HTTPException(503,'meaning search unavailable') from None
++            receipt=await ledger(body.tenant_id)
++            return {**data,'ledger_id':str(receipt),'cost_usd':0,'rung':2}
++    return router
++
++
++def install(tank):
++    """Specific internal law route precedes the existing product catch-all."""
++    routes = tank.app.router.routes
++    index = next(i for i,r in enumerate(routes) if getattr(r,"path","") == "/v1/zenas/{path:path}")
++    routes[index:index] = build_router(tank).routes
+--- a/workspace/app/matters/board.tsx
++++ b/workspace/app/matters/board.tsx
+@@ -1,7 +1,7 @@
+ "use client";
+ import { zenasFetch } from "@/app/zenas/request";
+
+-import { fetchWithDeadline as fetch } from "../../lib/request";
++
+ import { useRouter } from "next/navigation";
+ import { useState } from "react";
+ import type { MatterRow } from "@/app/api/zenas/rules";
+--- a/workspace/app/review/desk.tsx
++++ b/workspace/app/review/desk.tsx
+@@ -2,7 +2,8 @@
+ import Link from "next/link";
+ import { zenasFetch } from "@/app/zenas/request";
+
+-import { fetchWithDeadline as fetch } from "../../lib/request";
++
++
+ import { useRouter } from "next/navigation";
+ import { useState } from "react";
+ import type { ReviewItem } from "@/app/api/zenas/rules";
+--- a/workspace/app/zenas/feeds/board.tsx
++++ b/workspace/app/zenas/feeds/board.tsx
+@@ -1,7 +1,7 @@
+ "use client";
+ import { zenasFetch } from "@/app/zenas/request";
+
+-import { fetchWithDeadline as fetch } from "../../../lib/request";
++
+ import { useEffect, useRef, useState } from "react";
+ import { emptyConvert, type PublicConvert, type PublicScore, type PublicSource } from "@/app/api/zenas/feeds/public";
+
+--- a/workspace/app/zenas/moot-court.tsx
++++ b/workspace/app/zenas/moot-court.tsx
+@@ -2,7 +2,7 @@
+ import { zenasFetch } from "@/app/zenas/request";
+ import { LocalHearingVoice } from "./moot-voice";
+
+-import { fetchWithDeadline as fetch } from "../../lib/request";
++
+ import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+ import { MOOT_LABEL, MOOT_LEAD, MOOT_PARTS } from "./moot";
+ import { fairnessReading, type Fairness, newerHearing, SEATS, SEAT_LABELS, turnFromForm, type Hearing, type Seat } from "./moot-hearing-types";
+--- /dev/null
++++ b/workspace/app/zenas/receipts/page.tsx
+@@ -0,0 +1,17 @@
++import {currentTenant} from "@/lib/tenant";
++import {zenas} from "@/app/api/zenas/tank";
++import {Receipts} from "./view";
++import "../zenas.css";
++
++export const dynamic="force-dynamic";
++export default async function ReceiptPage(){
++  const {tenantId}=await currentTenant();
++  try {
++    const response=await zenas(`receipts?tenant_id=${encodeURIComponent(tenantId)}`,{method:"GET"});
++    if(!response.ok)throw new Error('unavailable');
++    const data=await response.json();
++    return <main className="zn"><h1>Zenas</h1><Receipts receipts={data.receipts}/></main>;
++  } catch {
++    return <main className="zn"><h1>Zenas</h1><p role="alert">Room unavailable</p></main>;
++  }
++}
+--- /dev/null
++++ b/workspace/app/zenas/receipts/view.tsx
+@@ -0,0 +1,16 @@
++export type SavingsReceipt = {id:string;action:string;cost:number|null;"would have cost":number|null;baseline_model:string|null;created_at:string};
++const money=(value:number|null)=>value===null?"—":`$${value.toFixed(8)}`;
++const actionName=(action:string)=>action.startsWith('/moot/')?'Moot Court':
++  action.startsWith('/answers')?'Ask Zenas':action.startsWith('/drafts')?'Templates':
++  action.startsWith('/contract-reviews')?'Review':action.startsWith('/matters')?'Matters':'Zenas';
++
++export function Receipts({receipts}:{receipts:SavingsReceipt[]}) {
++  return <section className="zn-card" aria-label="Receipts" tabIndex={0}
++    style={{maxHeight:"calc(100dvh - 100px)",overflow:"auto",boxSizing:"border-box"}}><h2>Receipts</h2>
++    <table><thead><tr><th scope="col">Run</th><th scope="col">Cost</th><th scope="col">Would have cost</th></tr></thead>
++      <tbody>{receipts.map(receipt=><tr key={receipt.id}><th scope="row">{actionName(receipt.action)}</th>
++        <td>{money(receipt.cost)}</td><td>{money(receipt["would have cost"])}{receipt.baseline_model&&<> · {receipt.baseline_model}</>}</td></tr>)}
++      {receipts.length===0&&<tr><th scope="row">—</th><td>—</td><td>—</td></tr>}</tbody></table>
++    {receipts.length===0&&<p>Ask Zenas</p>}
++  </section>;
++}
+--- a/workspace/app/zenas/view.tsx
++++ b/workspace/app/zenas/view.tsx
+@@ -1,8 +1,8 @@
+ "use client";
+ import { zenasFetch } from "@/app/zenas/request";
+
+-import { fetchWithDeadline as fetch } from "../../lib/request";
+-import { safeHref } from "@/app/prices/format";
++import { safeHref } from "@/app/zenas/safe-href";
++
+ import Link from "next/link";
+ import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from "react";
+ import { DeadlinesPanel } from "./deadlines-panel";
+@@ -21,6 +21,7 @@
+ ] as const;
+
+ const PAGE_LINKS = [
++  { href: "/zenas/receipts", label: "Receipts" },
+   { href: "/matters", label: "Matters" },
+   { href: "/review", label: "Review" },
+ ] as const;
+--- a/tank/command.py
++++ b/tank/command.py
+@@ -1753,6 +1753,12 @@
+         args["enabled"] = action.tool == "zenas.watch.enable"
+     if action.tool.startswith("zenas."):
+         scope["home_region"] = box_region()
++    if action.tool.startswith('zenas.moot.'):
++        if '{hearing_id}' in path:
++            path = path.replace('{hearing_id}',str(args.pop('hearing_id')))
++        if '{action}' in path:
++            path = path.replace('{action}',args.pop('action'))
++        return adapter.method,path,{'home_region':box_region(),**(args if adapter.method=='GET' else {})},None if adapter.method=='GET' else args
+     if "{skill_id}" in path:
+         path = path.format(skill_id=args["skill_id"], version=args["version"])
+         return adapter.method, path, scope, {"by": actor.user_id}
+@@ -1821,6 +1827,8 @@
+         confirmation(actor, action.tool, action.arguments)
+     headers = {"X-Tank-Key": TANK_API_KEY, "X-Tervory-User": actor.user_id,
+                "X-Tervory-Tenant": str(actor.tenant_id)}
++    if action.tool.startswith('zenas.moot.'):
++        headers.update({'X-Moot-Actor':actor.user_id,'X-Moot-Tenant':str(actor.tenant_id)})
+     headers.update(__import__("trigger_signin_config").proof.get())
+     if action.tool in {"radix.infra.scan", "radix.active.consent", "radix.active.consent.withdraw", "radix.active.scan", "radix.domain.prove", "radix.passive.scan", "radix.findings", "radix.watch", "radix.unwatch", "radix.watches", "radix.changes"}:
+         from main import box_region
+--- /dev/null
++++ b/workspace/app/zenas/safe-href.ts
+@@ -0,0 +1,3 @@
++export function safeHref(value: string): string | null {
++  try { const url = new URL(value); return ["http:","https:"].includes(url.protocol) ? value : null; } catch { return null; }
++}
+--- a/workspace/app/zenas/moot-screen.tsx
++++ b/workspace/app/zenas/moot-screen.tsx
+@@ -4,7 +4,7 @@
+ import {MOOT_PARTS} from '@/app/zenas/moot';
+ import {SEAT_LABELS,type Hearing,type Seat} from '@/app/zenas/moot-hearing-types';
+ import {ReasonTrace} from '@/app/zenas/moot-court';
+-import {safeHref} from '@/app/prices/format';
++import {safeHref} from '@/app/zenas/safe-href';
+
+ type Screen = {kind:string;id:string;revision:number;title:string;phase:string;floor:Seat;
+   problem:Hearing['problem'];transcript:Hearing['transcript'];ruling:Hearing['ruling'];reveal?:string;

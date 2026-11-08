@@ -21,6 +21,8 @@ CREATE TABLE IF NOT EXISTS agent_zenas.command_receipts (
     created_at timestamptz NOT NULL DEFAULT now(),
     PRIMARY KEY (tenant_id, request_id)
 );
+ALTER TABLE agent_zenas.command_receipts ADD COLUMN IF NOT EXISTS user_id text;
+
 
 -- One row per tenant. home_region is the source of truth for where that tenant's
 -- rows live. A home_region on a request is only a cross-check against this column.

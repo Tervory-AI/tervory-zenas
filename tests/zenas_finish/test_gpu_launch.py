@@ -50,7 +50,8 @@ async def test_existing_gpu_launcher_reserves_before_hf_and_sends_no_database_cr
     assert result['status'] == 'running' and result['cost_usd'] == Decimal('2.4')
     assert submitted == {'namespace': 'placeholder-org', 'flavor': 'a10g-small', 'timeout': 7200,
                          'env': {'HF_ORG': 'placeholder-org', 'TRAIN_DAY': '2026-11-06',
-                                 'OUTPUT_REPO': 'placeholder-org/tervory-own-zenas-za', 'TRAIN_AGENT': 'zenas'},
+                                 'OUTPUT_REPO': 'placeholder-org/tervory-own-zenas-za', 'TRAIN_AGENT': 'zenas',
+                                 'TIGER_DATASET_REVISION': ''},
                          'secrets': {'HF_TOKEN': 'placeholder'}}
     assert events.index('reservation') < events.index('hf')
     conn.close.assert_awaited_once()

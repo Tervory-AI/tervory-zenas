@@ -1,12 +1,4 @@
-"""Gates 7+8 memory controls: VIEW, CONTENT EDIT, FORGET, SWITCH OFF.
-
-Identity is never taken from a request body field or bare X-Tervory-* header.
-The signed-in caller is bound by Tank's existing lifecycle request signature
-(agents/ghost/enforce_api.py:verify_lifecycle / ghost_routes signing, extended
-to bind tenant+user in the message with the Zenas room key — same scheme Trigger
-gates 7+8 uses). Room-key HMAC alone is not actor proof. Unsigned, wrong
-signature, or signed-for-another-user requests yield no reads and no changes.
-"""
+"""Personal memory controls use the shipped shared signed-user verifier."""
 from __future__ import annotations
 
 import hmac
@@ -15,66 +7,51 @@ from dataclasses import dataclass
 from typing import Any
 from uuid import UUID
 
-from fastapi import Depends, Header, HTTPException, Query, Request
+from fastapi import Depends, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field
 
-from agents.zenas import gates_memory
-from agents.zenas.request_signing import room_key, verify_signed_actor
+from agents.zenas import gates_memory as gm
 
 
 @dataclass(frozen=True)
 class SignedInActor:
-    """Tenant+user bound by Tank's lifecycle request signature. Body is never identity."""
-
     tenant_id: UUID
     user_id: str
+    role: str = "member"
 
 
-async def authorized(x_tank_key: str = Header(default="")) -> None:
+async def verified_actor(request: Request, tenant: str | None, *, required=False):
+    """Verify once before replay, then reuse request-local verified identity only."""
+    from chassis.user_assertion import HEADER, signed_user
+    present = bool(request.headers.get(HEADER))
+    if not tenant:
+        if required or present:
+            raise HTTPException(401, "Signed identity required")
+        return None
+    actor = await signed_user(request, tenant_id=tenant, product="zenas", required=required or present)
+    if actor is None:
+        return None
+    for field, expected in (("x-moot-actor", actor.user_id), ("x-moot-tenant", actor.tenant_id),
+                            ("x-street-law-actor", actor.user_id), ("x-street-law-tenant", actor.tenant_id)):
+        if request.headers.get(field) not in (None, expected):
+            raise HTTPException(403, "Memory ownership required")
+    return SignedInActor(UUID(actor.tenant_id), actor.user_id, actor.role)
+
+
+async def signed_in_actor(request: Request) -> SignedInActor:
     expected = os.environ.get("TANK_KEY", "")
-    if not expected or not hmac.compare_digest(expected.encode(), x_tank_key.encode()):
+    if not expected or not hmac.compare_digest(request.headers.get("x-tank-key", ""), expected):
         raise HTTPException(401, "Room authentication required")
+    tenant = request.query_params.get("tenant_id")
+    if request.method == "POST":
+        body = await request.json()
+        tenant = body.get("tenant_id") if isinstance(body, dict) else tenant
+    return await verified_actor(request, tenant, required=True)
 
 
-async def signed_in_actor(
-    request: Request,
-    x_tank_key: str = Header(default=""),
-    x_lifecycle_timestamp: str = Header(default="", alias="X-Lifecycle-Timestamp"),
-    x_lifecycle_signature: str = Header(default="", alias="X-Lifecycle-Signature"),
-    x_tervory_user: str = Header(default="", alias="X-Tervory-User"),
-    x_tervory_tenant: str = Header(default="", alias="X-Tervory-Tenant"),
-) -> SignedInActor:
-    """Refuse unless the lifecycle signature binds a verified tenant and user."""
-    await authorized(x_tank_key)
-    key = room_key()
-    body = await request.body()
-    try:
-        tenant_id, user_id = verify_signed_actor(
-            key=key,
-            method=request.method,
-            path=request.url.path,
-            timestamp=x_lifecycle_timestamp,
-            signature=x_lifecycle_signature,
-            tenant_header=x_tervory_tenant,
-            user_header=x_tervory_user,
-            body=body,
-        )
-        gates_memory.trusted_user(user_id)
-    except (PermissionError, ValueError) as exc:
-        raise HTTPException(401, "Signed identity required") from exc
-    return SignedInActor(tenant_id=tenant_id, user_id=user_id)
-
-
-def refuse_scope_widen(
-    actor: SignedInActor,
-    *,
-    body_tenant_id: UUID | None = None,
-    body_user_id: str | None = None,
-) -> None:
-    """Body tenant/user cannot widen or replace the signed-in scope."""
-    if body_tenant_id is not None and body_tenant_id != actor.tenant_id:
-        raise HTTPException(403, "Memory ownership required")
-    if body_user_id is not None and str(body_user_id).strip() and str(body_user_id).strip() != actor.user_id:
+def refuse_scope_widen(actor, *, body_tenant_id=None, body_user_id=None):
+    if ((body_tenant_id is not None and str(body_tenant_id) != str(actor.tenant_id)) or
+            (body_user_id and str(body_user_id).strip() != actor.user_id)):
         raise HTTPException(403, "Memory ownership required")
 
 
@@ -104,116 +81,80 @@ class MemorySwitchIn(BaseModel):
     user_id: str | None = Field(default=None, max_length=200)
 
 
-def register_routes(app: Any) -> None:
-    @app.get("/memory/records")
-    async def memory_view(
-        tenant_id: UUID,
-        actor: SignedInActor = Depends(signed_in_actor),
-        user_id: str | None = None,
-        firm_id: str | None = None,
-        attorney_id: str | None = None,
-        client_id: str | None = None,
-        matter_id: str | None = None,
-        tier: str = Query(default="client"),
-    ):
-        """VIEW: list only the signed-in caller's memories in their tenant/scope."""
-        refuse_scope_widen(actor, body_tenant_id=tenant_id, body_user_id=user_id)
-        memory = getattr(app.state, "memory", None)
-        if memory is None:
+def register_routes(app):
+    def memory():
+        client = getattr(app.state, "memory", None)
+        if client is None:
             raise HTTPException(503, "Memory unavailable")
-        rows = await memory.records(str(actor.tenant_id), tier=tier)
-        if gates_memory.memory_off_from_rows(
-            rows, tenant_id=str(actor.tenant_id), user_id=actor.user_id
-        ):
-            return {"memories": [], "memory_enabled": False, "count": 0, "remembers": gates_memory.REMEMBERS}
-        gate = gates_memory.GateMemory(
-            memory,
-            str(actor.tenant_id),
-            actor.user_id,
-            firm_id=firm_id,
-            attorney_id=attorney_id,
-            client_id=client_id,
-            matter_id=matter_id,
-        )
-        viewed = await gate.view()
-        return {
-            "memories": [{"id": r["id"], "kind": r["kind"], "meta": r.get("meta") or {}} for r in viewed],
-            "memory_enabled": True,
-            "count": len(viewed),
-            "remembers": gates_memory.REMEMBERS,
-        }
+        return client
+
+    async def rows(actor):
+        return await gm.memory_call(memory().records(str(actor.tenant_id), user_id=actor.user_id))
+
+    async def owned(actor, ident):
+        row = gm.owned_memory_row(await rows(actor), memory_id=ident,
+                                  tenant_id=str(actor.tenant_id), user_id=actor.user_id)
+        if row is None:
+            raise HTTPException(403, "Memory ownership required")
+        return row
+
+    def gate(actor, row=None):
+        meta = (row or {}).get("meta") or {}
+        return gm.GateMemory(memory(), str(actor.tenant_id), actor.user_id,
+            **{k: meta.get(k) for k in ("firm_id", "attorney_id", "client_id", "matter_id")})
+
+    async def invalidate_commands(actor):
+        # Preserve the paid claim and financial receipt, but never replay a
+        # response containing forgotten/superseded personal content.
+        from chassis.tenant_db import tenant_scope
+        with tenant_scope(str(actor.tenant_id)):
+            await app.state.pool.execute("""UPDATE agent_zenas.command_receipts SET receipt=NULL
+                WHERE tenant_id=$1 AND user_id=$2 AND receipt IS NOT NULL""", actor.tenant_id, actor.user_id)
+
+    @app.get("/memory/records")
+    async def view(tenant_id: UUID, actor=Depends(signed_in_actor), user_id: str | None = None,
+                   firm_id: str | None = None, attorney_id: str | None = None,
+                   client_id: str | None = None, matter_id: str | None = None, tier: str = "client"):
+        refuse_scope_widen(actor, body_tenant_id=tenant_id, body_user_id=user_id)
+        if tier != "client":
+            raise HTTPException(403, "Memory ownership required")
+        found = await rows(actor)
+        off = gm.memory_off_from_rows(found, tenant_id=str(tenant_id), user_id=actor.user_id)
+        filters = dict(firm_id=firm_id, attorney_id=attorney_id, client_id=client_id, matter_id=matter_id)
+        found = [r for r in found if r.get("kind") in gm.REMEMBERS
+                 and gm.owned_memory_row([r], memory_id=r["id"], tenant_id=str(tenant_id), user_id=actor.user_id)
+                 and all(not value or (r.get("meta") or {}).get(key) == value for key, value in filters.items())]
+        if off:
+            found = []
+        return {"memories": [{"id": r["id"], "kind": r["kind"], "meta": r.get("meta") or {}} for r in found],
+                "memory_enabled": not off, "count": len(found), "remembers": gm.REMEMBERS}
+
+    @app.get("/memory/records/{memory_id}")
+    async def get(memory_id: UUID, tenant_id: UUID, actor=Depends(signed_in_actor)):
+        refuse_scope_widen(actor, body_tenant_id=tenant_id)
+        return await owned(actor, str(memory_id))
 
     @app.post("/memory/edit")
-    async def memory_edit(body: MemoryEditIn, actor: SignedInActor = Depends(signed_in_actor)):
-        """CONTENT EDIT: mutate only a row owned by the signed-in caller."""
+    async def edit(body: MemoryEditIn, actor=Depends(signed_in_actor)):
         refuse_scope_widen(actor, body_tenant_id=body.tenant_id, body_user_id=body.user_id)
-        memory = getattr(app.state, "memory", None)
-        if memory is None:
-            raise HTTPException(503, "Memory unavailable")
-        rows = await memory.records(str(actor.tenant_id))
-        if gates_memory.memory_off_from_rows(
-            rows, tenant_id=str(actor.tenant_id), user_id=actor.user_id
-        ):
+        row = await owned(actor, body.memory_id)
+        scoped = gate(actor, row)
+        if not await scoped.enabled():
             raise HTTPException(409, "Memory is switched off")
-        if not body.memory_id:
-            raise HTTPException(422, "memory_id is required")
-        owned = gates_memory.owned_memory_row(
-            rows,
-            memory_id=body.memory_id,
-            tenant_id=str(actor.tenant_id),
-            user_id=actor.user_id,
-        )
-        if owned is None:
-            raise HTTPException(403, "Memory ownership required")
-        meta = dict(owned.get("meta") or {})
-        # Ownership already proven (tenant+user). Replace content via remember after forget;
-        # scope meta stays the signed-in owner's firm/attorney/client/matter.
-        await memory.forget(body.memory_id, str(actor.tenant_id))
-        meta.pop("receipt", None)
-        meta.pop("seq", None)
-        meta["user_id"] = actor.user_id
-        meta["user"] = actor.user_id
-        meta["result"] = body.value
-        meta["value"] = body.value
-        kind = gates_memory.CORRECTION if owned.get("kind") in {
-            gates_memory.RESULT, gates_memory.CORRECTION, gates_memory.WORKED_LAW
-        } else owned.get("kind")
-        saved = await memory.remember(
-            str(actor.tenant_id),
-            str(meta.get("task_key") or owned.get("kind") or "zenas") + " correction",
-            kind if kind in gates_memory.REMEMBERS else gates_memory.CORRECTION,
-            gates_memory.SOURCE,
-            meta=meta,
-            index=False,
-        )
-        return {"ok": True, "memory": {"id": saved["id"], "kind": kind}, "memory_enabled": True}
+        saved = await scoped.edit(row["id"], body.value)
+        await invalidate_commands(actor)
+        return {"ok": True, "memory": {"id": saved["id"], "kind": saved["kind"]}, "memory_enabled": True}
 
     @app.post("/memory/forget")
-    async def memory_forget(body: MemoryForgetIn, actor: SignedInActor = Depends(signed_in_actor)):
-        """FORGET: delete only a row owned by the signed-in caller."""
+    async def forget(body: MemoryForgetIn, actor=Depends(signed_in_actor)):
         refuse_scope_widen(actor, body_tenant_id=body.tenant_id, body_user_id=body.user_id)
-        memory = getattr(app.state, "memory", None)
-        if memory is None:
-            raise HTTPException(503, "Memory unavailable")
-        rows = await memory.records(str(actor.tenant_id))
-        owned = gates_memory.owned_memory_row(
-            rows,
-            memory_id=body.memory_id,
-            tenant_id=str(actor.tenant_id),
-            user_id=actor.user_id,
-        )
-        if owned is None:
-            raise HTTPException(403, "Memory ownership required")
-        await memory.forget(body.memory_id, str(actor.tenant_id))
+        row = await owned(actor, body.memory_id)
+        await gate(actor, row).forget(row["id"])
+        await invalidate_commands(actor)
         return {"ok": True, "forgotten": body.memory_id, "user_id": actor.user_id}
 
     @app.post("/memory/switch")
-    async def memory_switch(body: MemorySwitchIn, actor: SignedInActor = Depends(signed_in_actor)):
-        """SWITCH OFF/ON for the signed-in caller's own tenant+user scope only."""
+    async def switch(body: MemorySwitchIn, actor=Depends(signed_in_actor)):
         refuse_scope_widen(actor, body_tenant_id=body.tenant_id, body_user_id=body.user_id)
-        memory = getattr(app.state, "memory", None)
-        if memory is None:
-            raise HTTPException(503, "Memory unavailable")
-        gate = gates_memory.GateMemory(memory, str(actor.tenant_id), actor.user_id)
-        await gate.set_enabled(bool(body.enabled))
-        return {"ok": True, "memory_enabled": bool(body.enabled), "user_id": actor.user_id}
+        await gate(actor).set_enabled(body.enabled)
+        return {"ok": True, "memory_enabled": body.enabled, "user_id": actor.user_id}

@@ -46,7 +46,6 @@ from agents.zenas.core.matters import (  # noqa: E402
     upload_document,
 )
 from agents.zenas.core.seal import key_from_env  # noqa: E402
-from agents.zenas import gates_memory  # noqa: E402
 from agents.zenas.core.service import (  # noqa: E402
     add_approved_clause,
     add_playbook,
@@ -72,7 +71,7 @@ from agents.zenas.core.service import (  # noqa: E402
     review_queue,
     write_memo,
 )
-from agents.zenas.core.convert import begin_convert, conversion_report, convert_cases, convert_running  # noqa: E402
+from agents.zenas.core.convert import begin_convert, conversion_report, convert_running  # noqa: E402
 from agents.zenas.core.selftest import list_scores, run_selftest  # noqa: E402
 from agents.zenas.core.store import PgStore, register_home  # noqa: E402
 from agents.zenas.gold_sources import candidates as gold_candidates  # noqa: E402
@@ -127,7 +126,10 @@ class _TankModel:
     async def complete(self, messages: list[dict[str, str]], *, task_type: str, provider: str) -> dict[str, Any]:
         del provider
         from agents.zenas.core.boundary import bounded_call
-        data = await bounded_call(self.tank.route(self.tenant_id, task_type, messages))
+        from agents.zenas.zenas_brain import brain_then_route
+        data = await bounded_call(brain_then_route(
+            getattr(app.state, "http", None), self.tank, tenant_id=self.tenant_id,
+            task_type=task_type, messages=messages))
         from agents.zenas.core.answer_failures import route_failure
         failed = route_failure(data)
         if failed is not None:
@@ -1044,51 +1046,9 @@ class AnswerIn(BaseModel):
 
 @app.post("/answers", status_code=200)
 async def post_answer(body: AnswerIn, request: Request) -> dict[str, Any]:
-    """Ask path. Memory uses signed-in Workspace identity only when present; body.user_id is never authority."""
-    from agents.zenas.memory_api import refuse_scope_widen, signed_in_actor
-
+    """The shared request bracket owns identity, recall, receipts and remember."""
     store = _store()
     await store.apply_schema()
-    memory = getattr(app.state, "memory", None)
-    scope = {
-        "firm_id": str(body.firm_id) if body.firm_id else None,
-        "attorney_id": str(body.attorney_id) if body.attorney_id else None,
-        "client_id": str(body.client_id) if body.client_id else None,
-        "matter_id": str(body.matter_id) if body.matter_id else None,
-    }
-    payload = {
-        "question": body.question,
-        "jurisdiction": body.jurisdiction,
-        "features": body.features,
-        "matter_id": scope["matter_id"],
-    }
-    actor = None
-    # Optional memory bracket: only when Tank forwards a lifecycle-signed actor
-    # (room key alone / bare X-Tervory-* / body.user_id are never identity).
-    # Missing or forged signature skips the bracket — no memory read/write; ladder still runs.
-    if isinstance(request, Request) and memory is not None and gates_memory.memory_enabled_env():
-        try:
-            actor = await signed_in_actor(request)
-            refuse_scope_widen(actor, body_tenant_id=body.tenant_id, body_user_id=body.user_id)
-        except HTTPException:
-            actor = None
-    if actor is not None and memory is not None:
-        try:
-            gate = gates_memory.GateMemory(memory, str(actor.tenant_id), actor.user_id, **scope)
-            if await gate.enabled():
-                hit = await gate.lookup("zenas.apply", payload)
-                if hit is not None:
-                    meta = hit.get("meta") or {}
-                    source = "correction" if hit.get("kind") == gates_memory.CORRECTION else "memory"
-                    return {
-                        "ok": True,
-                        "result": meta.get("result"),
-                        "memory_hit": True,
-                        "brain_receipt": gates_memory.free_receipt(hit.get("id"), source),
-                        "delivered": True,
-                    }
-        except Exception as exc:  # noqa: BLE001 — fall through to the existing ladder
-            logging.getLogger("zenas.memory").warning("memory recall failed (%s)", type(exc).__name__)
     result = await answer_question(
         store,
         await _ready(),
@@ -1109,18 +1069,7 @@ async def post_answer(body: AnswerIn, request: Request) -> dict[str, Any]:
     if str(result.get("reason") or "").startswith("could not verify"):
         return result
     _fail(result)
-    if actor is not None and memory is not None and result.get("ok"):
-        try:
-            gate = gates_memory.GateMemory(memory, str(actor.tenant_id), actor.user_id, **scope)
-            if await gate.enabled():
-                await gate.remember_result(
-                    "zenas.apply",
-                    payload,
-                    result,
-                    {"source": "tank", "paid_calls": None, "cost_usd": None, "tokens_in": 0, "tokens_out": 0, "ledger_ids": []},
-                )
-        except Exception as exc:  # noqa: BLE001 — answer already succeeded
-            logging.getLogger("zenas.memory").warning("memory remember failed (%s)", type(exc).__name__)
+
     return result
 
 

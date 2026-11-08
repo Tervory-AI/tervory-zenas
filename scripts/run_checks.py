@@ -11,6 +11,8 @@ import socket
 import subprocess
 import sys
 import tempfile
+import tarfile
+import io
 
 import asyncpg
 import pgserver
@@ -43,9 +45,21 @@ def configure_chromium():
 
 
 def test_layout(stage):
-    shutil.copytree(VENDOR, stage, dirs_exist_ok=True)
-    # Patch projections always read the immutable base, including when another
-    # proposed patch has been applied to the disposable verification copy.
+    # Explicit compatibility dependency: the reviewed shared core, unchanged.
+    # Never apply the obsolete product lifecycle/Hermes proposals over #765.
+    shared_sha = "373bc179e57c6230673058fa4c41a2325ea3d71a"
+    shared = Path(os.environ.get("ZENAS_TANK_CHECKOUT", str(CACHE / 'shared-tank.git')))
+    if not shared.exists():
+        run(['git', 'init', '--bare', shared])
+        run(['git', '-C', shared, 'fetch', '--depth=1',
+             'https://github.com/Tervory-AI/tervory-tank.git', shared_sha])
+    actual = subprocess.check_output(['git', '-C', str(shared), 'rev-parse', shared_sha]).decode().strip()
+    if actual != shared_sha:
+        raise RuntimeError('Shared core source does not match its reviewed commit')
+    archive = subprocess.check_output(['git', '-C', str(shared), 'archive', shared_sha])
+    with tarfile.open(fileobj=io.BytesIO(archive)) as source:
+        source.extractall(stage, filter='data')
+    print('Product compatibility checks use unchanged Tank core ' + shared_sha, flush=True)
     (stage / 'vendor').mkdir(exist_ok=True)
     (stage / 'vendor/tervory-tank').symlink_to(VENDOR, target_is_directory=True)
     for name in TRACKED:
@@ -54,40 +68,19 @@ def test_layout(stage):
             target = stage / name
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(ROOT / name, target)
-    # Test the proposed Workspace changes in the disposable verification copy.
-    # Neither the read-only Tank checkout nor the immutable vendor is patched.
-    gate4 = ROOT / 'tank-patches/gate4.patch'
-    if gate4.is_file():
-        run(['git', 'apply', '--check', gate4], cwd=stage)
-        run(['git', 'apply', gate4], cwd=stage)
-    gate5 = ROOT / 'tank-patches/gate5.patch'
-    if gate5.is_file():
-        run(['git', 'apply', '--check', gate5], cwd=stage)
-        run(['git', 'apply', gate5], cwd=stage)
-    moot = ROOT / 'tank-patches/moot.patch'
-    if moot.is_file():
-        run(['git', 'apply', '--check', moot], cwd=stage)
-        run(['git', 'apply', moot], cwd=stage)
-    sdk_patch = ROOT / 'tank-patches/training-sdk.patch'
-    if sdk_patch.is_file():
-        run(['git', 'apply', '--check', sdk_patch], cwd=stage)
-        run(['git', 'apply', sdk_patch], cwd=stage)
-    savings = ROOT / 'tank-patches/gate6.patch'
-    if savings.is_file():
-        run(['git', 'apply', '--check', savings], cwd=stage)
-        run(['git', 'apply', savings], cwd=stage)
-    launcher = ROOT / 'tank-patches/hf-launch-runtime.patch'
-    if launcher.is_file():
-        run(['git', 'apply', '--check', launcher], cwd=stage)
-        run(['git', 'apply', launcher], cwd=stage)
-    gates78 = ROOT / 'tank-patches/gates-7-8.patch'
-    if gates78.is_file():
-        run(['git', 'apply', '--check', gates78], cwd=stage)
-        run(['git', 'apply', gates78], cwd=stage)
-    central = ROOT / 'tank-patches/gates-7-8-central-user-memory.patch'
-    if central.is_file():
-        run(['git', 'apply', '--check', central], cwd=stage)
-        run(['git', 'apply', central], cwd=stage)
+    # Non-memory shared dependency is explicit and checked against this core.
+    # No shared authentication, Hermes, SQL filtering or indexing is replaced.
+    prereqs = ROOT / 'tank-patches/gate78-prerequisites.patch'
+    run(['git', 'apply', '--check', prereqs], cwd=stage)
+    run(['git', 'apply', prereqs], cwd=stage)
+    proposal = ROOT / 'tank-patches/gate78-savings.patch'
+    run(['git', 'apply', '--check', proposal], cwd=stage)
+    run(['git', 'apply', proposal], cwd=stage)
+    contribution = os.environ.get('ZENAS_GATE78_TEST_CHECKOUT')
+    if contribution:
+        for name in ('test_zenas.py', 'zenas.json', 'zenas_harness.py'):
+            shutil.copy2(Path(contribution) / 'tests/gates78/products' / name,
+                         stage / 'tests/gates78/products' / name)
     deps = CACHE / 'workspace'
     deps.mkdir(exist_ok=True)
     lock = (stage / 'workspace/package-lock.json').read_bytes()
@@ -141,12 +134,21 @@ def tests(stage):
             run(['uv', 'pip', 'install', '--python', legacy, 'huggingface-hub==0.34.4'])
     os.environ['HF_JOBS_LEGACY_PYTHON'] = str(legacy.absolute())
     os.chdir(stage)
+    for part in ('agents/_chassis', 'agents', 'tank', 'tests/gates78'):
+        sys.path.insert(0, str(stage / part))
     sys.path.insert(0, str(stage))
     sys.path.insert(0, str(stage / 'tests'))
+    # Preserve legacy flat fixture imports without changing pytest import mode.
+    for part in PATHS:
+        folder = stage / part
+        if part.startswith('tests/') and folder.is_dir() and str(folder) not in sys.path:
+            sys.path.append(str(folder))
     configure_chromium()
     targets = [p for p in PATHS if p.startswith('tests/') and
                ((p.endswith('.py') and Path(p).name.startswith('test_')) or
                 ((stage / p).is_dir() and not p.startswith('tests/fixtures/')))]
+    if os.environ.get('ZENAS_GATE78_TEST_CHECKOUT'):
+        targets += ['tests/gates78/products/test_zenas.py']
     with tempfile.TemporaryDirectory(prefix='zenas-postgres-') as directory:
         server = pgserver.get_server(Path(directory) / 'postgres')
         try:
@@ -160,7 +162,7 @@ def tests(stage):
                 await conn.close()
             asyncio.run(create())
             url = f'postgresql://postgres@127.0.0.1:{port}/pooltest_test'
-            for name in ['POOL_SCHEMA_DATABASE_URL', 'MOOT_TEST_DATABASE_URL', 'ZENAS_SCHEMA_DATABASE_URL']:
+            for name in ['POOL_SCHEMA_DATABASE_URL', 'MOOT_TEST_DATABASE_URL', 'ZENAS_SCHEMA_DATABASE_URL', 'MEMORY_TEST_DATABASE_URL']:
                 os.environ[name] = url
             results = CACHE / 'tests.xml'
             result = pytest.main(targets + ['-q', '--disable-socket', '--allow-unix-socket',
@@ -173,7 +175,10 @@ def tests(stage):
             assert suites and sum(int(s.attrib['tests']) for s in suites) > 0
             assert not any(int(s.attrib.get('skipped', 0)) for s in suites), 'Skipped product tests are not allowed'
         finally:
-            server.cleanup()
+            try:
+                pgserver.pg_ctl(["-w", "stop", "-m", "fast"], pgdata=server.pgdata)
+            finally:
+                server.cleanup()
 
 
 if __name__ == '__main__':

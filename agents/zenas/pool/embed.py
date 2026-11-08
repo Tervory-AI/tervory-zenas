@@ -120,7 +120,7 @@ class HermesLawClient:
             async with httpx.AsyncClient(base_url='http://tank:8000',transport=self._transport,
                     trust_env=False,follow_redirects=False,timeout=120) as client:
                 response=await client.post('/v1/zenas/law/embeddings',headers={'X-Tank-Key':key},json={
-                    'tenant_id':tenant,'jurisdiction':self.jurisdiction,'model':self.name,**payload})
+                    'tenant_id':tenant,'home_region':self.region,'jurisdiction':self.jurisdiction,'model':self.name,**payload})
                 if response.status_code!=200:raise RuntimeError('meaning search unavailable')
                 data=response.json()
                 observed(tenant,data)

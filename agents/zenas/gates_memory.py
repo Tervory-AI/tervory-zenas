@@ -24,6 +24,18 @@ import re
 import uuid
 from typing import Any, Awaitable, Callable
 
+from fastapi import HTTPException
+
+
+async def memory_call(operation):
+    """Storage outages may degrade; authentication must fail closed."""
+    try:
+        return await operation
+    except RuntimeError as exc:
+        if str(exc) in {"hermes answered 401", "hermes answered 403"}:
+            raise HTTPException(int(str(exc)[-3:]), "Memory ownership required") from None
+        raise
+
 RESULT = "zenas.result"
 CORRECTION = "zenas.correction"
 WORKED_LAW = "zenas.worked_law"
@@ -68,7 +80,7 @@ SOURCE = "zenas:gates-7-8"
 
 
 def brain_enabled() -> bool:
-    """The product switch stays; the default is on."""
+    """The brain is explicitly opt-in."""
     return os.environ.get("ZENAS_BRAIN_ENABLED", "false").strip().lower() not in {
         "0", "false", "no", "off"
     }
@@ -76,7 +88,7 @@ def brain_enabled() -> bool:
 
 def memory_enabled_env() -> bool:
     """Global memory switch; users can still turn their own memory off in-store."""
-    return os.environ.get("ZENAS_MEMORY_ENABLED", "true").strip().lower() not in {
+    return os.environ.get("ZENAS_MEMORY_ENABLED", "false").strip().lower() not in {
         "0", "false", "no", "off"
     }
 
@@ -229,13 +241,13 @@ class GateMemory:
             return False
         return True
 
+    async def _all_rows(self) -> list[dict]:
+        rows = await memory_call(self.memory.records(self.tenant, user_id=self.user))
+        return [r for r in rows if str(r.get("tenant_id")) == self.tenant
+                and (r.get("meta") or {}).get("user_id") == self.user]
+
     async def _rows(self) -> list[dict]:
-        # Prefer central Hermes user scoping (chassis user_id) when the unapplied
-        # tank-patch is present; firm/attorney/client/matter stay product scope.
-        try:
-            rows = await self.memory.records(self.tenant, user_id=self.user)
-        except TypeError:
-            rows = await self.memory.records(self.tenant)
+        rows = await memory_call(self.memory.records(self.tenant, user_id=self.user))
         mine = []
         for row in rows:
             if row.get("tenant_id") not in (None, self.tenant):
@@ -264,27 +276,20 @@ class GateMemory:
             "matter_id": self.parts["matter_id"],
             "seq": seq,
         }
-        # Pass actor.user_id into chassis MemoryClient (central scoping via unapplied tank-patches).
-        try:
-            return await self.memory.remember(
-                self.tenant, text, kind, SOURCE, confidence=1.0, meta=payload,
-                index=False, user_id=self.user,
-            )
-        except TypeError:
-            # Pinned chassis has no user_id kwarg yet; meta.user_id still stamped.
-            return await self.memory.remember(
-                self.tenant, text, kind, SOURCE, confidence=1.0, meta=payload, index=False
-            )
+        return await memory_call(self.memory.remember(
+            self.tenant, text, kind, SOURCE, confidence=1.0, meta=payload,
+            index=False, user_id=self.user,
+        ))
 
     async def enabled(self) -> bool:
         if not memory_enabled_env():
             return False
-        settings = [r for r in await self.view() if r.get("kind") == SETTING]
+        settings = [r for r in await self._all_rows() if r.get("kind") == SETTING]
         return bool((settings[-1].get("meta") or {}).get("enabled", True)) if settings else True
 
     async def set_enabled(self, flag: bool) -> dict:
-        for row in [r for r in await self._rows() if r.get("kind") == SETTING]:
-            await self.memory.forget(row["id"], self.tenant)
+        for row in [r for r in await self._all_rows() if r.get("kind") == SETTING]:
+            await memory_call(self.memory.forget(row["id"], self.tenant, user_id=self.user))
         return await self._remember(
             SETTING, "memory " + ("on" if flag else "off"), {"enabled": bool(flag)}
         )
@@ -293,11 +298,17 @@ class GateMemory:
         """Forget one of this scope's rows, or all of them (the setting survives)."""
         rows = [r for r in await self._rows() if r.get("kind") != SETTING]
         if memory_id is not None:
-            rows = [r for r in rows if r.get("id") == memory_id]
-            if not rows:
+            targets = [r for r in rows if r.get("id") == memory_id]
+            if not targets:
                 raise KeyError("memory not found for this scope")
+            target = targets[0]
+            key = (target.get('meta') or {}).get('key')
+            rows = [r for r in rows if r['id'] == memory_id or
+                    r['kind'] in {RESULT, CORRECTION} and
+                    (not key or (r.get('meta') or {}).get('key') == key)]
+
         for row in rows:
-            await self.memory.forget(row["id"], self.tenant)
+            await memory_call(self.memory.forget(row["id"], self.tenant, user_id=self.user))
         return len(rows)
 
     async def edit(self, memory_id: str, value: Any) -> dict:
@@ -306,9 +317,8 @@ class GateMemory:
         if not rows:
             raise KeyError("memory not found for this scope")
         row, meta = rows[0], dict(rows[0].get("meta") or {})
-        await self.memory.forget(row["id"], self.tenant)
+        await memory_call(self.memory.forget(row["id"], self.tenant, user_id=self.user))
         if row.get("kind") in {RESULT, CORRECTION, WORKED_LAW}:
-            meta.pop("receipt", None)
             return await self._remember(
                 CORRECTION,
                 str(meta.get("task_key")) + " correction",
@@ -316,8 +326,13 @@ class GateMemory:
                     "key": meta.get("key"),
                     "task_key": meta.get("task_key"),
                     "result": value,
+                    "original_result": meta.get("original_result", meta.get("result")),
+                    "receipt": meta.get("receipt") or {},
                 },
             )
+        for cached in await self._rows():
+            if cached['kind'] in {RESULT, CORRECTION}:
+                await memory_call(self.memory.forget(cached['id'], self.tenant, user_id=self.user))
         meta.pop("seq", None)
         meta.pop("user", None)
         meta.pop("user_id", None)
@@ -355,7 +370,7 @@ class GateMemory:
         return await self._remember(
             RESULT,
             task_key + " result",
-            {"key": key, "task_key": task_key, "result": result, "receipt": receipt, "approved": True},
+            {"key": key, "task_key": task_key, "input": payload, "result": result, "receipt": receipt, "approved": True},
         )
 
     async def correct(self, task_key: str, payload: Any, result: Any) -> dict:
@@ -364,7 +379,7 @@ class GateMemory:
         for row in await self._rows():
             meta = row.get("meta") or {}
             if meta.get("key") == key and row.get("kind") in {RESULT, CORRECTION, WORKED_LAW}:
-                await self.memory.forget(row["id"], self.tenant)
+                await memory_call(self.memory.forget(row["id"], self.tenant, user_id=self.user))
         return await self._remember(
             CORRECTION,
             task_key + " correction",
@@ -433,6 +448,8 @@ async def run(
                         "status": memory_status,
                     },
                 }
+    except HTTPException:
+        raise
     except Exception as exc:  # noqa: BLE001 — service outage: answer without memory
         memory_status = "memory unavailable"
         on = False
@@ -457,6 +474,8 @@ async def run(
             saved = await gate.remember_result(
                 task_key, payload, result, {**receipt, "would_have_cost": would}
             )
+        except HTTPException:
+            raise
         except Exception:  # noqa: BLE001 — never fail the user's answer on remember outage
             memory_status = "memory unavailable"
             receipt["memory_status"] = memory_status

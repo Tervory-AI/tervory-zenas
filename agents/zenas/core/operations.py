@@ -76,7 +76,10 @@ async def connection(*, temporary=False):
             finally:
                 await conn.close()
         finally:
-            server.cleanup()
+            try:
+                pgserver.pg_ctl(["-w", "stop", "-m", "fast"], pgdata=server.pgdata)
+            finally:
+                server.cleanup()
 
 
 async def sample(conn, *, region, selected, http_get=None):

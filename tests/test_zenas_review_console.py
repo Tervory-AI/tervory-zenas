@@ -33,7 +33,9 @@ def test_the_console_shows_the_locked_worked_example() -> None:
     assert "United States" in example
     assert "not a client matter" in example
     assert "SOUTH AFRICA" not in console
-    assert "WORKED_EXAMPLE" in console
+    assert "WORKED_EXAMPLE" in example
+    assert "WORKED_EXAMPLE" not in console
+    assert "worked-example-title" not in console
     assert "requireReviewer" in page
     assert "ReviewConsole" in page
 

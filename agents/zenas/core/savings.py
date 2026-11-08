@@ -17,6 +17,7 @@ class Run:
     ledgers: set[str] = field(default_factory=set)
     uncertain: bool = False
     attempts: int = 0
+    baseline_ledgers: list[str] = field(default_factory=list)
 
 
 current: ContextVar[Run | None] = ContextVar("zenas_savings_run", default=None)
@@ -59,9 +60,18 @@ async def save(pool, tank, run, inputs, outputs, *, failed=False):
     try:
         reference={"input":json.dumps(inputs,ensure_ascii=False,separators=(',',':'),default=str),
                    "output":json.dumps(outputs,ensure_ascii=False,separators=(',',':'),default=str)}
+        if run.baseline_ledgers:
+            reference['baseline_ledger_ids'] = run.baseline_ledgers
         quote = await tank.savings_quote(run.tenant, sorted(run.ledgers), reference, run.uncertain, run.id)
         # Only an authenticated Tank quote can supply prices/actual model spend.
-        receipt.update({k: quote[k] for k in ("cost", "would have cost", "baseline_model", "priced_at",'tokens_in','tokens_out') if k in quote})
+        receipt.update({k: quote[k] for k in ("cost", "would have cost", "baseline_model", "priced_at",'tokens_in','tokens_out','paid_calls') if k in quote})
+        # Quote's legacy tokens describe the paid-default reference. Keep
+        # product receipt tokens as actual model usage (code/cache is zero).
+        for kind in ('in', 'out'):
+            field = 'tokens_' + kind
+            receipt['reference_' + field] = quote.get(field)
+            if 'actual_' + field in quote:
+                receipt[field] = quote['actual_' + field]
         run.ledgers.update(str(UUID(str(i))) for i in quote.get('ledger_ids',[]))
         receipt['ledger_ids']=sorted(run.ledgers)
     except Exception:
@@ -84,8 +94,22 @@ async def command(request, call_next, tenant):
     run = Run(tenant, request.url.path, request.headers.get("idempotency-key") or str(uuid4()))
     token = current.set(run)
     try:
-        response = await call_next(request)
-        content = b"".join([chunk async for chunk in response.body_iterator])
+        from .memory_task import prepare
+        from starlette.responses import JSONResponse
+        from fastapi import HTTPException
+        inputs = json.loads(getattr(request, "_body", b"") or b"{}")
+        try:
+            task = await prepare(request, inputs)
+        except HTTPException as exc:
+            return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
+        cached = await task.cached(request)
+        if cached is not None:
+            prior = task.hit.get('meta', {}).get('receipt') or {}
+            run.baseline_ledgers = prior.get('ledger_ids') or []
+            response = JSONResponse(cached, status_code=201 if request.url.path == '/drafts' else 200)
+        else:
+            response = await call_next(request)
+        content = response.body if hasattr(response, 'body') else b"".join([chunk async for chunk in response.body_iterator])
         try:
             output = json.loads(content)
         except (ValueError, UnicodeDecodeError):
@@ -96,7 +120,28 @@ async def command(request, call_next, tenant):
             inputs = json.loads(getattr(request, "_body", b"") or b"{}")
             receipt = await save(request.app.state.pool, getattr(request.app.state, "tank", None),
                                  run, inputs, output, failed=response.status_code >= 400)
+            receipt['memory_status'] = task.status
+            receipt['answered_from_memory'] = cached is not None
+            receipt['memory_id'] = task.hit.get('id') if task.hit else None
+            receipt['cost_usd'] = receipt['cost']
+            receipt['would_have_cost'] = {'cost_usd': receipt['would have cost']}
+            if response.status_code < 400 and isinstance(output, dict) and output.get('ok', True):
+                try:
+                    await task.remember(output, receipt)
+                except HTTPException as exc:
+                    # Payment already happened. Keep its receipt and durable command
+                    # result; an auth failure is never labelled a storage outage.
+                    return JSONResponse({'detail': exc.detail, 'savings_receipt': receipt}, status_code=exc.status_code)
+                except Exception:
+                    task.status = receipt['memory_status'] = 'memory unavailable'
+            receipt['memory_id'] = task.hit.get('id') if task.hit else None
+            with tenant_scope(run.tenant):
+                await request.app.state.pool.execute("UPDATE agent_zenas.savings_receipts SET receipt=$3::jsonb WHERE tenant_id=$1 AND id=$2",
+                    UUID(run.tenant), UUID(run.id), json.dumps(receipt, allow_nan=False))
             if isinstance(output, dict) and "application/json" in response.headers.get("content-type", ""):
+                output['memory'] = {'enabled': task.enabled, 'status': task.status, 'hit': cached is not None,
+                                    'worked_law': task.worked_law, 'memory_id': receipt['memory_id']}
+                output['memory_hit'] = cached is not None
                 output["savings_receipt"] = receipt
                 # Existing Command/MCP receipt linking reads explicit envelopes.
                 output["ledger_ids"] = sorted(run.ledgers)

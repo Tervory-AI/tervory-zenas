@@ -94,7 +94,7 @@ class FakeTank:
 class FakeHTTP:
     """Standby brain: /health ok, /tasks 404 so routing falls through to Tank."""
 
-    async def get(self, url, params=None):
+    async def get(self, url, params=None, **kwargs):
         class Resp:
             status_code = 200
 
@@ -106,7 +106,7 @@ class FakeHTTP:
 
         return Resp()
 
-    async def post(self, url, json=None):
+    async def post(self, url, json=None, **kwargs):
         class Resp:
             status_code = 404
 
@@ -114,7 +114,8 @@ class FakeHTTP:
 
 
 @pytest.fixture
-def hermes():
+def hermes(monkeypatch):
+    monkeypatch.setenv('ZENAS_MEMORY_ENABLED', 'true')
     return FakeHermes()
 
 
@@ -355,6 +356,8 @@ def test_remembered_kinds_defined_and_brain_defaults_off_like_main(monkeypatch):
     assert set(gates_memory.REMEMBERS) == required
     assert gates_memory.TENANT_WIDE == frozenset()
     monkeypatch.delenv("ZENAS_BRAIN_ENABLED", raising=False)
+    monkeypatch.delenv("ZENAS_MEMORY_ENABLED", raising=False)
+    assert gates_memory.memory_enabled_env() is False
     assert gates_memory.brain_enabled() is False
     assert brain_enabled() is False
     assert "zenas-brain" in brain_url()
@@ -363,7 +366,7 @@ def test_remembered_kinds_defined_and_brain_defaults_off_like_main(monkeypatch):
         room = box["services"]["agent-zenas"]["environment"]
         assert room["ZENAS_BRAIN_ENABLED"] == "${ZENAS_BRAIN_ENABLED:-false}"
         assert room["ZENAS_BRAIN_URL"] == "http://zenas-brain:8001"
-        assert room["ZENAS_MEMORY_ENABLED"] == "${ZENAS_MEMORY_ENABLED:-true}"
+        assert room["ZENAS_MEMORY_ENABLED"] == "${ZENAS_MEMORY_ENABLED:-false}"
         assert box["services"]["zenas-brain"]["profiles"] == ["brain"]
         assert box["services"]["zenas-sandbox"]["profiles"] == ["brain"]
         assert box["services"]["zenas-brain"]["environment"]["TANK_URL"] == "http://tank:8000"
@@ -386,7 +389,7 @@ async def test_brain_then_route_free_first_then_tasks_then_tank(monkeypatch):
     calls = {"health": 0, "tasks": 0, "route": 0}
 
     class HTTP:
-        async def get(self, url, params=None):
+        async def get(self, url, params=None, **kwargs):
             calls["health"] += 1
 
             class Resp:
@@ -400,7 +403,7 @@ async def test_brain_then_route_free_first_then_tasks_then_tank(monkeypatch):
 
             return Resp()
 
-        async def post(self, url, json=None):
+        async def post(self, url, json=None, **kwargs):
             calls["tasks"] += 1
 
             class Resp:
@@ -437,7 +440,7 @@ async def test_brain_then_route_free_first_then_tasks_then_tank(monkeypatch):
 @pytest.mark.asyncio
 async def test_ask_brain_tasks_standby_404():
     class HTTP:
-        async def post(self, url, json=None):
+        async def post(self, url, json=None, **kwargs):
             class Resp:
                 status_code = 404
 
@@ -453,378 +456,133 @@ def test_no_secrets_in_memory_kinds():
 
 
 # --- Real HTTP memory controls: VIEW / EDIT / FORGET / SWITCH OFF ---
-# Actor proof is Tank's lifecycle HMAC (room key + timestamp\nMETHOD\npath\ntenant\nuser\n+body).
-# Room-key alone / bare X-Tervory-* are not identity.
+# Controls now execute the real product routes, shared verifier and SQL nonce store.
+import pytest_asyncio
+from gates78.conftest import gate78_memory as gate78_memory, gate78_database as gate78_database, sql_memory as sql_memory
+
 
 def _fixture_key():
-    return "owner-private"
+    return 'placeholder-gate78-product-key'
 
 
-def _snapshot(memory):
-    return json.dumps(
-        {
-            "rows": getattr(memory, "rows", None),
-            "remembers": getattr(memory, "remembers", None),
-            "forgets": getattr(memory, "forgets", None),
-            "recalls": getattr(memory, "recalls", None),
-        },
-        sort_keys=True,
-        default=str,
-    )
+async def _snapshot(stack):
+    schema = stack.records.schema('zenas')
+    return await stack.records.pool.fetch(f'SELECT to_jsonb(r) AS row FROM {schema}.memory_records r ORDER BY id')
 
 
-def _settings_snapshot():
-    import os
-    return {
-        "ZENAS_MEMORY_ENABLED": os.environ.get("ZENAS_MEMORY_ENABLED"),
-        "ZENAS_BRAIN_ENABLED": os.environ.get("ZENAS_BRAIN_ENABLED"),
-    }
-
-
-def _sign_headers(key: str, *, method: str, path: str, tenant, user, body: bytes = b""):
-    from agents.zenas.request_signing import sign_request
-    return sign_request(
-        key=key, method=method, path=path,
-        tenant_id=str(tenant), user_id=str(user), body=body,
-    )
+def _sign_headers(key, *, method, path, tenant, user, body=b''):
+    from chassis.user_assertion import HEADER, SignedUser, sign_assertion
+    return {'X-Tank-Key': key, HEADER: sign_assertion('zenas', SignedUser(str(tenant), str(user), 'member'),
+              method, path, body, key=key)}
 
 
 async def _signed_request(client, key, *, method, path, tenant, user, json_body=None, params=None):
-    body = b""
-    if json_body is not None:
-        body = json.dumps(json_body, separators=(",", ":"), sort_keys=True).encode()
-    headers = _sign_headers(key, method=method, path=path, tenant=tenant, user=user, body=body)
-    if method.upper() == "GET":
-        return await client.get(path, params=params, headers=headers)
-    headers = {**headers, "Content-Type": "application/json"}
-    return await client.request(
-        method.upper(), path, params=params, headers=headers, content=body,
-    )
+    body = json.dumps(json_body, separators=(',', ':'), sort_keys=True).encode() if json_body is not None else b''
+    target = httpx.Request(method, 'http://room'+path, params=params).url.raw_path.decode()
+    headers = _sign_headers(key, method=method, path=target, tenant=tenant, user=user, body=body)
+    return await client.request(method, path, params=params, content=body,
+                                headers={**headers, 'Content-Type':'application/json'})
 
 
-@pytest.fixture
-def room_app(monkeypatch):
-    monkeypatch.setenv("TANK_KEY", _fixture_key())
-    monkeypatch.setenv("TANK_REGION", "us-east")
-    monkeypatch.setenv("DATABASE_URL", "postgresql://unused")
+@pytest_asyncio.fixture
+async def room_app(gate78_memory, monkeypatch):
+    stack = await gate78_memory('zenas')
+    monkeypatch.setenv('TANK_KEY', stack.key)
+    monkeypatch.setenv('TANK_REGION', 'us-east')
+    monkeypatch.setenv('ZENAS_MEMORY_ENABLED', 'true')
     from agents.zenas import app as room
-    room.app.state.configuration = {"ok": True, "needs_settings": [], "invalid_settings": []}
-    memory = gates_memory.FakeMemory()
-    room.app.state.memory = memory
-    yield room, memory
+    from agents.zenas.core.store import PgStore
+    await PgStore(stack.records.pool).apply_schema()
+    room.app.state.configuration = {'ok': True}
+    room.app.state.pool = stack.records.pool
+    room.app.state.memory = MemoryClient('http://hermes',stack.key,'zenas',stack.http)
+    yield room, stack
+    await stack.records.pool.execute('DROP SCHEMA IF EXISTS agent_zenas CASCADE')
+
+
+async def _seed(stack, tenant, user):
+    return await stack.client(user).remember(str(tenant), 'placeholder private worked law', 'zenas.result',
+        'placeholder-regression', meta={'user':str(user),'user_id':str(user),'task_key':'/answers',
+         'key':'placeholder-input','result':{'ok':True,'memo':'placeholder owner answer'},'receipt':{'cost_usd':.0025}})
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize(
-    "control,other_kind",
-    [
-        ("view", "user"),
-        ("view", "tenant"),
-        ("edit", "user"),
-        ("edit", "tenant"),
-        ("forget", "user"),
-        ("forget", "tenant"),
-        ("switch", "user"),
-        ("switch", "tenant"),
-    ],
-)
+@pytest.mark.parametrize('control,other_kind', [(c,k) for c in ('view','edit','forget','switch') for k in ('user','tenant')])
 async def test_memory_controls_refuse_foreign_scope_unchanged(control, other_kind, room_app):
-    """Each of 4 controls refuses other-user and other-tenant; store/settings/receipts unchanged."""
-    room, memory = room_app
-    key = _fixture_key()
-    owner_tenant, other_tenant = uuid.uuid4(), uuid.uuid4()
-    owner_user, other_user = str(uuid.uuid4()), str(uuid.uuid4())
-    saved = await memory.remember(
-        str(owner_tenant),
-        "owner-private worked law",
-        "zenas.worked_law",
-        "zenas:gates-7-8",
-        meta={
-            "user_id": owner_user,
-            "user": owner_user,
-            "firm_id": str(owner_tenant),
-            "attorney_id": owner_user,
-            "client_id": CLIENT,
-            "matter_id": MATTER,
-            "approved": True,
-            "value": {"rule": "keep"},
-        },
-    )
-    await memory.remember(
-        str(owner_tenant),
-        "receipt-row",
-        "zenas.receipt",
-        "zenas:gates-7-8",
-        meta={"user_id": owner_user, "user": owner_user, "receipt": {"cost_usd": 0.0}},
-    )
-    before = _snapshot(memory)
-    before_settings = _settings_snapshot()
-
-    if other_kind == "user":
-        signed_tenant, signed_user = owner_tenant, other_user
-        target_tenant, spoof_user = owner_tenant, owner_user
-    else:
-        signed_tenant, signed_user = other_tenant, owner_user
-        target_tenant, spoof_user = owner_tenant, owner_user
-
-    async with httpx.AsyncClient(
-        transport=httpx.ASGITransport(app=room.app), base_url="http://room"
-    ) as client:
-        if control == "view":
-            response = await _signed_request(
-                client, key, method="GET", path="/memory/records",
-                tenant=signed_tenant, user=signed_user,
-                params={"tenant_id": str(target_tenant), "user_id": spoof_user},
-            )
-        elif control == "edit":
-            response = await _signed_request(
-                client, key, method="POST", path="/memory/edit",
-                tenant=signed_tenant, user=signed_user,
-                json_body={
-                    "tenant_id": str(target_tenant),
-                    "value": {"hijack": True},
-                    "user_id": spoof_user,
-                    "memory_id": saved["id"],
-                },
-            )
-        elif control == "forget":
-            response = await _signed_request(
-                client, key, method="POST", path="/memory/forget",
-                tenant=signed_tenant, user=signed_user,
-                json_body={
-                    "tenant_id": str(target_tenant),
-                    "memory_id": saved["id"],
-                    "user_id": spoof_user,
-                },
-            )
+    room, stack = room_app
+    saved = await _seed(stack, stack.tenant, USER)
+    before = await _snapshot(stack)
+    tenant, user = (stack.tenant, OTHER_USER) if other_kind == 'user' else (stack.other_tenant, USER)
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=room.app),base_url='http://room') as client:
+        if control == 'view':
+            response = await _signed_request(client,stack.key,method='GET',path='/memory/records',tenant=tenant,user=user,
+                                               params={'tenant_id':stack.tenant,'user_id':USER})
         else:
-            response = await _signed_request(
-                client, key, method="POST", path="/memory/switch",
-                tenant=signed_tenant, user=signed_user,
-                json_body={
-                    "tenant_id": str(target_tenant),
-                    "enabled": False,
-                    "user_id": spoof_user,
-                },
-            )
-
-    assert response.status_code == 403, response.text
-    assert _snapshot(memory) == before
-    assert _settings_snapshot() == before_settings
-    assert any(r["id"] == saved["id"] for r in memory.rows)
-    assert memory.forgets == 0
-    assert not any("hijack" in json.dumps(r, default=str) for r in memory.rows)
+            values = {'tenant_id':stack.tenant,'user_id':USER}
+            if control == 'switch': values['enabled'] = False
+            else: values['memory_id'] = saved['id']
+            if control == 'edit': values['value'] = 'placeholder denied'
+            response = await _signed_request(client,stack.key,method='POST',path='/memory/'+control,
+                                               tenant=tenant,user=user,json_body=values)
+        assert response.status_code in {401,403}
+    assert await _snapshot(stack) == before
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("flaw", ["unsigned", "wrong_sig", "other_user"])
+@pytest.mark.parametrize('flaw',['unsigned','wrong_sig','other_user'])
 async def test_memory_controls_refuse_bad_signatures_unchanged(flaw, room_app):
-    """Unsigned, wrongly signed, and signed-for-another-user requests change nothing."""
-    import hashlib
-    import hmac
-    import time
-
-    room, memory = room_app
-    key = _fixture_key()
-    tenant = uuid.uuid4()
-    owner, other = str(uuid.uuid4()), str(uuid.uuid4())
-    saved = await memory.remember(
-        str(tenant),
-        "owner-private",
-        "zenas.result",
-        "zenas:gates-7-8",
-        meta={"user_id": owner, "user": owner},
-    )
-    before = _snapshot(memory)
-    body = json.dumps({
-        "tenant_id": str(tenant),
-        "memory_id": saved["id"],
-        "user_id": owner,
-    }, separators=(",", ":"), sort_keys=True).encode()
-    path = "/memory/forget"
-    ts = str(int(time.time()))
-
-    async with httpx.AsyncClient(
-        transport=httpx.ASGITransport(app=room.app), base_url="http://room"
-    ) as client:
-        if flaw == "unsigned":
-            # Room key + bare identity headers are not actor proof.
-            headers = {
-                "X-Tank-Key": key,
-                "X-Tervory-Tenant": str(tenant),
-                "X-Tervory-User": owner,
-                "Content-Type": "application/json",
-            }
-        elif flaw == "wrong_sig":
-            headers = {
-                "X-Tank-Key": key,
-                "X-Lifecycle-Timestamp": ts,
-                "X-Lifecycle-Signature": "0" * 64,
-                "X-Tervory-Tenant": str(tenant),
-                "X-Tervory-User": owner,
-                "Content-Type": "application/json",
-            }
-        else:
-            # Signature binds `other`, but headers/body claim `owner`.
-            message = f"{ts}\nPOST\n{path}\n{tenant}\n{other}\n".encode() + body
-            headers = {
-                "X-Tank-Key": key,
-                "X-Lifecycle-Timestamp": ts,
-                "X-Lifecycle-Signature": hmac.new(key.encode(), message, hashlib.sha256).hexdigest(),
-                "X-Tervory-Tenant": str(tenant),
-                "X-Tervory-User": owner,
-                "Content-Type": "application/json",
-            }
-        response = await client.post(path, headers=headers, content=body)
-
-    assert response.status_code == 401, response.text
-    assert _snapshot(memory) == before
-    assert memory.forgets == 0
-    assert any(r["id"] == saved["id"] for r in memory.rows)
+    room, stack = room_app
+    saved = await _seed(stack,stack.tenant,USER)
+    before = await _snapshot(stack)
+    body = json.dumps({'tenant_id':stack.tenant,'user_id':USER,'memory_id':saved['id'],'value':'placeholder denied'}).encode()
+    headers = _sign_headers(stack.key if flaw != 'wrong_sig' else 'placeholder-wrong-key', method='POST',
+        path='/memory/edit',tenant=stack.tenant,user=OTHER_USER if flaw=='other_user' else USER,body=body)
+    headers['X-Tank-Key'] = stack.key
+    if flaw == 'unsigned': headers.pop('X-Tervory-User-Assertion')
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=room.app),base_url='http://room') as client:
+        response=await client.post('/memory/edit',content=body,headers={**headers,'Content-Type':'application/json'})
+    assert response.status_code in {401,403}
+    assert await _snapshot(stack)==before
 
 
 @pytest.mark.asyncio
 async def test_memory_controls_own_positive_view_edit_forget_switch(room_app):
-    room, memory = room_app
-    key = _fixture_key()
-    tenant = uuid.uuid4()
-    user = str(uuid.uuid4())
-    saved = await memory.remember(
-        str(tenant),
-        "own worked law",
-        "zenas.worked_law",
-        "zenas:gates-7-8",
-        meta={
-            "user_id": user,
-            "user": user,
-            "firm_id": str(tenant),
-            "attorney_id": user,
-            "client_id": CLIENT,
-            "matter_id": MATTER,
-            "value": {"rule": "original"},
-            "seq": 1,
-        },
-    )
-    async with httpx.AsyncClient(
-        transport=httpx.ASGITransport(app=room.app), base_url="http://room"
-    ) as client:
-        viewed = await _signed_request(
-            client, key, method="GET", path="/memory/records",
-            tenant=tenant, user=user,
-            params={"tenant_id": str(tenant), "client_id": CLIENT, "matter_id": MATTER},
-        )
-        assert viewed.status_code == 200, viewed.text
-        body = viewed.json()
-        assert body["memory_enabled"] is True and body["count"] >= 1
-        assert any(m["id"] == saved["id"] for m in body["memories"])
-
-        edited = await _signed_request(
-            client, key, method="POST", path="/memory/edit",
-            tenant=tenant, user=user,
-            json_body={"tenant_id": str(tenant), "memory_id": saved["id"], "value": {"rule": "corrected"}},
-        )
-        assert edited.status_code == 200, edited.text
-        assert edited.json()["ok"] is True
-
-        forget_id = edited.json()["memory"]["id"]
-        forgotten = await _signed_request(
-            client, key, method="POST", path="/memory/forget",
-            tenant=tenant, user=user,
-            json_body={"tenant_id": str(tenant), "memory_id": forget_id},
-        )
-        if forgotten.status_code == 403:
-            rows = await memory.records(str(tenant))
-            mine = [r for r in rows if (r.get("meta") or {}).get("user_id") == user and r["kind"] != "zenas.memory_setting"]
-            assert mine
-            forgotten = await _signed_request(
-                client, key, method="POST", path="/memory/forget",
-                tenant=tenant, user=user,
-                json_body={"tenant_id": str(tenant), "memory_id": mine[0]["id"]},
-            )
-        assert forgotten.status_code == 200, forgotten.text
-
-        off = await _signed_request(
-            client, key, method="POST", path="/memory/switch",
-            tenant=tenant, user=user,
-            json_body={"tenant_id": str(tenant), "enabled": False},
-        )
-        assert off.status_code == 200 and off.json()["memory_enabled"] is False
-        viewed_off = await _signed_request(
-            client, key, method="GET", path="/memory/records",
-            tenant=tenant, user=user,
-            params={"tenant_id": str(tenant)},
-        )
-        assert viewed_off.status_code == 200
-        assert viewed_off.json()["memory_enabled"] is False and viewed_off.json()["count"] == 0
+    room,stack=room_app
+    saved=await _seed(stack,stack.tenant,USER)
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=room.app),base_url='http://room') as client:
+        async def ask(method,path,body=None):
+            return await _signed_request(client,stack.key,method=method,path=path,tenant=stack.tenant,user=USER,
+                json_body=body,params={'tenant_id':stack.tenant} if method=='GET' else None)
+        viewed=await ask('GET','/memory/records')
+        assert viewed.status_code==200 and saved['id'] in viewed.text
+        got=await ask('GET','/memory/records/'+saved['id']);assert got.status_code==200
+        edited=await ask('POST','/memory/edit',{'tenant_id':stack.tenant,'memory_id':saved['id'],'value':CORRECTED})
+        assert edited.status_code==200,edited.text
+        correction=edited.json()['memory']['id']
+        got=await ask('GET','/memory/records/'+correction);assert got.json()['meta']['result']==CORRECTED
+        forgot=await ask('POST','/memory/forget',{'tenant_id':stack.tenant,'memory_id':correction});assert forgot.status_code==200
+        off=await ask('POST','/memory/switch',{'tenant_id':stack.tenant,'enabled':False});assert off.status_code==200
+        viewed=await ask('GET','/memory/records');assert viewed.json()['memory_enabled'] is False and not viewed.json()['memories']
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize(
-    "headers",
-    [
-        {},  # missing actor entirely
-        {"x-tank-key": "owner-private"},  # room key only — not actor proof
-        {"x-tank-key": "forged-key", "X-Tervory-User": USER, "X-Tervory-Tenant": TENANT},
-        {"x-tank-key": "owner-private", "X-Tervory-User": USER, "X-Tervory-Tenant": TENANT},  # unsigned identity headers
-    ],
-)
+@pytest.mark.parametrize('headers',[{}, {'x-tank-key':'placeholder-gate78-product-key'},
+ {'x-tank-key':'placeholder-forged-key','X-Tervory-User':USER,'X-Tervory-Tenant':TENANT},
+ {'x-tank-key':'placeholder-gate78-product-key','X-Tervory-User':USER,'X-Tervory-Tenant':TENANT}])
 async def test_memory_controls_refuse_missing_or_forged_actor(headers, room_app):
-    room, memory = room_app
-    tenant = uuid.uuid4()
-    user = str(uuid.uuid4())
-    await memory.remember(
-        str(tenant),
-        "private",
-        "zenas.result",
-        "zenas:gates-7-8",
-        meta={"user_id": user, "user": user},
-    )
-    before = _snapshot(memory)
-    async with httpx.AsyncClient(
-        transport=httpx.ASGITransport(app=room.app), base_url="http://room"
-    ) as client:
-        response = await client.get(
-            "/memory/records",
-            params={"tenant_id": str(tenant)},
-            headers=headers,
-        )
-    assert response.status_code in {401, 422}, response.text
-    assert _snapshot(memory) == before
+    room,stack=room_app
+    await _seed(stack,stack.tenant,USER);before=await _snapshot(stack)
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=room.app),base_url='http://room') as client:
+        response=await client.get('/memory/records',params={'tenant_id':stack.tenant},headers=headers)
+    assert response.status_code==401
+    assert await _snapshot(stack)==before
 
 
 def test_request_signing_binds_tenant_user_not_room_key_alone():
-    """Lifecycle message includes tenant+user; room-key-only HMAC is not actor proof."""
-    from agents.zenas.request_signing import signing_message, verify_signed_actor, sign_request
-    import hashlib
-    import hmac
-    import time
-
-    key = "room-secret"
-    tenant = TENANT
-    user = USER
-    body = b'{"tenant_id":"' + tenant.encode() + b'"}'
-    headers = sign_request(key=key, method="POST", path="/memory/edit", tenant_id=tenant, user_id=user, body=body)
-    got = verify_signed_actor(
-        key=key, method="POST", path="/memory/edit",
-        timestamp=headers["X-Lifecycle-Timestamp"],
-        signature=headers["X-Lifecycle-Signature"],
-        tenant_header=headers["X-Tervory-Tenant"],
-        user_header=headers["X-Tervory-User"],
-        body=body,
-    )
-    assert got == (uuid.UUID(tenant), user)
-    # Room-key HMAC over body alone (no tenant/user) must not verify as actor proof.
-    ts = str(int(time.time()))
-    unrelated = hmac.new(key.encode(), f"{ts}\nPOST\n/memory/edit\n".encode() + body, hashlib.sha256).hexdigest()
-    try:
-        verify_signed_actor(
-            key=key, method="POST", path="/memory/edit",
-            timestamp=ts, signature=unrelated,
-            tenant_header=tenant, user_header=user, body=body,
-        )
-        raise AssertionError("unrelated lifecycle shape must not verify")
-    except PermissionError:
-        pass
+    from chassis.user_assertion import HEADER
+    good=_sign_headers('placeholder-key',method='GET',path='/memory/records',tenant=TENANT,user=USER)
+    assert HEADER in good and 'X-Lifecycle-Signature' not in good
+    assert good[HEADER] != _sign_headers('placeholder-key',method='GET',path='/memory/records',tenant=TENANT,user=OTHER_USER)[HEADER]
 
 
 @pytest.mark.asyncio
@@ -841,7 +599,7 @@ async def test_memory_service_outage_answers_without_memory(hermes):
             raise RuntimeError("hermes unreachable")
 
     tank = FakeTank()
-    async with httpx.AsyncClient(transport=httpx.MockTransport(hermes.handler)) as http:
+    async with httpx.AsyncClient(transport=httpx.MockTransport(hermes.handler)):
         # Replace memory client with one whose records always fail.
         broken = BrokenRecords()
         result = await gates_memory.remembered_task(

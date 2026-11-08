@@ -40,7 +40,9 @@ class TankClient(SharedTankClient):
         async with asyncio.timeout(5):
             return await self._post("/v1/zenas/savings/quote", {
                 "tenant_id": tenant_id, "ledger_ids": ledger_ids, "reference":reference,
-                "uncertain": uncertain, "run_id":run_id})
+                "home_region": __import__('os').environ.get('TANK_REGION'),
+                "uncertain": uncertain, "run_id":run_id,
+                "baseline_ledger_ids": reference.pop("baseline_ledger_ids", [])})
 
     async def _post(self, path, body):
         return await bounded_call(super()._post(path, body))
