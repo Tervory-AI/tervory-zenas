@@ -15,7 +15,6 @@ services:
     environment:
       AGENT_NAME: zenas
       ZENAS_BRAIN_ENABLED: ${ZENAS_BRAIN_ENABLED:-false}
-      ZENAS_BRAIN_URL: http://zenas-brain:8001
       ZENAS_MEMORY_ENABLED: ${ZENAS_MEMORY_ENABLED:-false}
       R2_BUCKET: tervory-zenas
       R2_ACCOUNT_ID: ${R2_ACCOUNT_ID:-}
