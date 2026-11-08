@@ -256,6 +256,9 @@ def register(app: Any, runtime: dict[str, Any]) -> None:
                        "fallbacks": [], "disable_fallbacks": True}
             if policy.get("system_prompt"):
                 payload["instructions"] = policy["system_prompt"]
+            from types import SimpleNamespace
+            payload.update(await __import__('engine_tracing').metadata(
+                SimpleNamespace(**runtime), req.tenant_id, TASK, model, policy))
             started = time.perf_counter()
             data: dict[str, Any] = {}
             costs = None

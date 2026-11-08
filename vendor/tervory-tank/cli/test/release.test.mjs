@@ -206,7 +206,7 @@ function toolDir(without) {
   const dir = mkdtempSync(join(work, `bin-no-${without}-`));
   symlinkSync(process.execPath, join(dir, 'node'));
   for (const tool of TOOLS) {
-    if (tool === without) continue;
+    if (without.split('-').includes(tool)) continue;
     const found = (() => { try { return execFileSync('sh', ['-c', `command -v ${tool}`]).toString().trim(); } catch { return ''; } })();
     if (found.startsWith('/')) symlinkSync(found, join(dir, tool));
   }
@@ -243,7 +243,7 @@ test('install.sh refuses an https->http redirect over wget and over curl (behavi
       .then(result => ({ ...result, home, plain: plainHits - before }));
   };
   try {
-    for (const [downloader, without] of [['wget', 'curl'], ['curl', 'wget']]) {
+    for (const [downloader, without] of [['wget', 'curl'], ['curl', 'wget'], ['wget without timeout', 'curl-timeout']]) {
       const direct = await attempt(without, '/cli');
       assert.equal(direct.code, 0, `${downloader} direct https install: ${direct.stderr}`);
       assert.equal(readlinkSync(join(direct.home, '.tervory/cli/current')), '0.1.1');

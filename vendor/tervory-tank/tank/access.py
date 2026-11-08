@@ -234,7 +234,7 @@ async def control(room: str, data: dict) -> dict:
         raise HTTPException(503, "The room's browser is not connected.")
     payload = vault.envelope(room, "control", data)
     try:
-        async with httpx.AsyncClient(timeout=35, trust_env=False) as client:
+        async with httpx.AsyncClient(timeout=35, trust_env=False, event_hooks={"request": [__import__("product_identity").request_hook]}) as client:
             response = await client.post(ROOMS[room] + "/access/control", json=payload, headers={"X-Tank-Key": key})
         if response.status_code != 200:
             raise ValueError()
@@ -805,10 +805,11 @@ async def rig_request(actor: Actor, operation: str, data: dict[str, Any] | None 
     if not key:
         raise HTTPException(503, "Rig's retailer control connection is not configured.")
     try:
-        async with httpx.AsyncClient(timeout=90, trust_env=False) as client:
+        async with httpx.AsyncClient(timeout=90, trust_env=False, event_hooks={"request": [__import__("product_identity").request_hook]}) as client:
             from rig_rooms import endpoint
             base = await endpoint(db(), actor) if os.environ.get("RIG_LIFECYCLE_KEY") else "http://agent-rig:8003"
             response = await client.post(base + "/internal/retailer/" + operation,
+                extensions=__import__("product_identity").product_extensions("rig", base),
                 headers={"x-rig-retailer-key": key}, json={"tenant_id": str(actor.tenant_id), "founder": actor.founder, "data": data or {}})
     except httpx.HTTPError:
         raise HTTPException(503, "Rig did not confirm this operation. Check its receipts before retrying.") from None
@@ -1391,6 +1392,20 @@ async def tiger_link(tenant, match: dict) -> bool:
 
 @router.post('/rig/tiger/match-page')
 async def tiger_match_page(body: TigerMatchPage, request: Request):
+    result = await _tiger_match_page(body, request)
+    from tiger_savings import Run, record, packed
+    from tenant_db import tenant_scope
+    import hashlib
+    identity = uuid.uuid5(body.job_id or uuid.uuid4(), hashlib.sha256(packed(body.model_dump(mode='json')).encode()).hexdigest())
+    with tenant_scope(str(body.tenant_id)):
+        async with db().acquire() as conn:
+            async with conn.transaction():
+                receipt = await record(conn, Run(tenant_id=body.tenant_id, id=identity, action='tiger.match',
+                    input=body.model_dump(mode='json'), output=result), component=True)
+    return {**result, '_savings': receipt}
+
+
+async def _tiger_match_page(body: TigerMatchPage, request: Request):
     require_tiger(request)
     from tenant_db import tenant_scope
     with tenant_scope(str(body.tenant_id)):

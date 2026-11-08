@@ -1,5 +1,6 @@
 "use client";
 
+import { fetchWithDeadline as fetch } from "../../lib/request";
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import "./data.css";
 
@@ -14,8 +15,7 @@ type Batch = {
   ready: number; aware: number; review: number; requeue: number; with_site: number; with_email: number;
 };
 
-const SAMPLE = `name,address,city,state,zip,phone,website
-Example Domain,123 Main St,Boston,MA,02110,,example.com`;
+
 
 function v(f?: Field): string {
   if (!f || f.value == null || f.value === "") return "";
@@ -32,7 +32,7 @@ const pct = (n: number, d: number) => (d ? `${Math.round((n / d) * 100)}%` : "0%
 // Base: upload or paste a batch of records, run all seven passes, watch the profiles fill in, export the result.
 export default function DataPage() {
   const [batch, setBatch] = useState("");
-  const [csv, setCsv] = useState(SAMPLE);
+  const [csv, setCsv] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [link, setLink] = useState("");
   const preview = false;
@@ -45,27 +45,41 @@ export default function DataPage() {
   const [selected, setSelected] = useState<string>("");
   const [records, setRecords] = useState<Rec[]>([]);
   const [open, setOpen] = useState<string | null>(null);
+  const submitting = useRef(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const refreshBatches = useCallback(async () => {
+    try {
     const res = await fetch("/api/base?batches=1", { cache: "no-store" });
+    if (!res.ok) throw Error();
     if (res.ok) {
       const list = (await res.json()) as Batch[];
+      if (!Array.isArray(list)) throw Error();
       setBatches(list);
       setSelected((s) => s || list[0]?.batch || "");
     }
+    } catch { setError("Files could not be loaded. Try again."); }
   }, []);
   const refreshRecords = useCallback(async (b: string) => {
     if (!b) { setRecords([]); return; }
-    const res = await fetch(`/api/base?batch=${encodeURIComponent(b)}&limit=200`, { cache: "no-store" });
-    if (res.ok) setRecords((await res.json()) as Rec[]);
+    try {
+      const res = await fetch(`/api/base?batch=${encodeURIComponent(b)}&limit=200`, { cache: "no-store" });
+      if (!res.ok) throw Error();
+      setRecords((await res.json()) as Rec[]);
+    } catch { setError("Records could not be loaded. Try again."); }
   }, []);
 
   useEffect(() => { refreshBatches(); }, [refreshBatches]);
   useEffect(() => { refreshRecords(selected); }, [selected, refreshRecords]);
-  useEffect(() => {
-    fetch("/api/base?engines=1", { cache: "no-store" }).then(async (r) => { if (r.ok) setEngines((await r.json()) as string[]); }).catch(() => {});
+  const refreshEngines = useCallback(async () => {
+    try {
+      const response = await fetch("/api/base?engines=1", { cache: "no-store" });
+      const list = await response.json();
+      if (!response.ok || !Array.isArray(list)) throw Error();
+      setEngines(list.filter((item): item is string => typeof item === "string"));
+    } catch { setError("The available engines could not be loaded. Try again."); }
   }, []);
+  useEffect(() => { void refreshEngines(); }, [refreshEngines]);
   const current = batches.find((b) => b.batch === selected);
   useEffect(() => {
     if (!current || current.pending === 0) return;
@@ -75,7 +89,7 @@ export default function DataPage() {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (busy) return;
+    if (submitting.current) return;
     if (!batch.trim()) {
       setError("Add a batch name.");
       return;
@@ -84,6 +98,7 @@ export default function DataPage() {
       setError("Add a file, a link, or paste the rows.");
       return;
     }
+    submitting.current = true;
     setBusy(true);
     setError(null);
     try {
@@ -113,6 +128,7 @@ export default function DataPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
+      submitting.current = false;
       setBusy(false);
     }
   }
@@ -132,15 +148,15 @@ export default function DataPage() {
         <label htmlFor="batch-name">Batch name</label>
         <input id="batch-name" value={batch} onChange={(e) => setBatch(e.target.value)} placeholder="Batch name, e.g. ATF full list Oct 2026" maxLength={120} disabled={busy} />
         <div className="task-form-row">
-          <input ref={fileRef} type="file" accept=".csv,.txt,.tsv,text/csv,text/plain" disabled={busy}
+          <input ref={fileRef} type="file" aria-label="CSV file" accept=".csv,.txt,.tsv,text/csv,text/plain" disabled={busy}
             onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
           <span style={{ color: "var(--muted)", fontSize: 13 }}>{file ? `${file.name} · ${(file.size / 1024).toFixed(0)} KB` : "or paste below"}</span>
         </div>
         {!file && (
-          <input value={link} onChange={(e) => setLink(e.target.value)} placeholder="…or a link to the file (Drive: share as “Anyone with the link”)" disabled={busy} />
+          <input aria-label="CSV link" value={link} onChange={(e) => setLink(e.target.value)} placeholder="…or a link to the file (Drive: share as “Anyone with the link”)" disabled={busy} />
         )}
         {!file && !link.trim() && (
-          <textarea value={csv} onChange={(e) => setCsv(e.target.value)} rows={6} disabled={busy} style={{ fontFamily: "ui-monospace, monospace", fontSize: 13 }} />
+          <textarea aria-label="CSV rows" placeholder="name,address,city,state,zip,phone,website" value={csv} onChange={(e) => setCsv(e.target.value)} rows={6} disabled={busy} style={{ fontFamily: "ui-monospace, monospace", fontSize: 13 }} />
         )}
         <div className="task-form-row">
           <select value={engine} onChange={(e) => setEngine(e.target.value)} disabled={busy} aria-label="Industry engine">
@@ -152,7 +168,7 @@ export default function DataPage() {
           </label>
           <button type="submit" disabled={busy}>{busy ? "Importing… (a big file takes a couple of minutes)" : "Run Base"}</button>
         </div>
-        {error && <p className="err">{error}</p>}
+        {error && <p className="err" role="alert">{error} <button type="button" onClick={() => { setError(null); void refreshBatches(); void refreshRecords(selected); void refreshEngines(); }}>Reload files</button></p>}
       </form>
 
       {batches.length > 0 && (
@@ -191,7 +207,7 @@ export default function DataPage() {
         </div>
       )}
 
-      <div className="data-scroll">
+      <div className="data-scroll" role="region" aria-label="Records" tabIndex={0}>
       <table>
         <thead>
           <tr><th>Name</th><th>City</th><th>Website</th><th>Emails</th><th>Decision maker</th><th>Segment</th><th>Tier</th><th>Conf.</th><th>Status</th></tr>
@@ -228,7 +244,7 @@ export default function DataPage() {
               )}
             </Fragment>
           ))}
-          {records.length === 0 && <tr><td colSpan={9} style={{ color: "var(--muted)" }}>No records in this batch yet.</td></tr>}
+          {records.length === 0 && <tr><td colSpan={9} style={{ color: "var(--muted)" }}>No records in this batch yet. Upload a CSV to fill this list.</td></tr>}
         </tbody>
       </table>
       </div>

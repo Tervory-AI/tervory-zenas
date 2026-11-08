@@ -26,7 +26,7 @@ export async function POST(req: Request) {
   }
   try {
     const res = await zenasIn(home, "tenants", {
-      method: "POST",
+      method: "POST", headers: { "idempotency-key": req.headers.get("idempotency-key") || crypto.randomUUID() },
       body: JSON.stringify({ tenant_id: tenantId, home_region: home }),
     });
     if (!res) return NextResponse.json({ error: NOT_CONNECTED }, { status: 503 });

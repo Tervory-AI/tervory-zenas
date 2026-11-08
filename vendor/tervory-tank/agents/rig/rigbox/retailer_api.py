@@ -88,6 +88,8 @@ async def retailer_operation(operation: str, request: Request) -> JSONResponse:
             result = await retailer.panel(tenant)
         elif operation == "settings":
             result = await retailer.set_settings(tenant, data)
+            from .three_d.page import initialize
+            initialize(tenant)
         elif operation == "embed-keys":
             result = await retailer.embed_key(tenant, data)
         elif operation == "mapping":

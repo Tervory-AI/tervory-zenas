@@ -177,7 +177,7 @@ async def snapshot(tenant: uuid.UUID | None, task: str | None = None,
         # measured sample savings, never extrapolated to unsampled traffic.
         primary_cost = "CASE WHEN s.routellm_config IS NULL THEN s.primary_cost_usd ELSE l.cost_usd END"
         candidate_cost = "CASE WHEN s.routellm_config IS NOT NULL THEN rc.routellm_model_cost_usd WHEN s.candidate_model LIKE 'cache:embedding:%' THEN 0 ELSE s.candidate_cost_usd END"
-        evaluation_cost = "CASE WHEN s.routellm_config IS NULL AND s.candidate_model LIKE 'cache:embedding:%' THEN s.candidate_cost_usd ELSE 0 END"
+        evaluation_cost = "(CASE WHEN s.routellm_config IS NULL AND s.candidate_model LIKE 'cache:embedding:%' THEN s.candidate_cost_usd ELSE 0 END + coalesce((s.quality->>'cost_usd')::numeric,0))"
         comparisons = [dict(r) for r in await conn.fetch(f"""SELECT s.task_type,s.primary_model,s.candidate_model,
             count(*)::int AS samples,avg(s.agreement) AS agreement,sum({primary_cost}) AS primary_cost_usd,
             sum({candidate_cost}) AS could_have_cost_usd,

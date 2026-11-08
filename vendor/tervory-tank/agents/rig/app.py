@@ -65,11 +65,8 @@ async def pull_feeds(ctx: JobContext) -> dict:
     http = app.state.http
 
     async def fetch(url: str) -> Any:
-        response = await http.get(url)
-        content_type = response.headers.get("content-type", "")
-        if "json" in content_type or url.endswith(".json"):
-            return response.json()
-        return response.text
+        from rigbox.feed_runtime import fetch as fetch_public_feed
+        return await fetch_public_feed(http, url)
 
     reports = await service.pull_feeds(ctx.tenant_id, fetch)
     log_line(AGENT, json.dumps({"feeds": reports}), tenant_id=ctx.tenant_id, job_id=ctx.job_id)
@@ -82,8 +79,11 @@ async def expire_searches(ctx: JobContext) -> dict:
     Safe to run twice: the second run finds nothing left to delete.
     It writes only to agent_rig.searches.
     """
+    if str(ctx.tenant_id) != HEARTBEAT_TENANT:
+        raise PermissionError("Maintenance tenant required")
     service: Service = app.state.rig
-    deleted = await service.expire_searches()
+    with tenant_scope(None, administrative=True):
+        deleted = await service.expire_searches()
     log_line(AGENT, json.dumps({"deleted": deleted}), tenant_id=ctx.tenant_id, job_id=ctx.job_id)
     return {"deleted": deleted}
 
@@ -375,6 +375,17 @@ def _room_read_kind(method: str, path: str) -> str | None:
 @app.middleware("http")
 async def rig_room_reads(request: Request, call_next):
     """Serve Tank's read with the room key. Shopper calls fall through."""
+    if request.url.path == '/health/configuration' and request.method == 'GET':
+        from rigbox.configuration import report
+        names = getattr(request.app.state, 'missing_settings', [])
+        return JSONResponse({**report(), 'startup': {'ready': not names, 'missing_settings': names}},
+                            headers={'Cache-Control': 'no-store'})
+    missing = getattr(request.app.state, 'missing_settings', [])
+    # Static terminal/default config remain useful at day zero without services.
+    # The authenticated data and mutation routes retain the startup guard.
+    if missing and not (request.method == 'GET' and request.url.path.startswith('/3d/')):
+        return JSONResponse(status_code=503, content={"ok": False,
+            "error": "Settings unavailable: " + ", ".join(missing), "missing_settings": missing})
     if request.url.path == "/health" and not proxy_configured():
         return JSONResponse(status_code=503, content={"ok": False, "error": "RIG_TRUSTED_PROXY_CIDRS is required"})
     kind = _room_read_kind(request.method.upper(), request.url.path)
@@ -393,6 +404,12 @@ _inner = app.router.lifespan_context
 
 @asynccontextmanager
 async def _lifespan(app: FastAPI):
+    from rigbox.configuration import startup_missing
+    app.state.missing_settings = await startup_missing(AGENT)
+    if app.state.missing_settings:
+        log.warning('Settings unavailable: %s', ', '.join(app.state.missing_settings))
+        yield
+        return
     async with _inner(app):
         store = PgStore(app.state.pool)
         await store.apply_schema()

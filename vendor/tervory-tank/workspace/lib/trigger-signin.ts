@@ -4,6 +4,7 @@ import { getToken } from "next-auth/jwt";
 import { headers } from "next/headers";
 import { NextRequest } from "next/server";
 import { signinOptions } from "./trigger-signin-options";
+import { WORKSPACE_SESSION_COOKIE } from "./signin-cookies";
 import type { SigninPrincipal } from "./trigger-signin-principal";
 export { signinDirectory } from "./trigger-signin-directory";
 
@@ -24,7 +25,7 @@ export async function currentUser() {
 export async function signinToken(): Promise<string> {
   const requestHeaders = await headers();
   const token = await getToken({ req: new NextRequest("https://app.tervory.com", { headers: requestHeaders }),
-    secret: process.env.TRIGGER_SIGNIN_WORKSPACE_SECRET, cookieName: "__Secure-tervory-signin", secureCookie: true });
+    secret: process.env.TRIGGER_SIGNIN_WORKSPACE_SECRET, cookieName: WORKSPACE_SESSION_COOKIE, secureCookie: true });
   const principal = token?.principal as SigninPrincipal | undefined;
   if (!principal || principal.expiresAt <= Date.now() || typeof token?.idToken !== "string") throw new Error("Trigger sign-in required");
   return token.idToken;

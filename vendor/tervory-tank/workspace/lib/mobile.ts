@@ -1,11 +1,13 @@
 import { cookies } from "next/headers";
 import { mobileRequest } from "./tank";
 import type { Tenant } from "./tenant";
+import { workspaceSetupMessage } from "./workspace-setup";
 
 export const MOBILE_COOKIE = "__Host-tervory-mobile";
 export type MobileIdentity = Tenant & { tenantAdmin: boolean };
 
 export async function mobileIdentity(): Promise<MobileIdentity | null> {
+  if (workspaceSetupMessage()) return null;
   const token = (await cookies()).get(MOBILE_COOKIE)?.value;
   if (!token || !/^[a-f0-9-]{36}_[A-Za-z0-9_-]{43}$/.test(token)) return null;
   try {

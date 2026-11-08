@@ -48,8 +48,9 @@ class Publisher:
         return dict(agent=agent, tenant_id=tenant, enabled=enabled)
 
     async def publish(
-        self, agent: str, tenant: str, source_id: str, actor: str
+        self, agent: str, tenant: str, source_id: str, actor: str, user_id: str | None = None
     ) -> dict:
+        from hermes.user_scope import visible, wide_kinds
         s = self.records.schema(agent)
         tenant_id, source = uuid.UUID(tenant), uuid.UUID(source_id)
         target = uuid.uuid5(source, "platform-memory:" + tenant)
@@ -75,9 +76,11 @@ class Publisher:
             if policy and policy["enabled"]:
                 row = await conn.fetchrow(
                     _sql("""SELECT * FROM {schema}.memory_records
-                    WHERE tenant_id=$1 AND id=$2 AND tier='client' FOR SHARE""", s),
+                    WHERE tenant_id=$1 AND id=$2 AND tier='client' AND """ + visible(3) + " FOR SHARE", s),
                     tenant_id,
                     source,
+                    actor if user_id is None else user_id,
+                    wide_kinds(agent),
                 )
                 withdrawn = await conn.fetchval(
                     _sql("SELECT EXISTS(SELECT 1 FROM {schema}.memory_publish_log WHERE tenant_id=$1 AND source_row=$2 AND result='withdrawn')", s),

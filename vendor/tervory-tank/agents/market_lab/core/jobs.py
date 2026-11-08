@@ -23,9 +23,10 @@ from core.pure import (
     prediction_for_recommendation,
     research_answer,
     resolve_prediction,
-    series_fetch,
     surge_detect,
 )
+
+from core.series import series_fetch
 
 _ENGINE = re.compile(r"^[a-z][a-z0-9_]*$")
 
@@ -74,6 +75,7 @@ async def perform_refresh(
     http = client or EvidenceClient(allowed_domains=domains)
     public_http = client or EvidenceClient(public_feeds=True, tenant_id=tenant_id)
     stored_rows = 0
+    observations_stored = 0
     events = 0
     checks = []
     for feed in selected:
@@ -102,6 +104,7 @@ async def perform_refresh(
                 held += len(points)
                 continue
             accepted.extend(stamped)
+            observations_stored += added
             if any(feed.id == supply["source"] and first["ref"].startswith(supply["prefix"]) for supply in spec["supply"]):
                 stored_rows += added
                 surge = surge_detect({"points": points, **spec["surge"]})
@@ -115,26 +118,40 @@ async def perform_refresh(
             result["note"] = "Off, the source returned no observations"
         checks.append(await save_check(ledger, tenant_id, result, at=_clock(now)))
     fred_read: list[dict[str, Any]] = []
+    fred_blocked = False
     for cost in spec["costs"] if extra_sources is None else []:
+        if fred_blocked:
+            fred_read.append({**_fred_off(str(cost['ref'])), 'note': 'blocked'})
+            continue
         body = None if fred_bodies is None else fred_bodies.get(cost["ref"])
         if body is None and live:
             try:
                 body = await _live_fred(str(cost["ref"]), pacing=getattr(http, "client", None))
             except BlockedSite:
                 fred_read.append({**_fred_off(str(cost["ref"])), "note": "blocked"})
-                break
+                fred_blocked = True
+                continue
+            except (RuntimeError, ValueError):
+                fred_read.append({**_fred_off(str(cost['ref'])), 'note': 'Off, source could not be read'})
+                continue
         if body is None:
             if live:
                 fred_read.append(_fred_off(str(cost["ref"])))
             continue
-        fetched = series_fetch(
-            {
-                "adapter": "fred",
-                "series_id": cost["ref"],
-                "body": body,
-                "fetched_at": fetched_at,
-            }
-        )
+        try:
+            fetched = series_fetch(
+                {
+                    "adapter": "fred",
+                    "series_id": cost["ref"],
+                    "body": body,
+                    "fetched_at": fetched_at,
+                }
+            )
+            if not fetched['points']:
+                raise ValueError('empty source response')
+        except (ValueError, TypeError, KeyError):
+            fred_read.append({**_fred_off(str(cost['ref'])), 'note': 'Off, source could not be read'})
+            continue
         if fetched["stored"]:
             raise RuntimeError("fred points were marked for storage")
         await _call(
@@ -157,6 +174,7 @@ async def perform_refresh(
         )
     return {
         "listings_stored": stored_rows,
+        "observations_stored": observations_stored,
         "events": events,
         "fred": fred_read,
         "fred_stored": 0,
@@ -210,7 +228,7 @@ async def perform_opportunities(
                 },
             },
         )
-        from chassis.events import publish
+        from core.execution import publish
         await publish(tenant_id, "marketlab.signal.scored", signal_id, {
             "signal_id": signal_id, "score": str(row["gap"]), "rank": row["rank"],
             "observed_at": clock.isoformat()})
@@ -264,10 +282,21 @@ async def perform_resolve(
         if row.get("outcome") or str(row["id"]) in resolved_ids:
             continue
         series_id = str(row["metric_series_id"])
+        observed_series_id = series_id
         if points_by_series is not None and series_id in points_by_series:
             points = points_by_series[series_id]
         else:
             points = await _call(ledger.points_for, tenant_id, series_id)
+            if not points and series_id.startswith('response:'):
+                # An explicitly named, guarded upload can supply the measured
+                # response metric. Never infer a different tenant, unit or series.
+                candidates = [series for series in await _call(ledger.series_for, tenant_id)
+                              if str(series['tenant_id']) == str(tenant_id)
+                              and series.get('ref') == series_id
+                              and str(series.get('unit', '')).lower() in {'percent', '%'}]
+                if len(candidates) == 1:
+                    observed_series_id = candidates[0]['id']
+                    points = await _call(ledger.points_for, tenant_id, observed_series_id)
         from core.predictions import clock as prediction_clock
         deadline = prediction_clock(row["resolve_by"])
         if clock < deadline:
@@ -288,6 +317,7 @@ async def perform_resolve(
         if nxt is not None:
             nxt.update({key: row.get(key) for key in ("horizon_seconds", "confidence", "kind", "feed")})
             nxt.update(realised_value=float(selected["value"]), realised_date=str(selected["date"])[:10])
+            nxt['sources'].append({'metric_series_id': observed_series_id, 'date': str(selected['date'])[:10]})
         if nxt is None:
             continue
         if row.get("statement") != nxt["statement"] or row.get("target") != nxt["target"]:

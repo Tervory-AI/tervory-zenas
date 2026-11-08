@@ -1,5 +1,4 @@
-:root { color-scheme: light dark; --fg: #1a1a2e; --bg: #ffffff; --muted: #6b7280; --line: #e5e7eb; --accent: #2b6cb0; }
-@media (prefers-color-scheme: dark) { :root { --fg: #e7e9ee; --bg: #0f1117; --muted: #9aa3b2; --line: #262b36; --accent: #7fb0ff; } }
+:root { color-scheme: light; --fg: #1a1a2e; --bg: #ffffff; --muted: #4a5672; --line: #e5e7eb; --accent: #2b6cb0; }
 * { box-sizing: border-box; }
 body { margin: 0; font-family: var(--font-inter), Inter, sans-serif; font-size: 15px; font-weight: 400; line-height: 1.5; color: var(--fg); background: var(--bg); }
 .product { font-family: var(--font-inter), Inter, sans-serif; font-size: 17px; font-weight: 400; line-height: 1.5; }
@@ -582,3 +581,12 @@ body:has(.app-shell) {
 @media (min-width: 1024px) {
   .squad-pop.shell-pop { inset: 24px auto auto 272px; width: 360px; height: auto; max-height: calc(100dvh - 48px); border: 1px solid var(--squad-line); border-radius: 12px; }
 }
+
+/* Shared launch accessibility rules, including product-owned shells. */
+:where(a, button, input, select, textarea, summary):focus-visible { outline: 3px solid #E80008; outline-offset: 3px; }
+:where(input, select, textarea, button) { scroll-margin-block: 5rem; }
+:where(main, form, .tiles) { min-width: 0; }
+@media (max-width: 600px) { input, select, textarea { font-size: max(16px, 1em); } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; } }
+
+.app-shell { color-scheme: light; --muted: #4a5672; --fg: #001840; --bg: #f4f6fb; }

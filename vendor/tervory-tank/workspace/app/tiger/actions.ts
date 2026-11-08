@@ -14,7 +14,7 @@ function back(message: string): string {
 function plainError(err: unknown): string {
   const text = err instanceof Error ? err.message : "";
   const detail = /"detail"\s*:\s*"([^"]+)"/.exec(text)?.[1] ?? text;
-  if (detail.includes("not signed in")) return "Sign in to add a product.";
+  if (detail.includes("not signed in") || detail.includes("Trigger sign-in required")) return "Sign in to add a product.";
   if (detail.includes("already watched") || text.includes(" 409")) return "That page is already on the watch list.";
   if (detail.includes("url not allowed") || detail.includes("url is too long")) return "That address cannot be checked. Use a public page.";
   if (detail.includes("every must")) return "Choose how often to check.";

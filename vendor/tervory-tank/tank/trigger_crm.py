@@ -67,6 +67,9 @@ async def authority(actor: Actor, tool: str = "trigger.crm.write") -> Actor:
 
 def binding(actor: Actor) -> tuple[str, str, str]:
     """Configuration is founder-supplied. No Trigger sign-in/BottleCRM org identity is inferred."""
+    missing = [name for name in ("TRIGGER_CRM_URL", "TRIGGER_CRM_TENANT_BINDINGS") if not os.environ.get(name)]
+    if missing:
+        raise HTTPException(503, {"missing_settings": missing})
     try:
         bindings = json.loads(os.environ.get("TRIGGER_CRM_TENANT_BINDINGS", "{}"))
         if not isinstance(bindings, dict):
@@ -80,6 +83,8 @@ def binding(actor: Actor) -> tuple[str, str, str]:
             if not isinstance(name, str) or not re.fullmatch(r"TRIGGER_CRM_PAT_[A-Z0-9_]{1,60}", name):
                 raise ValueError
             token = os.environ.get(name, "")
+            if not token:
+                raise HTTPException(503, {"missing_settings": [name]})
             # Duplicate credentials/orgs could accidentally bind two tenants to one CRM org.
             if not token or len(token) > 4096 or not token.isascii() or any(c.isspace() for c in token) or name in names or org in orgs or token in tokens:
                 raise ValueError

@@ -1,4 +1,5 @@
 "use client";
+import { fetchWithDeadline as fetch } from "../../lib/request";
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import type { AccessPanel, AccessQueueItem } from "@/lib/tank";

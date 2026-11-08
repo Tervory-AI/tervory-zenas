@@ -22,7 +22,7 @@ from contextlib import contextmanager, nullcontext
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit
-from urllib.request import ProxyHandler, build_opener
+from urllib.request import ProxyHandler, Request, build_opener
 
 import asyncpg
 
@@ -82,7 +82,7 @@ def free_port() -> int:
         return sock.getsockname()[1]
 
 
-def wait_ready(url: str, child: subprocess.Popen, *, timeout: float = 45) -> None:
+def wait_ready(url: str, child: subprocess.Popen, *, timeout: float = 45, headers: dict | None = None) -> None:
     # Loopback service readiness only; never bypass the cloud proxy for egress.
     opener = build_opener(ProxyHandler({}))
     deadline = time.monotonic() + timeout
@@ -90,7 +90,7 @@ def wait_ready(url: str, child: subprocess.Popen, *, timeout: float = 45) -> Non
         if child.poll() is not None:
             raise RuntimeError("A local service exited during startup; inspect its local log")
         try:
-            with opener.open(url, timeout=1) as response:
+            with opener.open(Request(url, headers=headers or {}), timeout=1) as response:
                 if response.status == 200:
                     return
         except OSError:
@@ -154,7 +154,7 @@ def services(api_port: int = 8046, log=None, *, history: bool = False):
         try:
             room = subprocess.Popen([sys.executable, "-m", "uvicorn", "app:app", "--fd", str(room_socket.fileno()), "--lifespan", "off", "--no-access-log"], cwd=ROOT / "agents/market_lab", env=room_env, stdout=log, stderr=log, pass_fds=(room_socket.fileno(),))
             children.append(room)
-            wait_ready(f"http://127.0.0.1:{room_port}/openapi.json", room)
+            wait_ready(f"http://127.0.0.1:{room_port}/market/settings", room, headers={'X-Tank-Key': room_env['TANK_KEY']})
             tank = subprocess.Popen([sys.executable, "-m", "uvicorn", "main:app", "--fd", str(api_socket.fileno()), "--no-access-log"], cwd=ROOT / "tank", env=tank_env, stdout=log, stderr=log, pass_fds=(api_socket.fileno(),))
             children.append(tank)
             wait_ready(f"http://127.0.0.1:{api_port}/health", tank)

@@ -22,6 +22,7 @@ from .model_check import Budget
 from .pipeline import run
 from .retention import cleanup, save, sweep
 from .storage import Storage
+from .progress import event, category
 
 gate = asyncio.Semaphore(1)
 tasks = {}
@@ -81,15 +82,15 @@ async def brain_addresses():
 async def relay(action: str, body: dict) -> dict:
     async with httpx.AsyncClient(trust_env=False, timeout=30) as client:
         while True:
-            response = await client.post("http://rig-brain:8001/forge/relay/" + action, json=body)
+            response = await asyncio.wait_for(client.post("http://rig-brain:8001/forge/relay/" + action, json=body), timeout=30)
             detail = response.json().get("detail") if response.status_code == 409 else None
             if isinstance(detail, dict) and detail.get("code") == "paid_step_approval_required":
                 if detail.get("tenant_id") != body["tenant_id"] or detail.get("run_id") != body["job_id"]:
                     raise RuntimeError("Paid approval does not match this forge job")
                 while True:
-                    check = await client.post("http://rig-brain:8001/forge/relay/approval", json={
+                    check = await asyncio.wait_for(client.post("http://rig-brain:8001/forge/relay/approval", json={
                         **{key: body[key] for key in ("tenant_id", "job_id", "home_region")},
-                        "approval_id": detail["approval_id"]})
+                        "approval_id": detail["approval_id"]}), timeout=30)
                     check.raise_for_status()
                     status = check.json()
                     if status.get("run_id") != body["job_id"]:
@@ -107,7 +108,13 @@ async def relay(action: str, body: dict) -> dict:
 
 
 async def perform(body: Job, work: Path, store: Storage):
-    state = {**body.scope(), "status": "running", "stage": "intake", "receipts": []}
+    started = time.monotonic()
+    state = {**body.scope(), "status": "running", "stage": "intake", "receipts": [], "progress": []}
+    def progress(stage, outcome='delivered'):
+        state['progress'].append(event(len(state['progress']), category(stage),
+            elapsed_ms=(time.monotonic() - started) * 1000, receipts=state['receipts'], outcome=outcome))
+        save(work / 'state.json', state)
+    progress('intake', 'running')
     async def receipt(stage, outcome):
         state["stage"] = stage
         # Persist delivery intent before HTTP. If the brain is unavailable, the
@@ -116,7 +123,7 @@ async def perform(body: Job, work: Path, store: Storage):
         save(work / "pending-receipt.json", payload)
         delivered = await relay("steps", payload)
         state["receipts"].append(delivered)
-        save(work / "state.json", state)
+        progress(stage, outcome)
         (work / "pending-receipt.json").unlink()
     async def provider(identifier):
         state["provider_job_id"] = identifier
@@ -126,7 +133,7 @@ async def perform(body: Job, work: Path, store: Storage):
         save(work / "pending-gpu-relay.json", {"action": action, "payload": payload})
         result = await relay(action, payload)
         state["receipts"].append(result)
-        save(work / "state.json", state)
+        progress(state['stage'], 'failed' if payload.get('outcome') == 'failed' else 'delivered')
         (work / "pending-gpu-relay.json").unlink()
         return result
     async with gate:
@@ -135,6 +142,7 @@ async def perform(body: Job, work: Path, store: Storage):
             if body.method in {"photogrammetry", "trellis2"}:
                 transfers = await asyncio.to_thread(store.transfers, body.model_dump(mode="json"))
                 await receipt("intake", "delivered")
+                progress('gpu_submit', 'running')
                 await GPU().run(body.scope(), body.method, transfers=transfers,
                     timeout=body.timeout_seconds, cap=body.cost_cap_usd, relay=gpu_relay, save_provider=provider,
                     namespace=os.environ.get("HF_JOBS_NAMESPACE", ""))
@@ -164,6 +172,7 @@ async def perform(body: Job, work: Path, store: Storage):
                 except Exception:
                     pass  # The pending receipt is durable; no following work runs.
             state.update(status="failed", error="Forge job failed at " + state["stage"] + ". No model was approved.")
+            progress(state['stage'], 'failed')
             if (work / "report.json").exists():
                 state["report"] = json.loads((work / "report.json").read_text())
         finally:
@@ -182,7 +191,10 @@ async def lifespan(app):
     async def maintain():
         while True:
             await asyncio.sleep(60)
-            sweep(root, set(tasks))
+            try:
+                sweep(root, set(tasks))
+            except OSError:
+                logging.getLogger(__name__).error("Forge retention will retry.")
     maintenance = asyncio.create_task(maintain())
     try:
         yield
@@ -198,7 +210,7 @@ app = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None
 
 @app.middleware("http")
 async def private_peer(request: Request, call_next):
-    if request.url.path == "/health" and request.client and request.client.host in {"127.0.0.1", "::1"}:
+    if request.url.path in {"/health", "/health/configuration"} and request.client and request.client.host in {"127.0.0.1", "::1"}:
         return await call_next(request)
     try:
         allowed = await brain_addresses()
@@ -212,6 +224,15 @@ async def private_peer(request: Request, call_next):
 @app.get("/health")
 async def health():
     return {"ok": True, "room": "rig", "service": "forge"}
+
+
+@app.get('/health/configuration')
+async def configuration():
+    # Names only. The sealed forge does not require database or Tank credentials.
+    groups = {'storage': ('R2_ACCOUNT_ID', 'R2_ACCESS_KEY_ID_RIG', 'R2_SECRET_ACCESS_KEY_RIG'),
+              'gpu': ('HF_JOBS_TOKEN', 'HF_JOBS_NAMESPACE')}
+    return {group: {'ready': not (missing := [name for name in names if not os.environ.get(name, '').strip()]),
+                    'missing_settings': missing} for group, names in groups.items()}
 
 
 @app.post("/jobs")

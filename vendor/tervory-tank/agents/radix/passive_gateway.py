@@ -194,6 +194,9 @@ async def lifespan(app):
 
 app = FastAPI(lifespan=lifespan)
 
+from radix_readiness import install as install_readiness
+install_readiness(app, service='gateway')
+
 
 @app.post('/lease')
 async def lease(body: Run):

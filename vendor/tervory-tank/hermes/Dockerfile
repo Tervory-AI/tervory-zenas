@@ -23,6 +23,7 @@ ENV HF_HUB_DISABLE_TELEMETRY=1
 COPY hermes/model.json /srv/hermes/model.json
 COPY hermes/*.py /srv/hermes/
 COPY tank/semantic_encoder.py /srv/hermes/memory_encoder.py
+COPY tank/embedding_cache.py /srv/hermes/embedding_cache.py
 COPY tank/skills/zenas.pii/1.0.0/detect.py /srv/hermes/pii.py
 ENV HF_HUB_OFFLINE=1
 USER hermes

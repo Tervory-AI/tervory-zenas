@@ -482,8 +482,10 @@ async def fetch_coolify(http) -> list[Component] | None:
     applications = await get("/api/v1/applications")
     services = await get("/api/v1/services")
     version = await get("/api/v1/version")
-    return coolify_components(applications if isinstance(applications, list) else [],
-                              services if isinstance(services, list) else [],
+    if (not isinstance(applications, list) or not isinstance(services, list)
+            or any(not isinstance(row, dict) for row in applications + services)):
+        raise RuntimeError("Coolify did not answer.")
+    return coolify_components(applications, services,
                               version if isinstance(version, str) else None)
 
 

@@ -8,6 +8,10 @@ import "./globals.css";
 import { InstallShell } from "./mobile-shell/install";
 import { mobileIdentity } from "@/lib/mobile";
 import { MobileAccount } from "./mobile/account";
+import { workspaceSetupMessage } from "@/lib/workspace-setup";
+
+// Setup and identity are request state, including when settings are absent at build time.
+export const dynamic = "force-dynamic";
 
 export const viewport: Viewport = { themeColor: "#001840" };
 
@@ -34,8 +38,17 @@ async function readAccess(): Promise<ShellAccess> {
 }
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const access = await accessForRequest();
-  const mobile = await mobileIdentity();
+  const setup = (message: string) => <html lang="en" className={`${jost.variable} ${inter.variable} ${mono.variable}`}><body><main><h1>Workspace setup</h1><p role="status">{message}</p><p>Add the settings before signing in or starting work.</p></main></body></html>;
+  const problem = workspaceSetupMessage();
+  if (problem) return setup(problem);
+  let access: ShellAccess;
+  let mobile: Awaited<ReturnType<typeof mobileIdentity>>;
+  try {
+    access = await accessForRequest();
+    mobile = await mobileIdentity();
+  } catch {
+    return setup("Trigger sign-in configuration is unavailable. Check TANK_URL and TANK_API_KEY.");
+  }
   return (
     <html lang="en" className={`${jost.variable} ${inter.variable} ${mono.variable}`}>
       <body>

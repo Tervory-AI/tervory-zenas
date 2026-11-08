@@ -17,7 +17,7 @@ export async function mobileRequest(path: string, body?: unknown, identity?: { t
   if (session) headers.set("x-mobile-session", session);
   return boundedFetch(`${TANK_URL}/v1/mobile/${path}`, { method: body === undefined ? "GET" : "POST", headers,
     body: body === undefined ? undefined : JSON.stringify(body), cache: "no-store" }, 30_000, async response =>
-    new Response(await response.arrayBuffer(), { status: response.status, headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } }));
+    new Response([204, 205, 304].includes(response.status) ? null : await response.arrayBuffer(), { status: response.status, headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } }));
 }
 
 // Bounded server-side fetches for the CLI corridors (review of #506, B1). Kept in this
@@ -187,9 +187,10 @@ export async function personalCommandRequest(request: Request, path: string[],
   const id = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
   const target = path.join("/");
   const routes: Record<string, RegExp> = {
-    GET: new RegExp(`^(tools|threads|threads/${id}(/events)?|tasks/${id}/receipts)$`),
-    POST: new RegExp(`^(complete|threads|threads/${id}/(turn|actions|code-turn)|cards/${id}|build)$`),
+    GET: new RegExp(`^(tools|code-mcp-policy|code-models|code-sessions|code-sessions/${id}|threads|threads/${id}(/events)?|tasks/${id}/receipts)$`),
+    POST: new RegExp(`^(code-attachments|complete|threads|threads/${id}/(turn|actions|code-turn|code-stream)|cards/${id}|build)$`),
     PATCH: new RegExp(`^threads/${id}$`),
+    PUT: /^code-mcp-policy$/,
   };
   const agentRoutes: Record<string, RegExp[]> = {
     GET: [/^window-agents\/jobs$/, new RegExp(`^window-agents/jobs/${id}/receipt$`), /^window-agents\/vault\/github$/],
@@ -215,7 +216,7 @@ export async function personalCommandRequest(request: Request, path: string[],
         while (true) {
           const item = await reader.read(); if (item.done) break;
           size += item.value.byteLength;
-          if (size > 2_000_000) return refused(413);
+          if (size > (target === "code-attachments" ? 7_100_000 : 2_000_000)) return refused(413);
           chunks.push(item.value);
         }
       } catch { return refused(400); }
@@ -283,12 +284,16 @@ export async function caseStudyRequest(identity: { tenantId: string; userId: str
     const value = query.get(key);
     if (value !== null) url.searchParams.set(key, value);
   }
-  return tenantFetch(query.get("tenant_id") ?? identity.tenantId, url, {
+  const tenant = query.get("tenant_id") ?? identity.tenantId;
+  const init: RequestInit = {
     method: path === "ensure" ? "POST" : "GET", cache: "no-store",
     // Observe ensure redirects as non-retryable HTTP failures; never follow them.
     redirect: path === "ensure" ? "manual" : "error", signal,
     headers: { "X-Tank-Key": TANK_API_KEY, "X-Tervory-User": identity.userId, "X-Tervory-Tenant": identity.tenantId },
-  });
+  };
+  if (path === "radix") return tenantBoundedFetch(tenant, url, init, 30_000,
+    readRadixResponse);
+  return tenantFetch(tenant, url, init);
 }
 
 // Optional bookkeeping, never an authorization or squad grant. Durable SigninDirectory
@@ -345,11 +350,11 @@ export async function ensureCaseStudyReports(identity: { tenantId: string; userI
 export async function baseProductRequest(tenantId: string, path: string, query: URLSearchParams = new URLSearchParams(), body?: Record<string, unknown>): Promise<Response> {
   const parameters = new URLSearchParams(query);
   parameters.set("tenant_id", tenantId);
-  return tenantFetch(tenantId, `${TANK_URL}/v1/base-product/${path}${body ? "" : `?${parameters}`}`, {
+  return tenantBoundedFetch(tenantId, `${TANK_URL}/v1/base-product/${path}${body ? "" : `?${parameters}`}`, {
     method: body ? "POST" : "GET", cache: "no-store", redirect: "error",
     headers: { "Content-Type": "application/json", "X-Tank-Key": TANK_API_KEY },
     ...(body ? { body: JSON.stringify({ ...body, tenant_id: tenantId }) } : {}),
-  });
+  }, 30_000, async response => new Response([204, 205, 304].includes(response.status) ? null : await response.arrayBuffer(), { status: response.status, headers: response.headers }));
 }
 
 // RIG-5: all 3D Workspace traffic, including private previews, stays server-side.
@@ -406,15 +411,38 @@ export type RouteResult = {
   latency_ms: number;
 };
 
+export const SKALA_SERVER_TIMEOUT_MS = { value: 25_000 };
 async function tank<T>(path: string, init: RequestInit): Promise<T> {
   const headers = new Headers(init.headers);
   headers.set("content-type", "application/json");
-  const res = await tenantFetch(requestTenant(path, init), new URL(path, TANK_URL), {...init, headers});
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`Tank ${path} ${res.status}: ${text.slice(0, 300)}`);
+  if (path.startsWith("/v1/base/")) {
+    const tenant = requestTenant(path, init);
+    const read = async (response: Response) => {
+      if (!response.ok) throw new Error("Base could not complete this request.");
+      return await response.json() as T;
+    };
+    if (tenant) return tenantBoundedFetch(tenant, new URL(path, TANK_URL), {...init, headers}, 30_000, read);
+    if (!["/v1/base/engines", "/v1/base/context-dev/trial"].includes(path)) throw new Error("Sign in to your workspace.");
+    headers.set("x-tank-key", TANK_API_KEY);
+    return boundedFetch(new URL(path, TANK_URL), {...init, headers, redirect: "manual"},
+      path.endsWith("/trial") ? 300_000 : 30_000, read);
   }
-  return (await res.json()) as T;
+  const goldTenant = path.startsWith("/v1/gold/") ? headers.get("x-tervory-tenant") : null;
+  const tenant = requestTenant(path, init) || (goldTenant !== "00000000-0000-0000-0000-000000000001" ? goldTenant : null);
+  const read = async (res: Response): Promise<T> => {
+    if (!res.ok) {
+      throw new Error("Your request could not be completed. Please try again.");
+    }
+    return await res.json() as T;
+  };
+  if (/^\/v1\/(skala|gold)(?:\/|$)/.test(path)) {
+    if (!TANK_API_KEY.trim()) throw new Error("Missing setting: TANK_API_KEY.");
+    // One attempt for both reads and writes; the client may explicitly retry.
+    if (tenant) return tenantBoundedFetch(tenant, new URL(path, TANK_URL), {...init, headers}, SKALA_SERVER_TIMEOUT_MS.value, read);
+    headers.set("x-tank-key", TANK_API_KEY);
+    return boundedFetch(new URL(path, TANK_URL), {...init, headers, cache: "no-store"}, SKALA_SERVER_TIMEOUT_MS.value, read);
+  }
+  return read(await tenantFetch(tenant, new URL(path, TANK_URL), {...init, headers}));
 }
 
 export type RosterModel = {
@@ -435,7 +463,7 @@ export async function listRoster(): Promise<RosterModel[]> {
   const rows = await boundedFetch(`${TANK_URL}/v1/models`, {
     method: "GET", cache: "no-store", headers: { "content-type": "application/json", "x-tank-key": TANK_API_KEY },
   }, ROSTER_TIMEOUT_MS.value, async res => {
-    if (!res.ok) { const text = await res.text(); throw new Error(`Tank /v1/models ${res.status}: ${text.slice(0, 300)}`); }
+    if (!res.ok) { const text = await res.text(); throw new Error("Your request could not be completed. Please try again."); }
     return (await res.json()) as unknown;
   });
   if (!Array.isArray(rows)) return [];
@@ -484,6 +512,8 @@ export type Task = {
   model?: string | null;
   rung?: number | null;
   cost_usd?: number | string | null;
+  baseline_cost_usd?: number | string | null;
+  baseline_status?: string | null;
   latency_ms?: number | null;
   feedback?: "accepted" | "rejected" | null;
 };
@@ -499,6 +529,30 @@ export function createTask(
   return tank<Task>("/v1/tasks", {
     method: "POST",
     body: JSON.stringify({ tenant_id: tenantId, created_by: createdBy, title, task_type: taskType, messages, agent }),
+  });
+}
+
+async function readRadixResponse(response: Response): Promise<Response> {
+  const bytes = await response.arrayBuffer();
+  return new Response(response.status === 204 || response.status === 205 ? null : bytes,
+    {status: response.status, headers: response.headers});
+}
+
+// Radix interactive reads/writes use the existing regional, whole-body deadline.
+// No automatic write retry: the caller checks its records after uncertainty.
+export const radixTaskStore = {
+  list: (tenant: string, limit: number) => radixTaskRequest<Task[]>(tenant, `/v1/tasks?tenant_id=${encodeURIComponent(tenant)}&limit=${limit}`, {method: "GET"}),
+  get: (tenant: string, id: string) => radixTaskRequest<Task>(tenant, `/v1/tasks/${encodeURIComponent(id)}?tenant_id=${encodeURIComponent(tenant)}`, {method: "GET"}),
+  create: (tenant: string, user: string, title: string, taskType: string, messages: ChatMessage[], agent: string) =>
+    radixTaskRequest<Task>(tenant, "/v1/tasks", {method: "POST", body: JSON.stringify({tenant_id: tenant, created_by: user, title, task_type: taskType, messages, agent})}),
+};
+function radixTaskRequest<T>(tenant: string, path: string, init: RequestInit): Promise<T> {
+  return tenantBoundedFetch(tenant, new URL(path, TANK_URL), {...init, headers: {"content-type": "application/json"}}, 30_000, async response => {
+    if (!response.ok) {
+      await response.body?.cancel().catch(() => {});
+      throw new Error("Radix could not reach your records. Please try again.");
+    }
+    return await response.json() as T;
   });
 }
 
@@ -598,12 +652,17 @@ export type EvalResult = {
   details: { case: number; name: string | null; passed: boolean; why: string; goal: unknown; result: unknown }[];
 };
 
-export function listSkills(): Promise<Skill[]> {
+export function listSkills(bounded = false): Promise<Skill[]> {
+  if (bounded) return boundedFetch(new URL("/v1/skala", TANK_URL), { method: "GET", cache: "no-store", redirect: "manual",
+    headers: { "x-tank-key": TANK_API_KEY } }, 5_000, async response => {
+      if (!response.ok) throw new Error("Base could not complete this request.");
+      return await response.json() as Skill[];
+    });
   return tank<Skill[]>("/v1/skala", { method: "GET" });
 }
-export function runSkillEvals(id: string, version: string, by: string): Promise<EvalResult> {
+export function runSkillEvals(id: string, version: string, by: string, requestId?: string): Promise<EvalResult> {
   return tank<EvalResult>(`/v1/skala/${encodeURIComponent(id)}/${encodeURIComponent(version)}/evals`, {
-    method: "POST",
+    method: "POST", headers: requestId ? {"idempotency-key": requestId} : undefined,
     body: JSON.stringify({ by }),
   });
 }
@@ -805,17 +864,21 @@ export type TigerAlert = {
 };
 
 async function tigerCall<T>(path: string, init: RequestInit): Promise<T> {
-  const res = await tenantFetch(requestTenant(path, init), `${TANK_URL}${path}`, {
-    ...init,
-    headers: { "content-type": "application/json", "x-tank-key": TANK_API_KEY, ...(init.headers ?? {}) },
+  const tenant = requestTenant(path, init);
+  if (!tenant || !TANK_API_KEY) throw new Error("Tiger is unreachable");
+  return tenantBoundedFetch(tenant, `${TANK_URL}${path}`, {
+    ...init, headers: { "content-type": "application/json", "x-tank-key": TANK_API_KEY, ...(init.headers ?? {}) },
     cache: "no-store",
+  }, 10_000, async res => {
+    const text = await res.text();
+    if (!res.ok) {
+      let detail = "";
+      try { detail = JSON.parse(text).detail; } catch { /* No raw response in errors. */ }
+      const safe = ["url not allowed", "url is too long", "that url is already watched"].includes(detail) ? detail : "";
+      throw new Error(`Tiger ${res.status}: ${safe}`);
+    }
+    return (text ? JSON.parse(text) : null) as T;
   });
-  const text = await res.text();
-  if (!res.ok) {
-    throw new Error(`Tank ${path} ${res.status}: ${text.slice(0, 300)}`);
-  }
-  if (!text) return null as T;
-  return JSON.parse(text) as T;
 }
 
 export function listTigerWatches(tenantId: string): Promise<{ watches: TigerWatch[] }> {
@@ -878,13 +941,24 @@ async function vaultFetch(path: string, userId: string, squad: string, init: Req
   headers.set("x-tervory-user", userId);
   headers.set("x-tervory-squad", squad);
   if (typeof init.body === "string" && !headers.has("content-type")) headers.set("content-type", "application/json");
+  const tenant = requestTenant(path, init);
+  if (squad === "radix" && tenant) {
+    return tenantBoundedFetch(tenant, `${TANK_URL}${path}`, { ...init, headers, cache: "no-store" }, 30_000,
+      readRadixResponse);
+  }
+  if (squad === "base" || squad === "tiger") {
+    const tenant = requestTenant(path, init);
+    if (!tenant || (squad === "tiger" && !TANK_API_KEY)) throw new Error(squad === "tiger" ? "Tiger is unreachable" : "Sign in to change Plugins.");
+    return tenantBoundedFetch(tenant, `${TANK_URL}${path}`, { ...init, headers, cache: "no-store" }, squad === "tiger" ? 10_000 : 30_000,
+      async response => new Response([204, 205, 304].includes(response.status) ? null : await response.arrayBuffer(), { status: response.status, headers: response.headers }));
+  }
   return tenantFetch(requestTenant(path, init), `${TANK_URL}${path}`, { ...init, headers, cache: "no-store" });
 }
 
 async function vaultJson<T>(path: string, userId: string, squad: string, init: RequestInit): Promise<T> {
   const res = await vaultFetch(path, userId, squad, init);
   const text = await res.text();
-  if (!res.ok) throw new Error(`Tank ${path} ${res.status}: ${text.slice(0, 180)}`);
+  if (!res.ok) throw new Error(squad === "tiger" ? (text.includes(VAULT_OFF_MESSAGE) ? VAULT_OFF_MESSAGE : `Tiger ${res.status}`) : "Your request could not be completed. Please try again.");
   return (text ? JSON.parse(text) : {}) as T;
 }
 
@@ -943,7 +1017,7 @@ export async function uploadVaultFiles(
     body: files,
   });
   const text = await res.text();
-  if (!res.ok) throw new Error(`Tank /files ${res.status}: ${text.slice(0, 180)}`);
+  if (!res.ok) throw new Error("Your request could not be completed. Please try again.");
   return { ok: true };
 }
 
@@ -1402,7 +1476,11 @@ export type AccessConnection = { room: string; site: string; terms: string; revo
 export type AccessQueueItem = { id: string; tenant_id: string; room: string; site: string; reason: string; status: string; created_at: string; live_available: boolean };
 export type AccessPanel = { connections: AccessConnection[]; policies: { site: string; terms: string; rotation_days: number }[]; feeds: { distributor: string; site: string; source: string; fetched_at: string; row_count: number }[]; meta_enabled: boolean };
 export async function accessRequest<T>(actor: AccessIdentity, path: string, body?: unknown): Promise<T> {
-  const response = await tenantFetch(actor.tenantId, `${TANK_URL}/v1/access/${path}`, {
+  const send = path.startsWith("tiger/")
+    ? (tenant: string, url: string, init: RequestInit) => tenantBoundedFetch(tenant, url, init, 10_000,
+        async response => new Response([204, 205, 304].includes(response.status) ? null : await response.arrayBuffer(), {status: response.status, headers: response.headers}))
+    : tenantFetch;
+  const response = await send(actor.tenantId, `${TANK_URL}/v1/access/${path}`, {
     method: body === undefined ? "GET" : "POST", cache: "no-store",
     headers: { "content-type": "application/json", "x-tank-key": TANK_API_KEY,
       "x-tervory-user": actor.userId, "x-tervory-tenant": actor.tenantId },

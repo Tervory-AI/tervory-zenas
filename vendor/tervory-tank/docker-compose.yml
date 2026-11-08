@@ -3,13 +3,196 @@
 # by name (http://tank:8000, postgres:5432). Agent boxes are not in this file.
 # Each box is its own Coolify resource (agents/<name>/docker-compose.yml) and
 # reaches Tank and Postgres only through an external network, tervory-gw-<agent>,
-# created once on the server. Nothing else joins that network. Coolify attaches
-# app.tervory.com to workspace and tervory.com to site. Tank and the stores
-# are never exposed.
+# created once on the server. Nothing else joins that network. Public ingress
+# is defined below and checked against docs/ops/PRODUCT-HOSTS.md.
+# Boston Tank and the stores are never exposed.
 
 # Coolify injects app-wide settings via env_file. Override the privileged setup
 # capability outside its intended service; empty/null can inherit the real key.
+x-langfuse-environment: &langfuse-environment
+  TRIGGER_SIGNIN_SETUP_TOKEN: "disabled"
+  DATABASE_URL: postgresql://langfuse:${LANGFUSE_POSTGRES_PASSWORD}@langfuse-postgres:5432/langfuse
+  DIRECT_URL: postgresql://langfuse:${LANGFUSE_POSTGRES_PASSWORD}@langfuse-postgres:5432/langfuse
+  NEXTAUTH_URL: ${LANGFUSE_UI_URL:-}
+  NEXTAUTH_SECRET: ${LANGFUSE_NEXTAUTH_SECRET}
+  SALT: ${LANGFUSE_SALT}
+  ENCRYPTION_KEY: ${LANGFUSE_ENCRYPTION_KEY}
+  TELEMETRY_ENABLED: "false"
+  NEXT_TELEMETRY_DISABLED: "1"
+  DD_TRACE_ENABLED: "false"
+  DD_INSTRUMENTATION_TELEMETRY_ENABLED: "false"
+  DD_REMOTE_CONFIGURATION_ENABLED: "false"
+  LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: "false"
+  AUTH_DISABLE_SIGNUP: "true"
+  CLICKHOUSE_URL: http://langfuse-clickhouse:8123
+  CLICKHOUSE_MIGRATION_URL: clickhouse://langfuse-clickhouse:9000
+  CLICKHOUSE_USER: langfuse
+  CLICKHOUSE_PASSWORD: ${LANGFUSE_CLICKHOUSE_PASSWORD}
+  CLICKHOUSE_CLUSTER_ENABLED: "false"
+  REDIS_HOST: langfuse-redis
+  REDIS_PORT: "6379"
+  REDIS_AUTH: ${LANGFUSE_REDIS_PASSWORD}
+  LANGFUSE_S3_EVENT_UPLOAD_BUCKET: langfuse
+  LANGFUSE_S3_EVENT_UPLOAD_REGION: us-east-1
+  LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: ${LANGFUSE_S3_ACCESS_KEY_ID}
+  LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: ${LANGFUSE_S3_SECRET_ACCESS_KEY}
+  LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: http://langfuse-minio:9000
+  LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"
+  LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: langfuse
+  LANGFUSE_S3_MEDIA_UPLOAD_REGION: us-east-1
+  LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID: ${LANGFUSE_S3_ACCESS_KEY_ID}
+  LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY: ${LANGFUSE_S3_SECRET_ACCESS_KEY}
+  LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: http://langfuse-minio:9000
+  LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE: "true"
+  LANGFUSE_S3_BATCH_EXPORT_ENABLED: "false"
+
 services:
+  # DECISION self-hosted OSS Langfuse, private stores and no telemetry/export.
+  # Only the authenticated web UI joins the existing proxy network. No host ports.
+  langfuse-web:
+    profiles: [engine]
+    image: docker.langfuse.com/langfuse/langfuse:4.76.0@sha256:59abb54faacf45b63d09f4076d45683dae26a6661974d497836543d350b16575
+    restart: unless-stopped
+    mem_limit: 1g
+    cpus: 1
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:3000/api/public/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 120s
+    environment:
+      <<: *langfuse-environment
+      LANGFUSE_INIT_ORG_ID: tervory
+      LANGFUSE_INIT_ORG_NAME: Tervory
+      LANGFUSE_INIT_USER_EMAIL: ${LANGFUSE_INIT_USER_EMAIL}
+      LANGFUSE_INIT_USER_PASSWORD: ${LANGFUSE_INIT_USER_PASSWORD}
+    depends_on:
+      langfuse-postgres: {condition: service_healthy}
+      langfuse-clickhouse: {condition: service_healthy}
+      langfuse-redis: {condition: service_healthy}
+      langfuse-minio: {condition: service_healthy}
+    networks: [langfuse-internal, product-proxy]
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: "xnmc0jkz8j9i5jh1jwanbsfv"
+      traefik.http.routers.langfuse-http.rule: "Host(`langfuse.tervory.com`) && PathPrefix(`/`) && !PathPrefix(`/admin`) && !PathPrefix(`/internal`)"
+      traefik.http.routers.langfuse-http.entrypoints: http
+      traefik.http.routers.langfuse-http.service: langfuse
+      traefik.http.routers.langfuse-http.priority: "100"
+      traefik.http.routers.langfuse-http.middlewares: langfuse-redirect
+      traefik.http.middlewares.langfuse-redirect.redirectscheme.scheme: https
+      traefik.http.routers.langfuse-https.rule: "Host(`langfuse.tervory.com`) && PathPrefix(`/`) && !PathPrefix(`/admin`) && !PathPrefix(`/internal`)"
+      traefik.http.routers.langfuse-https.entrypoints: https
+      traefik.http.routers.langfuse-https.service: langfuse
+      traefik.http.routers.langfuse-https.priority: "100"
+      traefik.http.routers.langfuse-https.tls: "true"
+      traefik.http.routers.langfuse-https.tls.certresolver: letsencrypt
+      traefik.http.services.langfuse.loadbalancer.server.port: "3000"
+
+  langfuse-worker:
+    profiles: [engine]
+    image: docker.langfuse.com/langfuse/langfuse-worker:4.76.0@sha256:27e8b49d619a013bca38ed9b0853456e19f5667a23e8e26e3a10d4e28485f49c
+    restart: unless-stopped
+    mem_limit: 1g
+    cpus: 1
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:3030/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 120s
+    environment: *langfuse-environment
+    depends_on:
+      langfuse-postgres: {condition: service_healthy}
+      langfuse-clickhouse: {condition: service_healthy}
+      langfuse-redis: {condition: service_healthy}
+      langfuse-minio: {condition: service_healthy}
+    networks: [langfuse-internal]
+
+  langfuse-postgres:
+    profiles: [engine]
+    # DECISION reuse the platform's PostgreSQL version, with a separate store.
+    image: postgres:16.15@sha256:933463a6c8eba2b9f5cd414138738cd8d5519cd2c471214c222652f547a66a32
+    restart: unless-stopped
+    mem_limit: 512m
+    environment:
+      TRIGGER_SIGNIN_SETUP_TOKEN: "disabled"
+      POSTGRES_USER: langfuse
+      POSTGRES_DB: langfuse
+      POSTGRES_PASSWORD: ${LANGFUSE_POSTGRES_PASSWORD}
+    volumes: [langfuse_pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: [CMD, pg_isready, -U, langfuse, -d, langfuse]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [langfuse-internal]
+
+  langfuse-clickhouse:
+    profiles: [engine]
+    image: clickhouse/clickhouse-server:26.3.62.3@sha256:de3e47c64078aa196dae2349e048fc98ba81947f651f5c20e06e46baea8ae40a
+    user: "101:101"
+    restart: unless-stopped
+    mem_limit: 2g
+    cpus: 1
+    environment:
+      TRIGGER_SIGNIN_SETUP_TOKEN: "disabled"
+      CLICKHOUSE_USER: langfuse
+      CLICKHOUSE_PASSWORD: ${LANGFUSE_CLICKHOUSE_PASSWORD}
+      CLICKHOUSE_DB: default
+    volumes:
+      - langfuse_clickhouse:/var/lib/clickhouse
+      - langfuse_clickhouse_logs:/var/log/clickhouse-server
+    healthcheck:
+      test: [CMD, wget, --quiet, --tries=1, --spider, http://127.0.0.1:8123/ping]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [langfuse-internal]
+
+  langfuse-minio:
+    profiles: [engine]
+    image: cgr.dev/chainguard/minio@sha256:aea6c163749e1caca37f907976dcf337177ddf5f558808f2aa591618fd3a6eef
+    restart: unless-stopped
+    mem_limit: 512m
+    entrypoint: sh
+    command: ["-c", "mkdir -p /data/langfuse && minio server --address ':9000' /data"]
+    environment:
+      TRIGGER_SIGNIN_SETUP_TOKEN: "disabled"
+      MINIO_ROOT_USER: ${LANGFUSE_S3_ACCESS_KEY_ID}
+      MINIO_ROOT_PASSWORD: ${LANGFUSE_S3_SECRET_ACCESS_KEY}
+      MINIO_BROWSER: "off"
+      MINIO_UPDATE: "off"
+    volumes: [langfuse_objects:/data]
+    healthcheck:
+      test:
+        - CMD
+        - bash
+        - -ec
+        - 'exec 3<>/dev/tcp/127.0.0.1/9000; printf "GET /minio/health/live HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n" >&3; IFS= read -r status <&3; [[ "$$status" == *" 200 "* ]]'
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    networks: [langfuse-internal]
+
+  langfuse-redis:
+    profiles: [engine]
+    image: redis:7.4.12@sha256:bd28fff4b665fdf1b73e8b5b73ec05d2f858f4fa3c8ea0d7c9bc09f7f6bf7039
+    restart: unless-stopped
+    mem_limit: 256m
+    command: [redis-server, --appendonly, "yes", --requirepass, "${LANGFUSE_REDIS_PASSWORD}"]
+    environment:
+      TRIGGER_SIGNIN_SETUP_TOKEN: "disabled"
+      REDISCLI_AUTH: ${LANGFUSE_REDIS_PASSWORD}
+    volumes: [langfuse_redisdata:/data]
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [langfuse-internal]
+
   postgres:
     image: postgres:16.15
     restart: unless-stopped
@@ -83,6 +266,7 @@ services:
       dockerfile: hermes/Dockerfile
     restart: unless-stopped
     environment:
+      ENGINE_C4_ENABLED: ${ENGINE_C4_ENABLED:-0}
       TRIGGER_SIGNIN_SETUP_TOKEN: "disabled"
       DATABASE_URL: postgresql://${POSTGRES_USER:-tervory}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-tervory}
       TANK_REGION: us-east
@@ -124,11 +308,61 @@ services:
       retries: 10
       start_period: 20s
 
+  # DECISION Apache-2.0 Qwen2.5-1.5B-Instruct Q4_K_M, CPU only.
+  # Provider-token cost is zero; CPU, RAM and electricity are not free.
+  local-model:
+    profiles: [engine]
+    build: ./litellm/local-model
+    platform: linux/amd64
+    restart: unless-stopped
+    cpus: 8
+    mem_limit: 3g
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health', timeout=3).close()"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+
+  # DECISION reuse the pinned runtime, with a larger Apache-2.0 model for answers.
+  local-model-large:
+    profiles: [engine]
+    build: ./litellm/local-model
+    platform: linux/amd64
+    restart: unless-stopped
+    cpus: 8
+    mem_limit: 6g
+    read_only: true
+    tmpfs: ["/tmp:size=64m,mode=1777"]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    command: ["--model", "/opt/local-model/large.gguf", "--alias", "local-large", "--host", "0.0.0.0", "--port", "8080", "--threads", "8", "--threads-batch", "8", "--ctx-size", "4096", "--parallel", "1", "--n-gpu-layers", "0", "--reasoning", "off"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health', timeout=3).close()"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+
   litellm:
     build: ./litellm
     restart: unless-stopped
     command: ["--config", "/app/config.yaml", "--port", "4000"]
     environment:
+      RADIX_BRAIN_ENABLED: ${RADIX_BRAIN_ENABLED:-false}
+      ENGINE_C1_ENABLED: ${ENGINE_C1_ENABLED:-0}
+      # DECISION engine stays offline on current Coolify apps; opt in on owned servers.
+      ENGINE_LOCAL_URL: ${ENGINE_LOCAL_URL:-}
+      ENGINE_LARGE_URL: ${ENGINE_LARGE_URL:-}
+      LANGFUSE_ENABLED: ${LANGFUSE_ENABLED:-true}
+      LANGFUSE_HOST: ${LANGFUSE_HOST:-}
+      LANGFUSE_TENANT_PROJECTS: ${LANGFUSE_TENANT_PROJECTS:-}
+      LANGFUSE_OUTBOX_PATH: /var/lib/litellm-traces/outbox.sqlite
       TRIGGER_SIGNIN_SETUP_TOKEN: "disabled"
       LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
@@ -148,6 +382,8 @@ services:
       # Writable and persistent: LiteLLM rewrites the token on every refresh (about every
       # ten days) and each refresh token works once. See docs/ops/CHATGPT-BUILD-MODEL.md.
       - litellm_chatgpt_token:/var/lib/litellm-chatgpt
+      - litellm_trace_outbox:/var/lib/litellm-traces
+    networks: [default, langfuse-internal]
     healthcheck:
       # Port only. The image is Python; this does not send the master key.
       test: ["CMD", "python", "-c", "import socket; s=socket.create_connection(('127.0.0.1',4000),3); s.close()"]
@@ -230,6 +466,7 @@ services:
     environment:
       TRIGGER_SIGNIN_SETUP_TOKEN: "disabled"
       TIGER_MAX_PAGES: ${TIGER_MAX_PAGES:-4}
+      TANK_KEY: ${TANK_KEY_TIGER:-}
     volumes:
       - tiger_data:/data
     networks:
@@ -238,7 +475,7 @@ services:
     expose:
       - "3000"
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:3000/health', timeout=3)"]
+      test: ["CMD", "python", "-c", "import os, urllib.request; urllib.request.urlopen(urllib.request.Request('http://127.0.0.1:3000/health', headers={'X-Tank-Key': os.environ.get('TANK_KEY', '')}), timeout=3)"]
       interval: 15s
       timeout: 5s
       retries: 10
@@ -254,6 +491,19 @@ services:
         GIT_SHA: ${GIT_SHA:-}
     restart: unless-stopped
     environment:
+      GHOST_BRAIN_ENABLED: ${GHOST_BRAIN_ENABLED:-false}
+      ENGINE_C1_ENABLED: ${ENGINE_C1_ENABLED:-0}
+      ENGINE_C4_ENABLED: ${ENGINE_C4_ENABLED:-0}
+      ENGINE_I8_ENABLED: ${ENGINE_I8_ENABLED:-0}
+      # DECISION engine stays offline on current Coolify apps; opt in on owned servers.
+      ENGINE_LOCAL_URL: ${ENGINE_LOCAL_URL:-}
+      ENGINE_LARGE_URL: ${ENGINE_LARGE_URL:-}
+      LANGFUSE_ENABLED: ${LANGFUSE_ENABLED:-true}
+      LANGFUSE_UI_URL: ${LANGFUSE_UI_URL:-}
+      LANGFUSE_TENANT_PROJECT_IDS: ${LANGFUSE_TENANT_PROJECT_IDS:-}
+      LANGFUSE_TENANT_PROJECTS: ${LANGFUSE_TENANT_PROJECTS:-}
+      LANGFUSE_HOST: ${LANGFUSE_HOST:-}
+      LANGFUSE_OUTBOX_PATH: /var/lib/tank-traces/outbox.sqlite
       TRIGGER_SIGNIN_CONFIG_TOKEN: ${TRIGGER_SIGNIN_CONFIG_TOKEN:?founder sets read-only directory capability}
       TRIGGER_SIGNIN_SETUP_TOKEN: ${TRIGGER_SIGNIN_SETUP_TOKEN:?founder sets Boston setup token}
       FOUNDER_REPORT_TO: ${FOUNDER_REPORT_TO:-}
@@ -330,6 +580,15 @@ services:
       SEARXNG_URL: http://searxng:8080
       TIGER_URL: http://tiger:3000
       BRAVE_API_KEY: ${BRAVE_API_KEY:-}
+      # Moot confidential media (Mux). Tank-only door; never copy to agent rooms.
+      MOOT_MUX_TOKEN_ID: ${MOOT_MUX_TOKEN_ID:-}
+      MOOT_MUX_TOKEN_SECRET: ${MOOT_MUX_TOKEN_SECRET:-}
+      MOOT_MUX_SIGNING_KEY_ID: ${MOOT_MUX_SIGNING_KEY_ID:-}
+      MOOT_MUX_SIGNING_PRIVATE_KEY: ${MOOT_MUX_SIGNING_PRIVATE_KEY:-}
+      POSTHOG_PROJECT_API_KEY: ${POSTHOG_PROJECT_API_KEY:-}
+      POSTHOG_HOST: ${POSTHOG_HOST:-}
+    volumes:
+      - tank_trace_outbox:/var/lib/tank-traces
     depends_on:
       postgres:
         condition: service_healthy
@@ -337,6 +596,7 @@ services:
         condition: service_started
     networks:
       - tervory-gw-trigger-signin
+      - langfuse-internal
       - default
       - tervory-gw-template
       - tervory-gw-tiger
@@ -463,7 +723,7 @@ services:
       RIG_3D_PRICE_ID: ${RIG_3D_PRICE_ID:-}
     depends_on:
       - tank
-    # Coolify attaches the public domain to this service (port 3000).
+    # Repo-owned ingress targets port 3000.
     expose:
       - "3000"
     healthcheck:
@@ -473,10 +733,38 @@ services:
       retries: 10
       start_period: 40s
 
-  # Public one-page site. No secrets, no Tank, no sign-in, no marketing tool.
-  # A release address is appended to /data/release-signups.jsonl on site_signups.
-  # Coolify still has to attach https://tervory.com to this service on port 3000.
-  # app.tervory.com stays on workspace. /internal is on this same service and is noindex.
+    # Repo-owned public ingress; clear the documented Coolify UI domains at cutover.
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: "xnmc0jkz8j9i5jh1jwanbsfv"
+      traefik.http.routers.product-workspace-http.rule: "(Host(`app.tervory.com`) || Host(`base.tervory.com`) || Host(`tiger.tervory.com`) || Host(`market-lab.tervory.com`) || Host(`tisan.tervory.com`) || Host(`radix.tervory.com`) || Host(`skala.tervory.com`) || Host(`tank.tervory.com`) || Host(`zenas.tervory.com`) || Host(`autumbra.tervory.com`) || Host(`protect.tervory.com`) || Host(`opli.tervory.com`) || Host(`window.tervory.com`) || Host(`mobile.tervory.com`)) && PathPrefix(`/`) && !PathPrefix(`/admin`) && !PathPrefix(`/internal`)"
+      traefik.http.routers.product-workspace-http.entrypoints: "http"
+      traefik.http.routers.product-workspace-http.service: "product-workspace"
+      traefik.http.routers.product-workspace-http.priority: "100"
+      traefik.http.routers.product-workspace-http.middlewares: "product-workspace-redirect"
+      traefik.http.routers.product-workspace-https.rule: "(Host(`app.tervory.com`) || Host(`base.tervory.com`) || Host(`tiger.tervory.com`) || Host(`market-lab.tervory.com`) || Host(`tisan.tervory.com`) || Host(`radix.tervory.com`) || Host(`skala.tervory.com`) || Host(`tank.tervory.com`) || Host(`zenas.tervory.com`) || Host(`autumbra.tervory.com`) || Host(`protect.tervory.com`) || Host(`opli.tervory.com`) || Host(`window.tervory.com`) || Host(`mobile.tervory.com`)) && PathPrefix(`/`) && !PathPrefix(`/admin`) && !PathPrefix(`/internal`)"
+      traefik.http.routers.product-workspace-https.entrypoints: "https"
+      traefik.http.routers.product-workspace-https.service: "product-workspace"
+      traefik.http.routers.product-workspace-https.priority: "100"
+      traefik.http.routers.product-workspace-https.tls: "true"
+      traefik.http.routers.product-workspace-https.tls.certresolver: "letsencrypt"
+      traefik.http.middlewares.product-workspace-redirect.redirectscheme.scheme: "https"
+      traefik.http.middlewares.product-workspace-redirect.redirectscheme.permanent: "true"
+      traefik.http.services.product-workspace.loadbalancer.server.port: "3000"
+      traefik.http.routers.product-rig-app-http.rule: "Host(`rig.tervory.com`) && PathPrefix(`/`) && !(Path(`/v1/rig`) || PathPrefix(`/v1/rig/`) || Path(`/widget`) || PathPrefix(`/widget/`) || Path(`/3d`) || PathPrefix(`/3d/`) || Path(`/page`) || PathPrefix(`/page/`) || Path(`/product`) || PathPrefix(`/product/`) || Path(`/v5`) || PathPrefix(`/v5/`) || Path(`/cn-classic`) || Path(`/house`) || Path(`/health`) || Path(`/storage`) || PathPrefix(`/storage/`)) && !PathPrefix(`/admin`) && !PathPrefix(`/internal`)"
+      traefik.http.routers.product-rig-app-http.entrypoints: "http"
+      traefik.http.routers.product-rig-app-http.service: "product-workspace"
+      traefik.http.routers.product-rig-app-http.priority: "100"
+      traefik.http.routers.product-rig-app-http.middlewares: "product-workspace-redirect"
+      traefik.http.routers.product-rig-app-https.rule: "Host(`rig.tervory.com`) && PathPrefix(`/`) && !(Path(`/v1/rig`) || PathPrefix(`/v1/rig/`) || Path(`/widget`) || PathPrefix(`/widget/`) || Path(`/3d`) || PathPrefix(`/3d/`) || Path(`/page`) || PathPrefix(`/page/`) || Path(`/product`) || PathPrefix(`/product/`) || Path(`/v5`) || PathPrefix(`/v5/`) || Path(`/cn-classic`) || Path(`/house`) || Path(`/health`) || Path(`/storage`) || PathPrefix(`/storage/`)) && !PathPrefix(`/admin`) && !PathPrefix(`/internal`)"
+      traefik.http.routers.product-rig-app-https.entrypoints: "https"
+      traefik.http.routers.product-rig-app-https.service: "product-workspace"
+      traefik.http.routers.product-rig-app-https.priority: "100"
+      traefik.http.routers.product-rig-app-https.tls: "true"
+      traefik.http.routers.product-rig-app-https.tls.certresolver: "letsencrypt"
+    networks: [default, product-proxy]
+
+  # Public marketing site; /internal has no public ingress.
   site:
     environment:
       TRIGGER_SIGNIN_SETUP_TOKEN: "disabled"
@@ -493,8 +781,27 @@ services:
       retries: 10
       start_period: 15s
 
-  # Public Claude connector. Coolify attaches https://mcp.tervory.com to port 8000.
-  # Main network only, so it can reach Tank and Redis and no agent corridor.
+    # Repo-owned public ingress; clear the documented Coolify UI domains at cutover.
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: "xnmc0jkz8j9i5jh1jwanbsfv"
+      traefik.http.routers.product-site-http.rule: "(Host(`tervory.com`) || Host(`www.tervory.com`)) && PathPrefix(`/`) && !PathPrefix(`/admin`) && !PathPrefix(`/internal`)"
+      traefik.http.routers.product-site-http.entrypoints: "http"
+      traefik.http.routers.product-site-http.service: "product-site"
+      traefik.http.routers.product-site-http.priority: "100"
+      traefik.http.routers.product-site-http.middlewares: "product-site-redirect"
+      traefik.http.routers.product-site-https.rule: "(Host(`tervory.com`) || Host(`www.tervory.com`)) && PathPrefix(`/`) && !PathPrefix(`/admin`) && !PathPrefix(`/internal`)"
+      traefik.http.routers.product-site-https.entrypoints: "https"
+      traefik.http.routers.product-site-https.service: "product-site"
+      traefik.http.routers.product-site-https.priority: "100"
+      traefik.http.routers.product-site-https.tls: "true"
+      traefik.http.routers.product-site-https.tls.certresolver: "letsencrypt"
+      traefik.http.middlewares.product-site-redirect.redirectscheme.scheme: "https"
+      traefik.http.middlewares.product-site-redirect.redirectscheme.permanent: "true"
+      traefik.http.services.product-site.loadbalancer.server.port: "3000"
+    networks: [default, product-proxy]
+
+  # Public connector, no direct access to agent corridors.
   mcp:
     environment:
       TRIGGER_SIGNIN_SETUP_TOKEN: "disabled"
@@ -504,6 +811,7 @@ services:
       - tank
       - redis
     networks:
+      - product-proxy
       - default
     expose:
       - "8000"
@@ -513,8 +821,33 @@ services:
       timeout: 5s
       retries: 10
       start_period: 15s
+    # Repo-owned public ingress; clear the documented Coolify UI domains at cutover.
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: "xnmc0jkz8j9i5jh1jwanbsfv"
+      traefik.http.routers.product-mcp-http.rule: "Host(`mcp.tervory.com`) && PathPrefix(`/`) && !PathPrefix(`/admin`) && !PathPrefix(`/internal`)"
+      traefik.http.routers.product-mcp-http.entrypoints: "http"
+      traefik.http.routers.product-mcp-http.service: "product-mcp"
+      traefik.http.routers.product-mcp-http.priority: "100"
+      traefik.http.routers.product-mcp-http.middlewares: "product-mcp-redirect"
+      traefik.http.routers.product-mcp-https.rule: "Host(`mcp.tervory.com`) && PathPrefix(`/`) && !PathPrefix(`/admin`) && !PathPrefix(`/internal`)"
+      traefik.http.routers.product-mcp-https.entrypoints: "https"
+      traefik.http.routers.product-mcp-https.service: "product-mcp"
+      traefik.http.routers.product-mcp-https.priority: "100"
+      traefik.http.routers.product-mcp-https.tls: "true"
+      traefik.http.routers.product-mcp-https.tls.certresolver: "letsencrypt"
+      traefik.http.middlewares.product-mcp-redirect.redirectscheme.scheme: "https"
+      traefik.http.middlewares.product-mcp-redirect.redirectscheme.permanent: "true"
+      traefik.http.services.product-mcp.loadbalancer.server.port: "8000"
 
 volumes:
+  tank_trace_outbox:
+  langfuse_pgdata:
+  langfuse_clickhouse:
+  langfuse_clickhouse_logs:
+  langfuse_objects:
+  langfuse_redisdata:
+  litellm_trace_outbox:
   r2_backup_spool:
   # Build-only ChatGPT token for LiteLLM. Never backed up to R2 or copied between regions.
   litellm_chatgpt_token:
@@ -528,6 +861,12 @@ volumes:
 #   docker network create tervory-gw-template
 # A later agent gets tervory-gw-<agent>, joined here by tank and postgres only.
 networks:
+  langfuse-internal:
+    internal: true
+  # Existing per-resource proxy network; no new shared agent corridor.
+  product-proxy:
+    external: true
+    name: xnmc0jkz8j9i5jh1jwanbsfv
   tervory-gw-trigger-signin:
     name: tervory-gw-trigger-signin
     internal: true

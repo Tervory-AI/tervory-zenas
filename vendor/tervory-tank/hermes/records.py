@@ -10,6 +10,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 
+from hermes.user_scope import INTERNAL, visible, wide_kinds
 from hermes.record_schema import PLATFORM_TENANT, schema_for, schema_sql
 
 log = logging.getLogger("hermes.records")
@@ -67,11 +68,14 @@ class Records:
     ):
         self.pool, self.index, self.encoder, self.model = pool, index, encoder, model
         self.agents = frozenset(agents)
+        # SQL identifiers come from startup configuration, never the requested
+        # agent string, even after its membership check.
+        self._schemas = {name: schema_for(name) for name in self.agents}
 
     def schema(self, agent: str) -> str:
         if agent not in self.agents:
             raise ValueError("Unknown agent")
-        return schema_for(agent)
+        return self._schemas[agent]
 
     async def setup(self) -> None:
         # DDL only. Never copy or backfill legacy vectors into these tables.
@@ -163,6 +167,8 @@ class Records:
                     row is None
                     or row["claim"] != claim
                     or json.loads(row["evidence"]) != evidence
+                    or json.loads(row["meta"]).get("user_id") != (meta or {}).get("user_id")
+                    or row["kind"] != kind
                 ):
                     raise ValueError("Memory id conflicts with a different record")
             if index:
@@ -181,6 +187,42 @@ class Records:
             "deduped": False,
             "index_pending": index and saved["embed_model"] != self.model,
         }
+
+    async def edit(self, agent: str, tenant: str, row_id: str, claim: str,
+                   evidence: list[str], *, user_id: str, kind: str, meta: dict,
+                   confidence: float = 0.5, last_verified: datetime | None = None) -> dict | None:
+        """Explicit personal edit; create/idempotent replay retains save's conflict rules."""
+        if not user_id or meta.get("user_id") != user_id:
+            raise ValueError("Personal edit requires matching user_id")
+        try:
+            await asyncio.to_thread(self.encoder.validate, claim)
+        except ValueError as exc:
+            raise ClaimTooLong(str(exc)) from None
+        s = self.schema(agent)
+        tenant_id, identity = uuid.UUID(tenant), uuid.UUID(row_id)
+        async with self.pool.acquire() as conn, conn.transaction():
+            await self.lock(conn, s, identity)
+            row = await conn.fetchrow(_sql("""UPDATE {schema}.memory_records
+                SET claim=$4,evidence=$5::jsonb,meta=$6::jsonb,confidence=$7,
+                    last_verified=$8,embed_model='',updated_at=now()
+                WHERE id=$1 AND tenant_id=$2 AND tier='client'
+                  AND meta->>'user_id'=$3 AND kind=$9 RETURNING id""", s),
+                identity, tenant_id, user_id, claim, json.dumps(evidence),
+                json.dumps(meta), confidence, last_verified, kind)
+            if row is None:
+                return None
+            # A changed claim gets its own retry budget. Stale vectors remain
+            # invisible until the committed new claim has been re-indexed.
+            await conn.execute(_sql("""DELETE FROM {schema}.memory_index_jobs
+                WHERE row_id=$1 AND tenant_id=$2 AND operation='upsert'""", s), identity, tenant_id)
+            await self.enqueue(conn, s, identity, tenant_id, self.model)
+        await self.process_one(agent, tenant_id, identity, self.model)
+        saved = await self.get(agent, tenant, row_id, user_id=user_id)
+        if saved is None:
+            return None
+        return {**saved, "text": saved["claim"], "sources": saved["evidence"],
+                "source": next(iter(saved["evidence"]), ""), "updated": True,
+                "index_pending": saved["embed_model"] != self.model}
 
     async def enqueue(
         self,
@@ -204,7 +246,7 @@ class Records:
         )
 
     async def get(
-        self, agent: str, tenant: str, row_id: str, tier: str = "client"
+        self, agent: str, tenant: str, row_id: str, tier: str = "client", *, user_id=INTERNAL
     ) -> dict | None:
         if tier not in ("client", "platform"):
             raise ValueError("Read-only reference corpus")
@@ -213,17 +255,18 @@ class Records:
             row = await conn.fetchrow(
                 _sql(
                     """SELECT * FROM {schema}.memory_records
-                WHERE id=$1 AND tenant_id=$2 AND tier=$3""",
+                WHERE id=$1 AND tenant_id=$2 AND tier=$3""" + (" AND " + visible(4) if user_id is not INTERNAL and tier == "client" else ""),
                     self.schema(agent),
                 ),
                 uuid.UUID(row_id),
                 uuid.UUID(owner),
                 tier,
+                *((user_id, wide_kinds(agent)) if user_id is not INTERNAL and tier == "client" else ()),
             )
         return public_row(row) if row else None
 
     async def list(
-        self, agent: str, tenant: str, tier: str = "client", limit: int = 50, offset: int = 0
+        self, agent: str, tenant: str, tier: str = "client", limit: int = 50, offset: int = 0, *, user_id=INTERNAL
     ) -> list[dict]:
         if tier not in ("client", "platform"):
             raise ValueError("Read-only reference corpus")
@@ -232,16 +275,17 @@ class Records:
             rows = await conn.fetch(
                 _sql(
                     """SELECT * FROM {schema}.memory_records
-                WHERE tenant_id=$1 AND tier=$2 ORDER BY created_at DESC,id LIMIT $3 OFFSET $4""",
+                WHERE tenant_id=$1 AND tier=$2""" + (" AND " + visible(5) if user_id is not INTERNAL and tier == "client" else "") + " ORDER BY created_at DESC,id LIMIT $3 OFFSET $4",
                     self.schema(agent),
                 ),
                 uuid.UUID(owner),
                 tier,
                 limit, offset,
+                *((user_id, wide_kinds(agent)) if user_id is not INTERNAL and tier == "client" else ()),
             )
         return [public_row(row) for row in rows]
 
-    async def founder_get(self, row_id: uuid.UUID) -> dict | None:
+    async def founder_get(self, row_id: uuid.UUID, *, user_id=INTERNAL) -> dict | None:
         """ID-only inspection, called exclusively after founder authorization.
 
         Only configured agent schemas are searched. A colliding ID is refused
@@ -254,10 +298,11 @@ class Records:
                     _sql(
                         """SELECT id,tenant_id,agent,claim,evidence,confidence,
                     last_verified,embed_model,created_at,updated_at
-                    FROM {schema}.memory_records WHERE id=$1""",
+                    FROM {schema}.memory_records WHERE id=$1""" + (" AND (tier='platform' OR " + visible(2) + ")" if user_id is not INTERNAL else ""),
                         self.schema(agent),
                     ),
                     row_id,
+                    *((user_id, wide_kinds(agent)) if user_id is not INTERNAL else ()),
                 )
                 if row is not None:
                     if found is not None:
@@ -273,17 +318,29 @@ class Records:
         kind: str | None,
         limit: int,
         tier: str,
+        *, user_id=INTERNAL,
     ) -> list[dict]:
         if tier not in ("client", "platform"):
             raise ValueError("Read-only reference corpus")
         owner = PLATFORM_TENANT if tier == "platform" else tenant
+        allowed = None
+        if user_id is not INTERNAL and tier == "client":
+            async with self.pool.acquire() as conn:
+                rows = await conn.fetch(_sql(
+                    "SELECT id FROM {schema}.memory_records WHERE tenant_id=$1 AND tier=$2 AND "
+                    + visible(3) + " AND ($5::text IS NULL OR kind=$5)", self.schema(agent)),
+                    uuid.UUID(owner), tier, user_id, wide_kinds(agent), kind)
+            allowed = [str(row["id"]) for row in rows]
+            if not allowed:
+                return []
         vector = await asyncio.to_thread(self.encoder.embed, query)
         hits = await asyncio.to_thread(
-            self.index.search, agent, owner, tier, vector, self.model, kind, limit
+            self.index.search, agent, owner, tier, vector, self.model, kind, limit,
+            **({"allowed_ids": allowed} if allowed is not None else {}),
         )
         results = []
         for row_id, score in hits:
-            row = await self.get(agent, owner, row_id, tier)
+            row = await self.get(agent, owner, row_id, tier, user_id=user_id)
             if (
                 row
                 and row["embed_model"] == self.model
@@ -455,17 +512,18 @@ class Records:
                 log.warning("Memory index worker unavailable")
             await asyncio.sleep(30)
 
-    async def forget(self, agent: str, tenant: str, row_id: str | None = None) -> int:
+    async def forget(self, agent: str, tenant: str, row_id: str | None = None, *, user_id=INTERNAL) -> int:
         s = self.schema(agent)
         async with self.pool.acquire() as conn, conn.transaction():
             candidates = await conn.fetch(
                 _sql(
                     """SELECT id FROM {schema}.memory_records WHERE tenant_id=$1 AND tier='client'
-                AND ($2::uuid IS NULL OR id=$2) ORDER BY id""",
+                AND ($2::uuid IS NULL OR id=$2)""" + (" AND " + visible(3) if user_id is not INTERNAL else "") + " ORDER BY id",
                     s,
                 ),
                 uuid.UUID(tenant),
                 uuid.UUID(row_id) if row_id else None,
+                *((user_id, wide_kinds(agent)) if user_id is not INTERNAL else ()),
             )
             removed = 0
             for candidate in candidates:
@@ -473,11 +531,12 @@ class Records:
                 row = await conn.fetchrow(
                     _sql(
                         """DELETE FROM {schema}.memory_records
-                    WHERE tenant_id=$1 AND id=$2 AND tier='client' RETURNING id,embed_model""",
+                    WHERE tenant_id=$1 AND id=$2 AND tier='client'""" + (" AND " + visible(3) if user_id is not INTERNAL else "") + " RETURNING id,embed_model",
                         s,
                     ),
                     uuid.UUID(tenant),
                     candidate["id"],
+                    *((user_id, wide_kinds(agent)) if user_id is not INTERNAL else ()),
                 )
                 if row is None:
                     continue

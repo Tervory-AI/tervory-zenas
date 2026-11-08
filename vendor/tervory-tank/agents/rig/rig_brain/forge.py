@@ -103,13 +103,13 @@ async def forge_addresses():
 
 async def forward(method, base, path, *, key=None, **kwargs):
     try:
-        async with httpx.AsyncClient(trust_env=False, timeout=40) as client:
+        async with asyncio.timeout(40), httpx.AsyncClient(trust_env=False, timeout=40) as client:
             response = await client.request(method, base + path,
                 headers={"X-Tank-Key": key} if key else {}, **kwargs)
         if response.status_code not in {200, 202, 400, 401, 403, 404, 409, 422, 429, 503}:
             raise ValueError("upstream unavailable")
         return JSONResponse(response.json(), status_code=response.status_code)
-    except (httpx.HTTPError, ValueError):
+    except (httpx.HTTPError, ValueError, TimeoutError):
         raise HTTPException(503, "Forge or Tank is unavailable; no success is claimed.") from None
 
 

@@ -40,10 +40,16 @@ async function serve(req: Request, context: Context) {
   const isCreate = req.method === "POST" && segments.length === 1 && segments[0] === "hearings";
   const isCommand = req.method === "POST" && segments.length === 3 && segments[0] === "hearings"
     && UUID.test(segments[1]) && ACTIONS.has(segments[2]);
+  const isMediaCreate = req.method === "POST" && segments.length === 4 && segments[0] === "hearings"
+    && UUID.test(segments[1]) && segments[2] === "media" && segments[3] === "uploads";
+  const isMediaRead = req.method === "GET" && segments.length === 5 && segments[0] === "hearings"
+    && UUID.test(segments[1]) && segments[2] === "media"
+    && ["uploads", "assets", "playback"].includes(segments[3])
+    && /^[0-9A-Za-z_-]{1,80}$/.test(segments[4] ?? "");
   const isRead = req.method === "GET" && (segments.length === 1 && ["hearings", "sources", "participants"].includes(segments[0])
     || segments.length === 2 && segments[0] === "hearings" && UUID.test(segments[1])
     || segments.length === 3 && segments[0] === "hearings" && UUID.test(segments[1]) && segments[2] === "fairness");
-  if (!isCreate && !isCommand && !isRead) return reply({ error: "not_found" }, 404);
+  if (!isCreate && !isCommand && !isRead && !isMediaCreate && !isMediaRead) return reply({ error: "not_found" }, 404);
   try {
     const identity = await auth();
     if (!identity.userId) return reply({ error: "not_signed_in" }, 401);
@@ -68,6 +74,49 @@ async function serve(req: Request, context: Context) {
     if (seat) {
       if (!SEATS.has(seat)) return reply({ error: "invalid_seat" }, 400);
       params.set("seat", seat);
+    }
+    const screen = new URL(req.url).searchParams.get("screen");
+    if (screen) {
+      if (!["bench", "citations", "feedback"].includes(screen)) return reply({ error: "invalid_request" }, 400);
+      params.set("screen", screen);
+    }
+    if (isMediaCreate || isMediaRead) {
+      let mediaBody: Record<string, unknown> | null = null;
+      if (isMediaCreate) {
+        mediaBody = await jsonBody(req);
+        if (!mediaBody || typeof mediaBody.cors_origin !== "string" || !mediaBody.cors_origin.trim() || mediaBody.cors_origin.length > 200) {
+          return reply({ error: "invalid_cors_origin" }, 400);
+        }
+        const mediaKeys = Object.keys(mediaBody).filter((k) => k !== "cors_origin" && k !== "home_region");
+        if (mediaKeys.length) return reply({ error: "invalid_request" }, 400);
+      }
+      const mediaPath = "moot/" + segments.join("/");
+      // x-tervory-* triggers Workspace signinFetch → Tank OIDC verification.
+      // X-Moot remains for the Zenas room hearing gate; Tank binds actor from trigger_signin only.
+      const mediaHeaders: Record<string, string> = {
+        "X-Moot-Actor": tenant.userId,
+        "X-Moot-Tenant": tenant.tenantId,
+        "x-tervory-user": tenant.userId,
+        "x-tervory-tenant": tenant.tenantId,
+      };
+      const idem = req.headers.get("idempotency-key");
+      if (idem && /^[0-9a-fA-F-]{8,64}$/.test(idem)) mediaHeaders["idempotency-key"] = idem;
+      const response = await zenas(`${mediaPath}?${params}`, {
+        method: req.method,
+        signal: req.signal,
+        headers: mediaHeaders,
+        ...(mediaBody ? { body: JSON.stringify(mediaBody) } : {}),
+      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => null) as { error?: unknown; detail?: unknown; required_secrets?: unknown } | null;
+        const code = typeof data?.error === "string" && /^[a-z_]{1,80}$/.test(data.error)
+          ? data.error
+          : typeof data?.detail === "string" && /^[a-z_]{1,80}$/.test(data.detail) ? data.detail : "room_unavailable";
+        const payload: Record<string, unknown> = { error: code };
+        if (Array.isArray(data?.required_secrets)) payload.required_secrets = data.required_secrets;
+        return reply(payload, response.status >= 500 ? 503 : response.status);
+      }
+      return reply(await response.json(), response.status);
     }
     let body: Record<string, unknown> | null = null;
     if (req.method === "POST") {

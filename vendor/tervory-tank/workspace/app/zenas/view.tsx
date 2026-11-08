@@ -1,5 +1,8 @@
 "use client";
+import { zenasFetch } from "@/app/zenas/request";
 
+import { fetchWithDeadline as fetch } from "../../lib/request";
+import { safeHref } from "@/app/prices/format";
 import Link from "next/link";
 import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { DeadlinesPanel } from "./deadlines-panel";
@@ -63,7 +66,7 @@ export function ZenasView({
   const [asked, setAsked] = useState<string | null>(null);
   const [reply, setReply] = useState<AskReply | null>(null);
   const [asking, setAsking] = useState(false);
-  const [messages, setMessages] = useState(0);
+  const messages = Number(Boolean(asked)) + Number(Boolean(reply));
   const [attached, setAttached] = useState<string | null>(null);
   const [actionNote, setActionNote] = useState("");
   const [section, setSection] = useState<"chats" | "moot" | "deadlines">("chats");
@@ -80,6 +83,7 @@ export function ZenasView({
         searchRef.current?.focus();
       }
       if (event.key === "Escape") {
+        if (areasMenuRef.current?.contains(document.activeElement)) areasRef.current?.focus();
         setSearchOpen(false);
         setPluginsOpen(false);
         setMenu(false);
@@ -180,11 +184,10 @@ export function ZenasView({
     setAsked(text);
     setReply(null);
     setAsking(true);
-    setMessages((count) => count + 2);
     setActionNote("");
     if (askRef.current) askRef.current.value = "";
     try {
-      const res = await fetch("/api/zenas/answers", {
+      const res = await zenasFetch("/api/zenas/answers", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ question: text }),
@@ -275,13 +278,13 @@ export function ZenasView({
           <div className="zn-side-head">
             <p className="zn-kicker">DIARY</p>
           </div>
-          <p className="zn-empty">No matters yet.</p>
+          <p className="zn-empty">0 · <Link href="/matters">Open a matter</Link></p>
         </section>
         <section className="zn-side" aria-label="Upcoming court dates">
           <div className="zn-side-head">
             <p className="zn-kicker">UPCOMING COURT DATES</p>
           </div>
-          <p className="zn-empty">No matters yet.</p>
+          <p className="zn-empty">0 · <Link href="/matters">Open a matter</Link></p>
         </section>
         <div className="zn-spacer" />
         </div>
@@ -318,7 +321,7 @@ export function ZenasView({
               id="zenas-search"
               ref={searchRef}
               value={query}
-              placeholder={SEARCH_PLACEHOLDER}
+              aria-label={SEARCH_PLACEHOLDER} placeholder={SEARCH_PLACEHOLDER}
               role="combobox"
               aria-expanded={searchOpen}
               aria-controls={listId}
@@ -370,7 +373,7 @@ export function ZenasView({
                     </section>
                   );
                 })}
-                {hits.length === 0 ? <p className="zn-empty">{query.trim() ? "No records match that search." : "No matters yet."}</p> : null}
+                {hits.length === 0 ? <p className="zn-empty">{query.trim() ? "No records match that search." : "No matters yet."} · <Link href="/matters">Open a matter</Link></p> : null}
                 <p className="zn-results-foot">
                   Enter to see all {hits.length} results · ↑↓ to move · Searches matters, drafts, documents, citations and review in Zenas only.
                 </p>
@@ -421,7 +424,7 @@ export function ZenasView({
                     <ul className="zn-cited">
                       {reply.sources.map((source) => (
                         <li key={`ask-${source.citation}`}>
-                          <strong>{source.url ? <a href={source.url}>{source.citation}</a> : source.citation}</strong>
+                          <strong>{safeHref(source.url || "") ? <a href={safeHref(source.url || "")!}>{source.citation}</a> : source.citation}</strong>
                           {source.quote ? <span>{source.quote}</span> : null}
                         </li>
                       ))}
@@ -433,7 +436,7 @@ export function ZenasView({
                           bench_size: item.bench_size,
                         }, rules);
                         const href = item.url
-                          ? `${item.url}${item.paragraph ? `#para-${item.paragraph}` : ""}`
+                          ? (/^https?:\/\//i.test(item.url) ? `${item.url}${item.paragraph ? `#para-${item.paragraph}` : ""}` : "")
                           : "";
                         return (
                           <li key={`${item.citation}-${item.paragraph}`}>
@@ -452,7 +455,7 @@ export function ZenasView({
                 </article>
               </>
             ) : (
-              <p className="zn-empty">No matters yet.</p>
+              <p className="zn-empty">0 · <Link href="/matters">Open a matter</Link></p>
             )}
           </div>
           <form className="zn-composer" onSubmit={onAsk}>
@@ -464,7 +467,7 @@ export function ZenasView({
                   + Attach
                   <input
                     className="zn-sr"
-                    type="file"
+                    type="file" disabled title="Not offered yet."
                     onChange={(event) => setAttached(event.target.files?.[0]?.name ?? null)}
                   />
                 </label>
@@ -484,7 +487,7 @@ export function ZenasView({
               <h2>Recent matters</h2>
               <Link href="/matters">View all</Link>
             </header>
-            {MATTER_ROWS === 0 ? <p className="zn-empty">No matters yet.</p> : null}
+            {MATTER_ROWS === 0 ? <p className="zn-empty">0 · <Link href="/matters">Open a matter</Link></p> : null}
           </article>
           <div className="zn-work-side">
             <article className="zn-card">
@@ -492,14 +495,14 @@ export function ZenasView({
                 <h2>Review</h2>
                 <Link href="/review">View all</Link>
               </header>
-              {REVIEW_ROWS === 0 ? <p className="zn-empty">No matters yet.</p> : null}
+              {REVIEW_ROWS === 0 ? <p className="zn-empty">0 · <Link href="/matters">Open a matter</Link></p> : null}
             </article>
             <article className="zn-card">
               <header>
                 <h2>Deadlines</h2>
                 <button type="button" onClick={showDeadlines}>View all</button>
               </header>
-              {DEADLINE_ROWS.length === 0 ? <p className="zn-empty">No matters yet.</p> : null}
+              {DEADLINE_ROWS.length === 0 ? <p className="zn-empty">0 · <Link href="/matters">Open a matter</Link></p> : null}
             </article>
           </div>
         </section>

@@ -42,7 +42,7 @@ class ModelAccountBlocked(Exception):
     """The model provider refused the account. The record stays queued."""
 
     def __init__(self, reason: str) -> None:
-        self.reason = reason[:300]
+        self.reason = "Model account unavailable; completed work was kept."
         super().__init__(self.reason)
 
 
@@ -64,6 +64,8 @@ def skill_ids(engine: str | None) -> list[str]:
 
 
 def is_account_error(exc: Exception) -> bool:
+    if getattr(exc, "account_blocked", False):
+        return True
     msg = str(getattr(exc, "detail", "") or exc).lower()
     return any(token in msg for token in _ACCOUNT_ERRORS)
 
@@ -413,7 +415,7 @@ async def enrich_one(
                         raise ModelAccountBlocked(str(getattr(exc, "detail", "") or exc)) from exc
                     passes["2c"] = {
                         "skill": named("base.extract"),
-                        "skipped": f"model call failed: {str(exc)[:120]}",
+                        "skipped": "model call failed: completed work was kept",
                     }
                 else:
                     conf = int(ex.get("confidence") or 0)
@@ -569,7 +571,7 @@ async def enrich_one(
                 raise ModelAccountBlocked(str(getattr(exc, "detail", "") or exc)) from exc
             passes["5"] = {
                 "skill": named("base.business_data"),
-                "skipped": f"model call failed: {str(exc)[:120]}",
+                "skipped": "model call failed: completed work was kept",
             }
         else:
             if biz.get("confidence"):
@@ -605,7 +607,7 @@ async def enrich_one(
             status="failed",
             profile=profile,
             passes=passes,
-            error=str(exc)[:1000],
+            error="Base could not complete this request. Completed work was kept.",
             cost_usd=cost,
         )
 
@@ -627,9 +629,10 @@ async def enrich_queued(
     limit: int,
     refs: dict[str, str] | None = None,
     engine_version: str | None = None,
+    on_result: Callable[[int, Outcome], Awaitable[None]] | None = None,
 ) -> list[tuple[int, Outcome | None]]:
     """Run the still-queued indexes. A paused model leaves the record untouched (None)."""
-    sem = asyncio.Semaphore(limit)
+    sem = asyncio.Semaphore(concurrency_limit(limit))
     results: list[tuple[int, Outcome | None]] = []
 
     async def one(index: int) -> None:
@@ -642,8 +645,17 @@ async def enrich_queued(
             else:
                 reg = [row for row in registry if row.get("id") != str(rec_ids[index])]
             outcome = await enrich_one({**inputs[index], "_base_record_id": str(rec_ids[index])}, engine_rows[index], reg, engine, call, refs, engine_version)
+            if on_result is not None:
+                await on_result(index, outcome)
             results.append((index, outcome))
 
-    await asyncio.gather(*(one(index) for index in indexes))
+    tasks = [asyncio.create_task(one(index)) for index in indexes]
+    try:
+        await asyncio.gather(*tasks)
+    except BaseException:
+        for task in tasks:
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
+        raise
     results.sort(key=lambda item: item[0])
     return results

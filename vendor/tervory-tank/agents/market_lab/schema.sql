@@ -102,6 +102,8 @@ CREATE TABLE IF NOT EXISTS agent_market_lab.reports (
     citations   jsonb NOT NULL
 );
 
+ALTER TABLE agent_market_lab.reports ADD COLUMN IF NOT EXISTS receipts jsonb NOT NULL DEFAULT '[]'::jsonb;
+
 CREATE INDEX IF NOT EXISTS reports_tenant_idx
     ON agent_market_lab.reports (tenant_id, made_at);
 

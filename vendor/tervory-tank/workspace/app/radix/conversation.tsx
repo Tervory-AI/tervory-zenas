@@ -1,6 +1,8 @@
 "use client";
 
+import { fetchWithDeadline as fetch } from "../../lib/request";
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import { radixJSON } from "./io";
 import type { RadixRecord, Reference } from "./request-service";
 
 type Message = { role: "user" | "assistant"; content: string; sources?: Reference[] };
@@ -13,11 +15,6 @@ function recentHistory(thread: Message[]) {
     remaining -= text.length;
     return { role, content: text };
   }).filter((message) => message.content.length > 0).reverse();
-}
-async function read(response: Response) {
-  const data = await response.json();
-  if (!response.ok) throw new Error(typeof data.error === "string" ? data.error : "Radix could not complete that request.");
-  return data;
 }
 
 export function RadixDesk() {
@@ -46,7 +43,7 @@ export function RadixDesk() {
       setLoading(true);
       setRecordError("");
       try {
-        const data = await read(await fetch(endpoint + "?q=" + encodeURIComponent(query), { cache: "no-store", signal: controller.signal }));
+        const data = await radixJSON(endpoint + "?q=" + encodeURIComponent(query), { cache: "no-store", signal: controller.signal });
         if (!controller.signal.aborted) { setRecords(data.records); setLimited(data.limited); }
       } catch {
         if (!controller.signal.aborted) { setRecords([]); setRecordError("Your Radix records could not load. Try again."); }
@@ -63,7 +60,7 @@ export function RadixDesk() {
     setRecordError("");
     setSelected(null);
     try {
-      const data = await read(await fetch(endpoint + "?id=" + encodeURIComponent(id), { cache: "no-store", signal: controller.signal }));
+      const data = await radixJSON(endpoint + "?id=" + encodeURIComponent(id), { cache: "no-store", signal: controller.signal });
       if (!controller.signal.aborted) setSelected(data.record);
     } catch {
       if (!controller.signal.aborted) setRecordError("That Radix record could not load. Try again.");
@@ -73,16 +70,16 @@ export function RadixDesk() {
   async function send(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const text = draft.trim();
-    if (!text || busy) return;
+    if (!text || busy || sending.current) return;
     const controller = new AbortController();
     sending.current = controller;
     setBusy(true); setError(""); setProgress("Sending request…");
     let accepted = false;
     try {
-      const data = await read(await fetch(endpoint, {
+      const data = await radixJSON(endpoint, {
         method: "POST", headers: { "content-type": "application/json" }, signal: controller.signal,
         body: JSON.stringify({ text, history: recentHistory(thread), referenceId: reference?.id }),
-      }));
+      });
       accepted = true;
       setThread((messages) => [...messages, { role: "user", content: text }]);
       setDraft(""); setReference(null); setRevision((value) => value + 1);
@@ -96,20 +93,22 @@ export function RadixDesk() {
         }
         await new Promise((resolve) => setTimeout(resolve, 1500));
         if (controller.signal.aborted) return;
-        const next = await read(await fetch(endpoint + "?id=" + encodeURIComponent(record.id), { cache: "no-store", signal: controller.signal }));
+        const next = await radixJSON(endpoint + "?id=" + encodeURIComponent(record.id), { cache: "no-store", signal: controller.signal });
         record = next.record;
       }
       if (record.status === "failed") throw new Error("Radix could not answer this request. It is saved in your records; you can send a new request.");
       if (!record.reply) throw new Error("The request finished without a reply. Check its record before trying again.");
       setThread((messages) => [...messages, { role: "assistant", content: record.reply!, sources: data.sources }]);
       setProgress("");
+      window.dispatchEvent(new Event("radix:refresh"));
       requestAnimationFrame(() => replyEnd.current?.scrollIntoView({ block: "nearest" }));
     } catch (cause) {
       if (!controller.signal.aborted) {
         setError(cause instanceof Error ? cause.message : "The request could not be sent.");
-        setProgress(accepted ? "Your request was saved. Check its record for the latest status." : "Not sent. Your text is still in the box.");
+        setProgress(accepted ? "Your request was saved. Check its record for the latest status." : "The request could not be confirmed. Check recent Radix records before sending again.");
       }
     } finally {
+      if (sending.current === controller) sending.current = null;
       if (!controller.signal.aborted) { setBusy(false); setRevision((value) => value + 1); }
     }
   }
@@ -117,7 +116,7 @@ export function RadixDesk() {
   return <div className="rx-desk">
     <section className="rx-card rx-record-search" aria-labelledby="rx-record-search-title">
       <div className="rx-finding-heading"><h2 id="rx-record-search-title">Search Radix records</h2>
-        <button type="button" className="rx-text-button" onClick={() => setRevision((value) => value + 1)}>Refresh records</button></div>
+        <button type="button" className="rx-text-button" onClick={() => { setRevision((value) => value + 1); window.dispatchEvent(new Event("radix:refresh")); }}>Refresh records</button></div>
       <label className="rx-search-label" htmlFor="rx-record-query">Find a recent request by title, reply, or status.</label>
       <input id="rx-record-query" type="search" value={query} maxLength={200}
         onChange={(event) => { setQuery(event.target.value); setRecordPage(0); }} placeholder="Search Radix requests…" />
@@ -125,11 +124,11 @@ export function RadixDesk() {
         {loading ? "Loading Radix records…" : recordError || (records.length ? records.length + " Radix records" : query ? "No matching Radix records." : "No recent Radix requests. Send one below to start.")}
       </div>
       {limited ? <p className="rx-record-limit">Results cover the latest 200 workspace requests and show Radix only. Older records are not included.</p> : null}
-      {!loading && !recordError && records.length > 0 ? <ul className="rx-record-list">{records.slice(pageIndex * 5, pageIndex * 5 + 5).map((record) =>
+      {!loading && records.length > 0 ? <ul className="rx-record-list">{records.slice(pageIndex * 5, pageIndex * 5 + 5).map((record) =>
         <li key={record.id}><button type="button" onClick={() => openRecord(record.id)}>
           <span>{record.title}</span><span className="rx-badge">{record.status}</span>
         </button></li>)}</ul> : null}
-      {!loading && !recordError && records.length > 5 ? <div className="rx-record-pages"><button type="button" className="rx-text-button" disabled={pageIndex === 0} onClick={() => setRecordPage(pageIndex - 1)}>Previous records</button><span>{pageIndex * 5 + 1}–{Math.min(pageIndex * 5 + 5, records.length)} of {records.length}</span><button type="button" className="rx-text-button" disabled={(pageIndex + 1) * 5 >= records.length} onClick={() => setRecordPage(pageIndex + 1)}>Next records</button></div> : null}
+      {!loading && records.length > 5 ? <div className="rx-record-pages"><button type="button" className="rx-text-button" disabled={pageIndex === 0} onClick={() => setRecordPage(pageIndex - 1)}>Previous records</button><span>{pageIndex * 5 + 1}–{Math.min(pageIndex * 5 + 5, records.length)} of {records.length}</span><button type="button" className="rx-text-button" disabled={(pageIndex + 1) * 5 >= records.length} onClick={() => setRecordPage(pageIndex + 1)}>Next records</button></div> : null}
       {selected ? <article className="rx-selected-record">
         <div className="rx-finding-heading"><h3>{selected.title}</h3><button type="button" className="rx-text-button" onClick={() => setSelected(null)}>Close record</button></div>
         <p className="rx-meta">Radix · {selected.status}</p>

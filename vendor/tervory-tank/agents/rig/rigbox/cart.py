@@ -392,8 +392,8 @@ class Cart:
             async with self.rows.lock(tenant, candidate['id']) as rows:
                 row = await rows.get(tenant, candidate['id'])
                 if row['state'] in ('pending', 'cancel_unknown') and self.clock() >= stamp(row['expires_at']):
-                    platform = await self.platform(tenant, row['config'])
                     try:
+                        platform = await self.platform(tenant, row['config'])
                         order = await platform.read(row['remote'])
                         if order.get('paid'):
                             # A read is not a signed webhook. Await signed evidence.

@@ -402,6 +402,7 @@ CREATE TABLE IF NOT EXISTS agent_rig.rig_3d_jobs (
 );
 CREATE INDEX IF NOT EXISTS rig_3d_jobs_product
     ON agent_rig.rig_3d_jobs (tenant_id,product_id,status,approved_at DESC);
+ALTER TABLE agent_rig.rig_3d_jobs ADD COLUMN IF NOT EXISTS progress jsonb NOT NULL DEFAULT '[]'::jsonb;
 
 ALTER TABLE agent_rig.fits ADD COLUMN IF NOT EXISTS mount_points jsonb NOT NULL DEFAULT '{}'::jsonb;
 

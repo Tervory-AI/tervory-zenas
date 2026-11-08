@@ -356,9 +356,8 @@ async def _connect() -> Any:
     url = os.environ.get("DATABASE_URL", "")
     if not url:
         raise OSError("database unavailable")
-    import asyncpg
-
-    return await asyncpg.connect(url)
+    from core.database import connect
+    return await connect(url)
 
 
 async def read_candidates(*, limit: int, region: str) -> list[dict[str, Any]]:

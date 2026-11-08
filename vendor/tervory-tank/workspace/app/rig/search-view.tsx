@@ -1,6 +1,8 @@
 "use client";
+import { fetchWithDeadline as fetch } from "../../lib/request";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { request } from "./request";
 import { type Part, type Pistol } from "./copy";
 
 type SourceRef = { title: string; detail: string };
@@ -25,14 +27,13 @@ function Pill({ children, on = true }: { children: string; on?: boolean }) {
 }
 
 async function call<T>(body: unknown): Promise<T> {
-  const response = await fetch("/rig/api/rig", {
-    method: "POST",
-    headers: { "content-type": "application/json", accept: "application/json" },
+  return request("/rig/api/rig", {
+    method: "POST", headers: { "content-type": "application/json", accept: "application/json" },
     body: JSON.stringify(body),
-  });
-  const data = (await response.json()) as T & { error?: string };
-  if (!response.ok) throw new Error(data.error || "Rig did not answer. Try again.");
-  return data;
+  }, async response => {
+    if (!response.ok) throw new Error("Rig did not answer. Try again.");
+    return await response.json() as T;
+  }, (body as { op?: string }).op === "ask" ? 190000 : 35000);
 }
 
 export function SearchView({ query, onQuery, hasCatalogue }: { query: string; onQuery: (value: string) => void; hasCatalogue: boolean }) {
@@ -46,6 +47,8 @@ export function SearchView({ query, onQuery, hasCatalogue }: { query: string; on
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [final, setFinal] = useState(false);
+  const searchVersion = useRef(0), graphVersion = useRef(0);
+  useEffect(() => () => { searchVersion.current++; graphVersion.current++; }, []);
 
   useEffect(() => {
     if (query && query !== text) {
@@ -58,6 +61,7 @@ export function SearchView({ query, onQuery, hasCatalogue }: { query: string; on
 
   useEffect(() => {
     if (!hasCatalogue) {
+      searchVersion.current++; graphVersion.current++;
       setPistols([]); setParts([]); setAdded([]); setChosen("");
       setThread([]); setLine(""); setFinal(false);
     }
@@ -102,8 +106,10 @@ export function SearchView({ query, onQuery, hasCatalogue }: { query: string; on
   }
 
   async function loadParts(id: string) {
+    const version = ++graphVersion.current;
     try {
       const body = await call<{ branches?: { category?: string; products?: Hit[] }[] }>({ op: "graph", id });
+      if (version !== graphVersion.current) return;
       const next: Part[] = [];
       for (const branch of body.branches ?? []) {
         const type = branch.category === "Aftermarket sights" ? "Sights" : String(branch.category ?? "");
@@ -121,19 +127,23 @@ export function SearchView({ query, onQuery, hasCatalogue }: { query: string; on
       setAdded([]);
       setFinal(false);
     } catch {
+      if (version !== graphVersion.current) return;
       setParts([]);
-      setLine("");
+      setLine("Rig did not answer. Try again.");
     }
   }
 
   async function run(q: string, tellParent: boolean) {
     const trimmed = q.trim();
     if (!trimmed || !hasCatalogue) return;
+    const version = ++searchVersion.current;
+    graphVersion.current++;
     if (tellParent) onQuery(trimmed);
     setText(trimmed);
     setLine("");
     try {
       const body = await call<{ results?: Hit[]; exact_match?: boolean; message?: string }>({ op: "search", q: trimmed });
+      if (version !== searchVersion.current) return;
       const hits = Array.isArray(body.results) ? body.results : [];
       if (!hits.length) {
         setPistols([]);
@@ -146,7 +156,9 @@ export function SearchView({ query, onQuery, hasCatalogue }: { query: string; on
       }
       applyHits(trimmed, hits, body.exact_match !== false, body.message);
     } catch {
-      setLine("");
+      if (version !== searchVersion.current) return;
+      setPistols([]); setParts([]); setAdded([]); setChosen(""); setFinal(false);
+      setLine("Rig did not answer. Try again.");
     }
   }
 
@@ -161,6 +173,7 @@ export function SearchView({ query, onQuery, hasCatalogue }: { query: string; on
   }
 
   function reset() {
+    graphVersion.current++;
     setChosen("");
     setAdded([]);
     setParts([]);
@@ -232,7 +245,7 @@ export function SearchView({ query, onQuery, hasCatalogue }: { query: string; on
             Search
           </button>
         </form>
-        <p className="results-line">{hasCatalogue ? line : ""}</p>
+        <p className="results-line" role="status" aria-live="polite">{hasCatalogue ? line : <>— <a href="/rig/admin">Import your catalogue file or connect an official feed.</a></>}</p>
       </div>
 
       <div className="search-split">

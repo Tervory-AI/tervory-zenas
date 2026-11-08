@@ -6,6 +6,7 @@ import os
 import re
 import time
 import threading
+import math
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -99,6 +100,8 @@ class PoliteClient:
         clock: Callable[[], float] | None = None,
         max_bytes: int | None = None,
     ) -> None:
+        if not math.isfinite(timeout) or timeout <= 0 or type(retries) is not int or not 1 <= retries <= DEFAULT_RETRIES:
+            raise ValueError('Feed timeout and retry count must be bounded')
         self.delay = delay
         self.timeout = timeout
         self.retries = retries
@@ -167,7 +170,10 @@ class PoliteClient:
         self.ensure_open(url)
         host = urllib.parse.urlsplit(url).hostname or ""
         last: BaseException | None = None
+        deadline = self.clock() + self.timeout * self.retries + sum(self.backoff * 2**i for i in range(self.retries - 1))
         for attempt in range(self.retries):
+            if self.clock() >= deadline:
+                raise RuntimeError('Feed request timed out')
             self._wait(host)
             request = urllib.request.Request(url, data=data, headers=self._headers(headers))
             try:
@@ -177,6 +183,8 @@ class PoliteClient:
                     if status >= 400:
                         raise urllib.error.HTTPError(url, status, "bad status", None, None)
                     body = response.read() if self.max_bytes is None else response.read(self.max_bytes + 1)
+                    if self.clock() >= deadline:
+                        raise TimeoutError()
                     if self.max_bytes is not None and len(body) > self.max_bytes:
                         raise ValueError("response exceeds the feed limit")
                     self._check_block(url, body=body)
@@ -197,7 +205,10 @@ class PoliteClient:
         self.ensure_open(url)
         host = urllib.parse.urlsplit(url).hostname or ""
         last: BaseException | None = None
+        deadline = self.clock() + self.timeout * self.retries + sum(self.backoff * 2**i for i in range(self.retries - 1))
         for attempt in range(self.retries):
+            if self.clock() >= deadline:
+                raise RuntimeError('Feed request timed out')
             self._wait(host)
             request = urllib.request.Request(url, headers=self._headers(headers))
             try:
@@ -217,6 +228,8 @@ class PoliteClient:
                     raise urllib.error.HTTPError(url, status, "bad status", None, None)
                 prefix = b""
                 for raw in response:
+                    if self.clock() >= deadline:
+                        raise TimeoutError()
                     if len(prefix) < 65536:
                         prefix += raw if isinstance(raw, bytes) else str(raw).encode()
                         self._check_block(url, body=prefix)

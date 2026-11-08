@@ -279,7 +279,8 @@ async def test_empty_optional_configuration_starts_normally(database, monkeypatc
     app.include_router(training.router)
     async with app.router.lifespan_context(app):
         await asyncio.sleep(0.05)
-        assert await training.export_once() == {"status": "skipped", "reason": "not configured"}
+        assert await training.export_once() == {"status": "skipped", "reason": "not configured",
+            "missing_settings": ["HF_TOKEN", "HF_ORG"], "message": "Missing settings: HF_TOKEN, HF_ORG"}
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://fixture") as client:
             # An unconfigured job is disabled, not an unauthenticated paid run.
             assert (await client.post("/v1/gold/jobs/retest")).status_code == 404

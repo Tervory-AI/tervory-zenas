@@ -76,6 +76,21 @@ body:has(.bcp) main {
   display: none;
 }
 
+/* Keyboard, contrast and predictable loading geometry reuse the approved palette. */
+.bcp :is(a,button,input,select,textarea,[tabindex]):focus-visible { outline: 3px solid #001840; outline-offset: 3px; }
+.bcp .bcp-panel :focus-visible, .bcp .bcp-top :focus-visible { outline-color: #fff; }
+.bcp .bcp-search-bar .bcp-input { border-color: #4a5570; }
+.bcp :is(input,select,textarea) { border-color: #4a5570; }
+.bcp .bcp-reference > p[role="alert"] { min-block-size: 1.5em; }
+.bcp .bcp-product-table { min-block-size: 96px; }
+.bcp .bcp-reference { min-block-size: 1400px; }
+.bcp :is(.bcp-row-copy,.bcp-hit-source,.bcp-hit-none,.bcp-copy,.bcp-thread-empty) { color: #4a5570; }
+@media (max-width: 600px) {
+  .bcp :is(button,input,select) { min-block-size: 44px; }
+  .bcp a { text-decoration: underline; }
+}
+@media (prefers-reduced-motion: reduce) { .bcp *, .bcp *::before, .bcp *::after { transition: none !important; animation: none !important; scroll-behavior: auto !important; } }
+
 /* ---- Left panel: anchored ---- */
 
 .bcp-panel {
@@ -484,7 +499,7 @@ body:has(.bcp) main {
   border: 1px solid #b8bfd0;
   border-radius: 999px;
   background: #f4f6fb;
-  color: #6b7590;
+  color: #4a5570;
   font-size: 11px;
   font-weight: 500;
 }
@@ -682,7 +697,7 @@ body:has(.bcp) main {
 }
 
 .bcp-input::placeholder {
-  color: #7e889e;
+  color: #4a5570;
 }
 
 .bcp-input:disabled {
@@ -887,11 +902,11 @@ body:has(.bcp) main {
 }
 
 .bcp-hit-none {
-  color: #7e889e;
+  color: #4a5570;
 }
 
 .bcp-hit-source {
-  color: #6b7590;
+  color: #4a5570;
   font-size: 12px;
 }
 

@@ -183,7 +183,7 @@ def check_threshold(value: Any) -> str:
         number = Decimal(str(value))
     except (InvalidOperation, ValueError) as exc:
         raise BadWatch("threshold must be a number") from exc
-    if number < 0:
+    if not number.is_finite() or number < 0:
         raise BadWatch("threshold must be zero or more")
     return _plain(number)
 
@@ -651,6 +651,7 @@ class PgStore(PgPlaybooks, PgAlerts):
     def __init__(self, pool: Any, schema: str = SCHEMA) -> None:
         self.pool = pool
         self.schema = schema
+        self.initialize_reads = True
 
     def _sql(self, statement: str) -> str:
         return statement.format(schema=self.schema)
@@ -681,7 +682,8 @@ class PgStore(PgPlaybooks, PgAlerts):
 
     async def list_watches(self, tenant_id: str) -> list[dict[str, Any]]:
         async with self.pool.acquire() as conn:
-            await ensure_tables(conn, self.schema)
+            if self.initialize_reads:
+                await ensure_tables(conn, self.schema)
             rows = await conn.fetch(self._sql(SQL_LIST_WATCHES), uuid.UUID(str(tenant_id)))
         return [_watch_out(row) for row in rows]
 
@@ -760,7 +762,8 @@ class PgStore(PgPlaybooks, PgAlerts):
 
     async def latest_observation(self, tenant_id: str, url: str) -> dict[str, Any] | None:
         async with self.pool.acquire() as conn:
-            await ensure_tables(conn, self.schema)
+            if self.initialize_reads:
+                await ensure_tables(conn, self.schema)
             row = await conn.fetchrow(self._sql(SQL_LATEST_OBS), uuid.UUID(str(tenant_id)), url)
         return _obs_out(row) if row else None
 
@@ -806,10 +809,11 @@ class PgStore(PgPlaybooks, PgAlerts):
 
     async def pending_mail(self, tenant_id: str, now: datetime) -> list[str]:
         async with self.pool.acquire() as conn:
-            await ensure_tables(conn, self.schema)
+            if self.initialize_reads:
+                await ensure_tables(conn, self.schema)
             rows = await conn.fetch(self._sql("""
                 SELECT alert_id FROM {schema}.alert_mail
-                WHERE tenant_id = $1 AND status = 'pending' AND next_attempt_at <= $2
+                WHERE tenant_id = $1 AND status = 'pending' AND attempts < 3 AND next_attempt_at <= $2
                 ORDER BY next_attempt_at, alert_id LIMIT 3
             """), uuid.UUID(str(tenant_id)), now)
         return [str(row["alert_id"]) for row in rows]
@@ -821,8 +825,8 @@ class PgStore(PgPlaybooks, PgAlerts):
             row = await conn.fetchrow(self._sql("""
                 UPDATE {schema}.alert_mail AS m SET status = 'sending', updated_at = $3,
                     attempts = attempts + 1
-                WHERE tenant_id = $1 AND alert_id = $2 AND status = 'pending' AND next_attempt_at <= $3
-                RETURNING url, kind, letter, EXISTS (
+                WHERE tenant_id = $1 AND alert_id = $2 AND status = 'pending' AND attempts < 3 AND next_attempt_at <= $3
+                RETURNING url, kind, letter, attempts, EXISTS (
                     SELECT 1 FROM {schema}.watchlist w WHERE w.tenant_id = m.tenant_id
                     AND w.url = m.url AND w.enabled AND CASE m.kind
                         WHEN 'price' THEN w.alert_price WHEN 'stock' THEN w.alert_stock
@@ -832,11 +836,11 @@ class PgStore(PgPlaybooks, PgAlerts):
             """), uuid.UUID(str(tenant_id)), uuid.UUID(str(alert_id)), now)
         if row is None:
             return None
-        return {"url": row["url"], "kind": row["kind"], "allowed": row["allowed"],
+        return {"url": row["url"], "kind": row["kind"], "allowed": row["allowed"], "attempts": row["attempts"],
                 "letter": json.loads(row["letter"]) if isinstance(row["letter"], str) else dict(row["letter"])}
 
     async def finish_mail(self, tenant_id: str, alert_id: str, state: str, now: datetime) -> None:
-        if state not in {"pending", "sent", "uncertain", "suppressed"}:
+        if state not in {"pending", "sent", "uncertain", "suppressed", "failed"}:
             raise ValueError("invalid mail state")
         async with self.pool.acquire() as conn:
             await conn.execute(self._sql("""
@@ -857,13 +861,20 @@ class PgStore(PgPlaybooks, PgAlerts):
             found = await conn.fetchval(self._sql(SQL_CHECK_OPEN), uuid.UUID(str(tenant_id)), url)
         return found is not None
 
-    async def enqueue_check(self, tenant_id: str, url: str) -> None:
+    async def enqueue_check(self, tenant_id: str, url: str) -> bool:
         async with self.pool.acquire() as conn:
-            await conn.execute(
-                self._sql(SQL_ENQUEUE_CHECK),
-                uuid.UUID(str(tenant_id)),
-                json.dumps({"url": url}),
-            )
+            async with conn.transaction():
+                # Serialize both scheduled and Rig-triggered enqueue attempts.
+                # Locking the watch also orders this against pause/delete.
+                watch = await conn.fetchrow(self._sql(SQL_GET_WATCH) + " FOR UPDATE",
+                                            uuid.UUID(str(tenant_id)), url)
+                if not watch or not watch['enabled']:
+                    return False
+                if await conn.fetchval(self._sql(SQL_CHECK_OPEN), uuid.UUID(str(tenant_id)), url):
+                    return False
+                await conn.execute(self._sql(SQL_ENQUEUE_CHECK), uuid.UUID(str(tenant_id)),
+                                   json.dumps({"url": url}))
+                return True
 
 
 class MemoryStore(MemoryPlaybooks, MemoryAlerts):
@@ -999,16 +1010,16 @@ class MemoryStore(MemoryPlaybooks, MemoryAlerts):
 
     async def pending_mail(self, tenant_id: str, now: datetime) -> list[str]:
         return [alert_id for (tenant, alert_id), row in self.mail.items()
-                if tenant == str(tenant_id) and row["status"] == "pending" and row["next_attempt_at"] <= now][:3]
+                if tenant == str(tenant_id) and row["status"] == "pending" and row["attempts"] < 3 and row["next_attempt_at"] <= now][:3]
 
     async def claim_mail(self, tenant_id: str, alert_id: str, now: datetime) -> dict | None:
         row = self.mail.get((str(tenant_id), str(alert_id)))
-        if not row or row["status"] != "pending" or row["next_attempt_at"] > now:
+        if not row or row["status"] != "pending" or row["attempts"] >= 3 or row["next_attempt_at"] > now:
             return None
         row.update(status="sending", attempts=row["attempts"] + 1)
         watch = next((w for w in self.watches if w["tenant_id"] == str(tenant_id) and w["url"] == row["url"]), None)
         allowed = bool(watch and watch.get("enabled") and watch.get("alert_" + row["kind"], True))
-        return {**{key: row[key] for key in ("url", "kind", "letter")}, "allowed": allowed}
+        return {**{key: row[key] for key in ("url", "kind", "letter", "attempts")}, "allowed": allowed}
 
     async def finish_mail(self, tenant_id: str, alert_id: str, state: str, now: datetime) -> None:
         row = self.mail.get((str(tenant_id), str(alert_id)))
@@ -1033,13 +1044,17 @@ class MemoryStore(MemoryPlaybooks, MemoryAlerts):
             for item in self.jobs
         )
 
-    async def enqueue_check(self, tenant_id: str, url: str) -> None:
+    async def enqueue_check(self, tenant_id: str, url: str) -> bool:
+        watch = await self.get_watch(tenant_id, url)
+        if not watch or not watch['enabled'] or await self.check_open(tenant_id, url):
+            return False
         self.jobs.append({
             "tenant_id": str(tenant_id),
             "url": url,
             "kind": "check",
             "status": "queued",
         })
+        return True
 
 
 def _save_png(files: Any, tenant_id: str, png_base64: str | None, stamp: datetime) -> str | None:
@@ -1052,7 +1067,7 @@ def _save_png(files: Any, tenant_id: str, png_base64: str | None, stamp: datetim
         return None
     if not raw.startswith(b"\x89PNG") or len(raw) > 1_500_000:
         return None
-    name = f"price-{int(stamp.timestamp())}.png"
+    name = f"price-{int(stamp.timestamp())}-{hashlib.sha256(raw).hexdigest()}.png"
     return str(files.save_file(tenant_id, name, raw))
 
 
@@ -1064,9 +1079,20 @@ async def external_observation(store, tenant_id, watch, item, method, receipt, c
     issue = "missing_name" if not name else None
     if not issue and not re.fullmatch(r"[A-Za-z]{3}", str(item.get("currency") or "")):
         issue = "missing_currency"
-    quantity = item.get("quantity")
-    availability = ("in_stock" if Decimal(str(quantity)) > 0 else "out_of_stock") if quantity is not None else None
-    price = None if issue else item.get("price")
+    def number(value):
+        try:
+            value = Decimal(str(value))
+            return value if value.is_finite() and value >= 0 else None
+        except (InvalidOperation, ValueError):
+            return None
+    quantity = number(item.get("quantity"))
+    availability = ("in_stock" if quantity > 0 else "out_of_stock") if quantity is not None else None
+    amount = number(item.get("price"))
+    if not issue and amount is None:
+        issue = "missing_price"
+    if not issue and availability is None:
+        issue = "missing_stock"
+    price = None if issue else _money(amount)
     saved_method = "unread" if issue else method
     evidence = _reading_evidence(json.dumps({"method": method, "receipt": receipt}, default=str), name,
                                  fields["product_name"] or fields["last_product_name"], issue)
@@ -1076,6 +1102,8 @@ async def external_observation(store, tenant_id, watch, item, method, receipt, c
     stock_before = await _last_known_stock(store, tenant_id, url, current["id"])
     found = alerts_for(previous, current, watch.get("threshold") or 0, stock_before,
                        price_enabled=watch.get("alert_price", True), stock_enabled=watch.get("alert_stock", True))
+    if issue:
+        found = []
     saved = [await store.add_alert({"tenant_id": tenant_id, "url": url, "ts": clock(), **alert,
         "product_name": current.get("product_name"), "currency": current.get("currency")}) for alert in found]
     from rig_watch import publish_price_changed
@@ -1091,7 +1119,14 @@ async def run_check(
     captured = {}
 
     async def rendered(*args):
-        page = await render(*args)
+        try:
+            page = await render(*args)
+        except (httpx.HTTPError, TimeoutError):
+            # Keep a failed attempt in history, without transport messages that
+            # may contain private headers/URLs. Cancellation still propagates.
+            page = {"ok": False, "error": "unread"}
+        if not isinstance(page, dict):
+            page = {"ok": False, "error": "unread"}
         if (page.get("ok") and not page.get("challenge") and not page.get("blocked_by_check")
                 and page.get("status") not in {401, 403, 429} and not page.get("portal_item")):
             captured["html"] = page.get("html") or ""
@@ -1296,7 +1331,7 @@ async def _run_check(
     }
 
 
-async def dispatch_tenant(store: Any, tenant_id: str, now: datetime) -> dict[str, Any]:
+async def dispatch_tenant(store: Any, tenant_id: str, now: datetime, *, dry_run: bool = False) -> dict[str, Any]:
     queued: list[str] = []
     for watch in await store.enabled_watches(tenant_id):
         last = await store.latest_observation(tenant_id, watch["url"])
@@ -1305,6 +1340,8 @@ async def dispatch_tenant(store: Any, tenant_id: str, now: datetime) -> dict[str
             continue
         if await store.check_open(tenant_id, watch["url"]):
             continue
-        await store.enqueue_check(tenant_id, watch["url"])
-        queued.append(watch["url"])
+        if dry_run or await store.enqueue_check(tenant_id, watch["url"]):
+            queued.append(watch["url"])
+    if dry_run:
+        return {'dry_run': True, 'would_queue': queued, 'queued': []}
     return {"queued": queued}

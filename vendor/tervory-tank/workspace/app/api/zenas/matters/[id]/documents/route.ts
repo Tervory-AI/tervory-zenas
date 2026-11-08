@@ -15,7 +15,7 @@ export async function POST(req: Request, context: { params: Promise<{ id: string
   try {
     const { tenantId } = await currentTenant();
     const res = await zenas(`matters/${id}/documents`, {
-      method: "POST",
+      method: "POST", headers: { "idempotency-key": req.headers.get("idempotency-key") || crypto.randomUUID() },
       body: JSON.stringify({
         tenant_id: tenantId,
         home_region: homeRegion(),
@@ -34,7 +34,7 @@ export async function POST(req: Request, context: { params: Promise<{ id: string
       { status: 201 },
     );
   } catch (err) {
-    const message = err instanceof Error ? err.message : "The document was not saved.";
+    const message = "The document was not saved.";
     return NextResponse.json({ error: message }, { status: 502 });
   }
 }

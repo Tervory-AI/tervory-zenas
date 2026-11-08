@@ -1,5 +1,6 @@
 "use client";
 
+import { fetchWithDeadline as fetch } from "../../lib/request";
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState, type DragEvent, type FormEvent, type ReactNode } from "react";
 import { useFormStatus } from "react-dom";
@@ -125,31 +126,37 @@ function ChatBox() {
   const [draft, setDraft] = useState("");
   const [turns, setTurns] = useState<Turn[]>([]);
   const [sending, setSending] = useState(false);
+  const inFlight = useRef(false);
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
     const text = draft.trim();
-    if (sending) return;
+    if (inFlight.current) return;
     if (!text) return;
     const next: Turn[] = [...turns, { role: "user", content: text }];
     setTurns(next);
     setDraft("");
+    inFlight.current = true;
     setSending(true);
     try {
       const res = await fetch("/market-lab/ask", {
         method: "POST",
+        signal: AbortSignal.timeout(190000),
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ question: text }),
       });
       const data = (await res.json().catch(() => null)) as { content?: string; error?: string; facts?: Fact[]; sources?: AnswerSource[] } | null;
       if (!res.ok || !data?.content) {
+        setDraft(text);
         setTurns([...next, { role: "assistant", content: data?.error || "Market Lab could not answer.", error: true, sources: [] }]);
       } else {
         setTurns([...next, { role: "assistant", content: data.content, facts: data.facts ?? [], sources: data.sources ?? [] }]);
       }
     } catch {
+      setDraft(text);
       setTurns([...next, { role: "assistant", content: "Market Lab could not answer. Nothing was changed.", error: true, sources: [] }]);
     } finally {
+      inFlight.current = false;
       setSending(false);
     }
   }
@@ -158,7 +165,7 @@ function ChatBox() {
     <section className="ml-chat" aria-label="Ask Market Lab">
       <h2>Ask Market Lab</h2>
       {turns.length ? (
-        <div className="ml-thread">
+        <div className="ml-thread" role="log" aria-live="polite">
           {turns.map((turn, index) =>
             turn.role === "user" ? (
               <div className="ml-bubble ml-you" key={`you-${index}`}>
@@ -168,7 +175,7 @@ function ChatBox() {
             ) : (
               <div className="ml-bubble ml-answer" key={`lab-${index}`}>
                 <p className="ml-who">Market Lab</p>
-                <p className="ml-said">{turn.content}</p>
+                <p className="ml-said" role={turn.error ? "alert" : undefined}>{turn.content}</p>
                 {turn.facts?.length ? <ul className="ml-lines">{turn.facts.map((fact, index) => <li key={`${fact.href}-${index}`}><a href={fact.href}>{fact.text}</a></li>)}</ul> : null}
                 <div className="ml-refs">
                   <p className="ml-refs-label">{REFERENCE_LABEL}</p>
@@ -210,7 +217,7 @@ function ChatBox() {
   );
 }
 
-function PluginsDialog({
+export function PluginsDialog({
   open,
   tab,
   plugins,
@@ -233,8 +240,25 @@ function PluginsDialog({
   const [signIn, setSignIn] = useState<"provider" | "token">("token");
   const [busy, setBusy] = useState(false);
 
+  const dialogRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    if (!open) setNote("");
+    if (!open) { setNote(""); return; }
+    const previous = document.activeElement as HTMLElement | null;
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const controls = () => [...(dialogRef.current?.querySelectorAll<HTMLElement>('button:not([disabled]),input:not([disabled]):not([type=hidden]),select:not([disabled]),a[href]') ?? [])].filter(el => el.getClientRects().length > 0);
+    controls()[0]?.focus();
+    function key(event: KeyboardEvent) {
+      if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); onClose(); }
+      if (event.key !== "Tab") return;
+      const list = controls(), first = list[0], last = list[list.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+    }
+    document.addEventListener("keydown", key);
+    return () => { document.body.style.overflow = overflow; document.removeEventListener("keydown", key); previous?.focus(); };
+    // onClose is a parent inline callback; opening alone owns this focus lifecycle.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   if (!open) return null;
@@ -285,7 +309,7 @@ function PluginsDialog({
     setBusy(true);
     setNote("Reading your files. Large reports can take a little longer.");
     try {
-      const response = await fetch("/market-lab/files", { method: "POST", body });
+      const response = await fetch("/market-lab/files", { method: "POST", body, signal: AbortSignal.timeout(120000) });
       await finish(await response.json());
     } catch {
       setNote("The upload could not be confirmed. Check the file list before trying again.");
@@ -338,6 +362,7 @@ function PluginsDialog({
     <div className="ml-shade" onClick={onClose}>
       <div
         className="ml-plugins"
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
@@ -353,7 +378,7 @@ function PluginsDialog({
             Close
           </button>
         </div>
-        <div className="ml-tabs" role="tablist">
+        <div className="ml-tabs" role="tablist" aria-label="Plugins">
           {PLUGIN_TABS.map((name) => (
             <button
               key={name}
@@ -361,6 +386,15 @@ function PluginsDialog({
               type="button"
               role="tab"
               aria-selected={name === tab}
+              tabIndex={name === tab ? 0 : -1}
+              onKeyDown={event => {
+                if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+                event.preventDefault();
+                const index = PLUGIN_TABS.indexOf(tab);
+                const next = event.key === "Home" ? 0 : event.key === "End" ? PLUGIN_TABS.length - 1 : (index + (event.key === "ArrowRight" ? 1 : -1) + PLUGIN_TABS.length) % PLUGIN_TABS.length;
+                onTab(PLUGIN_TABS[next]);
+                event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role=tab]')[next]?.focus();
+              }}
               onClick={() => {
                 setNote("");
                 onTab(name);
@@ -483,8 +517,9 @@ function PluginsDialog({
               <input
                 ref={fileRef}
                 className="ml-sr"
+                aria-label="Choose files"
                 type="file"
-                accept=".csv,.xlsx,.pdf,text/csv,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                accept=".csv,.xlsx,.pdf,.docx,text/csv,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                 multiple
                 onChange={() => void onFiles(fileRef.current?.files ?? null)}
               />
@@ -496,7 +531,7 @@ function PluginsDialog({
                 ))}
               </div>
             ) : (
-              <p className="ml-fine">No files stored.</p>
+              <p className="ml-fine">No files stored. Choose files to upload your first source.</p>
             )}
           </div>
         ) : tab === "Source links" ? (
@@ -544,7 +579,7 @@ function PluginsDialog({
                 ))}
               </div>
             ) : (
-              <p className="ml-fine">No links stored.</p>
+              <p className="ml-fine">No links stored. Use Add link to connect a public source.</p>
             )}
           </div>
         ) : (
@@ -558,7 +593,7 @@ function PluginsDialog({
                 ))}
               </div>
             ) : (
-              <p className="ml-fine">No connections stored.</p>
+              <p className="ml-fine">No connections stored. Add a connection to read your source.</p>
             )}
             <form className="ml-mcp" onSubmit={onAddConnection}>
               <h3>Add connection</h3>
@@ -680,12 +715,12 @@ export function MarketLabView({
     <div className="ml">
       <header className="ml-top">
         <img src="/brand/tervory-logo-reversed.png" alt="Tervory" width={186} height={34} />
-        <button className="ml-menu" type="button" onClick={() => setMenu(true)}>
+        <button className="ml-menu" aria-expanded={menu} aria-controls="ml-navigation" type="button" onClick={() => setMenu(true)}>
           Menu
         </button>
       </header>
       <button className="ml-dim" type="button" hidden={!menu} aria-label="Close menu" onClick={() => setMenu(false)} />
-      <aside className={menu ? "ml-panel open" : "ml-panel"}>
+      <aside id="ml-navigation" className={menu ? "ml-panel open" : "ml-panel"}>
         <div className="ml-brand">
           <img className="ml-agent" src={MARKET_LAB_LOGO_SRC} alt="Market Lab" width={242} height={40} />
         </div>
@@ -773,12 +808,14 @@ export function MarketLabView({
           <RefreshStatus status={model.refreshStatus} />
           <div className="ml-counts">
             <article>
-              <p className="ml-count">{model.onCount}</p>
+              <p className="ml-count">{model.loadError ? "—" : model.onCount}</p>
               <p>On</p>
+              {model.onCount === 0 && !model.loadError ? <p>Choose Refresh feeds to collect data.</p> : null}
             </article>
             <article>
-              <p className="ml-count">{model.linkedCount}</p>
+              <p className="ml-count">{model.loadError ? "—" : model.linkedCount}</p>
               <p>Linked pages</p>
+              {model.linkedCount === 0 && !model.loadError ? <p>Use Add link in Plugins to connect a public source.</p> : null}
             </article>
           </div>
           {model.loadError ? (

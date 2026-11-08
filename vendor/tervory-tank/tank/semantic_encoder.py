@@ -7,6 +7,7 @@ MODEL_REPOSITORY = "Qdrant/bge-small-en-v1.5-onnx-Q"
 MODEL_REVISION = "52398278842ec682c6f32300af41344b1c0b0bb2"
 MODEL_PATH = Path("/opt/tank-semantic-model")
 DIMENSIONS = 384
+EMBED_MODEL_ID = f'{MODEL_REPOSITORY}@{MODEL_REVISION}'
 # Changing the model, matching guards or threshold requires fresh evidence/approval.
 ENCODER_ID = f"{MODEL_REPOSITORY}@{MODEL_REVISION}:guards-v1:cosine-0.90"
 FILES = ("model_optimized.onnx", "config.json", "tokenizer.json",
@@ -40,6 +41,16 @@ class LocalEncoder:
             self._validate(text)
 
     def embed(self, text: str) -> list[float]:
+        try:
+            from . import embedding_cache
+        except ImportError:
+            import embedding_cache
+        if not embedding_cache.enabled():
+            return self._embed(text)
+        self.validate(text)
+        return embedding_cache.embed(EMBED_MODEL_ID, text, DIMENSIONS, lambda: self._embed(text))
+
+    def _embed(self, text: str) -> list[float]:
         # Called in a worker thread. Serialize lazy initialization and CPU work.
         with self._lock:
             self._validate(text)

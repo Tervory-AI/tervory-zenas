@@ -132,7 +132,7 @@ function Usage({ usage }: { usage: UsageView }) {
           </div>
           {usage.lines.length === 0 ? (
             <div className="line">
-              <span>{COPY.usageEmpty}</span>
+              <span>{COPY.usageEmpty} Choose a plan to start recording usage.</span>
               <span className="amount">{COPY.dash}</span>
               <span className="amount">{COPY.dash}</span>
             </div>

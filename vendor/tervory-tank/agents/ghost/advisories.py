@@ -179,7 +179,7 @@ def parse_osv(vuln: dict) -> dict | None:
     label = (vuln.get("database_specific") or {}).get("severity")
     return advisory(vuln["id"], "osv", iso(published), aliases=vuln.get("aliases") or [],
                     modified=vuln.get("modified", ""), summary=vuln.get("summary") or vuln.get("details", ""),
-                    cvss=score, severity=label, affected=affected,
+                    cvss=score, severity=label, affected=[] if vuln.get("withdrawn") else affected,
                     references=[r.get("url") for r in vuln.get("references") or [] if isinstance(r, dict)])
 
 
@@ -190,7 +190,7 @@ def parse_ghsa(item: dict, source: str = "github", product: str | None = None) -
     """A GitHub advisory. product: for a project's own advisories (e.g. redis/redis) whose package has no
     ecosystem, the rule targets that product as installed software."""
     published = parse_time(item.get("published_at"))
-    if not isinstance(item.get("ghsa_id"), str) or published is None or item.get("withdrawn_at"):
+    if not isinstance(item.get("ghsa_id"), str) or published is None:
         return None
     affected = []
     for vuln in item.get("vulnerabilities") or []:
@@ -218,15 +218,17 @@ def parse_ghsa(item: dict, source: str = "github", product: str | None = None) -
     aliases = [item.get("cve_id")] + [i.get("value") for i in item.get("identifiers") or [] if isinstance(i, dict)]
     return advisory(item["ghsa_id"], source, iso(published), aliases=aliases,
                     modified=item.get("updated_at", ""), summary=item.get("summary", ""), cvss=score,
-                    severity=item.get("severity"), affected=affected,
+                    severity=item.get("severity"), affected=[] if item.get("withdrawn_at") else affected,
                     references=[item.get("html_url"), *(item.get("references") or [])])
 
 
 def parse_nvd(entry: dict) -> dict | None:
     cve = (entry or {}).get("cve") or {}
     published = parse_time(cve.get("published"))
-    if not isinstance(cve.get("id"), str) or published is None or cve.get("vulnStatus") == "Rejected":
+    if not isinstance(cve.get("id"), str) or published is None:
         return None
+    if cve.get("vulnStatus") == "Rejected":
+        return advisory(cve["id"], "nvd", iso(published), modified=cve.get("lastModified", ""))
     affected: dict[str, dict] = {}
     for config in cve.get("configurations") or []:
         for node in config.get("nodes") or []:
@@ -563,6 +565,7 @@ class Feeds:
     async def request(self, method: str, url: str, *, params=None, json=None, headers=None):
         parsed = urlparse(url)
         if (parsed.scheme != "https" or parsed.hostname not in ALLOWED_HOSTS or parsed.username or parsed.password
+                or parsed.port not in {None, 443} or parsed.fragment
                 or method not in {"GET", "POST"} or (method == "POST" and url != OSV_BATCH_URL)):
             raise PermissionError("Autumbra Watch only reads its named public advisory sources.")
         merged = {"Accept": "application/json", "User-Agent": "tervory-ghost-advisory-watcher"}
@@ -584,6 +587,27 @@ class Feeds:
     async def get(self, url: str, **kwargs):
         return (await self.request("GET", url, **kwargs))[0]
 
+    async def pages(self, url: str, *, params=None) -> list[dict]:
+        """Follow GitHub's cursor links, bounded and confined to the original endpoint."""
+        origin, seen, rows = urlparse(url), set(), []
+        for _ in range(1000):
+            if url in seen:
+                raise RuntimeError("The advisory source repeated a page.")
+            seen.add(url)
+            data, response = await self.request("GET", url, params=params)
+            if not isinstance(data, list) or any(not isinstance(row, dict) for row in data):
+                raise ValueError("Invalid advisory page.")
+            rows.extend(data)
+            url = response.links.get("next", {}).get("url")
+            if not url:
+                return rows
+            following = urlparse(url)
+            if (following.scheme != "https" or following.netloc != origin.netloc
+                    or following.path != origin.path or following.fragment):
+                raise PermissionError("Advisory pagination left its endpoint.")
+            params = None
+        raise RuntimeError("The advisory source exceeded the page limit.")
+
 
 @dataclass
 class Cycle:
@@ -591,6 +615,7 @@ class Cycle:
     sources: dict[str, str] = field(default_factory=dict)
     new: list[dict] = field(default_factory=list)
     resolved: list[dict] = field(default_factory=list)
+    cursors: dict[str, str] = field(default_factory=dict)
 
 
 class Watcher:
@@ -613,22 +638,47 @@ class Watcher:
         return []
 
     async def pull_osv(self, cycle: Cycle) -> list[dict]:
+        ecosystems = {"pypi": "PyPI", "npm": "npm", "packagist": "Packagist"}
         packages = [c for c in self.store.inventory(self.tenant)
-                    if c["kind"] == "package" and c["ecosystem"] in {"pypi", "npm"}]
+                    if c["kind"] == "package" and c["ecosystem"] in ecosystems]
         unique = sorted({(c["ecosystem"], c["name"], c["version"]) for c in packages})
         known = self.store.advisory_ids(self.tenant)
         wanted: dict[str, str] = {}
+        # Withdrawn advisories disappear from querybatch. Revalidate stored OSV
+        # records as well so disappearance cannot leave an old match open forever.
+        for item in self.store.advisories(self.tenant):
+            if item["source"] == "osv":
+                wanted[item["id"]] = item.get("modified", "")
         for start in range(0, len(unique), 1000):
             chunk = unique[start:start + 1000]
-            body = {"queries": [{"package": {"ecosystem": "PyPI" if e == "pypi" else "npm", "name": n}, "version": v}
+            body = {"queries": [{"package": {"ecosystem": ecosystems[e], "name": n}, "version": v}
                                 for e, n, v in chunk]}
-            data, _ = await self.feeds.request("POST", OSV_BATCH_URL, json=body)
-            for result in (data or {}).get("results") or []:
-                for vuln in (result or {}).get("vulns") or []:
-                    if isinstance(vuln.get("id"), str) and known.get(vuln["id"]) != vuln.get("modified"):
-                        wanted[vuln["id"]] = vuln.get("modified", "")
+            seen_tokens = set()
+            for _ in range(1000):
+                data, _ = await self.feeds.request("POST", OSV_BATCH_URL, json=body)
+                results = (data or {}).get("results")
+                if not isinstance(results, list) or len(results) != len(body["queries"]):
+                    raise ValueError("Invalid OSV batch.")
+                pending = []
+                for query, result in zip(body["queries"], results):
+                    for vuln in result.get("vulns") or []:
+                        vid = vuln.get("id")
+                        if isinstance(vid, str) and (vid not in known or known[vid] != vuln.get("modified")):
+                            wanted[vid] = vuln.get("modified", "")
+                    token = result.get("next_page_token")
+                    if token:
+                        key = (query["package"]["ecosystem"], query["package"]["name"], query["version"], token)
+                        if key in seen_tokens:
+                            raise ValueError("Repeated OSV page.")
+                        seen_tokens.add(key)
+                        pending.append({**query, "page_token": token})
+                if not pending:
+                    break
+                body = {"queries": pending}
+            else:
+                raise RuntimeError("OSV exceeded the page limit.")
         out = []
-        for vid in sorted(wanted)[:150]:
+        for vid in sorted(wanted):
             if not re.fullmatch(r"[A-Za-z0-9._:-]{1,80}", vid):
                 continue
             item = parse_osv(await self.feeds.get(OSV_VULN_URL + vid))
@@ -638,27 +688,34 @@ class Watcher:
 
     async def pull_github(self, cycle: Cycle) -> list[dict]:
         since = self.store.get_state(self.tenant, "ghsa_cursor") or iso(cycle.started - timedelta(days=7))
-        data = await self.feeds.get(GHSA_URL, params={"sort": "updated", "direction": "desc", "per_page": 100,
+        data = await self.feeds.pages(GHSA_URL, params={"sort": "updated", "direction": "asc", "per_page": 100,
                                                       "updated": f">={since[:10]}"})
         out = [a for a in (parse_ghsa(i) for i in data or [] if isinstance(i, dict)) if a]
-        self.store.set_state(self.tenant, "ghsa_cursor", iso(cycle.started - timedelta(hours=1)))
+        cycle.cursors["ghsa_cursor"] = iso(cycle.started - timedelta(hours=1))
         return out
 
     async def pull_nvd(self, cycle: Cycle) -> list[dict]:
         start = parse_time(self.store.get_state(self.tenant, "nvd_cursor")) or cycle.started - timedelta(days=1)
-        start = max(start, cycle.started - timedelta(days=119))
+        end = min(cycle.started, start + timedelta(days=119))
         stamp = lambda m: m.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")  # noqa: E731
         out, index = [], 0
-        for page in range(3):
+        for page in range(1000):
             if page:
                 await self.feeds.pause(NVD_PAUSE_SECONDS)
-            data = await self.feeds.get(NVD_URL, params={"lastModStartDate": stamp(start), "lastModEndDate": stamp(cycle.started),
+            data = await self.feeds.get(NVD_URL, params={"lastModStartDate": stamp(start), "lastModEndDate": stamp(end),
                                                          "resultsPerPage": 2000, "startIndex": index})
-            rows = (data or {}).get("vulnerabilities") or []
+            if not isinstance(data, dict) or not isinstance(data.get("vulnerabilities"), list):
+                raise ValueError("Invalid NVD page.")
+            rows = data["vulnerabilities"]
+            total = int(data["totalResults"])
+            if int(data.get("startIndex", index)) != index or total < 0 or (not rows and index < total):
+                raise ValueError("Incomplete NVD page.")
             out.extend(a for a in (parse_nvd(r) for r in rows) if a)
             index += len(rows)
-            if not rows or index >= int((data or {}).get("totalResults") or 0):
+            if index >= total:
                 break
+        else:
+            raise RuntimeError("NVD exceeded the page limit.")
         # KEV entries for products we run, looked up by id (bounded, rate limit respected).
         known = self.store.advisory_ids(self.tenant)
         products = self.store.get_state(self.tenant, "kev_products", {})
@@ -667,14 +724,39 @@ class Watcher:
             await self.feeds.pause(NVD_PAUSE_SECONDS)
             data = await self.feeds.get(NVD_URL, params={"cveId": cve})
             out.extend(a for a in (parse_nvd(r) for r in (data or {}).get("vulnerabilities") or []) if a)
-        self.store.set_state(self.tenant, "nvd_cursor", iso(cycle.started - timedelta(minutes=5)))
+        # A new installation needs historical coverage as well as the changed-
+        # today feed. Bootstrap each known CPE product once, including products
+        # first added to the inventory after Watch has already been running.
+        for (vendor, product), name in sorted(CPE_PRODUCTS.items()):
+            key = f"nvd_product:{vendor}:{product}"
+            if name not in names or self.store.get_state(self.tenant, key):
+                continue
+            index = 0
+            for _ in range(1000):
+                await self.feeds.pause(NVD_PAUSE_SECONDS)
+                data = await self.feeds.get(NVD_URL, params={
+                    "virtualMatchString": f"cpe:2.3:a:{vendor}:{product}:*:*:*:*:*:*:*:*",
+                    "resultsPerPage": 2000, "startIndex": index})
+                if not isinstance(data, dict) or not isinstance(data.get("vulnerabilities"), list):
+                    raise ValueError("Invalid NVD page.")
+                rows, total = data["vulnerabilities"], int(data["totalResults"])
+                if int(data.get("startIndex", index)) != index or total < 0 or (not rows and index < total):
+                    raise ValueError("Incomplete NVD page.")
+                out.extend(a for a in (parse_nvd(row) for row in rows) if a)
+                index += len(rows)
+                if index >= total:
+                    break
+            else:
+                raise RuntimeError("NVD exceeded the page limit.")
+            cycle.cursors[key] = iso(cycle.started)
+        cycle.cursors["nvd_cursor"] = iso(end - timedelta(minutes=5))
         return out
 
     async def pull_vendors(self, cycle: Cycle) -> list[dict]:
         out: list[dict] = []
         failures = 0
         for url, params, parser in ((PHP_RELEASES_URL, {"json": "", "version": "8", "max": "40"}, parse_php_releases),
-                                    (NODE_INDEX_URL, None, lambda d: parse_node_index(d)[:20]),
+                                    (NODE_INDEX_URL, None, parse_node_index),
                                     (COOLIFY_RELEASES_URL, {"per_page": 30}, parse_coolify_releases),
                                     (LITELLM_ADVISORIES_URL, {"state": "published", "per_page": 50},
                                      lambda d: [a for a in (parse_ghsa(i, "vendor:litellm") for i in d or [] if isinstance(i, dict)) if a]),
@@ -683,7 +765,8 @@ class Watcher:
                                      lambda d: [a for a in (parse_ghsa(i, "vendor:redis", product="redis")
                                                             for i in d or [] if isinstance(i, dict)) if a])):
             try:
-                out.extend(parser(await self.feeds.get(url, params=params)))
+                fetch = self.feeds.pages if urlparse(url).hostname == "api.github.com" else self.feeds.get
+                out.extend(parser(await fetch(url, params=params)))
             except Exception:
                 failures += 1
         if failures == 6:
@@ -695,21 +778,26 @@ class Watcher:
         cycle = Cycle(started=self.clock())
         inventory = self.store.inventory(self.tenant)
         names = inventory_names(inventory)
-        pulled: list[dict] = []
         for name, puller in (("cisa_kev", self.pull_kev), ("osv", self.pull_osv), ("github", self.pull_github),
                              ("nvd", self.pull_nvd), ("vendor_notes", self.pull_vendors)):
             try:
-                pulled.extend(await puller(cycle))
+                cycle.cursors.clear()
+                pulled = await puller(cycle)
+                known = self.store.advisory_ids(self.tenant)
+                self.store.save_feed(self.tenant, [item for item in pulled
+                                     if relevant(item, names) or item["id"] in known],
+                                     iso(cycle.started), cycle.cursors)
                 cycle.sources[name] = "ok"
             except Exception:
                 cycle.sources[name] = "unavailable"
-        fetched = iso(cycle.started)
-        for item in pulled:
-            if relevant(item, names):
-                self.store.save_advisory(self.tenant, item, fetched)
         return await self.match(cycle)
 
     async def match(self, cycle: Cycle) -> dict:
+        for item in self.store.pending_match_receipts(self.tenant):
+            if item["state"] == "resolved":
+                await self.receipt(item, "flagged")
+                if item.get("resolved_receipt"):
+                    await self.receipt(item, "resolved")
         inventory = self.store.inventory(self.tenant)
         current = evaluate(self.store.advisories(self.tenant), inventory, self.store.kev(self.tenant))
         flagged = self.clock()
@@ -725,6 +813,8 @@ class Watcher:
             if not created:
                 item["severity"] = found["severity"]
                 item["source_ids"] = found["source_ids"]
+                item["affected"] = found["affected"]
+                item["what_to_do"] = found["what_to_do"]
                 self.store.save_match(self.tenant, item)
             else:
                 cycle.new.append(item)
@@ -744,6 +834,7 @@ class Watcher:
                    "new_matches": len(cycle.new), "resolved": len(cycle.resolved),
                    "open": len(self.store.matches(self.tenant, "open"))}
         self.store.set_state(self.tenant, "last_cycle", summary)
+        self.store.record_run(self.tenant, "advisories", "unavailable" if "unavailable" in cycle.sources.values() else "checked")
         return summary
 
     async def receipt(self, item: dict, step: str) -> None:
@@ -753,8 +844,9 @@ class Watcher:
             return
         ledger_id = str(uuid5(UUID(item["id"]), "advisory_" + step))
         try:
-            await self.receipts.record(ledger_id, "advisory_" + step, "delivered", task_type="ghost.advisory")
-            item[slot].update(ledger_id=ledger_id, status="recorded")
+            priced = await self.receipts.record(ledger_id, "advisory_" + step, "delivered", task_type="ghost.advisory")
+            item[slot].update(ledger_id=ledger_id, status="recorded", tenant_id=self.tenant, cost_usd=0,
+                              would_have_cost_usd=priced.get("would_have_cost_usd") if isinstance(priced, dict) else None)
         except Exception:
             item[slot].update(status="pending")
         self.store.save_match(self.tenant, item)

@@ -27,6 +27,7 @@ function cell(f: { value: unknown } | undefined): string {
 }
 
 function esc(s: string): string {
+  if (/^[\s\u0000-\u001f]*[=+@-]/.test(s)) s = "\'" + s;
   return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
@@ -36,10 +37,14 @@ export async function GET(req: Request) {
   try {
     const { tenantId } = await currentTenant();
     const all: BaseRecord[] = [];
-    for (let offset = 0; offset < 20000; offset += 2000) {
-      const page = await baseRecords(tenantId, { batch, limit: 2000, offset });
+    const deadline = Date.now() + 30_000;
+    for (let offset = 0; offset <= 100000; offset += 2000) {
+      if (Date.now() > deadline) throw Error("Export timeout");
+      const page = await baseRecords(tenantId, { batch, limit: offset === 100000 ? 1 : 2000, offset });
+      if (all.length + page.length > 100000) throw Error("Export limit reached");
       all.push(...page);
       if (page.length < 2000) break;
+
     }
     const header = ["status", "confidence", ...COLUMNS, "profile_json"].join(",");
     const lines = all.map((r) =>
@@ -55,6 +60,6 @@ export async function GET(req: Request) {
       },
     });
   } catch (err) {
-    return new Response(err instanceof Error ? err.message : "Tank unavailable", { status: 502 });
+    return new Response("The export could not be loaded. Please try again.", { status: 502 });
   }
 }

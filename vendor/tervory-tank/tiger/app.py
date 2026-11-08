@@ -21,18 +21,22 @@ from __future__ import annotations
 import asyncio
 import base64
 import os
+import hmac
+import logging
+import tempfile
 import time
 from typing import Any
 
 from fastapi import FastAPI, HTTPException
+from starlette.responses import JSONResponse
 from playwright.async_api import Browser, async_playwright
 from pydantic import BaseModel, Field
 
 from ocr import ocr_png
 from pool import SessionKeyError, idle_expired, render_block, route_continues, session_file
 
-MAX_PAGES = int(os.environ.get("TIGER_MAX_PAGES", "4"))
-DATA_DIR = os.environ.get("DATA_DIR", "/data")
+MAX_PAGES = int(os.environ.get("TIGER_MAX_PAGES") or "4")
+DATA_DIR = os.environ.get("DATA_DIR") or "/data"
 UA_SUFFIX = " TervoryTiger/0.1 (+https://tervory.com)"   # we say who we are
 CHALLENGE_MARKERS = (
     "cf-turnstile", "challenges.cloudflare.com", "cf-challenge", "challenge-platform", "g-recaptcha",
@@ -41,6 +45,16 @@ CHALLENGE_MARKERS = (
 CHALLENGE_TITLES = ("just a moment", "attention required", "verify you are human", "access denied", "are you a robot")
 
 app = FastAPI(title="Tiger", version="0.2.0")
+
+
+@app.middleware('http')
+async def require_room(request, call_next):
+    expected = os.environ.get('TANK_KEY', '')
+    if not expected:
+        return JSONResponse({'status': 'not_configured', 'settings': ['TANK_KEY']}, status_code=503)
+    if not hmac.compare_digest(expected.encode(), request.headers.get('x-tank-key', '').encode()):
+        return JSONResponse({'detail': 'room key required'}, status_code=401)
+    return await call_next(request)
 _pw = None
 _browser: Browser | None = None
 _ua: str = ""
@@ -124,7 +138,12 @@ async def _route(target, screenshot: bool) -> None:
     async def handle(route) -> None:
         # Every hop: the navigation, a redirect, and each script or image.
         request = route.request
-        if route_continues(request.url, request.resource_type, screenshot):
+        try:
+            async with asyncio.timeout(10):
+                allowed = await asyncio.to_thread(route_continues, request.url, request.resource_type, screenshot)
+        except TimeoutError:
+            allowed = False
+        if allowed:
             await route.continue_()
         else:
             await route.abort()
@@ -176,11 +195,11 @@ async def _render_ephemeral(req: RenderReq, started: float) -> dict[str, Any]:
         await _fill(page, req, out)
         return out
     except Exception as exc:  # noqa: BLE001
-        out["error"] = str(exc)[:300]
+        out["error"] = "Tiger is not reachable right now."
         return out
     finally:
         out["ms"] = int((time.perf_counter() - started) * 1000)
-        await ctx.close()
+        await _close_context(ctx)
 
 
 async def _session_live(agent: str, tenant: str, session: str) -> tuple[_Live, Any]:
@@ -203,13 +222,18 @@ async def _save_and_close(key: tuple[str, str, str], live: _Live) -> None:
     try:
         path = session_file(DATA_DIR, *key)
         path.parent.mkdir(parents=True, exist_ok=True)
-        await live.context.storage_state(path=str(path))
-    except Exception:  # noqa: BLE001 — a closed browser has nothing left to save
-        pass
+        await _save_session(live.context, path)
+    except Exception as exc:
+        logging.getLogger('tiger').warning('session save failed (%s)', type(exc).__name__)
+    await _close_context(live.context)
+
+
+async def _close_context(context):
     try:
-        await live.context.close()
-    except Exception:  # noqa: BLE001
-        pass
+        async with asyncio.timeout(10):
+            await context.close()
+    except Exception as exc:
+        logging.getLogger('tiger').warning('browser close failed (%s)', type(exc).__name__)
 
 
 async def _render_session(req: RenderReq, started: float) -> dict[str, Any]:
@@ -227,17 +251,31 @@ async def _render_session(req: RenderReq, started: float) -> dict[str, Any]:
             await _route(page, req.screenshot)
             await _fill(page, req, out)
         except Exception as exc:  # noqa: BLE001
-            out["error"] = str(exc)[:300]
+            out["error"] = "Tiger is not reachable right now."
         finally:
-            await page.close()
+            await _close_context(page)
             path.parent.mkdir(parents=True, exist_ok=True)
             try:
-                await live.context.storage_state(path=str(path))
-            except Exception:  # noqa: BLE001
-                pass
+                await _save_session(live.context, path)
+            except Exception:
+                out['ok'] = False
+                out['error'] = 'That could not be saved. Try again.'
             live.last = time.monotonic()
             out["ms"] = int((time.perf_counter() - started) * 1000)
     return out
+
+
+async def _save_session(context, path):
+    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    with tempfile.NamedTemporaryFile(dir=path.parent, prefix='.session-', delete=False) as stream:
+        temporary = stream.name
+    try:
+        async with asyncio.timeout(10):
+            await context.storage_state(path=temporary)
+        os.replace(temporary, path)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
 
 
 async def _close_idle() -> None:
@@ -261,15 +299,21 @@ async def _close_idle() -> None:
 
 @app.post("/render")
 async def render(req: RenderReq) -> dict[str, Any]:
-    blocked = render_block(req.url)
-    if blocked is not None:
-        return blocked
-    assert _browser is not None
     started = time.perf_counter()
-    async with _sem:
-        if req.session:
-            return await _render_session(req, started)
-        return await _render_ephemeral(req, started)
+    try:
+        async with asyncio.timeout(60):
+            async with asyncio.timeout(10):
+                blocked = await asyncio.to_thread(render_block, req.url)
+            if blocked is not None:
+                return blocked
+            if _browser is None:
+                return {'ok': False, 'error': 'Tiger is not reachable right now.'}
+            async with _sem:
+                if req.session:
+                    return await _render_session(req, started)
+                return await _render_ephemeral(req, started)
+    except TimeoutError:
+        return {'url': req.url, 'ok': False, 'error': 'Tiger is not reachable right now.'}
 
 
 @app.post("/ocr")

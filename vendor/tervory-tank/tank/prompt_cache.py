@@ -1,4 +1,4 @@
-"""Provider prompt-cache accounting for rung-1 model calls.
+"""Provider prompt-cache ordering and accounting for every serving rung.
 
 Breakpoints are placed by LiteLLM, per deployment (litellm/config.yaml
 ``cache_control_injection_points`` on the OpenAI GPT-6 and Anthropic models).
@@ -13,6 +13,9 @@ Usage shapes this reads (LiteLLM 1.106.4 normalises most of them):
   Anthropic   cache_read_input_tokens, cache_creation_input_tokens (prompt_tokens includes both
               after LiteLLM's translation; the raw Messages API input_tokens does not)
   DeepSeek    prompt_cache_hit_tokens
+  StepFun     cached_tokens
+  Gemini      cachedContentTokenCount (native); prompt_tokens_details after LiteLLM
+  MiniMax     cache_read_input_tokens or input_tokens_details.cached_tokens
 """
 from __future__ import annotations
 
@@ -52,10 +55,11 @@ def cache_tokens(usage: Any) -> tuple[int, int]:
     """
     if not isinstance(usage, dict):
         return 0, 0
-    details = usage.get("prompt_tokens_details")
+    details = usage.get("prompt_tokens_details") or usage.get('input_tokens_details')
     details = details if isinstance(details, dict) else {}
     read = _first(details.get("cached_tokens"), usage.get("cache_read_input_tokens"),
-                  usage.get("prompt_cache_hit_tokens"))
+                  usage.get("prompt_cache_hit_tokens"), usage.get('cached_tokens'),
+                  usage.get('cachedContentTokenCount'))
     write = _first(usage.get("cache_creation_input_tokens"), details.get("cache_write_tokens"),
                    details.get("cache_creation_tokens"))
     prompt = _count(usage.get("prompt_tokens"))
@@ -63,6 +67,83 @@ def cache_tokens(usage: Any) -> tuple[int, int]:
         # A provider total that cannot hold its own parts is not evidence of a hit.
         return 0, 0
     return read, write
+
+
+def normalized_usage(usage):
+    """Accept native usage fields as well as LiteLLM's normal chat schema."""
+    if not isinstance(usage, dict):
+        return {}
+    if 'prompt_tokens' in usage:
+        return usage
+    if 'promptTokenCount' in usage:
+        return {**usage, 'prompt_tokens': _count(usage['promptTokenCount']) or 0,
+                'completion_tokens': (_count(usage.get('candidatesTokenCount')) or 0)
+                    + (_count(usage.get('thoughtsTokenCount')) or 0)}
+    if 'input_tokens' in usage and 'output_tokens' in usage:
+        return {**usage, **anthropic_usage(usage)}
+    return usage
+
+
+def ordered(messages):
+    """Stable leading instructions, then recalled tenant data, then conversation."""
+    count = 0
+    while count < len(messages) and messages[count]['role'] == 'system':
+        count += 1
+    memory, stable = [], []
+    for message in messages[:count]:
+        target = memory if str(message.get('content', '')).startswith('Tenant memory, most recent facts first.') else stable
+        target.append(message)
+    return [*stable, *memory, *messages[count:]]
+
+
+def automatic(prices):
+    provider, native = prices.get('provider', ''), prices.get('native', '').lower()
+    # DECISION use providers' automatic caches, including Kimi's default 5m TTL.
+    # No explicit Gemini storage or longer paid TTL is created. MiniMax and
+    # StepFun expose the same automatic behavior on their compatible endpoints.
+    return (provider in {'deepseek', 'moonshot', 'gemini', 'minimax', 'stepfun'}
+            or any(name in native for name in ('minimax', 'stepfun', 'kimi-'))
+            or prices.get('cache_read') is not None)
+
+
+def statistics(prices, tokens_in, read, write, *, multiplier=1.):
+    active = tokens_in > 0 and (automatic(prices) or read > 0 or write > 0)
+    value = dict(attempts=int(active), hits=int(read > 0), cached_tokens=read,
+                 input_tokens=tokens_in if active else 0, cache_write_tokens=write,
+                 token_hit_rate=read / tokens_in if tokens_in else 0.,
+                 saved_usd=0., estimated=True, unpriced_calls=0)
+    if read or write:
+        if prices.get('input') is None or (read and prices.get('cache_read') is None) or (write and prices.get('cache_write') is None):
+            value.update(saved_usd=None, unpriced_calls=1)
+        else:
+            rate = Decimal(str(prices['input']))
+            saved = Decimal(read) * (rate - Decimal(str(prices.get('cache_read', rate))))
+            saved -= Decimal(write) * (Decimal(str(prices.get('cache_write', rate))) - rate)
+            value['saved_usd'] = float(saved * Decimal(str(multiplier)))
+    return value
+
+
+async def receipt(rt, req, answer):
+    if not isinstance(answer, rt.RouteResponse) or answer.rung in {3, 4}:
+        return answer
+    from fastapi import HTTPException
+    import cache_metrics
+    import priority_queue
+    try:
+        prices = await rt._batch_price(answer.model)
+    except (HTTPException, KeyError):
+        # Accounting metadata can be partial; it must not invalidate a paid
+        # answer or bypass its approval. Missing rates stay unpriced.
+        prices = {}
+    multiplier = 1.
+    if req.priority == 'offpeak' and prices:
+        info = await priority_queue.model_info(rt, answer.model)
+        async with rt.pool().acquire() as conn:
+            at = await conn.fetchval('SELECT sent_at FROM tank.ledger WHERE tenant_id=$1 AND id=$2', req.tenant_id, answer.ledger_id)
+        if at is not None and info.get('offpeak') and priority_queue.window_open(info['offpeak'], at):
+            multiplier = info['offpeak']['charge_multiplier']
+    metrics = statistics(prices, answer.tokens_in, answer.cache_read_tokens, answer.cache_write_tokens, multiplier=multiplier)
+    return await cache_metrics.record(rt, req, answer, 'C5', metrics)
 
 
 def anthropic_usage(usage: dict[str, Any]) -> dict[str, Any]:

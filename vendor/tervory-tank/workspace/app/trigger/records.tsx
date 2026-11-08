@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { cloneElement, isValidElement, useId, type ReactElement } from "react";
+import { FirstAction } from "./day-zero";
 import { CRM, Data, Resource, value } from "./copy";
 export function Field({
   label,
@@ -7,10 +9,15 @@ export function Field({
   label: string;
   children: React.ReactNode;
 }) {
+  const fieldId = useId();
+  const control = isValidElement(children) && ["input", "textarea", "select"].includes(String(children.type));
+  const labelled = control ? cloneElement(children as ReactElement<{"aria-labelledby"?: string}>, {
+    "aria-labelledby": (children.props as {"aria-labelledby"?: string})["aria-labelledby"] ?? fieldId,
+  }) : children;
   return (
     <div className="trigger-field">
-      <span className="trigger-field-label">{label}</span>
-      <div className="trigger-field-value">{children}</div>
+      <span id={fieldId} className="trigger-field-label">{label}</span>
+      <div className="trigger-field-value">{labelled}</div>
     </div>
   );
 }
@@ -172,6 +179,7 @@ export default function CRMView({
   ) : (
     <>
       <h1>{spec.title}</h1>
+      <FirstAction area="crm" section={resource} data={data} />
       <Records
         columns={columns}
         items={((data.items ?? []) as Data[]).map((row) => ({

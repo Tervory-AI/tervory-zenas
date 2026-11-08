@@ -18,7 +18,7 @@ export async function GET() {
     const payload = await res.json();
     return NextResponse.json(presentFeeds(payload));
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Feeds could not be loaded.";
+    const message = "Feeds could not be loaded.";
     return NextResponse.json({ error: message }, { status: 502 });
   }
 }

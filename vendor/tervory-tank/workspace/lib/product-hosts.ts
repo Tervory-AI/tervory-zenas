@@ -131,3 +131,12 @@ export function publicReturnUrl(
   const qs = search && search !== "?" ? search : "";
   return ours ? `https://${host}${path}${qs}` : `https://${APP_WORKSPACE_HOST}/`;
 }
+
+/** OPLI's release alias shares the same immutable CLI files as the app host. */
+export function opliReleasePath(host: string | null | undefined, path: string): string | null {
+  if (normalizeHost(host) !== "opli.tervory.com") return null;
+  if (path === "/install.sh") return "/cli/opli-install.sh";
+  if (path === "/latest.json") return "/cli/latest.json";
+  if (/^\/releases\/\d{1,4}\.\d{1,4}\.\d{1,4}\/(manifest\.json|SHA256SUMS|tervory-cli-[A-Za-z0-9.-]+\.tar\.gz)(\.sig)?$/.test(path)) return "/cli" + path;
+  return null;
+}

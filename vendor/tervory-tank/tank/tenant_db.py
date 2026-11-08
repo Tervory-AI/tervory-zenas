@@ -6,6 +6,7 @@ from functools import wraps
 from inspect import signature
 from typing import Any
 from uuid import UUID
+from product_identity import actor_scope
 
 _tenant: ContextVar[str] = ContextVar("tank_database_tenant", default="")
 _administrative: ContextVar[bool] = ContextVar("tank_database_admin", default=False)
@@ -101,14 +102,14 @@ def bind_tenant_endpoints(app):
                     except ValueError:
                         from fastapi import HTTPException
                         raise HTTPException(422, "A workspace is required.") from None
-                with tenant_scope(tenant, administrative=admin):
+                with tenant_scope(tenant, administrative=admin), actor_scope(actor):
                     response = await function(**kwargs)
                 # StreamingResponse runs after endpoint return; preserve its scope.
                 if hasattr(response, "body_iterator"):
                     iterator = response.body_iterator
 
                     async def stream():
-                        with tenant_scope(tenant, administrative=admin):
+                        with tenant_scope(tenant, administrative=admin), actor_scope(actor):
                             async for chunk in iterator:
                                 yield chunk
 

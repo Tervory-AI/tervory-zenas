@@ -61,12 +61,14 @@ def install(app, tank):
     async def evaluate():
         # The room may start after Tank. Retry only this intake's pending evals;
         # completed evidence is retained. No client requests or paid/model work.
-        for attempt in range(10):
-            if not await stage_ready(tank):
-                return
-            if attempt < 9:
-                await asyncio.sleep(30)
-        log.warning("Intake still pending; use the existing Skala eval control after the room is available")
+        while True:
+            try:
+                if not await stage_ready(tank):
+                    return
+            except Exception:
+                # Startup database failures must not permanently kill intake.
+                log.warning("Intake evaluation unavailable; will retry")
+            await asyncio.sleep(30)
 
     @app.on_event("startup")
     async def start():
@@ -74,8 +76,10 @@ def install(app, tank):
         with tenant_scope(None, administrative=True):
             task = asyncio.create_task(evaluate())
 
-    @app.on_event("shutdown")
     async def stop():
         if task:
             task.cancel()
             await asyncio.gather(task, return_exceptions=True)
+
+    # Cancel the worker before Tank closes its pool.
+    app.router.on_shutdown.insert(0, stop)

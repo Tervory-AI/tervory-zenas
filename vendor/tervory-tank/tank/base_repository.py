@@ -378,7 +378,11 @@ class BaseStore:
                 else:
                     return
         try:
-            response = await self.rt._http.post(self.rt.BASE_AGENT_URL.rstrip("/") + "/v1/base/run", json={
+            key = os.environ.get("TANK_KEY_BASE", "")
+            if not key:
+                raise ValueError("Missing setting: TANK_KEY_BASE")
+            response = await self.rt._http.post(self.rt.BASE_AGENT_URL.rstrip("/") + "/v1/base/run",
+                headers={"X-Tank-Key": key}, json={
                 "tenant_id": str(tenant), "created_by": pending["created_by"], "batch": pending["batch"],
                 "records": records, "engine": "ffl" if pending["file_id"] else None, "preview": False, "split_by_state": False,
             }, timeout=180, follow_redirects=False)

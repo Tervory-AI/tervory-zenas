@@ -38,8 +38,8 @@ def save(work: Path, receipt: dict) -> None:
 async def step(client, body: Question, action: str, status: str, count=None) -> dict:
     payload = {"id": str(uuid.uuid4()), "tenant_id": str(body.tenant_id), "task_id": str(body.task_id),
                "home_region": body.home_region, "action": action, "status": status, "count": count}
-    response = await client.post(os.environ.get("TANK_URL", "http://tank:8000").rstrip("/") +
-                                 "/v1/agents/rig/steps", json=payload)
+    response = await asyncio.wait_for(client.post(os.environ.get("TANK_URL", "http://tank:8000").rstrip("/") +
+                                 "/v1/agents/rig/steps", json=payload), timeout=60)
     response.raise_for_status()
     result = response.json()
     if result.get("ledger_id") != payload["id"] or result.get("tenant_id") != payload["tenant_id"]:
@@ -48,7 +48,7 @@ async def step(client, body: Question, action: str, status: str, count=None) -> 
 
 
 async def memory(client, path, payload):
-    response = await client.post(os.environ.get("HERMES_URL", "http://hermes:8000").rstrip("/") + path, json=payload)
+    response = await asyncio.wait_for(client.post(os.environ.get("HERMES_URL", "http://hermes:8000").rstrip("/") + path, json=payload), timeout=60)
     response.raise_for_status()
     return response.json()
 
@@ -116,9 +116,9 @@ async def run_task(body: Question) -> dict:
         finally:
             # Recover billed/failed model receipts even when the child exits early.
             try:
-                response = await client.get(os.environ.get("TANK_URL", "http://tank:8000").rstrip("/") +
+                response = await asyncio.wait_for(client.get(os.environ.get("TANK_URL", "http://tank:8000").rstrip("/") +
                     "/v1/agents/rig/receipts", params={"tenant_id": str(body.tenant_id), "task_id": str(body.task_id)},
-                    headers={"X-Home-Region": body.home_region})
+                    headers={"X-Home-Region": body.home_region}), timeout=60)
                 response.raise_for_status()
                 durable = response.json()["receipts"]
                 if any(r.get("tenant_id") != str(body.tenant_id) or r.get("task_id") != str(body.task_id) or
@@ -139,6 +139,8 @@ async def perform(body: Question):
 
 @app.get("/health")
 async def health():
+    if not os.environ.get('TANK_KEY', '').strip():
+        return JSONResponse({'ok': False, 'missing_settings': ['TANK_KEY']}, status_code=503)
     return {"ok": True, "room": "rig", "hermes_version": "0.22.2"}
 
 

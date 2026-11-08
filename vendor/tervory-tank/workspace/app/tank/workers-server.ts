@@ -1,4 +1,5 @@
 import "server-only";
+import { fetchWithDeadline as fetch } from "../../lib/request";
 
 // Server-side only. The Workspace key stays here; the browser never sees it.
 // GET /v1/workers on Tank is read only.

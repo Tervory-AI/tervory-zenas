@@ -2,9 +2,15 @@
 
 from __future__ import annotations
 
+try:
+    from network import BoundedHTTP
+except ModuleNotFoundError:  # package imports in offline and shared callers
+    from agents.base.network import BoundedHTTP
+
 import json
 import os
 import uuid
+from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from sources.context_dev import CreditLimit
@@ -32,7 +38,7 @@ def decoded(value: Any) -> Any:
 
 class TankVendorLedger:
     def __init__(self, conn: Any, http: Any, *, tenant_id: str, run_id: str) -> None:
-        self.conn, self.http = conn, http
+        self.conn, self.http = conn, BoundedHTTP(http)
         self.tenant_id, self.run_id = uuid.UUID(tenant_id), uuid.UUID(run_id)
         if self.tenant_id != uuid.UUID(PLATFORM_TENANT):
             raise ValueError("company trials require the platform tenant")
@@ -66,7 +72,7 @@ class TankVendorLedger:
         return str(inserted)
 
     async def settle(self, reservation: str, event: dict[str, Any]) -> None:
-        result = {key: event[key] for key in ("status", "fields", "credits", "partial") if key in event}
+        result = {key: event[key] for key in ("status", "fields", "credits", "partial", "observed_on") if key in event}
         await self.conn.execute(
             "UPDATE agent_base.context_dev_calls SET result=$4::jsonb "
             "WHERE tenant_id=$1 AND run_id=$2 AND call_id=$3 AND result IS NULL",
@@ -102,6 +108,14 @@ class TankVendorLedger:
             answer = response.json()
             if answer.get("ledger_id") != str(row["call_id"]) or answer.get("recorded") is not True:
                 raise RuntimeError("Tank vendor ledger did not confirm this call")
+            try:
+                price = Decimal(str(answer.get('cost_usd')))
+                priced = answer.get('cost_status') == 'set' and price.is_finite() and price >= 0
+            except InvalidOperation:
+                price, priced = None, False
+            result['receipt'] = {'ledger_id': str(row['call_id']),
+                                 'cost_usd': str(price) if priced else None,
+                                 'cost_status': 'set' if priced else 'not_set'}
             async with self.conn.transaction():
                 await self.conn.execute(
                     "UPDATE agent_base.records SET passes=jsonb_set(passes,'{context_dev}',$4::jsonb), "
@@ -109,9 +123,9 @@ class TankVendorLedger:
                     self.tenant_id, self.run_id, row["record_id"], json.dumps(result),
                 )
                 await self.conn.execute(
-                    "UPDATE agent_base.context_dev_calls SET posted=true "
+                    "UPDATE agent_base.context_dev_calls SET posted=true,result=$4::jsonb "
                     "WHERE tenant_id=$1 AND run_id=$2 AND call_id=$3",
-                    self.tenant_id, self.run_id, row["call_id"],
+                    self.tenant_id, self.run_id, row["call_id"], json.dumps(result),
                 )
 
     async def recover(self) -> None:

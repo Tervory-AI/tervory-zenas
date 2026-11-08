@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 import { currentTenant } from "@/lib/tenant";
 import { homeRegion, zenas } from "../tank";
@@ -28,11 +29,17 @@ export async function POST(req: Request) {
   } catch {
     return NextResponse.json({ kind: "error", message: "Sign in to ask Zenas." }, { status: 401 });
   }
+  const requestId = req.headers.get("idempotency-key");
+  const headersFor = (phase: string) => {
+    if (!requestId) return undefined;
+    const bytes = createHash("sha256").update(requestId + ":" + phase).digest("hex").slice(0,32);
+    return { "idempotency-key": `${bytes.slice(0,8)}-${bytes.slice(8,12)}-${bytes.slice(12,16)}-${bytes.slice(16,20)}-${bytes.slice(20)}` };
+  };
   const home = homeRegion();
   const jurisdiction = askJurisdiction(home);
   try {
     const opened = await zenas("matters", {
-      method: "POST",
+      method: "POST", headers: headersFor("matter"),
       body: JSON.stringify({
         tenant_id: tenantId,
         home_region: home,
@@ -44,11 +51,11 @@ export async function POST(req: Request) {
       }),
     });
     const matter = await opened.json().catch(() => ({}));
-    if (!opened.ok) return NextResponse.json(askRefusal(opened.status, matter));
+    if (!opened.ok) return NextResponse.json(askRefusal(opened.status, matter), { status: opened.status });
     const matterId = typeof matter?.matter?.id === "string" ? matter.matter.id : null;
     if (!matterId) return NextResponse.json({ kind: "error", message: ASK_ERROR }, { status: 502 });
     const res = await zenas("answers", {
-      method: "POST",
+      method: "POST", headers: headersFor("answer"),
       body: JSON.stringify({
         tenant_id: tenantId,
         home_region: home,
@@ -58,7 +65,7 @@ export async function POST(req: Request) {
       }),
     });
     const payload = await res.json().catch(() => ({}));
-    if (!res.ok) return NextResponse.json(askRefusal(res.status, payload));
+    if (!res.ok) return NextResponse.json(askRefusal(res.status, payload), { status: res.status });
     return NextResponse.json(presentAnswer(payload, matterId));
   } catch {
     return NextResponse.json({ kind: "error", message: ASK_ERROR }, { status: 502 });

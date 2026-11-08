@@ -10,13 +10,17 @@ export function H7State({ state, page }: { state: "empty" | "error" | "loading";
     : page === "brief" ? "No brief selected." : "No resolved predictions yet.";
   return <section className="h7-card" role={state === "error" ? "alert" : "status"}><h3>{text}</h3>
     {page === "calibration" ? <p>Confidence: — · Actual hit rate: — · Samples: —</p> : null}
+    {state === "empty" && page === "calibration" ? <><CalibrationChart row={null}/><p>Refresh feeds to collect observations; calibration fills after predictions resolve.</p></> : null}
+    {state === "empty" && page === "brief" ? <p>Open Monthly briefs to select a saved brief.</p> : null}
     {state === "error" ? <a className="h7-button h7-retry" href={page === "brief" ? "" : "/market-lab/calibration"}>Try again</a> : null}</section>;
 }
 export function BriefView({ value }: { value: Load<Brief> }) {
   return <><h2>Brief detail</h2>{value.state !== "ready" ? <H7State state={value.state} page="brief" /> : <>
     <article className="h7-card"><h3>{value.data.name}</h3><p>{formatDay(value.data.made_at)}</p><p className="h7-saved-text">{value.data.summary}</p>
-      <p className="h7-delivery">{value.data.deliveries.map(row => `${row.channel === "email" ? "Email" : "Webhook"} · ${deliveryLabel(row.status)}`).join("    ")}</p></article>
+      <p className="h7-delivery">{value.data.deliveries.length ? value.data.deliveries.map(row => `${row.channel === "email" ? "Email" : "Webhook"} · ${deliveryLabel(row.status)}`).join("    ") : "Delivery: —"}</p></article>
+    {!value.data.deliveries.length ? <p>Enable alerts to receive delivery receipts.</p> : null}
     <h3>{value.data.sources.length} · Sources cited</h3>
+    {!value.data.sources.length ? <p>Refresh feeds to collect observations for cited briefs.</p> : null}
     {value.data.sources.map((source, index) => <article className="h7-card" key={index}><h3>Citation {index + 1}</h3>
       <p>{source.claim ?? source.text}</p><p>Date: {source.date ? formatDay(source.date) : "—"}</p><p>{source.url ?? "—"}</p>
       {source.prediction_id ? <p>{source.prediction_id}</p> : null}
@@ -30,7 +34,7 @@ export function CalibrationView({ value }: { value: Load<Curve[]> }) {
   const rows = value.state === "ready" ? value.data : [];
   const selectedKey = rows.some(row => cohortKey(row) === selected) ? selected : rows[0] ? cohortKey(rows[0]) : null;
   return <><h2>Calibration</h2>{value.state === "ready" ? <p>Resolved originals only · Unknown and unmeasurable excluded</p> : null}
-    {value.state !== "ready" ? <H7State state={value.state} page="calibration" /> : <>
+    {value.state !== "ready" || !rows.length ? <H7State state={value.state === "ready" ? "empty" : value.state} page="calibration" /> : <>
       <section className="h7-card h7-table"><h3>Resolved predictions</h3><table><thead><tr>{["Warning pair / feed", "Frozen horizon", "Confidence", "Actual hit rate", "Samples"].map(label => <th key={label}>{label}</th>)}</tr></thead>
         <tbody>{value.data.map(row => <tr key={cohortKey(row)}><td><button className="h7-select-cohort" aria-pressed={cohortKey(row) === selectedKey} onClick={() => setSelected(cohortKey(row))}>{row.kind} / {row.feed}</button></td><td>{period(row.horizon_seconds)}</td><td>{percent(row.mean_confidence)}</td><td>{percent(row.realised_rate)}</td><td>{row.count}</td></tr>)}</tbody></table></section>
       {value.data.map(row => <section className="h7-cohort" key={cohortKey(row)}><div className="h7-cohort-summary"><h3><button className="h7-select-cohort" aria-pressed={cohortKey(row) === selectedKey} onClick={() => setSelected(cohortKey(row))}>{row.kind} · Horizon: {period(row.horizon_seconds)}</button></h3><p>{row.kind} / {row.feed}</p>

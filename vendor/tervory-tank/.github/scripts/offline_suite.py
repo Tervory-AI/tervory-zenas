@@ -194,6 +194,24 @@ def main_ignores() -> list[str]:
     return [f"--ignore={p}" for p in [*ALONE, *ELSEWHERE, *SIDE_WORKFLOW]]
 
 
+def prepare_rig_tools(files: list[str], env: dict[str, str]) -> None:
+    """Only the shard owning real R3D conversions needs the pinned CPU toolchain.
+
+    Setup is outside pytest's offline phase, with hashes enforced by the same
+    installer/lockfile used by the production Forge image. Never skip the proof.
+    """
+    if os.environ.get("CI_PREPARE_RIG_TOOLS") != "1":
+        return
+    if "tests/test_rig_r3d.py" not in files and not any(p.startswith("--ignore=") for p in files):
+        return
+    tools = ROOT / ".tmp" / "forge-tools"
+    forge = ROOT / "agents" / "rig" / "forge"
+    subprocess.run([sys.executable, str(forge / "install_tools.py"), str(tools)], check=True, timeout=600)
+    subprocess.run(["npm", "ci", "--prefix", str(forge), "--ignore-scripts", "--no-audit", "--no-fund"],
+                   check=True, timeout=300)
+    env["PATH"] = os.pathsep.join([str(tools / "bin"), str(forge / "node_modules" / ".bin"), env["PATH"]])
+
+
 def main(extra: list[str]) -> int:
     signal.signal(signal.SIGTERM, _interrupt)
     common = pytest_args(os.environ.get("SUITE_WORKERS", "auto"), os.environ.get("SUITE_TEST_TIMEOUT", "300"))
@@ -209,6 +227,7 @@ def main(extra: list[str]) -> int:
         print(f"shard {index}/{count}: {len(main_args)} test files", flush=True)
         if not main_args:
             print("no files in this shard", flush=True)
+    prepare_rig_tools(main_args, env)
     # Each small isolated group runs once, on its own shard (alone_for).
     runs = [("main", main_args)] if main_args else []
     runs += [(p, [p]) for p in alone_for(index, count)]

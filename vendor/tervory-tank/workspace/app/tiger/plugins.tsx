@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState, type DragEvent, type FormEvent } from "react";
+import { useDialogFocus } from "./parts";
 import {
   addTigerConnection,
   addTigerLink,
@@ -23,12 +24,23 @@ import {
 } from "./plugins-data";
 
 export function Plugins({ plugins, onClose, initialTab = "API keys" }: { plugins: PluginPanel; onClose: () => void; initialTab?: PluginTab }) {
+  const dialog = useDialogFocus(onClose);
   const [tab, setTab] = useState<PluginTab>(initialTab);
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [often, setOften] = useState<"Daily" | "Weekly">("Daily");
   const [signIn, setSignIn] = useState<"provider" | "token">("token");
   const fileRef = useRef<HTMLInputElement>(null);
+
+  const running = useRef(false);
+  async function perform(operation: () => Promise<{ok: boolean; message: string}>) {
+    if (running.current) return;
+    running.current = true;
+    setBusy(true);
+    try { await finish(await operation()); }
+    catch { setNote("That could not be saved. Try again."); }
+    finally { running.current = false; setBusy(false); }
+  }
 
   async function finish(result: { ok: boolean; message: string }) {
     setNote(result.message);
@@ -46,12 +58,7 @@ export function Plugins({ plugins, onClose, initialTab = "API keys" }: { plugins
       setNote(NEED_KEY);
       return;
     }
-    setBusy(true);
-    try {
-      await finish(await saveTigerKey(name, value, purpose || "Key"));
-    } finally {
-      setBusy(false);
-    }
+    await perform(() => saveTigerKey(name, value, purpose || "Key"));
   }
 
   async function onFiles(list: FileList | File[] | null) {
@@ -64,12 +71,7 @@ export function Plugins({ plugins, onClose, initialTab = "API keys" }: { plugins
     }
     const body = new FormData();
     for (const file of files) body.append("file", file);
-    setBusy(true);
-    try {
-      await finish(await uploadTigerFiles(body));
-    } finally {
-      setBusy(false);
-    }
+    await perform(() => uploadTigerFiles(body));
   }
 
   async function onAddLink(event: FormEvent<HTMLFormElement>) {
@@ -83,12 +85,7 @@ export function Plugins({ plugins, onClose, initialTab = "API keys" }: { plugins
       setNote(NEED_LINK);
       return;
     }
-    setBusy(true);
-    try {
-      await finish(await addTigerLink(url, label, often === "Daily" ? "daily" : "weekly"));
-    } finally {
-      setBusy(false);
-    }
+    await perform(() => addTigerLink(url, label, often === "Daily" ? "daily" : "weekly"));
   }
 
   async function onAddConnection(event: FormEvent<HTMLFormElement>) {
@@ -103,19 +100,14 @@ export function Plugins({ plugins, onClose, initialTab = "API keys" }: { plugins
       setNote(NEED_MCP);
       return;
     }
-    setBusy(true);
-    try {
-      await finish(await addTigerConnection(name, server, signIn, token));
-    } finally {
-      setBusy(false);
-    }
+    await perform(() => addTigerConnection(name, server, signIn, token));
   }
 
   const primary = plugins.enabled ? "primary" : "line";
 
   return (
     <div className="scrim" role="presentation" onClick={onClose}>
-      <div className="popup" role="dialog" aria-modal="true" aria-labelledby="plugins-title" onClick={(event) => event.stopPropagation()}>
+      <div ref={dialog} tabIndex={-1} className="popup" role="dialog" aria-modal="true" aria-labelledby="plugins-title" onClick={(event) => event.stopPropagation()}>
         <div className="popup-head">
           <div>
             <h2 id="plugins-title">Plugins</h2>
@@ -130,7 +122,7 @@ export function Plugins({ plugins, onClose, initialTab = "API keys" }: { plugins
             </button>
           ))}
         </div>
-        {note ? <p className="notice">{note}</p> : null}
+        {note ? <p className="notice" role="status" aria-live="polite">{note}</p> : null}
         {!plugins.enabled ? (
           <p className="vault-off">{plugins.message || VAULT_OFF_MESSAGE}</p>
         ) : tab === "API keys" ? (
@@ -146,7 +138,7 @@ export function Plugins({ plugins, onClose, initialTab = "API keys" }: { plugins
                   </div>
                   <span className="pill"><i />Connected</span>
                   <div className="mask">{row.mask}</div>
-                  <button type="button" className="text" disabled={busy} onClick={() => { setBusy(true); void removeTigerSecret(row.name).then((result) => finish(result)).finally(() => setBusy(false)); }}>Remove</button>
+                  <button type="button" className="text" disabled={busy} onClick={() => { void perform(() => removeTigerSecret(row.name)); }}>Remove</button>
                 </div>
               ))}
               <form className="add" onSubmit={onSaveKey}>
@@ -189,7 +181,7 @@ export function Plugins({ plugins, onClose, initialTab = "API keys" }: { plugins
                       <td className="name">{file.name}</td>
                       <td>{file.type}</td>
                       <td>{file.status}</td>
-                      <td><button type="button" className="text" disabled={busy} onClick={() => { setBusy(true); void removeTigerFile(file.id).then((result) => finish(result)).finally(() => setBusy(false)); }}>Remove</button></td>
+                      <td><button type="button" className="text" disabled={busy} onClick={() => { void perform(() => removeTigerFile(file.id)); }}>Remove</button></td>
                     </tr>
                   ))}
                 </tbody>
@@ -226,7 +218,7 @@ export function Plugins({ plugins, onClose, initialTab = "API keys" }: { plugins
                     <span className="host">{link.url}</span>
                   </div>
                   <span className="pill"><i />{link.status}</span>
-                  <button type="button" className="text" disabled={busy} onClick={() => { setBusy(true); void removeTigerLink(link.id).then((result) => finish(result)).finally(() => setBusy(false)); }}>Remove</button>
+                  <button type="button" className="text" disabled={busy} onClick={() => { void perform(() => removeTigerLink(link.id)); }}>Remove</button>
                 </div>
               ))}
             </div>
@@ -245,7 +237,7 @@ export function Plugins({ plugins, onClose, initialTab = "API keys" }: { plugins
                   </div>
                   <p>{row.hasToken ? "••••••••" : "Signed in with the provider"}</p>
                   <span className="pill"><i />{row.status}</span>
-                  <button type="button" className="text" disabled={busy} onClick={() => { setBusy(true); void removeTigerConnection(row.id).then((result) => finish(result)).finally(() => setBusy(false)); }}>Disconnect</button>
+                  <button type="button" className="text" disabled={busy} onClick={() => { void perform(() => removeTigerConnection(row.id)); }}>Disconnect</button>
                 </div>
               ))}
             </div>

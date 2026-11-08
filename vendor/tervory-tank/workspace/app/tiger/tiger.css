@@ -820,3 +820,15 @@ main:has(.tiger) {
   .tiger.position-view .site-status .pill { width: 100%; }
 }
 .tiger.position-view .panel-top { width: 208px; }
+
+.tiger.position-view .comparison-empty-state { position: relative; }
+.tiger.position-view .comparison-empty-state > .fine { position: absolute; top: 24px; margin: 0; font-size: 12px; line-height: 16px; }
+
+
+/* Reuse the existing ink/body colours and visible keyboard focus. */
+.tiger { --muted: #3d4a66; }
+.tiger :focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+.tiger .panel :focus-visible { outline-color: var(--paper); }
+.tiger.position-view .panel :focus-visible { outline-color: var(--ink); }
+.tiger:not(.position-view) .watch-content { min-height: 168px; }
+.tiger .popup { overscroll-behavior: contain; }

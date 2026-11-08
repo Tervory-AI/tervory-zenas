@@ -17,6 +17,9 @@ from qdrant_client.models import (
     Filter,
     FilterSelector,
     MatchValue,
+    MatchAny,
+    IsEmptyCondition,
+    PayloadField,
     PayloadSchemaType,
     PointStruct,
     VectorParams,
@@ -105,6 +108,7 @@ class QdrantStore:
         tenant_id: str,
         kind: str | None,
         limit: int,
+        wide_kinds: list[str] | None = None,
     ) -> list[Hit]:
         self._check(collection)
         if not self._client.collection_exists(collection):
@@ -112,7 +116,7 @@ class QdrantStore:
         result = self._client.query_points(
             collection_name=collection,
             query=vector,
-            query_filter=_tenant_filter(tenant_id, kind),
+            query_filter=_tenant_filter(tenant_id, kind, wide_kinds),
             limit=limit,
             with_payload=True,
         )
@@ -126,7 +130,7 @@ class QdrantStore:
             hits.append(Hit(_memory(str(point.id), payload), float(point.score)))
         return hits
 
-    def delete(self, collection: str, memory_id: str, tenant_id: str | None = None) -> bool:
+    def delete(self, collection: str, memory_id: str, tenant_id: str | None = None, *, wide_kinds: list[str] | None = None) -> bool:
         self._check(collection)
         if not self._client.collection_exists(collection):
             return False
@@ -135,24 +139,30 @@ class QdrantStore:
             return False
         if tenant_id is not None and (found[0].payload or {}).get('tenant_id') != tenant_id:
             return False
+        payload = found[0].payload or {}
+        if wide_kinds is not None and (payload.get("kind") not in wide_kinds or (payload.get("meta") or {}).get("user_id")):
+            return False
         self._client.delete(collection_name=collection, points_selector=[memory_id])
         return True
 
-    def delete_tenant(self, collection: str, tenant_id: str) -> int:
+    def delete_tenant(self, collection: str, tenant_id: str, *, wide_kinds: list[str] | None = None) -> int:
         self._check(collection)
         if not self._client.collection_exists(collection):
             return 0
-        filt = _tenant_filter(tenant_id, None)
+        filt = _tenant_filter(tenant_id, None, wide_kinds)
         count = int(self._client.count(collection_name=collection, count_filter=filt, exact=True).count)
         if count:
             self._client.delete(collection_name=collection, points_selector=FilterSelector(filter=filt))
         return count
 
 
-def _tenant_filter(tenant_id: str, kind: str | None) -> Filter:
+def _tenant_filter(tenant_id: str, kind: str | None, wide_kinds: list[str] | None = None) -> Filter:
     must = [FieldCondition(key="tenant_id", match=MatchValue(value=tenant_id))]
     if kind is not None:
         must.append(FieldCondition(key="kind", match=MatchValue(value=kind)))
+    if wide_kinds is not None:
+        must.extend([FieldCondition(key="kind", match=MatchAny(any=wide_kinds)),
+                     IsEmptyCondition(is_empty=PayloadField(key="meta.user_id"))])
     return Filter(must=must)
 
 

@@ -1,4 +1,6 @@
 "use client";
+import { fetchWithDeadline as fetch } from "../../../../lib/request";
+import { request, within } from "../../request";
 
 import { useEffect, useRef, useState } from "react";
 
@@ -16,14 +18,21 @@ export function ProductPreview({ id, anchors }: { id: string; anchors: Record<st
     setBusy(true); setStatus("Opening product preview…");
     try {
       const base = "/rig/admin/three-d/file/";
-      const response = await fetch(`${base}draft/${id}`, { cache: "no-store" });
-      if (!response.ok) throw new Error();
-      const bytes = await response.arrayBuffer();
+      const bytes = await request(`${base}draft/${id}`, { cache: "no-store" }, async response => {
+        if (!response.ok) throw new Error();
+        return response.arrayBuffer();
+      });
       // Literal same-origin allowlisted route. No remote import or room key in the browser.
       const moduleUrl = base + "runtime.js";
-      const runtime = await import(/* webpackIgnore: true */ moduleUrl) as Runtime;
+      const runtime = await within(() => import(/* webpackIgnore: true */ moduleUrl)) as Runtime;
       if (!alive.current || !canvas.current) return;
-      const next = await runtime.createStage(canvas.current, [{ role: "product", mount: null, review_anchors: anchors }], [bytes], true);
+      let accepting = true;
+      let next: Stage;
+      try { next = await within(async () => {
+        const opened = await runtime.createStage(canvas.current!, [{ role: "product", mount: null, review_anchors: anchors }], [bytes], true);
+        if (!accepting) opened.dispose();
+        return opened;
+      }); } finally { accepting = false; }
       if (!alive.current) { next.dispose(); return; }
       stage.current = next; setStatus("Check the product from every side. Coloured marks show the attachment points and their directions.");
     } catch { if (alive.current) setStatus("The preview could not be opened. Try again before approving."); }

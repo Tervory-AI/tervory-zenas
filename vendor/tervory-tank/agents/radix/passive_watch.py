@@ -19,6 +19,7 @@ async def tick(pool, *, execute_scan=None) -> dict:
         async with conn.transaction():
             if not await conn.fetchval('SELECT pg_try_advisory_xact_lock($1)', WATCH_LOCK):
                 return {'queued': True}
+            await Store(pool).reap_expired(discovery=conn)
             from regulation_events import run_queued
             queued = await run_queued(pool, conn)
             if queued is not None:

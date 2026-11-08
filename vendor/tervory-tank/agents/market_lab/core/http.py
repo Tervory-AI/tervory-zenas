@@ -42,7 +42,14 @@ def build_router(*, key_ok, ledger_context, engine: str | None = None):
                 researched = await research_web(str(body.tenant_id), body.question)
                 # Preserve the existing no-sources wording, including when the
                 # search finds nothing. Never hold a DB connection during research.
-                return researched if researched and researched.get("facts") else saved
+                if researched and researched.get('facts'):
+                    from core.research_records import save, remember
+                    async with ledger_context() as ledger:
+                        report = await save(ledger, str(body.tenant_id), body.question, researched)
+                        memory = getattr(ledger, 'memory', None)
+                    await remember(memory, report)
+                    return {**researched, 'report_id': report['id']}
+                return saved
             async with ledger_context() as ledger:
                 tenant = str(body.tenant_id)
                 if operation == "document":

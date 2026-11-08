@@ -81,7 +81,9 @@ class Links(HTMLParser):
     def handle_starttag(self, tag, attrs):
         if tag != 'a':
             return
-        href = dict(attrs).get('href')
+        self.add(dict(attrs).get('href'))
+
+    def add(self, href):
         try:
             url = urljoin(self.target, href or '')
             p, root = urlsplit(url), urlsplit(self.target)
@@ -200,6 +202,10 @@ async def collect(target, directory, *, previous=None, budget=None, run=command,
             hashes[target] = hashlib.sha256(root).hexdigest()
             parser = Links(target)
             parser.feed(pages[target])
+            # A removed home-page link does not prove that a monitored page is
+            # gone. Recheck previous same-origin pages within the same budget.
+            for url in previous:
+                parser.add(url)
             # Bound both page count and file discoveries. Every fetch remains proxied.
             eligible = [u for u in parser.links if u != target]
             ordered = [u for u in eligible if u in previous] + [u for u in eligible if u not in previous]
@@ -218,7 +224,9 @@ async def collect(target, directory, *, previous=None, budget=None, run=command,
                     files[url] = data
                 if len(pages) >= 11:
                     break
-            findings.extend(page_changes(hashes, previous))
+            compared = {url: digest for url, digest in previous.items()
+                        if url == target or url in visited}
+            findings.extend(page_changes(hashes, compared))
             skipped = [{'url':u,'status':'skipped','reason':'page_limit' if len(pages)>=11 else 'link_limit'}
                        for u in eligible if u not in visited]
             if skipped:

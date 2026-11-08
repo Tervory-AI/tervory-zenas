@@ -20,7 +20,7 @@ main:has(.rig) {
   --paper: #f4f6fb;
   --card: #ffffff;
   --line: #b8bfd0;
-  --muted: #6b7590;
+  --muted: #3d4a66;
   --body: #3d4a66;
   --soft: #c9d0e0;
   --label: #8a95b0;
@@ -894,3 +894,11 @@ main:has(.rig) {
   .rig.modal-open .scrim:has(.approve) { background: rgba(0, 24, 64, 0.35); padding: 24px 16px; }
   .rig.modal-open .scrim:has(.approve) .groups { display: none; }
 }
+
+.count .first-action { margin: 4px 0 0; font-size: 12px; line-height: 1.4; }
+
+.rig :is(button, a, input, select, textarea):focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+.rig .results-line { min-height: 3em; }
+@media (prefers-reduced-motion: reduce) { .rig * { scroll-behavior: auto; animation: none; transition: none; } }
+
+.rig aside :focus-visible { outline-color: var(--soft); }

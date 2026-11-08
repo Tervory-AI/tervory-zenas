@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic";
 /** Public Autumbra product page — no SigninDirectory. Founder console stays at /admin/autumbra. */
 export default function AutumbraPublicPage() {
   return (
-    <main className="autumbra-public">
+    <section className="autumbra-public" aria-label="Autumbra">
       <header className="autumbra-public-head">
         <img src="/brand/tervory-logo.png" width="160" height="36" alt="Tervory" />
         <p className="autumbra-public-eyebrow">Autumbra</p>
@@ -33,6 +33,6 @@ export default function AutumbraPublicPage() {
 
       <footer className="autumbra-public-foot">
       </footer>
-    </main>
+    </section>
   );
 }

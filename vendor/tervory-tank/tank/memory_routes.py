@@ -26,10 +26,35 @@ async def hermes(
     *,
     body: dict | None = None,
     params: dict | None = None,
+    tenant: str | None = None,
 ) -> dict:
     key = os.environ.get("TANK_API_KEY", "")
     if not key:
         raise HTTPException(503, "memory store unreachable")
+    from command_tools._user_assertion import bind_personal_headers
+
+    raw = b""
+    if body is not None:
+        raw = json.dumps(body, separators=(",", ":"), sort_keys=True).encode()
+    tenant_id = tenant
+    if tenant_id is None and body and body.get("tenant_id") is not None:
+        tenant_id = str(body["tenant_id"])
+    if tenant_id is None and params and params.get("tenant_id") is not None:
+        tenant_id = str(params["tenant_id"])
+    if not tenant_id:
+        raise HTTPException(422, "tenant required for memory")
+    target = httpx.URL("http://hermes:8000" + path)
+    if params:
+        target = target.copy_merge_params(params)
+    headers = {
+        "X-Tank-Key": key,
+        "X-Tervory-Admin": actor,
+        **bind_personal_headers(
+            key, method, target.raw_path.decode("ascii"), tenant=tenant_id, user=actor, body=raw
+        ),
+    }
+    if body is not None:
+        headers["Content-Type"] = "application/json"
     try:
         async with httpx.AsyncClient(
             timeout=40, trust_env=False, follow_redirects=False
@@ -37,9 +62,9 @@ async def hermes(
             response = await client.request(
                 method,
                 "http://hermes:8000" + path,
-                json=body,
+                content=raw if body is not None else None,
                 params=params,
-                headers={"X-Tank-Key": key, "X-Tervory-Admin": actor},
+                headers=headers,
             )
         if response.status_code >= 400:
             if response.status_code in (403, 409):
@@ -68,7 +93,12 @@ async def hermes(
 async def record(id: uuid.UUID, actor: Reviewer = Depends(require_reviewer)):
     if not actor.founder:
         raise HTTPException(404, "not found")
-    return await hermes("GET", "/founder/records/" + str(id), actor.user)
+    return await hermes(
+        "GET",
+        "/founder/records/" + str(id),
+        actor.user,
+        tenant=str(actor.tenant),
+    )
 
 
 @router.post("/withdraw/{id}", dependencies=[Depends(require_admin)])

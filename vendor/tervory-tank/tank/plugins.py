@@ -176,7 +176,9 @@ async def code_actor(actor, conn):
     """Narrow code mode only; the normal connected MCP catalogue is unchanged."""
     installs = {(row['plugin_id'], row['version']) for row in await conn.fetch('SELECT plugin_id,version FROM tank.plugin_installs WHERE tenant_id=$1', actor.tenant_id)}
     connections = {(row['vault'], row['name']): (row['vault'], unpack(row['metadata']).get('server_url')) for row in await conn.fetch("SELECT name,vault,metadata FROM tank.vault_items WHERE tenant_id=$1 AND kind='connections' AND mcp_state='connected'", actor.tenant_id)}
-    allowed = set()
+    # Existing tenant-owned, founder-approved read web tools are reachable from code.
+    allowed = {name for name, tool in actor.mcp_tools.items()
+               if tool['access'] == 'read' and tool['name'] in {'search', 'fetch', 'web_search', 'web_fetch'}}
     for key in installs:
         manifest = MANIFESTS.get(key)
         if manifest is None or not manifest.code_mode or not visible(actor, manifest):

@@ -1,7 +1,11 @@
+import { isWorkspaceOrigin } from "./lib/workspace-origin";
+import { fetchWithDeadline as fetch } from "./lib/request";
+import { workspaceSetupMessage } from "./lib/workspace-setup";
+import { WORKSPACE_SESSION_COOKIE } from "./lib/signin-cookies";
 import { getToken } from "next-auth/jwt";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import { mootCanonicalRedirectUrl, productHostRewritePath, publicReturnUrl } from "@/lib/product-hosts";
+import { mootCanonicalRedirectUrl, productHostRewritePath, publicReturnUrl, opliReleasePath } from "@/lib/product-hosts";
 
 // Autumbra receipts + undo stay reachable signed-out ONLY so email tokens work;
 // each handler token-gates (no token / forged / expired / other-tenant → 401).
@@ -74,16 +78,30 @@ async function mobileSessionIsValid(token: string): Promise<boolean> {
 
 export default async function middleware(req: NextRequest) {
   const host = req.headers.get("x-forwarded-host") ?? req.headers.get("host");
+  const releasePath = opliReleasePath(host, req.nextUrl.pathname);
+  if (releasePath) {
+    const url = req.nextUrl.clone(); url.pathname = releasePath;
+    return NextResponse.rewrite(url);
+  }
   const canonical = mootCanonicalRedirectUrl(host, req.nextUrl.pathname, req.nextUrl.search);
   if (canonical) {
     return NextResponse.redirect(canonical, 308);
   }
 
+  const setup = workspaceSetupMessage();
+  if (setup) {
+    if (req.nextUrl.pathname.startsWith("/api/")) return NextResponse.json({ error: setup }, { status: 503, headers: { "Cache-Control": "no-store" } });
+    return NextResponse.next();
+  }
+
   // Explicit sign-in redirect keeps private panels (e.g. /zenas) usable when signed out.
   const rewriteTo = productHostRewritePath(host, req.nextUrl.pathname);
   const publicOk = (rewriteTo ? rewriteIsPublic(rewriteTo) : false) || isPublic(req);
+  if (!publicOk && !["GET", "HEAD", "OPTIONS"].includes(req.method) && !isWorkspaceOrigin(req)) {
+    return NextResponse.json({ error: "Open this workspace and try again." }, { status: 403 });
+  }
   if (!publicOk) {
-    const token = await getToken({ req, secret: process.env.TRIGGER_SIGNIN_WORKSPACE_SECRET, cookieName: "__Secure-tervory-signin", secureCookie: true });
+    const token = await getToken({ req, secret: process.env.TRIGGER_SIGNIN_WORKSPACE_SECRET, cookieName: WORKSPACE_SESSION_COOKIE, secureCookie: true });
     const principal = token?.principal as { expiresAt?: number } | undefined;
     if (!principal || (principal.expiresAt ?? 0) <= Date.now()) {
       const mobileToken = req.cookies.get("__Host-tervory-mobile")?.value;
@@ -117,5 +135,5 @@ export default async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next|.*\\..*).*)", "/(api|trpc)(.*)"],
+  matcher: ["/install.sh", "/latest.json", "/releases/:path*", "/((?!_next|.*\\..*).*)", "/(api|trpc)(.*)"],
 };

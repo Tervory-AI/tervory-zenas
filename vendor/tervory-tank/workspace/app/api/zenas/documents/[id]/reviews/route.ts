@@ -17,7 +17,7 @@ export async function POST(req: Request, context: { params: Promise<{ id: string
   } | null;
   const decision = body?.decision === "approved" || body?.decision === "rejected" ? body.decision : "";
   const jurisdiction = body?.jurisdiction ?? "";
-  const changes = (body?.changes ?? "").slice(0, 8000);
+  const changes = (typeof body?.changes === "string" ? body.changes : "").slice(0, 8000);
   const refusal = signOffRefusal(reviewer, jurisdiction);
   if (refusal) return NextResponse.json({ error: refusal }, { status: 403 });
   const scope = reviewer.founder ? ["us", "za"] : reviewer.jurisdictions;
@@ -27,7 +27,7 @@ export async function POST(req: Request, context: { params: Promise<{ id: string
   try {
     const { tenantId } = await currentTenant();
     const res = await zenas(`documents/${id}/reviews`, {
-      method: "POST",
+      method: "POST", headers: { "idempotency-key": req.headers.get("idempotency-key") || crypto.randomUUID() },
       body: JSON.stringify({
         tenant_id: tenantId,
         home_region: homeRegion(),
@@ -46,7 +46,7 @@ export async function POST(req: Request, context: { params: Promise<{ id: string
     }
     return NextResponse.json({ ok: true, reviewer: reviewer.name, admission_no: reviewer.admissionNo, decision }, { status: 201 });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "The sign-off was not recorded.";
+    const message = "The sign-off was not recorded.";
     return NextResponse.json({ error: message }, { status: 502 });
   }
 }

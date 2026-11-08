@@ -188,11 +188,12 @@ async def call_model(model: str, messages: list[dict], max_tokens: int) -> dict:
     rt = runtime()
     if str(model or "").strip().lower().startswith("build-"):
         raise ValueError("This model is for Tervory's own build and test work only.")
+    trace = await __import__('engine_tracing').metadata(rt, PLATFORM_TENANT, 'tank.bench', model)
     async with httpx.AsyncClient(timeout=120) as client:
         response = await client.post(f'{rt.LITELLM_URL}/v1/chat/completions',
             headers={'Authorization': f'Bearer {rt.LITELLM_MASTER_KEY}'},
             json={'model': model, 'messages': messages, 'max_tokens': max_tokens,
-                  'temperature': 0, 'disable_fallbacks': True, 'num_retries': 0})
+                  'temperature': 0, 'disable_fallbacks': True, 'num_retries': 0, **trace})
     # Never retain upstream error bodies: they can contain prompt data or keys.
     data = response.json() if response.is_success else {}
     usage = data.get('usage') or {}

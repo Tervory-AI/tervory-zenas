@@ -271,7 +271,7 @@ def build_router(tank):
                 name = clean(upload.filename, 240)
                 if '/' in name or '\\' in name:
                     fail(422, 'Use a file name without folders.')
-                if room == 'market_lab' and not name.lower().endswith(('.pdf', '.csv', '.xlsx')):
+                if room == 'market_lab' and not name.lower().endswith(('.pdf', '.csv', '.xlsx', '.docx')):
                     fail(422, 'Only CSV, XLSX, and PDF files can be uploaded.')
             from datetime import datetime, timezone
             for upload in uploads:

@@ -22,7 +22,7 @@ export async function GET() {
     const payload = await res.json();
     return NextResponse.json({ items: presentReview(payload, reviewer.jurisdictions) });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "The review queue could not be loaded.";
+    const message = "The review queue could not be loaded.";
     return NextResponse.json({ error: message }, { status: 502 });
   }
 }

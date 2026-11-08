@@ -494,3 +494,14 @@ body:has(.skala) main {
 .sk-dialog { max-width: min(850px, calc(100vw - 32px)); box-sizing: border-box; }
 .sk-bulk { margin: 8px 0; }
 .sk-bulk-list { max-height: 45vh; overflow: auto; overflow-wrap: anywhere; }
+
+/* Keep navigation reachable and reserve the status line during requests. */
+.skala .sk-note, .skala .sk-err { min-height: 24px; }
+.skala .sk-body { overflow-wrap: anywhere; }
+.skala .sk-versions pre { max-width: 100%; }
+@media (max-width: 800px) {
+  .skala:not(.menu-open) .sk-panel { visibility: hidden; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .skala *, .skala *::before, .skala *::after { scroll-behavior: auto; transition: none; }
+}

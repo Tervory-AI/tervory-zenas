@@ -42,7 +42,7 @@ async def ping(ctx: JobContext) -> dict:
                 "schedule:*/5",
             )
             result["heartbeats_seen"] = saved.get("seen")
-        except Exception as exc:  # noqa: BLE001 — class name only, never the message
+        except Exception as exc:
             log.warning("heartbeat memory failed (%s)", type(exc).__name__)
             result["memory"] = "unreachable"
     return result
@@ -52,7 +52,8 @@ async def scan(ctx: JobContext) -> dict:
     result = await scan_job(ctx)
     # Counts only. The finding text can carry a file path, never a secret value.
     log_line(AGENT, "scan finished", tenant_id=str(ctx.tenant_id), job_id=str(ctx.job_id))
-    return result
+    from task_runtime import finish_scan
+    return await finish_scan(app, ctx, result)
 
 
 async def watch_tick(ctx: JobContext) -> dict:
@@ -87,6 +88,15 @@ attach_gold(app)
 
 from passive_routes import attach as attach_passive
 attach_passive(app)
+
+from radix_memory_api import attach_memory_routes
+attach_memory_routes(app)
+
+from task_runtime import attach as attach_task_runtime
+attach_task_runtime(app)
+
+from radix_brain import brain_enabled as _radix_brain_enabled
+app.state.radix_brain_enabled = _radix_brain_enabled()
 
 
 # Room-key-only execution of the candidate IaC engine; no skill approval here.
@@ -137,3 +147,6 @@ async def _regulation_lifespan(app):
 
 
 app.router.lifespan_context = _regulation_lifespan
+
+from radix_readiness import install as install_readiness
+install_readiness(app)

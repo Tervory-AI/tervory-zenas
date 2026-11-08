@@ -1,5 +1,8 @@
 "use client";
+import { zenasFetch } from "@/app/zenas/request";
+import { LocalHearingVoice } from "./moot-voice";
 
+import { fetchWithDeadline as fetch } from "../../lib/request";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { MOOT_LABEL, MOOT_LEAD, MOOT_PARTS } from "./moot";
 import { fairnessReading, type Fairness, newerHearing, SEATS, SEAT_LABELS, turnFromForm, type Hearing, type Seat } from "./moot-hearing-types";
@@ -18,6 +21,7 @@ const ERROR: Record<string, string> = {
 const FAILURE = "The request could not be completed. Check the details and try again.";
 
 export function MootCourt() {
+  const voice = useRef<LocalHearingVoice | null>(null);
   const [summaries, setSummaries] = useState<Summary[]>([]);
   const [sources, setSources] = useState<{ id: string; title: string }[]>([]);
   const [participants, setParticipants] = useState<Participant[]>([]);
@@ -39,6 +43,21 @@ export function MootCourt() {
   const commandRequests = useRef(new Map<string, string>());
   const [judgeKind, setJudgeKind] = useState("question");
 
+  useEffect(() => {
+    voice.current = new LocalHearingVoice(setMessage);
+    function keyboard(event: KeyboardEvent) {
+      if (event.repeat || !event.altKey || event.ctrlKey || event.metaKey) return;
+      if (event.code === "KeyJ") { event.preventDefault(); voice.current?.replayJudge(); return; }
+      const field = document.activeElement;
+      if (event.code === "KeyM" && field instanceof HTMLTextAreaElement && field.closest('form[data-moot-turn]')) {
+        event.preventDefault(); void voice.current?.dictate(field);
+      }
+    }
+    window.addEventListener("keydown", keyboard);
+    return () => { window.removeEventListener("keydown", keyboard); voice.current?.close(); };
+  }, []);
+  useEffect(() => { voice.current?.observe(hearing); }, [hearing]);
+
   const accept = useCallback((candidate: Hearing, isOperator: boolean) => {
     if (candidate.id !== selectedRef.current) return;
     setHearing(current => newerHearing(current, candidate, selectedRef.current));
@@ -49,7 +68,7 @@ export function MootCourt() {
     if (!id) return;
     const requestedSeat = seatRef.current;
     try {
-      const res = await fetch(`${BASE}hearings/${id}${requestedSeat ? `?seat=${requestedSeat}` : ""}`, { cache: "no-store" });
+      const res = await zenasFetch(`${BASE}hearings/${id}${requestedSeat ? `?seat=${requestedSeat}` : ""}`, { cache: "no-store" });
       if (selectedRef.current !== id || seatRef.current !== requestedSeat) return;
       if (!res.ok) {
         if ([401, 403, 404].includes(res.status)) { setHearing(null); setOperator(false); seatRef.current = ""; setSeat(""); }
@@ -64,7 +83,7 @@ export function MootCourt() {
       if (seatRef.current === requestedSeat) {
         accept(data.hearing, data.operator);
         if (data.hearing.fairness_pair_id) {
-          const comparison = await fetch(`${BASE}hearings/${id}/fairness`, { cache: "no-store" });
+          const comparison = await zenasFetch(`${BASE}hearings/${id}/fairness`, { cache: "no-store" });
           if (comparison.ok && selectedRef.current === id) setFairness((await comparison.json()).fairness);
         } else setFairness(null);
       }
@@ -73,7 +92,7 @@ export function MootCourt() {
 
   useEffect(() => {
     let active = true;
-    Promise.all([fetch(BASE + "hearings"), fetch(BASE + "sources"), fetch(BASE + "participants")]).then(async ([h, s, p]) => {
+    Promise.all([zenasFetch(BASE + "hearings"), zenasFetch(BASE + "sources"), zenasFetch(BASE + "participants")]).then(async ([h, s, p]) => {
       if (!active) return;
       if (h.ok) setSummaries((await h.json()).hearings);
       else setMessage("Room unavailable");
@@ -105,7 +124,7 @@ export function MootCourt() {
     if (runAI) setAiBusy(true); else setBusy(true);
     setMessage("");
     try {
-      const res = await fetch(`${BASE}hearings/${id}/${action}${requestedSeat ? `?seat=${requestedSeat}` : ""}`, {
+      const res = await zenasFetch(`${BASE}hearings/${id}/${action}${requestedSeat ? `?seat=${requestedSeat}` : ""}`, {
         method: "POST", headers: { "content-type": "application/json" }, signal: controller?.signal,
         body: JSON.stringify({ request_id: requestId, revision: current.revision, payload }),
       });
@@ -114,7 +133,7 @@ export function MootCourt() {
       if (seatRef.current === requestedSeat) {
         accept(data.hearing, data.operator);
         if (data.hearing.fairness_pair_id) {
-          const comparison = await fetch(`${BASE}hearings/${id}/fairness`, { cache: "no-store" });
+          const comparison = await zenasFetch(`${BASE}hearings/${id}/fairness`, { cache: "no-store" });
           if (comparison.ok && selectedRef.current === id) setFairness((await comparison.json()).fairness);
         } else setFairness(null);
       }
@@ -150,14 +169,14 @@ export function MootCourt() {
     swappedStart.current = identity;
     setBusy(true);
     try {
-      const res = await fetch(`${BASE}hearings/${target}`, { cache: "no-store" });
+      const res = await zenasFetch(`${BASE}hearings/${target}`, { cache: "no-store" });
       if (!res.ok) { setMessage("Room unavailable"); return; }
       const partner = (await res.json()).hearing as Hearing;
       if (partner.phase === "locked") {
         const fingerprint = `start-paired:${target}:${partner.revision}`;
         const key = commandRequests.current.get(fingerprint) ?? crypto.randomUUID();
         commandRequests.current.set(fingerprint, key);
-        const started = await fetch(`${BASE}hearings/${target}/start`, { method: "POST", headers: { "content-type": "application/json" },
+        const started = await zenasFetch(`${BASE}hearings/${target}/start`, { method: "POST", headers: { "content-type": "application/json" },
           body: JSON.stringify({ request_id: key, revision: partner.revision, payload: {} }) });
         if (!started.ok) { setMessage(FAILURE); return; }
       }
@@ -172,9 +191,10 @@ export function MootCourt() {
   }, [operator, hearing?.id, hearing?.phase, fairness?.pair_id, fairness?.status]);
 
   function selectHearing(id: string) {
-    aiAbort.current?.abort(); selectedRef.current = id; setSelected(id); setHearing(null); setFairness(null); seatRef.current = ""; setSeat(""); setMessage("");
+    voice.current?.close(); aiAbort.current?.abort(); selectedRef.current = id; setSelected(id); setHearing(null); setFairness(null); seatRef.current = ""; setSeat(""); setMessage("");
   }
   function selectSeat(value: Seat | "") {
+    voice.current?.close();
     seatRef.current = value; setSeat(value);
     // Drop the prior role's private projection immediately. An old response may
     // not put it back after a role selection or controller handover.
@@ -188,7 +208,7 @@ export function MootCourt() {
   const draftKey = `${selected}:${seat}`;
   const draft = drafts[draftKey] ?? {};
   const putDraft = (name: string, value: string) => setDrafts(all => ({ ...all, [draftKey]: { ...(all[draftKey] ?? {}), [name]: value } }));
-  const area = (name: string, label: string, required = false) => <label key={name}>{label}<textarea name={name} required={required} maxLength={12000} value={draft[name] ?? ""} onChange={e => putDraft(name, e.target.value)} /></label>;
+  const area = (name: string, label: string, required = false) => <label key={name}>{label}<textarea aria-keyshortcuts="Alt+M Alt+J" name={name} required={required} maxLength={12000} value={draft[name] ?? ""} onChange={e => putDraft(name, e.target.value)} /></label>;
   async function create(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); const form = new FormData(event.currentTarget); setBusy(true); setMessage("");
     const seats = Object.fromEntries(SEATS.map(s => { const value = String(form.get(s)); return [s, value === "ai" ? { kind: "ai" } : { kind: "human", user_id: value }]; }));
@@ -196,7 +216,7 @@ export function MootCourt() {
     const requestId = commandRequests.current.get(fingerprint) ?? crypto.randomUUID();
     commandRequests.current.set(fingerprint, requestId);
     try {
-      const res = await fetch(BASE + "hearings", { method: "POST", headers: { "content-type": "application/json" },
+      const res = await zenasFetch(BASE + "hearings", { method: "POST", headers: { "content-type": "application/json" },
         body: JSON.stringify({ request_id: requestId, worked_id: form.get("worked"), seats }) });
       const data = await res.json();
       if (!res.ok) { setMessage(ERROR[data.error] ?? FAILURE); return; }
@@ -208,7 +228,9 @@ export function MootCourt() {
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (!hearing || !seat) return;
     const form = event.currentTarget;
-    if (await command("turn", turnFromForm(new FormData(form), hearing, seat))) {
+    const payload = turnFromForm(new FormData(form), hearing, seat);
+    const capture = voice.current?.metadata(payload.text);
+    if (await command("turn", { ...payload, ...(capture ? { voice: capture } : {}) })) {
       setDrafts(all => ({ ...all, [draftKey]: {} })); form.reset();
     }
   }
@@ -220,8 +242,8 @@ export function MootCourt() {
     {message && <p role="alert">{message}</p>}
     <label className="zn-select">The hearing<select value={selected} onChange={e => selectHearing(e.target.value)}><option value="">—</option>{summaries.map(s => <option value={s.id} key={s.id}>{s.title}{s.first_side === "respondent" ? " · Swapped seats" : ""}</option>)}</select></label>
     <div className="zn-moot-ground">
-      <article className="zn-card"><h2>{MOOT_PARTS[0].title}</h2>
-        {founder && !hearing && <form onSubmit={create}>
+      <article className="zn-card"><h2>{hearing ? <a className="zn-moot-screen-link" href={`/zenas/moot/${hearing.id}/citations`}>{MOOT_PARTS[0].title}</a> : MOOT_PARTS[0].title}</h2>
+        {!hearing && <form onSubmit={create} inert={!founder} aria-hidden={!founder} style={{ visibility: founder ? "visible" : "hidden" }}>
           <label className="zn-select">Civil appeal<select name="worked" required><option value="">—</option>{sources.map(s => <option value={s.id} key={s.id}>{s.title}</option>)}</select></label>
           {SEATS.map(s => <label className="zn-select" key={s}>{SEAT_LABELS[s]}<select name={s} defaultValue="ai"><option value="ai">AI</option>{participants.map(p => <option value={p.user_id} key={p.user_id}>{p.name}</option>)}</select></label>)}
           <button className="zn-primary" disabled={busy || !sources.length}>Create hearing</button>
@@ -234,7 +256,7 @@ export function MootCourt() {
           {operator && hearing.phase === "locked" && <button className="zn-primary" disabled={busy} onClick={() => void command("start")}>Start hearing</button>}
         </>}
       </article>
-      <article className="zn-card"><h2>{MOOT_PARTS[1].title}</h2>
+      <article className="zn-card"><h2>{hearing ? <a className="zn-moot-screen-link" href={`/zenas/moot/${hearing.id}/bench`}>{MOOT_PARTS[1].title}</a> : MOOT_PARTS[1].title}</h2>
         {!hearing ? <p>{MOOT_PARTS[1].empty}</p> : <>
           <p>Floor: {SEAT_LABELS[hearing.floor]} · {hearing.phase}</p>
           {hearing.pending_ai && <p role="status">AI turn in progress</p>}
@@ -243,7 +265,7 @@ export function MootCourt() {
           {hearing.problem.bench_notes && <details><summary>Bench notes</summary><ul>{Object.values(hearing.problem.bench_notes).flatMap(value => Array.isArray(value) ? value : [value]).filter(value => typeof value === "string").map((value, i) => <li key={i}>{String(value)}</li>)}</ul></details>}
           {hearing.pending_question && <p>{hearing.pending_question.text}</p>}
           <ol className="zn-thread">{hearing.transcript.map(t => <li key={t.number}><strong>{SEAT_LABELS[t.seat]}</strong><p>{t.text}</p>{t.reasoning && <details><summary>Reasoning</summary><ReasonTrace trace={t.reasoning} problem={hearing.problem} /></details>}</li>)}</ol>
-          {canSubmit && <form className="zn-composer" onSubmit={submit}>
+          {canSubmit && <form className="zn-composer" data-moot-turn="true" onSubmit={submit}>
             {seat === "judge" && <><label className="zn-select">Current issue<select name="issue" defaultValue={hearing.current_issue}>{hearing.problem.issues.map((issue, i) => <option value={i} key={i}>{issue}</option>)}</select></label><label className="zn-select">Judge<select name="kind" value={judgeKind} onChange={e => setJudgeKind(e.target.value)}><option value="question">Question</option><option value="direction">Give the floor</option><option value="ruling">Judgment</option></select></label>{judgeKind !== "ruling" && <label className="zn-select">Counsel<select name="target"><option value="applicant">Applicant</option><option value="respondent">Respondent</option></select></label>}</>}
             {area("text", "Submission", true)}
             {(seat !== "judge" || judgeKind !== "direction") && <>
@@ -261,12 +283,12 @@ export function MootCourt() {
           {operator && hearing.pending_ai && <button className="zn-outline" disabled={busy} onClick={() => void command("abandon")}>Resolve pending turn</button>}
         </>}
       </article>
-      <article className="zn-card"><h2>{MOOT_PARTS[2].title}</h2>
+      <article className="zn-card"><h2>{hearing ? <a className="zn-moot-screen-link" href={`/zenas/moot/${hearing.id}/feedback`}>{MOOT_PARTS[2].title}</a> : MOOT_PARTS[2].title}</h2>
         {fairness && <section aria-label="Fairness check"><h3>Fairness check</h3><p>{fairnessReading(fairness)}</p>
           {operator && fairness.status !== "incomplete" && <button className="zn-outline" onClick={() => selectHearing(fairness.first_hearing === hearing?.id ? fairness.second_hearing : fairness.first_hearing)}>View other hearing</button>}
           {operator && fairness.status === "incomplete" && hearing?.id === fairness.first_hearing && <button className="zn-outline" disabled={busy} onClick={() => { swappedStart.current = null; void startSwapped(); }}>Run swapped seats</button>}
         </section>}
-        {!hearing?.ruling ? <p>{MOOT_PARTS[2].empty}</p> : <><h3>{hearing.ruling.order}</h3><ol>{hearing.ruling.reasons.map((r, i) => <li key={i}>{r}</li>)}</ol><h3>What the court actually held</h3><p>{hearing.reveal ?? "The original holding will be revealed after both hearings close."}</p>
+        {!hearing?.ruling ? <><p>{MOOT_PARTS[2].empty}</p><p>Cost: —</p><p>{MOOT_PARTS[0].empty}</p></> : <><h3>{hearing.ruling.order}</h3><ol>{hearing.ruling.reasons.map((r, i) => <li key={i}>{r}</li>)}</ol><h3>What the court actually held</h3><p>{hearing.reveal ?? "The original holding will be revealed after both hearings close."}</p>
           <p>Cost: {hearing.cost_usd === null ? "unavailable" : `$${hearing.cost_usd.toFixed(6)}`}</p>
           {operator && !hearing.published && <button className="zn-primary" disabled={busy || Boolean(hearing.fairness_pair_id && (!fairness || fairness.status === "incomplete"))} onClick={() => void command("publish")}>{hearing.fairness_pair_id ? "Publish paired hearings" : "Publish"}</button>}
           {hearing.published && <a href={`/moot/${hearing.id}${hearing.region === "za" ? "?region=za" : ""}`}>Public watch page</a>}
@@ -277,7 +299,7 @@ export function MootCourt() {
 }
 
 
-function ReasonTrace({ trace, problem }: { trace: Record<string, unknown>; problem: Hearing["problem"] }) {
+export function ReasonTrace({ trace, problem }: { trace: Record<string, unknown>; problem: Hearing["problem"] }) {
   const paragraphs = [trace.opposing_argument, trace.response, trace.conclusion];
   const comparisons = Array.isArray(trace.comparisons) ? trace.comparisons as { legal_significance?: string; differences?: { explanation: string }[] }[] : [];
   const rules = Array.isArray(trace.rules) ? trace.rules as { authority_id?: string; application?: string; court_weight?: string }[] : [];

@@ -26,6 +26,11 @@ def bounded_sheets(data: bytes) -> list[tuple[str, list[list[str]], list[int]]]:
     with zipfile.ZipFile(io.BytesIO(data)) as book:
         if len(book.infolist()) > 2000 or sum(info.file_size for info in book.infolist()) > 20_000_000:
             raise ReadError('This spreadsheet is too large. Split it into smaller files.')
+        for info in book.infolist():
+            if info.filename.lower().endswith('.xml'):
+                raw = book.read(info)
+                if b'<!DOCTYPE' in raw.upper() or b'<!ENTITY' in raw.upper():
+                    raise ReadError('This spreadsheet contains unsupported document features.')
         positions = []
         names = sorted(name for name in book.namelist() if re.fullmatch(r'xl/worksheets/sheet\d+\.xml', name))
         for name in names:
@@ -44,6 +49,8 @@ def bounded_sheets(data: bytes) -> list[tuple[str, list[list[str]], list[int]]]:
                 column = 0
                 for letter in match[1]:
                     column = column * 26 + ord(letter) - 64
+                if int(match[2]) > MAX_ROWS:
+                    raise ReadError('Use up to 20,000 rows per sheet.')
                 if column > 200:
                     raise ReadError('Use up to 200 columns per sheet.')
             positions.append([int(row.get('r', index)) for index, row in enumerate(sheet_rows, 1)])
@@ -108,7 +115,42 @@ def extract(name: str, data: bytes) -> dict:
     rows, pages = None, None
     unreadable = False
     try:
-        if name.lower().endswith('.pdf'):
+        if name.lower().endswith('.docx'):
+            # Word's package is local XML: never resolve relationships or links.
+            ns = {'w': 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'}
+            with zipfile.ZipFile(io.BytesIO(data)) as book:
+                if (len(book.infolist()) > 2000 or
+                        sum(info.file_size for info in book.infolist()) > 20_000_000 or
+                        any(info.filename.lower().endswith('vbaproject.bin') for info in book.infolist())):
+                    raise ValueError('invalid document package')
+                raw = book.read('word/document.xml')
+                if b'<!DOCTYPE' in raw.upper() or b'<!ENTITY' in raw.upper():
+                    raise ValueError('unsupported XML declaration')
+                body = ET.fromstring(raw).find('w:body', ns)
+                if body is None:
+                    raise ValueError('missing document body')
+                paragraph = table_number = rows = 0
+                for block in body:
+                    if block.tag == '{' + ns['w'] + '}p':
+                        paragraph += 1
+                        add(''.join(block.itertext()) if not list(block.iter('{'+ns['w']+'}t')) else
+                            ''.join(node.text or '' for node in block.iter('{'+ns['w']+'}t')),
+                            f'Paragraph {paragraph}')
+                    elif block.tag == '{' + ns['w'] + '}tbl':
+                        table_number += 1
+                        label = f'Table {table_number}'
+                        table = [[' '.join(node.text or '' for node in cell.iter('{'+ns['w']+'}t'))
+                                  for cell in row.findall('w:tc', ns)]
+                                 for row in block.findall('w:tr', ns)]
+                        rows += max(0, len(table) - 1)
+                        if rows > MAX_ROWS or any(len(row) > 200 for row in table):
+                            raise ValueError('oversized document table')
+                        points = structured(table, label)
+                        tables.extend(points)
+                        for index, cells in enumerate(table[1:], 2):
+                            add('; '.join(f'{heading}: {value}' for heading, value in zip(table[0], cells)),
+                                f'{label}, row {index}', table=label if points else None)
+        elif name.lower().endswith('.pdf'):
             import pdfplumber
             with pdfplumber.open(io.BytesIO(data)) as book:
                 pages = len(book.pages)

@@ -16,12 +16,8 @@ from typing import Any
 from uuid import uuid4
 from urllib.parse import urlparse
 
-from rigbox.catalogue import (
-    map_google_merchant,
-    map_shopify,
-    map_woocommerce,
-    price_patch,
-)
+from rigbox.catalogue import price_patch
+from rigbox.feeds import pull as map_feed
 from rigbox.claims import answerable
 from rigbox.claims import grounded_answer
 from rigbox.claims import select_prompt
@@ -56,11 +52,6 @@ from rigbox.store import _fit_key
 from rigbox.quotes.limits import FailedKeyLimits, MemoryRateLimits, PgRateLimits
 
 _KEY = re.compile(r"^rk_pub_[A-Za-z0-9][A-Za-z0-9_-]{0,80}$")
-_MAPS = {
-    "shopify": map_shopify,
-    "woocommerce": map_woocommerce,
-    "google": map_google_merchant,
-}
 
 
 def _part_from_rank(piece: str, ranked: dict[str, Any], cap: int) -> dict[str, Any]:
@@ -851,31 +842,29 @@ class Service:
         reports = []
         for feed in await self.store.feeds_for(tenant_id):
             fmt = str(feed.get("format") or "")
-            mapper = _MAPS.get(fmt)
-            if mapper is None:
-                reports.append(
-                    {"format": fmt, "added": 0, "updated": 0, "rejected": [{"row": 0, "reason": "unknown feed format"}]}
-                )
-                continue
-            body = await fetch(str(feed["url"]))
-            if fmt == "google":
-                mapped = mapper(body if isinstance(body, str) else str(body))
+            report = {"format": fmt, "added": 0, "updated": 0, "rejected": []}
+            if fmt not in {"shopify", "woocommerce", "google", "csv", "tsv", "json", "xml", "xlsx"}:
+                mapped = {"rows": [], "rejected": [{"row": 0, "reason": "unknown feed format"}]}
             else:
-                mapped = mapper(body, str(feed.get("currency") or ""))
-            if any(item.get("row") == 0 for item in mapped["rejected"]):
-                reports.append({"format": fmt, "added": 0, "updated": 0, "rejected": mapped["rejected"]})
-                continue
-            added = updated = 0
+                try:
+                    mapped = map_feed(feed, await fetch(str(feed["url"])))
+                except Exception:
+                    # A failed source must not suppress the next store feed or
+                    # put a URL, credential or remote response on a receipt.
+                    mapped = {"rows": [], "rejected": [{"row": 0, "reason": "feed unavailable"}]}
+            report["rejected"] = mapped["rejected"]
+            receipt = {"id": str(uuid4()), "provider": fmt, "site": "",
+                       "feed_id": hashlib.sha256(str(feed.get("url", "")).encode()).hexdigest()[:60]}
             async with self.store.atomic(tenant_id) as store:
-                for row in mapped["rows"]:
-                    action = await store.upsert_product(tenant_id, row)
-                    if action == "added":
-                        added += 1
-                    elif action == "updated":
-                        updated += 1
-                await store.index_feed_products(tenant_id, str(feed["url"]), [row["sku"] for row in mapped["rows"]],
-                                                complete=not mapped["rejected"])
-            reports.append({"format": fmt, "added": added, "updated": updated, "rejected": mapped["rejected"]})
+                if not mapped["rejected"]:
+                    for row in mapped["rows"]:
+                        action = await store.upsert_product(tenant_id, row)
+                        if action in {"added", "updated"}:
+                            report[action] += 1
+                    await store.index_feed_products(tenant_id, str(feed["url"]), [row["sku"] for row in mapped["rows"]])
+                await store.save_feed_receipt(tenant_id, {**receipt, "added": report["added"],
+                    "updated": report["updated"], "rejected": len(report["rejected"])})
+            reports.append(report)
         return reports
 
     async def _bundle(self, tenant_id: str, product_id: str) -> dict[str, Any]:

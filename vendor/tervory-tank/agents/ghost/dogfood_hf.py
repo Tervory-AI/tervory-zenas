@@ -1,17 +1,18 @@
-"""Synthetic Autumbra dogfood; optional model work goes through Tank.
+"""Synthetic Autumbra dogfood; deterministic work with optional Tank receipts.
 
 The historical HF-named CLI and receipt fields remain compatible. The agent
 never reads provider credentials or chooses a model. AUTUMBRA_HF_LIVE=1 and
-live=True still gate any paid work; the default exercises only local code.
+live=True still gate the Tank connection; summaries now need no model at all.
 """
 from __future__ import annotations
 
 import asyncio
 import json
 import os
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import httpx
 
@@ -19,7 +20,8 @@ from .models import PLATFORM_TENANT
 from .threat_payload import ThreatBurned, accept_threat_payload
 
 FIXTURES_DIR = Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "autumbra_dogfood"
-TASK_TYPE = "reason.brief"  # Existing Tank policy; no new provider or paid route.
+TASK_TYPE = "ghost.savings"
+PROMPT_PREFIX = "Synthetic Watch check. Return JSON {summary:string,suspect_site:string|null}:\n"
 
 
 class HfDogfoodError(RuntimeError):
@@ -49,18 +51,25 @@ def load_synthetic_fixtures(path: Path | None = None) -> list[dict[str, Any]]:
 
 
 def build_watch_prompt(events: list[dict[str, Any]]) -> str:
-    """Prompt for Watch triage over synthetic fixtures only."""
-    blob = "\n".join(json.dumps(e, sort_keys=True) for e in events)
-    return (
-        "You are Autumbra Watch (propose-only). Summarize these SYNTHETIC SIEM "
-        "fixture lines for dogfood. Do not invent client data. Reply with a short "
-        "JSON object: {\"summary\": str, \"suspect_site\": str|null}.\n\n"
-        f"FIXTURES:\n{blob}\n"
-    )
+    """Compact compatibility input for the deterministic diagnostic."""
+    rows = [{key: row[key] for key in ("dst", "event", "status", "rule") if key in row} for row in events]
+    return PROMPT_PREFIX + json.dumps(
+        rows, sort_keys=True, separators=(",", ":"))
+
+
+@lru_cache()  # Pure synthetic-only answers; Python's existing bounded 128-entry cache.
+def _summary(serialized: str) -> str:
+    rows = json.loads(serialized)
+    counts: dict[str, int] = {}
+    for row in rows:
+        key = str(row.get("event", "unknown"))
+        counts[key] = counts.get(key, 0) + 1
+    return json.dumps({"events": counts, "sites": sorted({str(row["dst"]) for row in rows if row.get("dst")})},
+                      sort_keys=True, separators=(",", ":"))
 
 
 async def call_tank_inference(prompt: str, *, timeout: float = 60.0) -> dict[str, Any]:
-    """Use the room's existing Tank client and require a durable receipt."""
+    """Historical name: code answers the fixture; Tank records rung 3 and its comparison."""
     from .app import Tank
 
     if not live_armed():
@@ -68,18 +77,38 @@ async def call_tank_inference(prompt: str, *, timeout: float = 60.0) -> dict[str
     if not hf_token():
         raise HfDogfoodError("Autumbra's Tank key is not configured.")
     try:
+        if not prompt.startswith(PROMPT_PREFIX):
+            # Preserve Tank main's explicitly armed legacy free-text diagnostic.
+            # Structured event fixtures below always use deterministic code.
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                data = await Tank(client).call("POST", "/v1/route", {
+                    "tenant_id": PLATFORM_TENANT, "agent": "ghost", "task_type": "reason.brief", "max_tokens": 200,
+                    "messages": [
+                        {"role": "system", "content": "Autumbra Watch dogfood. Synthetic fixtures only."},
+                        {"role": "user", "content": prompt},
+                    ],
+                })
+            UUID(str(data["ledger_id"]))
+            if not isinstance(data["content"], str):
+                raise ValueError("Missing content")
+            return data
+        rows = json.loads(prompt[len(PROMPT_PREFIX):])
+        if not isinstance(rows, list) or any(not isinstance(row, dict) for row in rows):
+            raise ValueError("Invalid fixtures")
+        facts = json.loads(_summary(json.dumps(rows, sort_keys=True)))
+        content = json.dumps({"summary": "; ".join(f"{name}: {count}" for name, count in facts["events"].items()),
+                              "suspect_site": facts["sites"][0] if len(facts["sites"]) == 1 else None})
+        receipt_id = str(uuid4())
         async with httpx.AsyncClient(timeout=timeout) as client:
-            data = await Tank(client).call("POST", "/v1/route", {
-                "tenant_id": PLATFORM_TENANT, "agent": "ghost", "task_type": TASK_TYPE, "max_tokens": 200,
-                "messages": [
-                    {"role": "system", "content": "Autumbra Watch dogfood. Synthetic fixtures only."},
-                    {"role": "user", "content": prompt},
-                ],
+            data = await Tank(client).call("POST", "/v1/ghost/autumbra/savings", {
+                "tenant_id": PLATFORM_TENANT, "receipt_id": receipt_id,
+                "reference": {"kind": "dogfood", "outcome": "checked", "step": "count_events"},
             })
         UUID(str(data["ledger_id"]))
-        if not isinstance(data["content"], str):
-            raise ValueError("Missing content")
-        return data
+        if data.get("tenant_id") != PLATFORM_TENANT or data.get("receipt_id") != receipt_id:
+            raise ValueError("Receipt identity mismatch")
+        return {**data, "content": content, "cost_usd": 0, "model": "code", "rung": 3,
+                "tokens_in": 0, "tokens_out": 0, "baseline_cost_usd": data.get("would_have_cost_usd")}
     except (RuntimeError, httpx.HTTPError, KeyError, TypeError, ValueError):
         raise HfDogfoodError("Tank could not complete the dogfood request with a receipt.") from None
 
@@ -105,6 +134,10 @@ def dogfood_watch_triage(
     """
     events = load_synthetic_fixtures(fixtures_path)
     receipt: dict[str, Any] = {
+        "tenant_id": PLATFORM_TENANT,
+        "cost_usd": 0, "would_have_cost_usd": None, "baseline_status": "unpriced",
+        "model": "code", "rung": 3, "tokens_in": 0, "tokens_out": 0,
+        "summary_local": json.loads(_summary(json.dumps(events, sort_keys=True))),
         "product": "Autumbra",
         "role": "Watch",
         "zero_ingestion": True,
@@ -154,16 +187,19 @@ def dogfood_watch_triage(
     try:
         answer = asyncio.run(call_tank_inference(prompt))
         text = answer["content"]
-    except (HfDogfoodError, httpx.HTTPError) as exc:
-        receipt["hf_error"] = str(exc)[:300]
+    except (HfDogfoodError, httpx.HTTPError):
+        receipt["hf_error"] = "Tank request did not finish."
         receipt["note"] = "Tank request did not finish; see hf_error."
         if not soft_live:
             raise
         return receipt
-    receipt["live_hf"] = True  # Historical field: a live model call completed via Tank.
+    receipt["live_hf"] = True  # Historical field: the live Tank receipt completed, using code.
+    receipt["note"] = "Synthetic fixtures only. Summary computed in code; Tank recorded the receipt."
     receipt["tank_ledger_id"] = answer["ledger_id"]
     receipt["task_type"] = TASK_TYPE
     receipt["cost_usd"] = answer.get("cost_usd")
+    receipt["would_have_cost_usd"] = answer.get("baseline_cost_usd")
+    receipt["baseline_status"] = "priced" if answer.get("baseline_cost_usd") is not None else "unpriced"
     # Do not store raw prompt with secrets; only a short model reply excerpt.
     receipt["hf_text"] = text[:500]
     return receipt

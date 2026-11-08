@@ -1,5 +1,7 @@
 "use client";
+import { zenasFetch } from "@/app/zenas/request";
 
+import { fetchWithDeadline as fetch } from "../../lib/request";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { MatterRow } from "@/app/api/zenas/rules";
@@ -15,7 +17,7 @@ export function MatterBoard({ initial, note }: { initial: MatterRow[]; note: str
     const dataIn = new FormData(form);
     setBusy(true);
     setError(null);
-    const res = await fetch("/api/zenas/matters", {
+    const res = await zenasFetch("/api/zenas/matters", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ title: dataIn.get("title"), jurisdiction: dataIn.get("jurisdiction") }),
@@ -36,7 +38,7 @@ export function MatterBoard({ initial, note }: { initial: MatterRow[]; note: str
     const dataIn = new FormData(form);
     setBusy(true);
     setError(null);
-    const res = await fetch(`/api/zenas/matters/${matterId}/documents`, {
+    const res = await zenasFetch(`/api/zenas/matters/${matterId}/documents`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ kind: dataIn.get("kind"), text: dataIn.get("text") }),
@@ -55,7 +57,7 @@ export function MatterBoard({ initial, note }: { initial: MatterRow[]; note: str
     <>
       <form className="card" onSubmit={openMatter}>
         <h2>Open a matter</h2>
-        <input name="title" required placeholder="What is this matter about?" />
+        <input name="title" required aria-label="What is this matter about?" placeholder="What is this matter about?" />
         <select name="jurisdiction" defaultValue="us" aria-label="Law">
           <option value="us">United States law</option>
           <option value="za">South African law</option>
@@ -63,9 +65,9 @@ export function MatterBoard({ initial, note }: { initial: MatterRow[]; note: str
         </select>
         <button className="primary" disabled={busy} type="submit">Open</button>
       </form>
-      {error && <p className="error">{error}</p>}
+      {error && <p className="error" role="alert">{error}</p>}
       {note && <p className="note">{note}</p>}
-      {initial.length === 0 && <p className="note">No matters yet.</p>}
+      {initial.length === 0 && <p className="note">0 · Open a matter</p>}
       {initial.map((matter) => (
         <article className="card" key={matter.id}>
           <h2>{matter.title}</h2>
@@ -81,8 +83,8 @@ export function MatterBoard({ initial, note }: { initial: MatterRow[]; note: str
             ))
           )}
           <form onSubmit={(event) => upload(event, matter.id)}>
-            <input name="kind" required placeholder="Kind, for example notes" />
-            <textarea name="text" required rows={4} placeholder="Document text" />
+            <input name="kind" required aria-label="Kind, for example notes" placeholder="Kind, for example notes" />
+            <textarea name="text" required rows={4} aria-label="Document text" placeholder="Document text" />
             <button className="primary" disabled={busy} type="submit">Upload</button>
           </form>
         </article>

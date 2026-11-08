@@ -177,7 +177,7 @@ def week_stats_from_receipts(
         kind = str(receipt.get("kind") or "")
         outcome = str(receipt.get("outcome") or "")
         role = str(receipt.get("role") or "")
-        if kind == "queue_quarantine":
+        if kind in {"queue_quarantine", "exercise"}:
             continue
         if role in {"Watch", "Enforce"} or outcome in {
             "queued", "applied", "undone", "awaiting_approval", "report_only",
@@ -187,7 +187,7 @@ def week_stats_from_receipts(
         applied = bool(receipt.get("applied"))
         if applied or outcome in {"applied", "awaiting_approval", "report_only"}:
             threats += 1
-            if applied and receipt.get("undo", {}).get("rule_id"):
+            if applied and receipt.get("kind") in {None, "", "block_ip"} and receipt.get("undo", {}).get("rule_id"):
                 blocked += 1
                 undo_receipt_id = str(receipt.get("id") or undo_receipt_id)
                 undo_rule_id = str(receipt.get("undo", {}).get("rule_id") or undo_rule_id)

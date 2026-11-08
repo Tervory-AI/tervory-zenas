@@ -96,6 +96,16 @@ export function reviewerMay(tags: string[], jurisdiction: string): boolean {
 const REVIEW_MISSING = "The review queue is not on this server yet.";
 const REVIEW_GENERIC = "The review queue could not be loaded.";
 
+const CONFIGURATION_SETTINGS = new Set(["DATABASE_URL", "TANK_REGION", "TANK_URL", "TANK_KEY", "TANK_API_KEY", "ZENAS_PII_KEY", "CHASSIS_ADMIN_DATABASE_URL", "CHASSIS_RLS_ADMIN_ROLE"]);
+
+export function configurationNote(payload: unknown): string {
+  if (!payload || typeof payload !== "object") return "";
+  const row = payload as Record<string, unknown>;
+  const names = [row.needs_settings, row.invalid_settings].flatMap(value => Array.isArray(value) ? value : [])
+    .filter((name): name is string => typeof name === "string" && CONFIGURATION_SETTINGS.has(name));
+  return names.length ? "Missing setting: " + [...new Set(names)].join(", ") : "";
+}
+
 /** A short reason from a refusal body. Secrets and long dumps stay hidden. */
 export function statedReason(payload: unknown): string | null {
   if (!payload || typeof payload !== "object") return null;
@@ -110,6 +120,8 @@ export function statedReason(payload: unknown): string | null {
 
 /** 404 stays the not-yet message. A 403 shows the room's reason. Anything else stays generic. */
 export function reviewRefusal(status: number, payload: unknown): string {
+  const configuration = configurationNote(payload);
+  if (configuration) return configuration;
   if (status === 404) return REVIEW_MISSING;
   if (status === 403) return statedReason(payload) ?? REVIEW_GENERIC;
   return REVIEW_GENERIC;
@@ -225,6 +237,8 @@ export const ASK_ERROR = "Zenas could not answer just now. Please try again in a
 
 /** A refusal from the room, in plain English. Unknown reasons stay generic so nothing internal leaks. */
 export function askRefusal(status: number, payload: unknown): AskReply {
+  const configuration = configurationNote(payload);
+  if (configuration) return { kind: "error", message: configuration };
   const reason = statedReason(payload) ?? "";
   if (reason === CRIMINAL_REFUSAL) {
     return { kind: "refused", message: "Zenas does not do criminal law.", referral: "Ask a criminal lawyer in that jurisdiction." };

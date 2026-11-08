@@ -88,7 +88,8 @@ export function costLabel(skill: {
   if (!usesModel(skill)) return "no model";
   const calls = Number(skill.calls_30d ?? 0);
   const avg = typeof skill.avg_cost_usd === "number" ? skill.avg_cost_usd : Number(skill.avg_cost_usd);
-  if (!Number.isFinite(calls) || calls <= 0 || !Number.isFinite(avg)) return "uses a model · no calls yet";
+  if (!Number.isFinite(calls) || calls <= 0) return "uses a model · no calls yet";
+  if (skill.avg_cost_usd == null || skill.avg_cost_usd === "" || !Number.isFinite(avg)) return "uses a model · —/call (30 days)";
   return `uses a model · ${formatCallCost(avg)}/call (30 days)`;
 }
 

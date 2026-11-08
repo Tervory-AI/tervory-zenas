@@ -1,11 +1,18 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Rig — 3D test page</title><style>body{color:#001840;background:#fff;margin:0;padding:20px;font:16px/1.5 system-ui,sans-serif}main{max-width:1440px;margin:auto}button{min-height:48px;font:inherit;margin:0 10px 12px 0;padding:12px}button:disabled{opacity:.55;cursor:not-allowed}#billing{border-top:1px solid #b8bfd0;margin-top:24px}body.terminal-page{padding:0}body.terminal-page main{max-width:none}body.terminal-page main>:not(#viewer){display:none}</style>  <script type="module" crossorigin src="/3d/index.js"></script>
-  <link rel="modulepreload" crossorigin href="/3d/assets/frame-CdUpnPmE.js">
-  <link rel="modulepreload" crossorigin href="/3d/assets/loader-CkgGHudR.js">
-</head>
-<body><main><h1>3D product view</h1>
-<button id="open" type="button" disabled aria-describedby="message">Open 3D</button>
-<button id="kiosk" type="button" disabled aria-describedby="message">Open terminal</button>
-<p id="message" role="status">Connecting…</p><div id="viewer"></div><section id="billing"><h2>Billing</h2><p id="addon"></p></section>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Rig — 3D product view</title><link rel="stylesheet" href="/3d/terminal.css"><script type="module" src="/3d/terminal.js"></script></head>
+<body><main id="terminal">
+  <header><a href="/3d/" aria-label="Rig 3D product view">RIG<span>3D</span></a><p id="connection" role="status">Connecting…</p><button id="fullscreen" type="button">Full screen</button></header>
+  <section class="stage" aria-label="3D product view">
+    <div class="halo" aria-hidden="true"></div><canvas id="model" tabindex="0" aria-label="3D product view. Use the rotate and zoom buttons." hidden></canvas>
+    <div id="intro"><p class="eyebrow">3D product view</p><h1>Explore this setup</h1><p id="first-action">Prepare and approve your first product to fill this view.</p><a id="start-build" class="action" href="https://app.tervory.com/rig/admin/three-d">Start a new build</a></div>
+    <div class="caption"><h2 id="product-name"></h2><p id="product-price"></p></div>
+    <nav id="controls" aria-label="3D view controls" hidden><button id="rotate-left" aria-label="Rotate left">↶</button><button id="rotate-right" aria-label="Rotate right">↷</button><button id="zoom-in" aria-label="Zoom in">＋</button><button id="zoom-out" aria-label="Zoom out">−</button><button id="next">Explore this setup</button></nav>
+  </section>
+  <aside><div id="counts"><div><strong id="today-count">0</strong><span>Completed today · UTC</span></div><div><strong id="active-count">0</strong><span>In progress</span></div></div>
+    <section aria-label="Live build"><h2 id="live-name">3D product view</h2><ol id="stages"><li data-stage="understand">Understand <time>—</time></li><li data-stage="design">Design <time>—</time></li><li data-stage="check">Check <time>—</time></li><li data-stage="price">Price <time>—</time></li><li data-stage="ready">Ready <time>—</time></li></ol><p id="build-status" role="status"></p><p id="cost">Cost <strong>—</strong></p></section>
+    <section id="receipt" hidden><h2>Receipt</h2><p id="receipt-date"></p><p id="receipt-id"></p><p id="receipt-hash"></p><ul id="receipt-entries"></ul></section>
+    <section id="wall-builds" hidden><h2>Completed today · UTC</h2><ul id="completed"></ul><button id="more-builds" hidden>Show more</button></section>
+  </aside>
+  <footer><p id="message" role="status" aria-live="polite"></p><button id="retry" hidden>Try again</button><button id="reset">Start again</button></footer>
 </main></body></html>

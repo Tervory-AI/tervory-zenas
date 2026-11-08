@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import {
   addRigConnectionAction,
   addRigLinkAction,
@@ -11,6 +11,8 @@ import {
   saveRigKey,
   uploadRigFileForm,
 } from "./plugin-actions";
+import { within } from "./request";
+import { useDialog } from "./dialog";
 import { PLUGIN_TABS, type PluginPanel, type PluginTab } from "./vault-model";
 
 function Pill({ children, on = true }: { children: string; on?: boolean }) {
@@ -23,6 +25,8 @@ function Pill({ children, on = true }: { children: string; on?: boolean }) {
 }
 
 export function Plugins({ panel, onClose }: { panel: PluginPanel; onClose: () => void }) {
+  const dialog = useDialog(true, onClose);
+  const running = useRef(false);
   const [tab, setTab] = useState<PluginTab>("API keys");
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
@@ -30,19 +34,22 @@ export function Plugins({ panel, onClose }: { panel: PluginPanel; onClose: () =>
   const [signIn, setSignIn] = useState<"provider" | "token">("token");
 
   async function run(work: () => Promise<{ ok: boolean; message: string }>) {
-    if (!panel.enabled || busy) return;
+    if (!panel.enabled || running.current) return;
+    running.current = true;
     setBusy(true);
     try {
-      const result = await work();
+      const result = await within(work);
       setNote(result.message);
+    } catch { setNote("Rig did not answer. Try again.");
     } finally {
+      running.current = false;
       setBusy(false);
     }
   }
 
   return (
     <div className="scrim" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-      <div className="popup" role="dialog" aria-modal="true" aria-labelledby="plugins-title">
+      <div ref={dialog} className="popup" role="dialog" aria-modal="true" aria-labelledby="plugins-title">
         <div className="popup-head">
           <div>
             <h2 id="plugins-title">Plugins</h2>
@@ -57,12 +64,18 @@ export function Plugins({ panel, onClose }: { panel: PluginPanel; onClose: () =>
           <>
             <div className="tabs" role="tablist">
               {PLUGIN_TABS.map((name) => (
-                <button key={name} type="button" role="tab" aria-selected={tab === name} className={tab === name ? "on" : ""} onClick={() => { setNote(""); setTab(name); }}>
+                <button key={name} type="button" role="tab" aria-selected={tab === name} className={tab === name ? "on" : ""} tabIndex={tab === name ? 0 : -1} onKeyDown={event => {
+                  if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+                  event.preventDefault(); const index = PLUGIN_TABS.indexOf(name);
+                  const next = event.key === "Home" ? 0 : event.key === "End" ? PLUGIN_TABS.length - 1 : (index + (event.key === "ArrowRight" ? 1 : PLUGIN_TABS.length - 1)) % PLUGIN_TABS.length;
+                  setTab(PLUGIN_TABS[next]); setNote("");
+                  (event.currentTarget.parentElement?.children[next] as HTMLElement)?.focus();
+                }} onClick={() => { setNote(""); setTab(name); }}>
                   {name}
                 </button>
               ))}
             </div>
-            {note ? <p className="note">{note}</p> : null}
+            {note ? <p className="note" role="status">{note}</p> : null}
 
             {tab === "API keys" ? (
               <div className="part">

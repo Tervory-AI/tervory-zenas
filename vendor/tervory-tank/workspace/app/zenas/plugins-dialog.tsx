@@ -59,7 +59,19 @@ export function PluginsDialog({
       setReplacing(null);
       return;
     }
+    const invoker = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     closeRef.current?.focus();
+    function onKey(event: KeyboardEvent) {
+      if (event.key === "Escape") { event.preventDefault(); onClose(); return; }
+      if (event.key !== "Tab") return;
+      const dialog = closeRef.current?.closest('[role="dialog"]');
+      const controls = Array.from(dialog?.querySelectorAll<HTMLElement>('button:not(:disabled),a[href],input:not(:disabled),textarea:not(:disabled),select:not(:disabled),[tabindex="0"]') ?? []).filter(node => node.getClientRects().length);
+      const first = controls[0], last = controls[controls.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => { window.removeEventListener("keydown", onKey); if (invoker?.isConnected) invoker.focus(); };
   }, [open]);
 
   if (!open) return null;

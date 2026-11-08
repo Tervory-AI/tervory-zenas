@@ -6,6 +6,11 @@ refreshes download only strictly newer dated files.
 """
 from __future__ import annotations
 
+try:
+    from network import BoundedHTTP
+except ModuleNotFoundError:  # package imports in offline and shared callers
+    from agents.base.network import BoundedHTTP
+
 import asyncio
 import csv
 from datetime import date, datetime, timezone
@@ -110,6 +115,7 @@ def official_url(url: str) -> bool:
 
 
 async def read_public(http: Any, url: str, *, configured: bool = False) -> tuple[bytes, str]:
+    http = BoundedHTTP(http)
     global _last_read, _blocked
     source = hashlib.sha256(url.encode()).hexdigest()
     for _ in range(5):

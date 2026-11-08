@@ -138,24 +138,24 @@ export class CodeFolder {
     }
     return { files, truncated: result.truncated || names.length > files.length && files.length === LIMITS.files };
   }
-  async raw(name) {
+  async raw(name, { binary = false, maxBytes = LIMITS.fileBytes } = {}) {
     const path = await this.path(name, { missing: true });
     let handle;
     try {
       handle = await open(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0) | (constants.O_NONBLOCK ?? 0));
       const openedStat = await handle.stat();
       if (openedStat.nlink > 1) throw refused();
-      if (!openedStat.isFile() || openedStat.size > LIMITS.fileBytes) throw refused();
+      if (!openedStat.isFile() || openedStat.size > maxBytes) throw refused();
       // On Linux verify the opened descriptor before reading, closing ancestor
       // symlink-swap races; other platforms recheck the canonical path below.
       if (process.platform === 'linux') {
         const canonical = await realpath(`/proc/self/fd/${handle.fd}`);
         if (!inside(this.root, canonical) || secretPath(relative(this.root, canonical))) throw refused();
       }
-      const bytes = Buffer.alloc(LIMITS.fileBytes + 1); const { bytesRead } = await handle.read(bytes, 0, bytes.length, 0);
-      if (bytesRead > LIMITS.fileBytes) throw refused();
-      const raw = bytes.subarray(0, bytesRead); const text = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(raw);
-      if (text.includes('\0')) throw refused();
+      const bytes = Buffer.alloc(maxBytes + 1); const { bytesRead } = await handle.read(bytes, 0, bytes.length, 0);
+      if (bytesRead > maxBytes) throw refused();
+      const raw = bytes.subarray(0, bytesRead); const text = binary ? null : new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(raw);
+      if (!binary && text.includes('\0')) throw refused();
       if (process.platform !== 'linux') {
         const c = await realpath(path); const s2 = await stat(c);
         if (!inside(this.root, c) || secretPath(relative(this.root, c)) || s2.dev !== openedStat.dev || s2.ino !== openedStat.ino) throw refused();

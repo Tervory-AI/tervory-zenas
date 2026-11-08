@@ -11,10 +11,10 @@
     "ffl.profile"
   ],
   "files": {
-    "agents/base/engines/ffl/atf_gold.py": "7e96bf9834f8cd66581363c414a59460819b31f60f42dcdfb976763bf0730df1",
+    "agents/base/engines/ffl/atf_gold.py": "fbcbc7ffd2f490f55c388e54809ff6f8de52236143bf7bb033aebd595813b6fd",
     "agents/base/engines/ffl/gold_lists.json": "adc2b65b142fee328b0054d4bf05e86d41f5fb130cb6550f809310a46191e0ac",
-    "agents/base/engines/ffl/reference.py": "545952f71b53a4c5b42db07cb5a22abe272e7008b57e4390f78ba1f23930657a",
-    "agents/base/engines/ffl/reference_source.py": "5d8fd0c819e74505f2066b124ece69ef0f8a0f4ce828575483123d00152d0aa8",
+    "agents/base/engines/ffl/reference.py": "6b05067f554f69affa49330570c3cf8be8a5ec05290675e1755812c906b823be",
+    "agents/base/engines/ffl/reference_source.py": "ec78fb72ba3fd99bf6ed58871bbfa72f9708c43631fec29f6ad4abeb0aa1bac6",
     "tank/skills/ffl.ingest/1.0.0/CHANGELOG.md": "c36ea67a717c4bde850af6f59295183cf9762b5c634e1d23ef92a8e8c4b3f625",
     "tank/skills/ffl.ingest/1.0.0/evals/cases.jsonl": "0818978d974a237f510556481be32ba52afd73e7aabca6a4b51dc7e135ef13de",
     "tank/skills/ffl.ingest/1.0.0/run.py": "7b8bd36433456fbd2b5674808ab3d35ae9fc05d9344852d1df06d5bce1903ebd",

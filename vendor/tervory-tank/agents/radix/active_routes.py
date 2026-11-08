@@ -19,11 +19,11 @@ async def execute(store, tenant, url, *, scanner=collect, http=None, client=Fals
         raise PermissionError('scan not authorized')
     ident = ident or await store.create(tenant, target, watch_artifact(domain), active=True, **({'consent_id':consent} if client else {}), **({'infra':True} if infra else {}))
     lease = {'tenant_id': str(tenant), 'scan_id': str(ident)}
-    async with httpx.AsyncClient(trust_env=False, timeout=15) if http is None else http as client:
+    async with httpx.AsyncClient(trust_env=False, timeout=15) if http is None else http as transport:
         try:
             try:
                 async with asyncio.timeout(SCAN_SECONDS):
-                    response = await client.post(GATEWAY + ('/infra/lease' if infra else '/active/lease'), json=lease)
+                    response = await transport.post(GATEWAY + ('/infra/lease' if infra else '/active/lease'), json=lease)
                     if response.status_code != 200 or response.json().get('ready') is not True:
                         raise HTTPException(response.status_code if response.status_code in {403,409} else 503, 'scan not authorized')
                     if not client:
@@ -38,7 +38,7 @@ async def execute(store, tenant, url, *, scanner=collect, http=None, client=Fals
             raise
         finally:
             try:
-                await asyncio.shield(client.post(GATEWAY + '/release', json=lease))
+                await asyncio.shield(transport.post(GATEWAY + '/release', json=lease))
             except Exception:
                 pass  # Captured proxy deadline independently revokes old tunnels.
     return {'scan_id': str(ident), 'active': True, 'status': 'complete' if

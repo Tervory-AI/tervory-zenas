@@ -13,6 +13,7 @@ export function SourceDocumentView({ source }: { source: MarketDocument }) {
       <span>Page {source.offset / source.page_size + 1} of {Math.ceil((source.passage_count ?? 0) / source.page_size)}</span>
       {source.offset + source.page_size < (source.passage_count ?? 0) ? <a href={`?page=${source.offset / source.page_size + 2}`}>Next</a> : <span>Next</span>}
     </nav> : null}
+    {!source.passages?.length ? <p>0 passages. Choose files in Plugins to upload a readable source.</p> : null}
     {source.passages?.map(passage => <article id={`passage-${passage.index}`} key={passage.index}>
       <h2>{passage.label}</h2><p style={{ whiteSpace: "pre-wrap" }}>{passage.text}</p>
       {!passage.usable ? <p>These figures did not pass the data checks and are not used in answers.</p> : null}
@@ -36,6 +37,7 @@ export function SourceDocumentView({ source }: { source: MarketDocument }) {
       <span>Page {page} of {pageCount}</span>
       {page < pageCount ? <a href={`?page=${page + 1}`}>Next</a> : <span aria-disabled="true">Next</span>}
     </nav> : null}
+    {!source.points.length && !source.events.length ? <p>0 stored observations. Refresh feeds to collect data.</p> : null}
     {source.points.length ? <><h2>Stored observations</h2>
     <p>{source.point_count === 1 ? "1 stored observation." : `Showing ${(offset + 1).toLocaleString("en-US")}–${(offset + source.points.length).toLocaleString("en-US")} of ${source.point_count.toLocaleString("en-US")} observations. Newest first.`}</p>
     {source.points.some((point) => point.revision_label) ? <p>For each date, Current figure is the latest version in this saved document. Earlier figures are labelled with the source’s version.</p> : null}

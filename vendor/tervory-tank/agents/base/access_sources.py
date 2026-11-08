@@ -5,6 +5,11 @@ pipeline, which already owns the paid continuation and its receipts.
 """
 from __future__ import annotations
 
+try:
+    from network import BoundedHTTP
+except ModuleNotFoundError:  # package imports in offline and shared callers
+    from agents.base.network import BoundedHTTP
+
 import asyncio
 import re
 from html.parser import HTMLParser
@@ -27,6 +32,7 @@ class Text(HTMLParser):
 
 
 async def scrape_with_archives(run, http, base, headers, tenant, payload):
+    http = BoundedHTTP(http)
     result = await run()
     spent = float(result.get("_cost_usd") or 0)
     # Human checks take the queue. Archives are for unreachable/dead sites only.
@@ -45,7 +51,12 @@ async def scrape_with_archives(run, http, base, headers, tenant, payload):
         return {**result, "access_error": "Archived sources are unavailable.", "next": "existing_paid_rung"}
     if response.status_code != 200:
         return {**result, "access_error": "Archived sources are unavailable.", "next": "existing_paid_rung"}
-    archive = response.json()
+    try:
+        archive = response.json()
+        if not isinstance(archive, dict) or (archive.get("found") and not all(isinstance(archive.get(k), str) for k in ("html", "date", "source"))):
+            raise ValueError()
+    except ValueError:
+        return {**result, "access_error": "Archived sources are unavailable.", "next": "existing_paid_rung"}
     if not archive.get("found"):
         return {**result, "access_sources": archive}
     parser = Text()
@@ -59,6 +70,7 @@ async def scrape_with_archives(run, http, base, headers, tenant, payload):
 async def public_business_pages(run, http, base, headers, tenant, payload):
     """Enrich search evidence only with the approved public-business API."""
     from urllib.parse import urlsplit
+    http = BoundedHTTP(http)
     result = await run()
     official = {}
     for platform in ("facebook", "instagram"):
@@ -78,7 +90,12 @@ async def public_business_pages(run, http, base, headers, tenant, payload):
         if response.status_code != 200:
             result["access_error"] = "The public business API is unavailable; search evidence was kept."
             continue
-        data = response.json()
-        if data.get("enabled"): official[platform] = data["page"]
+        try:
+            data = response.json()
+            if not isinstance(data, dict) or (data.get("enabled") and not isinstance(data.get("page"), dict)):
+                raise ValueError()
+            if data.get("enabled"): official[platform] = data["page"]
+        except ValueError:
+            result["access_error"] = "The public business API is unavailable; search evidence was kept."
     if official: result["official_business_pages"] = official
     return result

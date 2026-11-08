@@ -123,7 +123,7 @@ export function batchRow(batch: BatchIn): BatchRow {
 }
 
 export function totals(rows: BatchRow[]): Totals {
-  const reported = rows.some((row) => row.skipped !== null);
+  const reported = rows.length === 0 || rows.some((row) => row.skipped !== null);
   return {
     records: rows.reduce((sum, row) => sum + row.total, 0),
     withSite: rows.reduce((sum, row) => sum + row.withSite, 0),

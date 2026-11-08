@@ -1,3 +1,6 @@
+"use client";
+import {useEffect,useState} from "react";
+import {LocalHearingVoice} from "../zenas/moot-voice";
 /** Presentational watch panel — used by the public page and viewport fixture tests. */
 
 export type WatchAuthority = { name: string; source_url?: string };
@@ -19,11 +22,22 @@ export type WatchRecord = {
 };
 
 export function WatchPanel({ row }: { row: WatchRecord }) {
+  const [speechError,setSpeechError]=useState("");
+  useEffect(()=>{
+    const voice=new LocalHearingVoice(setSpeechError);
+    function keyboard(event:KeyboardEvent){
+      if(!event.repeat&&event.altKey&&!event.ctrlKey&&!event.metaKey&&event.code==="KeyJ"){
+        event.preventDefault();voice.readPublished("",{order:row.judgmentOrder,reasons:row.judgmentReasons??[]});
+      }
+    }
+    window.addEventListener("keydown",keyboard);
+    return()=>{window.removeEventListener("keydown",keyboard);voice.close();};
+  },[row.matchId,row.judgmentOrder,row.judgmentReasons]);
   return (
     <main className="moot-watch" aria-label="Moot watch">
       <h1>{row.title}</h1>
       <p>unverified</p>
-      <p>Public watch page (text edition). Nothing spoken here — that is later work.</p>
+
 
       <section aria-label="Transcript">
         <h2>Transcript</h2>
@@ -39,7 +53,8 @@ export function WatchPanel({ row }: { row: WatchRecord }) {
         )}
       </section>
 
-      <section aria-label="Judgment">
+      {speechError?<p role="alert">{speechError}</p>:null}
+      <section aria-label="Judgment" aria-keyshortcuts="Alt+J">
         <h2>Judgment</h2>
         <p>Order: {row.judgmentOrder}</p>
         <ul>

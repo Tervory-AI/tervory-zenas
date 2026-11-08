@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState, type ReactNode, type KeyboardEvent } from "react";
 import { Plugins } from "./plugins";
-import { checks, exampleFindings, exampleReport } from "./content";
+import { checks } from "./content";
+import { RadixSummary } from "./summary";
 import { SquadLinks } from "../squad-links";
 import { RadixDesk } from "./conversation";
 
@@ -38,9 +39,6 @@ export function RadixPage({ accountName, settings }: { accountName: string; sett
   const [pluginsOpen, setPluginsOpen] = useState(false);
   const [vaultEnabled, setVaultEnabled] = useState(false);
   const [section, setSection] = useState<Section>("Overview");
-  const [example, setExample] = useState(false);
-  const [severity, setSeverity] = useState("All");
-  const [query, setQuery] = useState("");
   const plugins = useRef<HTMLDialogElement>(null);
   const menu = useRef<HTMLDialogElement>(null);
   const body = useRef<HTMLDivElement>(null);
@@ -55,12 +53,9 @@ export function RadixPage({ accountName, settings }: { accountName: string; sett
     return () => media.removeEventListener("change", closeMenu);
   }, []);
 
-  function navigate(next: Section, showExample = false) {
+  function navigate(next: Section) {
     menu.current?.close();
     setSection(next);
-    setExample(showExample);
-    setSeverity("All");
-    setQuery("");
     body.current?.scrollTo({ top: 0 });
     requestAnimationFrame(() => heading.current?.focus());
   }
@@ -100,9 +95,6 @@ export function RadixPage({ accountName, settings }: { accountName: string; sett
         : workspace}
     </>;
   }
-  const filtered = exampleFindings.filter((finding) =>
-    (severity === "All" || finding.severity === severity) &&
-    (finding.title + " " + finding.file + " " + finding.rule).toLowerCase().includes(query.toLowerCase().trim()));
   return <div className="rx">
     <a className="rx-skip" href="#rx-heading">Skip to page content</a>
     <header className="rx-mobile-bar">
@@ -118,17 +110,15 @@ export function RadixPage({ accountName, settings }: { accountName: string; sett
       <p className="rx-crumb"><a href="/">Workspace</a> / Radix</p>
       <header className="rx-intro">
         <div>
-          <h1 id="rx-heading" ref={heading} tabIndex={-1}>{section === "Overview" ? "Radix" : example ? "Example " + section.toLowerCase() : section}</h1>
+          <h1 id="rx-heading" ref={heading} tabIndex={-1}>{section === "Overview" ? "Radix" : section}</h1>
           <p className="rx-lead">{section === "Overview"
             ? "Check code before it ships. Review exposed secrets, risky dependencies, and unsafe code."
-            : example ? "Example only. These findings are made up to show the review flow."
             : "Review the checks made on code supplied to Radix."}</p>
         </div>
-        {example ? <a className="rx-secondary" download="radix-example-report.md"
-          href={"data:text/markdown;charset=utf-8," + encodeURIComponent(exampleReport())}>Download example report</a>
-          : <button className="rx-secondary" type="button" onClick={() => navigate("Reports", true)}>View example report</button>}
+        <a href="/chats" className="rx-secondary">Chats</a>
       </header>
 
+      <RadixSummary section={section} />
       <RadixDesk />
 
       {section === "Overview" ? <>
@@ -142,30 +132,7 @@ export function RadixPage({ accountName, settings }: { accountName: string; sett
           <h2 id="rx-flow" className="rx-section-heading">From finding to fix</h2>
           <ol className="rx-steps"><li>Review the file and rule.</li><li>Make the change.</li><li>Run a fresh check.</li></ol>
         </section>
-      </> : !example ? <section className="rx-card rx-empty">
-        <h2>{section === "Findings" ? "No findings yet" : "No reports yet"}</h2>
-        <p>{section === "Findings" ? "No findings yet." : "No reports yet."}</p>
-        {section === "Findings" ? <button type="button" className="rx-text-button" onClick={() => navigate("Findings", true)}>Browse example findings</button> : null}
-      </section> : <>
-        <div className="rx-example-banner"><span className="rx-badge">Example</span><p>3 made-up findings. This is not a scan of your code or approval to release it.</p></div>
-        <div className="rx-filter">
-          <label>Severity<select aria-label="Severity" value={severity} onChange={(event) => setSeverity(event.target.value)}>
-            {["All", "Critical", "High", "Medium"].map((value) => <option key={value}>{value}</option>)}
-          </select></label>
-          <label>Find a file or issue<input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search example findings" /></label>
-          <p role="status">{filtered.length} example {filtered.length === 1 ? "finding" : "findings"}</p>
-        </div>
-        <section className="rx-findings" aria-label="Example findings">
-          {filtered.map((finding) => <article key={finding.id} className="rx-card">
-            <div className="rx-finding-heading"><h2>{finding.title}</h2><span className="rx-badge">{finding.severity}</span></div>
-            <p className="rx-meta">Example · {finding.file}:{finding.line}</p>
-            <p>{finding.fix}</p>
-            <details><summary>Review the fix</summary><p>{finding.detail}</p><p className="rx-meta">Rule: {finding.rule}</p></details>
-          </article>)}
-          {!filtered.length ? <div className="rx-card"><h2>No matching example findings</h2><p>Try another search or severity.</p><button type="button" className="rx-text-button" onClick={() => { setQuery(""); setSeverity("All"); }}>Clear filters</button></div> : null}
-        </section>
-        <button type="button" className="rx-text-button rx-exit-example" onClick={() => navigate(section)}>Leave example</button>
-      </>}
+      </> : null}
       <footer className="rx-footnote">Code checks use supplied files. No website is scanned from this page.</footer>
     </div>
     <dialog ref={plugins} className="rx-plugins-dialog" aria-labelledby="rx-plugins-title" onKeyDown={keepDialogFocus}

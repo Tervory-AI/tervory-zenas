@@ -30,6 +30,7 @@ function b64urlDecode(text: string): Buffer {
 
 function verifyRaw(token: string, nowSec = Math.floor(Date.now() / 1000)): Record<string, unknown> {
   const raw = (token || "").trim();
+  if (raw.length > 16384) throw new Error("token malformed");
   const dot = raw.indexOf(".");
   if (dot <= 0) throw new Error("token missing");
   const body = raw.slice(0, dot);
@@ -43,7 +44,7 @@ function verifyRaw(token: string, nowSec = Math.floor(Date.now() / 1000)): Recor
   }
   const payload = JSON.parse(b64urlDecode(body).toString("utf8")) as Record<string, unknown>;
   if (!payload || typeof payload !== "object") throw new Error("token payload invalid");
-  if (!payload.exp || Number(payload.exp) < nowSec) throw new Error("token expired");
+  if (typeof payload.exp !== "number" || !Number.isSafeInteger(payload.exp) || payload.exp <= nowSec) throw new Error("token expired");
   return payload;
 }
 

@@ -4,7 +4,17 @@ type Point = { ts: string; price: number };
 
 export function PriceChart({ points }: { points: Point[] }) {
   if (points.length === 0) {
-    return <p className="empty">No prices yet. The first check has not come in.</p>;
+    return <div className="chart-wrap" data-empty="true">
+      <svg viewBox="0 0 640 168" role="img" aria-label="Price history" className="chart">
+        <title>Price history</title>
+        <line x1="56" y1="16" x2="56" y2="140" />
+        <line x1="56" y1="140" x2="628" y2="140" />
+        <text x="48" y="82" textAnchor="end">—</text>
+        <text x="56" y="160">—</text>
+      </svg>
+      <p className="empty">No prices yet. The first check has not come in.</p>
+      <p className="hint">The first price shows up after the next check.</p>
+    </div>;
   }
 
   const width = 640;

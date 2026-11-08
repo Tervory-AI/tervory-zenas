@@ -1,10 +1,14 @@
+import { fetchWithDeadline as fetch } from "./request";
 import "server-only";
+import { workspaceSetupMessage } from "./workspace-setup";
 
 type Runtime = { issuer: string; client_id: string; workspace_client_id: string; project_id: string; organisations: Record<string, string>; founders: string[] };
 let cached: Runtime | undefined;
 let expires = 0;
 
 export async function signinRuntime(): Promise<Runtime> {
+  const problem = workspaceSetupMessage(process.env, false);
+  if (problem) throw new Error(problem);
   if (cached && expires > Date.now()) return cached;
   const response = await fetch(`${process.env.TANK_URL ?? "http://tank:8000"}/v1/trigger-signin/config`, {
     headers: { "x-tank-key": process.env.TANK_API_KEY ?? "" }, cache: "no-store", redirect: "error", signal: AbortSignal.timeout(10000),

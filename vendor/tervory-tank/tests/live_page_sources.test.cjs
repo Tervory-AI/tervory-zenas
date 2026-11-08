@@ -10,7 +10,8 @@ const deps = createRequire(path.join(workspace, 'package.json'));
 const ts = deps('typescript');
 const React = deps('react');
 const { renderToStaticMarkup } = deps('react-dom/server');
-const forbidden = /Fixture|\[TEST\]|CVE-2024-0000|ThreatPayload|00000000-0000-0000-0000/;
+const fixtureContent = /Fixture|\[TEST\]|CVE-2024-0000|00000000-0000-0000-0000/;
+const forbidden = new RegExp(`${fixtureContent.source}|ThreatPayload`);
 const id = 'c634c3df-a3e3-4d25-86ea-0286d63ba4c9';
 const otherId = 'b634c3df-a3e3-4d25-86ea-0286d63ba4c9';
 const match = { matchId: id, published: true, title: 'Published civil appeal', fairnessReading: 'split', judgmentOrder: 'appeal_dismissed', reveal: '' };
@@ -207,14 +208,21 @@ test('founder Autumbra renders existing unavailable states for failed and incomp
     assert.match(html, /Room unavailable/);
     assert.match(html, /Shield numbers are unavailable\./);
     assert.match(html, /Investigations will appear when Autumbra’s room is connected\./);
-    assert.doesNotMatch(html, forbidden);
+    // The founder console names its real receipt schema; public pages must not.
+    assert.match(html, /ThreatPayload \/ advisory receipts/);
+    assert.doesNotMatch(html, fixtureContent);
   }
 });
 
 test('shield reads reject explicit offline boards and taps use the actual room without a fixture fallback', async () => {
-  const h = harness(() => response({ fixture: true, shields: [] }));
-  await assert.rejects(h.load('app/admin/autumbra/shields-data.ts').shieldBoard('offline-founder'));
-  const down = harness(failed);
+  const env = { TANK_API_KEY: 'placeholder-shield-test-key' };
+  const h = harness(() => response({ fixture: true, shields: [] }), env);
+  await assert.rejects(h.load('app/admin/autumbra/shields-data.ts').shieldBoard('offline-founder'), /unavailable/);
+  assert.equal(h.calls.length, 2);
+  const missingKey = harness(failed);
+  await assert.rejects(missingKey.load('app/admin/autumbra/shields-data.ts').shieldTap('offline-founder', 'a1111111-1111-4111-8111-111111111111', 'raise'), /TANK_API_KEY/);
+  assert.equal(missingKey.calls.length, 0);
+  const down = harness(failed, env);
   await assert.rejects(down.load('app/admin/autumbra/shields-data.ts').shieldTap('offline-founder', 'a1111111-1111-4111-8111-111111111111', 'raise'));
   assert.equal(down.calls.length, 1);
   assert.equal(down.calls[0].method, 'POST');

@@ -210,7 +210,17 @@ async def execute(operation, args, actor, operation_id):
             count(*) FILTER(WHERE feedback='bad') AS bad_answers
             FROM tank.trigger_bot_messages WHERE tenant_id=$1 GROUP BY 1 ORDER BY 1 DESC LIMIT 52''', tenant)
         from trigger_whatsapp import reply_count
-        return {'weeks': [dict(row) for row in rows], 'count': await reply_count(pool, tenant)}
+        from datetime import datetime, timedelta, timezone
+        anchor = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+        anchor -= timedelta(days=anchor.weekday())
+        known = {row['week'].date(): dict(row) for row in rows}
+        weeks = []
+        for index in range(52):
+            week = anchor - timedelta(weeks=index)
+            weeks.append(known.get(week.date(), {'week': week, 'answered_from_sources': 0,
+                'faq_answers': 0, 'handovers': 0, 'bad_answers': 0}))
+        return {'weeks': weeks, 'count': await reply_count(pool, tenant),
+                'first_action': 'Add an approved source, then start a chat on your website.' if not rows else None}
     if operation.endswith('.confirm'):
         return await confirm_draft(bot, actor, operation, args, operation_id)
     raise HTTPException(404)

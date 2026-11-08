@@ -1,4 +1,6 @@
 "use client";
+import { fetchWithDeadline as fetch } from "../../../lib/request";
+import { request } from "../request";
 
 import { useState, useRef, type FormEvent } from "react";
 import type { AdminOperation, AdminResult, FitReview, RetailerPanel, MappingPreview } from "./types";
@@ -9,9 +11,10 @@ const providerName = (id: string) => id === "delete-products" ? "Products" : PRO
 const fields = (form: HTMLFormElement) => Object.fromEntries(new FormData(form).entries());
 
 async function sendRetailer(operation: AdminOperation, data: Record<string, unknown>): Promise<AdminResult> {
-  const response = await fetch("/rig/admin/api", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ operation, data }) });
-  if (!response.ok) throw new Error("The retailer request was not confirmed.");
-  return response.json() as Promise<AdminResult>;
+  return request("/rig/admin/api", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ operation, data }) }, async response => {
+    if (!response.ok) throw new Error("The retailer request was not confirmed.");
+    return response.json() as Promise<AdminResult>;
+  }, 120000);
 }
 
 export function RetailerAdmin({ initial, act = sendRetailer }: { initial: RetailerPanel; act?: (operation: AdminOperation, data: Record<string, unknown>) => Promise<AdminResult> }) {
@@ -174,11 +177,12 @@ export function RetailerAdmin({ initial, act = sendRetailer }: { initial: Retail
         <button disabled={busy} onClick={() => run("suggest", {})}>Find fit suggestions</button>
       </section>
       <section className="retailer-card"><div className="retailer-section-heading"><span>04</span><h2>Setup templates</h2></div><p>Choose the product categories that make a complete setup. Only approved combinations are shown.</p>
+        {!Object.keys(panel.templates).length && <p className="retailer-empty">0</p>}
         {Object.entries(panel.templates).map(([category, roles]) => <div className="retailer-template" key={category}><strong>{category}</strong><small>{Object.entries(roles).map(([role, target]) => role === target ? role : `${role} (${target})`).join(" · ")}</small></div>)}
         <form onSubmit={async e => { e.preventDefault(); const form = e.currentTarget; const data = fields(form); const roles = String(data.roles).split(",").map(s => s.trim()).filter(Boolean); if (!roles.length) return; if (await run("templates", { [String(data.category).trim()]: Object.fromEntries(roles.map(role => [role, role])) })) form.reset(); }}><fieldset disabled={busy}><legend className="retailer-sr">Save a category template</legend><label>Product category<input name="category" required maxLength={80} /></label><label>Included categories, separated by commas<input name="roles" required placeholder="shade, stand" /></label><button type="submit">Save template</button></fieldset></form>
       </section>
-      <section className="retailer-card"><div className="retailer-section-heading"><span>05</span><h2>What shoppers couldn’t find</h2></div><p>Search counts for your catalogue. No shopper identities.</p>{panel.missed_searches.length ? <ul className="retailer-searches">{panel.missed_searches.map(row => <li key={row.query}><span>{row.query}</span><strong>{row.count}</strong></li>)}</ul> : <p className="retailer-empty">No unmatched searches in the last 90 days.</p>}</section>
-      <section className="retailer-card retailer-wide"><div className="retailer-section-heading"><span>06</span><h2>Import history</h2></div><p>Each file is applied in full, or nothing changes.</p>{panel.receipts.length ? <div className="retailer-history">{panel.receipts.map(row => <article key={row.id}><div><strong>{providerName(row.provider)}</strong><small>{row.site} {row.feed_id}</small><small>{new Date(row.created_at).toLocaleString()}</small></div><p>{row.provider === "delete-products" ? `${row.updated} deleted.` : <><b>{row.added}</b> added · <b>{row.updated}</b> updated · <b>{row.rejected}</b> rejected</>}</p></article>)}</div> : <p className="retailer-empty">Import a file to see the result here.</p>}</section>
+      <section className="retailer-card"><div className="retailer-section-heading"><span>05</span><h2>What shoppers couldn’t find</h2></div><p>Search counts for your catalogue. No shopper identities.</p>{panel.missed_searches.length ? <ul className="retailer-searches">{panel.missed_searches.map(row => <li key={row.query}><span>{row.query}</span><strong>{row.count}</strong></li>)}</ul> : <div><b>0</b><p className="retailer-empty">No unmatched searches in the last 90 days.</p><p><a href="/rig">Search</a></p></div>}</section>
+      <section className="retailer-card retailer-wide"><div className="retailer-section-heading"><span>06</span><h2>Import history</h2></div><p>Each file is applied in full, or nothing changes.</p>{panel.receipts.length ? <div className="retailer-history">{panel.receipts.map(row => <article key={row.id}><div><strong>{providerName(row.provider)}</strong><small>{row.site} {row.feed_id}</small><small>{new Date(row.created_at).toLocaleString()}</small></div><p>{row.provider === "delete-products" ? `${row.updated} deleted.` : <><b>{row.added}</b> added · <b>{row.updated}</b> updated · <b>{row.rejected}</b> rejected</>}</p></article>)}</div> : <div><b>0</b><p className="retailer-empty">Import a file to see the result here.</p></div>}</section>
     </div>
   </main>;
 }

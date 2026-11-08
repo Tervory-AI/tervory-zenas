@@ -89,7 +89,7 @@ export function Shell({
 
   if (usesOwnShell(pathname)) return (
     <SquadFounderProvider founder={founder}>
-      <main>{children}</main>
+      <a className="shell-skip" href="#shell-content">Skip to content</a><main id="shell-content" tabIndex={-1}>{children}</main>
     </SquadFounderProvider>
   );
 
@@ -108,9 +108,7 @@ export function Shell({
           <Suspense fallback={<ShellBar pathname={pathname} search="" hash="" founder={founder} reviewer={reviewer} menu={menu} onClose={closeMenu} />}>
             <ShellBarLive pathname={pathname} founder={founder} reviewer={reviewer} menu={menu} onClose={closeMenu} />
           </Suspense>
-          <div id="shell-content" className="shell-main">
-            <main>{children}</main>
-          </div>
+          <main id="shell-content" className="shell-main" tabIndex={-1}>{children}</main>
         </div>
       </InAppShell.Provider>
     </SquadFounderProvider>

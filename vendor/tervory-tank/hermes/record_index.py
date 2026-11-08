@@ -59,6 +59,7 @@ class RecordIndex:
         model: str,
         kind: str | None,
         limit: int,
+        *, allowed_ids: list[str] | None = None,
     ) -> list[tuple[str, float]]:
         name = collection(agent, model)
         if not self.client.collection_exists(name):
@@ -75,7 +76,7 @@ class RecordIndex:
                 must=[
                     FieldCondition(key=k, match=MatchValue(value=v))
                     for k, v in scope.items()
-                ]
+                ] + ([HasIdCondition(has_id=allowed_ids)] if allowed_ids is not None else [])
             ),
         )
         return [

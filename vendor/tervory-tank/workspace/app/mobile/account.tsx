@@ -1,5 +1,6 @@
 "use client";
 
+import { fetchWithDeadline as fetch } from "../../lib/request";
 import { useState } from "react";
 
 export function MobileAccount({ name }: { name: string }) {

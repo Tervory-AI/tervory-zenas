@@ -87,6 +87,11 @@ async function handle(request: Request, context: Context): Promise<Response> {
         if (!model) return json({ error: "That option is no longer available. Choose another." }, 400);
         const attachments = input.attachments ?? [];
         if (!Array.isArray(attachments) || attachments.length > 5 || attachments.some(file => !file || (file.attachment_id !== undefined ? !attachmentId(file.attachment_id) : !filename(file.name) || typeof file.text !== "string" || file.text.length > 200000 || file.text.includes("\0")))) return json({ error: "Attach up to five stored files or text files of no more than 200,000 characters each." }, 400);
+        if (/^\s*workspace\./i.test(input.text)) {
+          const tool = input.text.trimStart().split(/[\s{]/, 1)[0];
+          if (attachments.length) return json({ error: "Workspace tools use JSON arguments. Remove attachments." }, 400);
+          if (!(await commandTools(identity)).includes(tool)) return json({ error: "This Workspace tool is not available yet. Choose an available tool." }, 403);
+        }
         body = { text: input.text, model, ...(input.priority === undefined ? {} : { priority: input.priority }), attachments: attachments.map(file => file.attachment_id ? { attachment_id: file.attachment_id } : { name: file.name, text: file.text }) };
       } else {
         if (input.title !== undefined && (typeof input.title !== "string" || !input.title.trim() || input.title.length > 160)) return json({ error: "Use a chat name of 1 to 160 characters." }, 400);

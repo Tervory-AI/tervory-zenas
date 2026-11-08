@@ -44,7 +44,7 @@ def _sign_payload(payload: dict[str, Any]) -> str:
 
 def _verify_raw(token: str, *, now: float | None = None) -> dict[str, Any]:
     raw = (token or "").strip()
-    if not raw or "." not in raw:
+    if not raw or len(raw) > 16384 or "." not in raw:
         raise ValueError("token missing")
     body, _, sig = raw.partition(".")
     if not body or not sig:
@@ -58,8 +58,8 @@ def _verify_raw(token: str, *, now: float | None = None) -> dict[str, Any]:
         raise ValueError("token payload invalid") from exc
     if not isinstance(payload, dict):
         raise ValueError("token payload invalid")
-    exp = int(payload.get("exp") or 0)
-    if exp < int(now if now is not None else time.time()):
+    exp = payload.get("exp")
+    if type(exp) is not int or exp <= int(now if now is not None else time.time()):
         raise ValueError("token expired")
     return payload
 

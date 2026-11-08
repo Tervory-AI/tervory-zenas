@@ -2,6 +2,11 @@
 
 from __future__ import annotations
 
+try:
+    from network import BoundedHTTP
+except ModuleNotFoundError:  # package imports in offline and shared callers
+    from agents.base.network import BoundedHTTP
+
 import csv
 import io
 import re
@@ -81,6 +86,7 @@ def safe_url(url: str) -> bool:
 
 
 async def fetch_list(http: Any, today: date) -> tuple[list[dict[str, str]], str, date]:
+    http = BoundedHTTP(http)
     robots = {}
 
     async def get(url):

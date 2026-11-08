@@ -67,7 +67,7 @@ export function RecordSearch({ search }: { search: SearchAction }) {
           {busy ? "Searching…" : "Search"}
         </button>
       </form>
-      {result === null ? null : !result.ok ? (
+      {result === null ? <div className="bcp-hits" role="region" aria-label="Search results"><p>0 records</p><ul className="bcp-list" /><p className="bcp-copy"><a href="#base-upload">Upload a business list</a></p></div> : !result.ok ? (
         <div className="bcp-state" role="status">
           <h3>Search could not run</h3>
           <p>We could not read the records just now. Nothing has changed. Try again in a minute.</p>
@@ -140,8 +140,7 @@ export function AskBase({ ask }: { ask: AskAction }) {
       <div className="bcp-thread" aria-live="polite">
         {thread.length === 0 ? (
           <p className="bcp-thread-empty">
-            Ask about your records, for example “Which Kauai shops have no website?” Answers come from Base records only, and
-            the records each answer used are listed under Sources.
+            <a href="#base-upload">Upload a business list</a>
           </p>
         ) : (
           thread.map((turn, index) => (

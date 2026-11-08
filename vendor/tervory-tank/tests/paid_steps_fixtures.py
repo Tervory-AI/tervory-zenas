@@ -11,6 +11,12 @@ import pytest
 def paid_protocol(monkeypatch):
     import controls
     import paid_steps
+    import engine_ladder
+    async def selected_policy(rt, req, policy, caller=None):
+        # These fake-database cases explicitly test dispatch/admission of their
+        # supplied seat. Real SQL selection/evals are exercised by test_engine_ladder.
+        return policy
+    monkeypatch.setattr(engine_ladder, 'select', selected_policy)
     async def checkpoint(key,invoke):
         return await invoke()
     async def admission(tenant,task,model,**kwargs):

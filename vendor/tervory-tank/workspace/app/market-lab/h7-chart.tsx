@@ -3,13 +3,13 @@ import { percent, plotBins } from "./h7-model";
 
 const root = "/market-lab/h7/";
 /** Figma's exact chart assets; only the empirical dot positions come from data. */
-export function CalibrationChart({ row }: { row: Curve }) {
-  const points = plotBins(row);
+export function CalibrationChart({ row }: { row: Curve | null }) {
+  const points = row ? plotBins(row) : [];
   return <figure className="h7-chart"><figcaption>Prediction confidence vs actual hit rate</figcaption>
     {([false, true] as const).map(mobile => {
       const mode = mobile ? "mobile" : "desktop", left = mobile ? 64 : 72, width = mobile ? 207 : 400;
       const step = width / 6;
-      return <div className={`h7-plot ${mode}`} key={mode} aria-label={`${row.kind} / ${row.feed}`}>
+      return <div className={`h7-plot ${mode}`} key={mode} aria-label={row ? `${row.kind} / ${row.feed}` : "Prediction confidence vs actual hit rate"}>
         {[100,75,50,25,0].map((label,index) => <span key={label}>
           <img src={`${root}${mode}-imgGrid.svg`} alt="" style={{position:"absolute",left,top:7.5+index*36}}/>
           <span className="h7-y-label" style={{left:mobile?0:0,top:index*36,width:mobile?56:64}}>{label}%</span>
@@ -26,7 +26,7 @@ export function CalibrationChart({ row }: { row: Curve }) {
           style={{position:"absolute",left:left+point.confidence*width-4,top:152-point.actual*144-4}}/>)}
       </div>;
     })}
-    <p>Confidence {percent(row.mean_confidence)} / Actual hit rate {percent(row.realised_rate)}</p>
+    <p>Confidence {percent(row?.mean_confidence)} / Actual hit rate {percent(row?.realised_rate)}</p>
     <ul className="h7-sr">{points.map((point,index) => <li key={index}>Confidence: {percent(point.confidence)} · Actual hit rate: {percent(point.actual)} · Samples: {point.count}</li>)}</ul>
   </figure>;
 }

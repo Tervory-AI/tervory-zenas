@@ -9,7 +9,7 @@ def decoded(row):
     if row is None:
         return None
     result = dict(row)
-    for key in ("request", "report", "review", "mount_points"):
+    for key in ("request", "report", "review", "mount_points", "progress"):
         if isinstance(result.get(key), str):
             result[key] = json.loads(result[key])
     return result
@@ -18,6 +18,43 @@ def decoded(row):
 class Store:
     def __init__(self, pool):
         self.pool = pool
+
+    async def record_progress(self, tenant, job_id, events):
+        # Polling/reconnects append each durable event once, including across workers.
+        for event in events:
+            await self.pool.execute('''UPDATE agent_rig.rig_3d_jobs SET progress=progress || $3::jsonb
+                WHERE tenant_id=$1 AND id=$2 AND NOT EXISTS
+                (SELECT 1 FROM jsonb_array_elements(progress) e WHERE e->>'id'=$4)''',
+                UUID(str(tenant)), UUID(str(job_id)), json.dumps([event]), event['id'])
+
+    async def terminal_rows(self, tenant):
+        return [decoded(row) for row in await self.pool.fetch('''WITH ranked AS (
+            SELECT j.*, row_number() OVER (PARTITION BY status ORDER BY COALESCE(approved_at,created_at) DESC,id DESC) AS position
+            FROM agent_rig.rig_3d_jobs j WHERE tenant_id=$1)
+            SELECT j.*, p.name, p.price, p.currency
+            FROM ranked j JOIN agent_rig.products p
+            ON p.tenant_id=j.tenant_id AND p.sku=j.product_id
+            WHERE j.tenant_id=$1 AND p.active=true AND j.position <= CASE
+                WHEN j.status='approved' THEN 20 WHEN j.status='failed' THEN 1 ELSE 10 END
+            ORDER BY COALESCE(j.approved_at,j.created_at) DESC, j.id DESC''', UUID(str(tenant)))]
+
+    async def completed(self, tenant, before=None, today=True):
+        return [decoded(row) for row in await self.pool.fetch('''SELECT j.*,p.name,p.price,p.currency
+            FROM agent_rig.rig_3d_jobs j JOIN agent_rig.products p
+            ON p.tenant_id=j.tenant_id AND p.sku=j.product_id
+            WHERE j.tenant_id=$1 AND j.status='approved' AND p.active=true
+            AND (NOT $3::boolean OR j.approved_at >= date_trunc('day',now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC')
+            AND ($2::uuid IS NULL OR (j.approved_at,j.id) <
+                (SELECT approved_at,id FROM agent_rig.rig_3d_jobs WHERE tenant_id=$1 AND id=$2 AND status='approved'))
+            ORDER BY j.approved_at DESC,j.id DESC LIMIT 20''', UUID(str(tenant)), UUID(str(before)) if before else None, today)]
+
+    async def terminal_counts(self, tenant):
+        return dict(await self.pool.fetchrow('''SELECT
+            count(*) FILTER (WHERE j.status='approved') AS approved,
+            count(*) FILTER (WHERE j.status='approved' AND j.approved_at >= date_trunc('day',now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC') AS today,
+            count(*) FILTER (WHERE j.status IN ('queued','running','draft')) AS active
+            FROM agent_rig.rig_3d_jobs j JOIN agent_rig.products p
+            ON p.tenant_id=j.tenant_id AND p.sku=j.product_id WHERE j.tenant_id=$1 AND p.active=true''', UUID(str(tenant))))
 
     async def entitlement(self, tenant):
         return decoded(await self.pool.fetchrow(
@@ -55,7 +92,7 @@ class Store:
 
     async def jobs(self, tenant):
         return [decoded(r) for r in await self.pool.fetch("""
-            SELECT id, product_id, status, report, reason FROM agent_rig.rig_3d_jobs
+            SELECT id, product_id, status, report, reason, progress FROM agent_rig.rig_3d_jobs
             WHERE tenant_id=$1 ORDER BY created_at DESC, id DESC LIMIT 100
         """, UUID(str(tenant)))]
 

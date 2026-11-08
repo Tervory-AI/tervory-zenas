@@ -38,6 +38,7 @@ services:
       DATA_DIR: /data
       CONTEXT_DEV_API_KEY: ${CONTEXT_DEV_API_KEY:-}
       CONTEXT_DEV_MAX_CREDITS: ${CONTEXT_DEV_MAX_CREDITS:-500}
+      BASE_CTX_MAX_CREDITS: ${BASE_CTX_MAX_CREDITS:-}
     volumes:
       - agent_base_data:/data
       # Same Base room spool; only agent-base uploads and deletes evidence.

@@ -1,15 +1,22 @@
-// Self-hosted updates: https://app.tervory.com/cli/ only (no npm registry, no URL
-// override). A downloaded tarball is used only if its SHA-256 matches the release
-// manifest. Applies to copies installed by install.sh (they carry RELEASE.json).
+// Self-hosted updates from the two official CLI release hosts (no npm registry
+// or arbitrary URL override). Signed installations retain their trusted public
+// key; manifests and archives must verify before the current version changes.
 import { execFile } from 'node:child_process';
-import { createHash } from 'node:crypto';
+import { createHash, createPublicKey, verify } from 'node:crypto';
 import { mkdir, mkdtemp, readFile, rename, rm, symlink, writeFile } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
-import { boundedFetch, DeadlineError, RedirectError } from './http.mjs';
+import { boundedFetch, responseBytes, DeadlineError, RedirectError } from './http.mjs';
+import { LIMITS } from './code-tools.mjs';
 
 export const RELEASE_BASE = 'https://app.tervory.com/cli';
+export const RELEASE_BASES = Object.freeze([RELEASE_BASE,'https://opli.tervory.com']);
+const sourceFor = release => {
+  const base = release.release_base ?? RELEASE_BASE;
+  if (base !== RELEASE_BASE && base !== 'https://opli.tervory.com') throw new Error('Update refused: untrusted release source.');
+  return base;
+};
 export const INSTALL_HINT = 'curl -fsSL https://app.tervory.com/cli/install.sh | sh';
 const VERSION = /^\d{1,4}\.\d{1,4}\.\d{1,4}$/;
 const SHA256 = /^[0-9a-f]{64}$/;
@@ -41,9 +48,9 @@ export async function packageVersion(root = PACKAGE_ROOT) {
 export const JSON_TIMEOUT_MS = 15_000;
 export const DOWNLOAD_TIMEOUT_MS = 180_000;
 
-async function get(transport, path, signal, timeoutMs, read) {
+async function get(transport, path, signal, timeoutMs, read, base = RELEASE_BASE) {
   try {
-    return await boundedFetch(transport, `${RELEASE_BASE}/${path}`, { method: 'GET', cache: 'no-store', signal }, timeoutMs, async response => {
+    return await boundedFetch(transport, `${base}/${path}`, { method: 'GET', cache: 'no-store', signal }, timeoutMs, async response => {
       if (!response.ok) {
         await response.body?.cancel?.().catch(() => {});
         const e = new Error(`Update failed: ${path} returned ${response.status}.`); e.status = response.status; e.http = true; throw e;
@@ -54,16 +61,16 @@ async function get(transport, path, signal, timeoutMs, read) {
     if (error.http) throw error;
     if (error instanceof DeadlineError) throw new Error(`Update failed: ${path} did not arrive in time. Nothing was changed.`);
     if (error instanceof RedirectError) throw new Error(`Update failed: ${path} redirected (${error.status}); redirects are refused.`);
-    throw new Error(`Update failed: could not reach ${RELEASE_BASE}.`);
+    throw new Error(`Update failed: could not reach ${base}.`);
   }
 }
 
-async function getJson(transport, path, signal, timeoutMs = JSON_TIMEOUT_MS) {
-  return get(transport, path, signal, timeoutMs, response => response.json());
+async function getJson(transport, path, signal, timeoutMs = JSON_TIMEOUT_MS, base = RELEASE_BASE) {
+  return get(transport, path, signal, timeoutMs, async response => JSON.parse(await responseBytes(response, LIMITS.fileBytes)),base);
 }
 
-export async function latestVersion(transport, signal, timeoutMs = JSON_TIMEOUT_MS) {
-  const latest = await getJson(transport, 'latest.json', signal, timeoutMs);
+export async function latestVersion(transport, signal, timeoutMs = JSON_TIMEOUT_MS, base = RELEASE_BASE) {
+  const latest = await getJson(transport, 'latest.json', signal, timeoutMs,base);
   if (!VERSION.test(latest?.version ?? '')) throw new Error('Update failed: invalid latest.json.');
   return latest.version;
 }
@@ -79,7 +86,16 @@ export async function update({ transport, io, version, root = PACKAGE_ROOT, tar 
   const release = await installedRelease(root);
   if (!release) throw new Error(`Update is only available for copies installed with: ${INSTALL_HINT}`);
   if (version !== undefined && !VERSION.test(version)) throw new Error('Update failed: invalid version.');
-  const target = version ?? await latestVersion(transport, io.signal);
+  const base = sourceFor(release);
+  let trust;
+  try { trust = await readFile(join(root,'TRUSTED-RELEASE.pem')); } catch (error) { if (release.signed || error.code !== 'ENOENT') throw new Error('Update refused: release trust key missing: TRUSTED-RELEASE.pem. Reinstall with the signed installer.'); }
+  const signed = async (path, bytes) => {
+    if (!trust) return;
+    const signature = await get(transport,path+'.sig',io.signal,JSON_TIMEOUT_MS,async response=>(await responseBytes(response, LIMITS.fileBytes)).toString(),base);
+    try { const key=createPublicKey(trust); if(key.asymmetricKeyType!=='ed25519'||!verify(null,bytes,key,Buffer.from(signature.trim(),'base64')))throw new Error(); }
+    catch { throw new Error('Update refused: release signature invalid. Nothing was changed.'); }
+  };
+  const target = version ?? await latestVersion(transport, io.signal,JSON_TIMEOUT_MS,base);
   if (target === release.version) { io.write(`Tervory CLI ${release.version} is already installed.\n`); return; }
   // latest.json pointing below this copy is refused (a rollback or a stale cache must not
   // silently downgrade); an explicit --version or TERVORY_CLI_VERSION may go down.
@@ -87,7 +103,13 @@ export async function update({ transport, io, version, root = PACKAGE_ROOT, tar 
     throw new Error(`Update refused: latest.json offers ${target}, older than the installed ${release.version}. Use tervory update --version ${target} to downgrade.`);
   }
   let manifest;
-  try { manifest = await getJson(transport, `releases/${target}/manifest.json`, io.signal); } catch (error) {
+  try {
+    if (trust) {
+      const path=`releases/${target}/manifest.json`;
+      const raw=await get(transport,path,io.signal,JSON_TIMEOUT_MS,response=>responseBytes(response, LIMITS.fileBytes),base);
+      await signed(path,raw); manifest=JSON.parse(raw);
+    } else manifest = await getJson(transport, `releases/${target}/manifest.json`, io.signal,JSON_TIMEOUT_MS,base);
+  } catch (error) {
     if (error.status === 404) throw new Error(`Update failed: version ${target} is not available.`);
     throw error;
   }
@@ -111,7 +133,7 @@ export async function update({ transport, io, version, root = PACKAGE_ROOT, tar 
       chunks.push(value);
     }
     return Buffer.concat(chunks);
-  });
+  },base);
   if (bytes.length > MAX_TARBALL || bytes.length !== artifact.size && Number.isInteger(artifact.size)) {
     throw new Error(bytes.length > MAX_TARBALL ? 'Update failed: download too large.' : 'Update refused: size does not match the manifest. Nothing was changed.');
   }
@@ -120,14 +142,26 @@ export async function update({ transport, io, version, root = PACKAGE_ROOT, tar 
     throw new Error(`Update refused: checksum mismatch for ${artifact.file} (expected ${artifact.sha256}, got ${got}). Nothing was changed.`);
   }
   io.write(`SHA-256 verified: ${got}\n`);
+  await signed(`releases/${target}/${artifact.file}`,bytes);
   const staging = await mkdtemp(join(release.cliDir, `.update-${target}-`));
   try {
     const file = join(staging, artifact.file);
     await writeFile(file, bytes);
-    await run(tar, ['-xzf', file, '-C', staging]);
+    const extraction = run(tar, ['-xzf', file, '-C', staging], { timeout: LIMITS.commandMs, signal: io.signal, killSignal: 'SIGKILL', maxBuffer: LIMITS.outputBytes });
+    const extractionClosed = new Promise(resolve => extraction.child.once('close', resolve));
+    try { await extraction; }
+    catch {
+      // Abort rejects execFile before the killed child has necessarily exited.
+      // Reap it before cleaning staging or reporting that the update stopped.
+      await extractionClosed;
+      throw new Error('Update failed: archive extraction failed or timed out. Nothing was changed.');
+    }
     const unpacked = join(staging, `tervory-cli-${target}`);
     const record = JSON.parse(await readFile(join(unpacked, 'RELEASE.json'), 'utf8'));
     if (record.version !== target || record.platform !== release.platform) throw new Error('Update failed: archive does not match the manifest.');
+    record.release_base=base;
+    if(trust) { await writeFile(join(unpacked,'TRUSTED-RELEASE.pem'),trust);record.signed=true; }
+    await writeFile(join(unpacked,'RELEASE.json'),JSON.stringify(record,null,2)+'\n');
     const destination = join(release.cliDir, target);
     await rm(destination, { recursive: true, force: true });
     await rename(unpacked, destination);
@@ -146,7 +180,7 @@ export async function update({ transport, io, version, root = PACKAGE_ROOT, tar 
  * Passive check, at most once a day, for installed copies. Returns a one-line
  * notice or null; never throws (offline, slow or broken answers are ignored).
  */
-export async function updateNotice({ transport, now = Date.now, root = PACKAGE_ROOT, timeoutMs = 1500 }) {
+export async function updateNotice({ transport, now = Date.now, root = PACKAGE_ROOT, timeoutMs = 1500, onFailure = () => {} }) {
   // Windows uses verified archive installation; never suggest its refused updater.
   if (process.platform === 'win32') return null;
   try {
@@ -157,14 +191,14 @@ export async function updateNotice({ transport, now = Date.now, root = PACKAGE_R
     try { state = JSON.parse(await readFile(stateFile, 'utf8')); } catch { /* first check */ }
     let latest = VERSION.test(state.latest ?? '') ? state.latest : null;
     if (!(Number(state.checked_at) > now() - CHECK_EVERY_MS)) {
-      latest = await latestVersion(transport, undefined, timeoutMs);
+      latest = await latestVersion(transport, undefined, timeoutMs,sourceFor(release));
       await mkdir(release.cliDir, { recursive: true });
       await writeFile(stateFile, JSON.stringify({ checked_at: now(), latest }) + '\n');
     }
     if (latest && compareVersions(latest, release.version) > 0) {
       return `A new Tervory CLI is available: ${release.version} -> ${latest}. Run: tervory update\n`;
     }
-  } catch { /* never block or fail a command on the passive check */ }
+  } catch { onFailure(); /* The command can still finish successfully. */ }
   return null;
 }
 

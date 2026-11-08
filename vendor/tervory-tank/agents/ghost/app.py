@@ -6,16 +6,20 @@ import json
 import hashlib
 import hmac
 import logging
+import re
 import os
+import sqlite3
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
+import uuid
 from uuid import UUID
 
 import httpx
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel, ConfigDict, Field
 
 from . import advisories as advisory_watch
 from . import inventory as inv
@@ -76,6 +80,7 @@ from .threat_queue import (
 )
 from .never_block import may_block_ip
 from .undo_token import verify_receipts_token
+from .configuration import interval_seconds, missing_settings, setting_status
 
 
 async def require_tank(x_tank_key: str = Header(default="")) -> None:
@@ -103,7 +108,7 @@ class Tank:
         except (httpx.HTTPError, ValueError):
             raise RuntimeError("Tank did not accept the request.") from None
 
-    async def record(self, receipt_id: str, step: str, outcome: str, task_type: str = "ghost.incident") -> None:
+    async def record(self, receipt_id: str, step: str, outcome: str, task_type: str = "ghost.incident") -> dict:
         if task_type not in {"ghost.incident", "ghost.advisory", "ghost.shield"}:
             raise ValueError("Unknown Autumbra Watch receipt type.")
         result = await self.call("POST", "/v1/ledger/vendor", {
@@ -113,21 +118,44 @@ class Tank:
         })
         if result.get("recorded") is not True or result.get("ledger_id") != receipt_id:
             raise RuntimeError("Tank did not record the receipt.")
+        from .savings import price_receipt
+        return await price_receipt(self, {"id": receipt_id, "tenant_id": PLATFORM_TENANT,
+                                         "step": step, "outcome": outcome}, PLATFORM_TENANT)
+
+
+def monitoring_checks() -> list[Look]:
+    checks = []
+    for target in (*SITES, *ROOMS, "tank"):
+        signals = [Signal.health, Signal.slow]
+        if target in SITES:
+            signals += [Signal.dns, Signal.certificate, Signal.headers]
+        if target != "za":
+            signals += [Signal.deploy]
+        if target in {"workspace", "tank"}:
+            signals += [Signal.errors]
+        if target == "tank":
+            signals += [Signal.ci, Signal.radix]
+        checks.extend(Look(target=target, signal=signal) for signal in signals)
+    return checks
+
+
+async def monitor_once(app: FastAPI) -> None:
+    failures = 0
+    for check in monitoring_checks():
+        try:
+            async with app.state.lock:
+                observation = await app.state.probes.reproduce(check)
+                await app.state.investigator.alert(observation)
+        except Exception:
+            failures += 1
+    app.state.monitor = {"running": True, "unavailable_checks": failures}
+    if getattr(app.state, "store", None) is not None:
+        app.state.store.record_run(PLATFORM_TENANT, "monitor", "unavailable" if failures else "checked")
 
 
 async def watch(app: FastAPI) -> None:
     while True:
-        failures = 0
-        for target in (*SITES, *ROOMS, "tank"):
-            signals = (Signal.health, Signal.slow, Signal.dns, Signal.certificate, Signal.headers) if target in SITES else (Signal.health,)
-            for signal in signals:
-                try:
-                    async with app.state.lock:
-                        observation = await app.state.probes.reproduce(Look(target=target, signal=signal))
-                        await app.state.investigator.alert(observation)
-                except Exception:
-                    failures += 1
-        app.state.monitor = {"running": True, "unavailable_checks": failures}
+        await monitor_once(app)
         await asyncio.sleep(300)
 
 
@@ -145,38 +173,44 @@ async def refresh_inventory(app: FastAPI) -> dict:
             result["coolify"] = "ok"
     except Exception:
         result["coolify"] = "unavailable"
-    headers: list = []
     failed = 0
     for app_name, host in inv.WATCHED_SITES.items():
         try:
-            headers.extend(await inv.fetch_headers(http, app_name, host))
+            headers = await inv.fetch_headers(http, app_name, host)
+            store.replace_inventory(PLATFORM_TENANT, "headers", [vars(c) for c in headers], seen,
+                                    apps={app_name})
         except Exception:
             failed += 1
-    if headers:
-        store.replace_inventory(PLATFORM_TENANT, "headers", [vars(c) for c in headers], seen)
     result["headers"] = "ok" if not failed else f"{len(inv.WATCHED_SITES) - failed}_of_{len(inv.WATCHED_SITES)}"
-    store.set_state(PLATFORM_TENANT, "inventory_refreshed", {"at": seen, **result})
+    store.set_state(PLATFORM_TENANT, "inventory_refreshed", {
+        "at": seen, "complete": not failed and result["coolify"] != "unavailable", **result})
+    store.record_run(PLATFORM_TENANT, "inventory", "unavailable" if failed or result["coolify"] == "unavailable" else "checked")
     return result
 
 
 async def nightly(app: FastAPI) -> None:
     while True:
-        last = app.state.store.get_state(PLATFORM_TENANT, "inventory_refreshed", {}).get("at")
-        moment = advisory_watch.parse_time(last)
-        if moment is None or (advisory_watch.now_utc() - moment).total_seconds() > 86400:
+        last = app.state.store.get_state(PLATFORM_TENANT, "inventory_refreshed", {})
+        moment = advisory_watch.parse_time(last.get("at"))
+        if not last.get("complete", True) or moment is None or (advisory_watch.now_utc() - moment).total_seconds() > 86400:
             try:
                 async with app.state.advisory_lock:
-                    await refresh_inventory(app)
+                    result = await refresh_inventory(app)
+                    app.state.inventory_status = "connected" if isinstance(result, dict) and result.get("headers") == "ok" and result.get("coolify") != "unavailable" else "unavailable"
             except Exception:
-                pass
+                app.state.inventory_status = "unavailable"
         await asyncio.sleep(1800)
 
 
 async def bounded_json(request: Request, limit: int) -> bytes:
-    raw = await request.body()
-    if len(raw) > limit:
-        raise HTTPException(413, "Request too large.")
-    return raw
+    raw = bytearray()
+    async with asyncio.timeout(30):
+        async for part in request.stream():
+            if len(raw) + len(part) > limit:
+                raise HTTPException(413, "Request too large.")
+            raw.extend(part)
+    request._body = bytes(raw)  # Authentication and handler reuse the same bounded bytes.
+    return request._body
 
 
 def watch_queue_configured() -> bool:
@@ -206,14 +240,16 @@ def _require_tenant_uuid(tenant_id: str | None) -> str:
 
 def _receipts_for_tenant(tenant_id: str) -> list[dict]:
     """Load Enforce/Watch receipts for one client from their queue box."""
+    if (not watch_queue_configured() and transport_status() == "fixture"
+            and os.environ.get("AUTUMBRA_FIXTURE_COMPOSE_ROOT")):
+        # The explicit local lifecycle fixture has no Enforce queue yet. This
+        # preview can use the fixture sender; SMTP jobs always require storage.
+        return []
     try:
         q = watch_threat_queue(tenant_id)
-    except Exception:
-        return []
-    try:
         return list(q.list_receipts())
     except Exception:
-        return []
+        raise RuntimeError("Receipt storage is unavailable.") from None
 
 
 def enqueue_fixture_attack_for_watch(
@@ -250,51 +286,78 @@ def enqueue_fixture_attack_for_watch(
     )
 
 
-async def _weekly_owner_email_loop(app: "FastAPI") -> None:
-    """Real scheduled weekly job — every tenant with a stored owner, counts from receipts."""
-    # Default 7 days; tests may set AUTUMBRA_WEEKLY_INTERVAL_SEC.
-    interval = float(os.environ.get("AUTUMBRA_WEEKLY_INTERVAL_SEC") or str(7 * 24 * 3600))
-    if interval < 1:
-        interval = 1
-    while True:
-        # Chunked sleep so lifespan cancel is prompt.
-        left = interval
-        while left > 0:
-            step = 1.0 if left > 1 else left
-            await asyncio.sleep(step)
-            left -= step
+async def deliver_weekly_owner_updates(app: FastAPI, *, now: datetime | None = None) -> dict:
+    """Send the last completed UTC week; persisted delivery claims survive restarts."""
+    from .owner_email_jobs import week_bounds
+    result = {"sent": 0, "unavailable": 0}
+    if transport_status() != "smtp":
+        return result
+    end, _ = week_bounds(now=now)
+    start = end - timedelta(days=7)
+    store = app.state.store
+    for client in list_clients_with_owner(store):
+        previous = store.get_state(client.tenant_id, "owner_weekly_sent", {})
+        if previous.get("week_end") == end.isoformat():
+            continue
         try:
-            store = app.state.store
-            clients = list_clients_with_owner(store)
-            if not clients:
-                continue
-            receipts_by_tenant = {
-                c.tenant_id: _receipts_for_tenant(c.tenant_id) for c in clients
-            }
-            await asyncio.to_thread(run_weekly_owner_updates, clients,
-                                    receipts_by_tenant=receipts_by_tenant)
+            receipts = _receipts_for_tenant(client.tenant_id)
+            rows = await asyncio.to_thread(run_weekly_owner_updates, [client],
+                receipts_by_tenant={client.tenant_id: receipts}, week_start=start,
+                week_end=end - timedelta(microseconds=1))
+            row = rows[0]
+            if row.get("sent") or row.get("delivery_state") == "sent":
+                store.set_state(client.tenant_id, "owner_weekly_sent", {"week_end": end.isoformat()})
+                result["sent"] += int(bool(row.get("sent")))
+            else:
+                result["unavailable"] += 1
         except Exception:
-            pass
+            result["unavailable"] += 1
+    return result
+
+
+async def _weekly_owner_email_loop(app: "FastAPI") -> None:
+    interval = interval_seconds("AUTUMBRA_WEEKLY_INTERVAL_SEC", 3600, 1, 3600)
+    while True:
+        try:
+            app.state.owner_weekly_status = await deliver_weekly_owner_updates(app)
+        except Exception:
+            app.state.owner_weekly_status = {"unavailable": 1}
+        await asyncio.sleep(interval)
 
 
 async def deliver_act_owner_updates(app: FastAPI) -> None:
     """The closed Enforce box emits receipts; Watch alone owns real SMTP delivery."""
+    app.state.owner_act_status = {"sent": 0, "unavailable": 0}
     if transport_status() != "smtp":
         return
     from .owner_email_jobs import _parse_receipt_time, week_bounds
-    start, end = week_bounds()
+    _, end = week_bounds()
     available_since = smtp_available_since()
     for settings in list_clients_with_owner(app.state.store):
-        receipts = _receipts_for_tenant(settings.tenant_id)
+        try:
+            receipts = _receipts_for_tenant(settings.tenant_id)
+        except RuntimeError:
+            app.state.owner_act_status["unavailable"] += 1
+            continue
         for receipt in receipts:
             moment = _parse_receipt_time(receipt)
             identity = str(receipt.get("id") or "")
             if (not receipt.get("applied") or not identity or moment is None
-                    or moment.timestamp() <= available_since or not start <= moment <= end):
+                    or receipt.get("kind") == "exercise"
+                    or receipt.get("tenant_id", settings.tenant_id) != settings.tenant_id
+                    or moment.timestamp() <= available_since or moment > end):
                 continue
-            email = build_owner_update_from_receipts(settings=settings, receipts=[receipt])
-            await asyncio.to_thread(send_owner_update, email, to=settings.owner_email,
-                                   tenant_id=settings.tenant_id, message_key="act:" + identity)
+            try:
+                email = build_owner_update_from_receipts(settings=settings, receipts=[receipt],
+                    week_start=datetime.fromtimestamp(available_since, timezone.utc), week_end=end)
+                result = await asyncio.to_thread(send_owner_update, email, to=settings.owner_email,
+                                                tenant_id=settings.tenant_id, message_key="act:" + identity)
+                app.state.owner_act_status["sent"] += int(bool(result.get("sent")))
+                if not result.get("sent") and result.get("delivery_state") != "sent":
+                    app.state.owner_act_status["unavailable"] += 1
+            except Exception:
+                app.state.owner_act_status["unavailable"] += 1
+                continue
 
 
 async def _act_owner_email_loop(app: FastAPI) -> None:
@@ -302,7 +365,49 @@ async def _act_owner_email_loop(app: FastAPI) -> None:
         try:
             await deliver_act_owner_updates(app)
         except Exception:
-            pass  # Durable SMTP claims remain sent/uncertain; never automatically resend.
+            # Durable SMTP claims remain sent/uncertain; never automatically resend.
+            app.state.owner_act_status = {"sent": 0, "unavailable": 1}
+        await asyncio.sleep(30)
+
+
+async def refresh_receipt_savings(app: FastAPI) -> dict:
+    """Price durable code receipts out of band; reading a receipt never waits on Tank."""
+    from .savings import price_receipt
+    status = {"priced": 0, "unavailable": 0}
+    if not watch_queue_configured():
+        return status
+    tenants = {str(row[0]) for row in app.state.store.db.execute(
+        "SELECT tenant FROM ghost_state WHERE key=?", ("autumbra_client_settings",))}
+    tenants.add(PLATFORM_TENANT)
+    if os.environ.get("TENANT_ID"):
+        tenants.add(os.environ["TENANT_ID"])
+    for tenant in tenants:
+        try:
+            queue = watch_threat_queue(_require_tenant_uuid(tenant))
+            stored = {row["id"]: row for row in app.state.store.run_receipts(tenant)}
+            receipts = {str(row.get("id")): row for row in queue.list_receipts()}
+            receipts.update(stored)
+            for receipt in receipts.values():
+                if (receipt.get("tenant_id", tenant) != tenant or receipt.get("fixture")
+                    or receipt.get("kind") == "exercise" or receipt.get("control") == "fixture_edge"
+                    or receipt.get("baseline_status") == "priced"):
+                    continue
+                await price_receipt(Tank(app.state.http), receipt, tenant)
+                queue.write_receipt(receipt)
+                if receipt.get("id") in stored:
+                    app.state.store.save_run(tenant, receipt)
+                status["priced" if receipt.get("baseline_status") == "priced" else "unavailable"] += 1
+        except (RuntimeError, OSError, ValueError):
+            status["unavailable"] += 1
+    return status
+
+
+async def _receipt_savings_loop(app: FastAPI) -> None:
+    while True:
+        try:
+            app.state.savings_status = await refresh_receipt_savings(app)
+        except Exception:
+            app.state.savings_status = {"priced": 0, "unavailable": 1}
         await asyncio.sleep(30)
 
 
@@ -339,6 +444,16 @@ async def _market_lab_intel_loop(app: FastAPI) -> None:
         await asyncio.sleep(3600)
 
 
+async def _exercise_loop(app: FastAPI) -> None:
+    from .red_team import scheduled_exercises
+    while True:
+        try:
+            scheduled_exercises(app.state.store, PLATFORM_TENANT)
+        except Exception:
+            app.state.store.set_state(PLATFORM_TENANT, "exercise_status", "unavailable")
+        await asyncio.sleep(3600)
+
+
 def _block_memory_unavailable(app):
     app.state.block_memory_failures += 1
     logging.getLogger(__name__).warning("Autumbra block-memory reconciliation unavailable")
@@ -360,12 +475,86 @@ async def _standing_blocks_loop(app):
         await asyncio.sleep(60)
 
 
+USER_ID = r"^[A-Za-z0-9_.:@-]{1,128}$"
+
+
+class BrainTaskIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    tenant_id: uuid.UUID
+    user_id: str | None = Field(default=None, pattern=USER_ID)
+    run_id: uuid.UUID | None = None
+    task_type: str = Field(max_length=80)
+    text: str = Field(min_length=1, max_length=4000)
+
+
+class CorrectionIn(BrainTaskIn):
+    corrected: str = Field(min_length=1, max_length=4000)
+
+
+class MemorySettingsIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    tenant_id: uuid.UUID
+    user_id: str = Field(pattern=USER_ID)
+    off: bool
+
+
+class MemoryEditIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    tenant_id: uuid.UUID
+    user_id: str = Field(pattern=USER_ID)
+    text: str = Field(min_length=1, max_length=4000)
+
+
+class MemoryWriteIn(MemoryEditIn):
+    kind: str = Field(max_length=40)
+    evidence: list[str] = Field(min_length=1, max_length=20)
+
+
+class MemoryRecallIn(MemoryEditIn):
+    pass
+
+
+def _brain_on() -> bool:
+    from .brain import brain_enabled
+    return brain_enabled()
+
+
+def _brain_service(http: httpx.AsyncClient):
+    from .brain_service import tank_client
+    async def call(body: dict, actor=None) -> dict:
+        if actor is None or str(actor.tenant_id) != body["tenant_id"] or actor.user_id != body["user_id"]:
+            raise ValueError("Verified brain actor required")
+        try:
+            data = await tank_client(http).delegate_task(actor, body["task_id"], body["task_type"],
+                {"text": body["text"], "case_ref": body["case_ref"], "home_region": body["home_region"]}, body["memory"])
+        except (httpx.HTTPError, ValueError, AttributeError):
+            raise RuntimeError("Autumbra brain unavailable") from None
+        return {"tenant_id": body["tenant_id"], "task_id": body["task_id"], "status": "done",
+                "answer": data["result"], "model_receipts": [{**data["receipt"], "cache": data["receipt"]["model"] == "cache"}],
+                "steps": [{"action": "tank_route", "task_type": body["task_type"]}]}
+    return call
+
+
 def create_app() -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        if not os.environ.get("TANK_KEY"):
-            raise RuntimeError("Autumbra Watch's Tank key is not configured.")
-        store = Store(Path(os.environ.get("DATA_DIR", "/data")) / "ghost.sqlite3", os.environ.get("TANK_REGION", "us-east"))
+        app.state.missing_settings = missing_settings("watch")
+        app.state.invalid_settings = []
+        region = os.environ.get("TANK_REGION") or "us-east"
+        if region not in {"us-east", "za"}:
+            app.state.invalid_settings.append("TANK_REGION")
+        if app.state.missing_settings or app.state.invalid_settings:
+            app.state.ready = False
+            yield
+            return
+        try:
+            store = Store(Path(os.environ.get("DATA_DIR") or "/data") / "ghost.sqlite3", region)
+        except (OSError, sqlite3.Error, ValueError):
+            app.state.invalid_settings = ["DATA_DIR"]
+            app.state.ready = False
+            yield
+            return
+        app.state.ready = True
         from .threat_payload import bind_settings_store
         bind_settings_store(store)
         async with httpx.AsyncClient(follow_redirects=False) as http:
@@ -393,6 +582,10 @@ def create_app() -> FastAPI:
             app.state.shared_blocks = StandingBlocks(
                 MemoryClient(base_url="http://tank:8000/v1/ghost/autumbra/memory", http=http),
                 tank, store, watch_threat_queue)
+            from .brain import Brain, UserMemory, classify_alert_code
+            app.state.user_memory = UserMemory(
+                MemoryClient(base_url="http://tank:8000/v1/ghost/autumbra/memory", http=http), store)
+            app.state.brain = Brain(app.state.user_memory, _brain_service(http), [classify_alert_code])
 
             tasks = [
                 asyncio.create_task(watch(app)),
@@ -402,6 +595,7 @@ def create_app() -> FastAPI:
                 asyncio.create_task(_weekly_owner_email_loop(app)),
                 asyncio.create_task(_act_owner_email_loop(app)),
                 asyncio.create_task(_market_lab_intel_loop(app)),
+                asyncio.create_task(_exercise_loop(app)),
             ]
             try:
                 yield
@@ -411,7 +605,16 @@ def create_app() -> FastAPI:
                 await asyncio.gather(*tasks, return_exceptions=True)
                 store.close()
 
-    app = FastAPI(title="Autumbra Watch", lifespan=lifespan)
+    app = FastAPI(title="Autumbra Watch", lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
+
+    @app.middleware("http")
+    async def require_ready(request, call_next):
+        if request.url.path != "/health" and getattr(app.state, "ready", True) is False:
+            return JSONResponse(status_code=503, content={
+                "detail": "Configure the named settings before starting Autumbra Watch.",
+                "missing_settings": app.state.missing_settings,
+                "invalid_settings": app.state.invalid_settings})
+        return await call_next(request)
 
     @app.exception_handler(RequestValidationError)
     async def invalid_input(_request, _error):
@@ -422,16 +625,32 @@ def create_app() -> FastAPI:
     async def unavailable(_request, _error):
         return JSONResponse(status_code=503, content={"detail": "A required service is unavailable. No production action was taken."})
 
+    @app.exception_handler(TimeoutError)
+    @app.exception_handler(OSError)
+    async def storage_unavailable(_request, _error):
+        return JSONResponse(status_code=503, content={"detail": "A required service is unavailable. No production action was taken."})
+
     @app.get("/health")
     async def health():
-        return {"ok": hasattr(app.state, "store"), "agent": "ghost",
+        return {"ok": True, "agent": "ghost",
+                "ready": getattr(app.state, "ready", hasattr(app.state, "store")),
+                "missing_settings": getattr(app.state, "missing_settings", missing_settings("watch")),
+                "invalid_settings": getattr(app.state, "invalid_settings", []),
+                "settings": {name: setting_status(name) for name in ("watch", "inventory", "owner_email", "owner_links")},
                 "owner_email_transport": transport_status(),
+                "owner_weekly": getattr(app.state, "owner_weekly_status", {}),
+                "owner_actions": getattr(app.state, "owner_act_status", {}),
+                "inventory": getattr(app.state, "inventory_status", "unavailable"),
                 "market_lab_intel": getattr(app.state, "intel_status", "unavailable")}
 
     @app.get("/incidents", dependencies=[Depends(require_tank)])
     async def incidents():
-        return {"incidents": app.state.store.list(PLATFORM_TENANT), "monitor": app.state.monitor,
-                "integrations": {"brain": "awaiting_agent_1", "bucket": "awaiting_bucket_1",
+        background_failures = sum(bool(getattr(app.state, name, {}).get("unavailable"))
+                                  for name in ("owner_weekly_status", "owner_act_status"))
+        background_failures += int(getattr(app.state, "inventory_status", None) == "unavailable")
+        monitor = {**app.state.monitor, "unavailable_checks": app.state.monitor.get("unavailable_checks", 0) + background_failures}
+        return {"incidents": app.state.store.list(PLATFORM_TENANT), "monitor": monitor,
+                "integrations": {"brain": "autumbra-brain" if _brain_on() else "off", "bucket": "awaiting_bucket_1",
                                  "workers": "founder_approval_required", "logs_ci_deploys": "awaiting_read_only_feed"}}
 
     @app.post("/look", dependencies=[Depends(require_tank)])
@@ -443,6 +662,99 @@ def create_app() -> FastAPI:
     async def message(body: Message):
         async with app.state.lock:
             return await app.state.investigator.look(classify_message(body.text), "message")
+
+    async def memory_actor(request, tenant, user=None, *, required=True):
+        from .brain_state import verified_actor
+        return await verified_actor(request, tenant, user, required=required)
+
+    def require_brain_enabled():
+        if not _brain_on():
+            raise HTTPException(503, "GHOST_BRAIN_ENABLED is off.")
+
+    @app.post("/brain/tasks", dependencies=[Depends(require_tank)])
+    async def brain_task(body: BrainTaskIn, request: Request):
+        actor = await memory_actor(request, body.tenant_id, body.user_id, required=False)
+        try:
+            return await app.state.brain.run(str(body.tenant_id), actor.user_id if actor else None,
+                                            body.task_type, body.text, str(body.run_id) if body.run_id else None, actor=actor)
+        except PermissionError:
+            raise HTTPException(403, "Signed memory refused.") from None
+        except ValueError:
+            raise HTTPException(422, "Invalid Autumbra brain task.") from None
+
+    @app.post("/brain/corrections", dependencies=[Depends(require_tank)])
+    async def brain_correction(body: CorrectionIn, request: Request):
+        actor = await memory_actor(request, body.tenant_id, body.user_id)
+        require_brain_enabled()
+        try:
+            saved = await app.state.brain.correct(str(body.tenant_id), actor.user_id, body.task_type, body.text, body.corrected)
+        except ValueError:
+            raise HTTPException(422, "Invalid Autumbra brain task.") from None
+        return {"saved": saved is not None}
+
+    @app.get("/memory", dependencies=[Depends(require_tank)])
+    async def memory_list(request: Request, tenant_id: uuid.UUID, user_id: str):
+        await memory_actor(request, tenant_id, user_id)
+        mem = app.state.user_memory
+        return {"off": mem.is_off(str(tenant_id), user_id),
+                "memories": await mem.list(str(tenant_id), user_id)}
+
+    @app.post("/memory", dependencies=[Depends(require_tank)])
+    async def memory_write(body: MemoryWriteIn, request: Request):
+        await memory_actor(request, body.tenant_id, body.user_id)
+        require_brain_enabled()
+        from .brain import contains_secret
+        if any(len(e) > 1000 or contains_secret(e) for e in body.evidence):
+            raise HTTPException(422, "Invalid memory evidence.")
+        try:
+            saved = await app.state.user_memory.remember(str(body.tenant_id), body.user_id,
+                        body.kind, body.text, evidence=body.evidence)
+        except ValueError:
+            raise HTTPException(422, "Invalid memory kind.") from None
+        return {"saved": saved is not None, **(saved or {})}
+
+    @app.post("/memory/recall", dependencies=[Depends(require_tank)])
+    async def memory_recall(body: MemoryRecallIn, request: Request):
+        await memory_actor(request, body.tenant_id, body.user_id)
+        require_brain_enabled()
+        return {"memories": await app.state.user_memory.recall(str(body.tenant_id), body.user_id, body.text)}
+
+    @app.get("/memory/{record_id}", dependencies=[Depends(require_tank)])
+    async def memory_get(request: Request, record_id: uuid.UUID, tenant_id: uuid.UUID, user_id: str):
+        await memory_actor(request, tenant_id, user_id)
+        rows = await app.state.user_memory.list(str(tenant_id), user_id)
+        row = next((r for r in rows if str(r.get("id")) == str(record_id)), None)
+        if row is None:
+            raise HTTPException(404, "Not found.")
+        return row
+
+    @app.put("/memory/settings", dependencies=[Depends(require_tank)])
+    async def memory_settings(body: MemorySettingsIn, request: Request):
+        await memory_actor(request, body.tenant_id, body.user_id)
+        require_brain_enabled()
+        app.state.user_memory.set_off(str(body.tenant_id), body.user_id, body.off)
+        return {"off": body.off}
+
+    @app.patch("/memory/{record_id}", dependencies=[Depends(require_tank)])
+    async def memory_edit(record_id: uuid.UUID, body: MemoryEditIn, request: Request):
+        await memory_actor(request, body.tenant_id, body.user_id)
+        require_brain_enabled()
+        try:
+            return await app.state.user_memory.edit(str(body.tenant_id), body.user_id, str(record_id), body.text)
+        except KeyError:
+            raise HTTPException(404, "Not found.") from None
+        except ValueError:
+            raise HTTPException(422, "Memory cannot hold secrets.") from None
+
+    @app.delete("/memory/{record_id}", dependencies=[Depends(require_tank)])
+    async def memory_forget(request: Request, record_id: uuid.UUID, tenant_id: uuid.UUID, user_id: str):
+        await memory_actor(request, tenant_id, user_id)
+        require_brain_enabled()
+        try:
+            await app.state.user_memory.forget(str(tenant_id), user_id, str(record_id))
+        except KeyError:
+            raise HTTPException(404, "Not found.") from None
+        return {"forgotten": True}
 
     @app.post("/alert", dependencies=[Depends(require_tank)])
     async def alert(body: Observation):
@@ -802,14 +1114,15 @@ def create_app() -> FastAPI:
             mirror_settings(saved, qpath)
             mirrored = True
         except Exception:
-            # Single-queue dogfood: mirror into THREAT_PAYLOAD_QUEUE if configured.
+            # The legacy single queue belongs only to its configured tenant.
             try:
-                if watch_queue_configured():
+                if watch_queue_configured() and os.environ.get("TENANT_ID") == saved.tenant_id:
                     mirror_settings(saved, queue_root_from_env())
                     mirrored = True
             except Exception:
                 mirrored = False
         receipt = {
+            **app.state.store.record_run(saved.tenant_id, "settings_change", "saved"),
             "product": "Autumbra",
             "kind": "settings_change",
             "tenant_id": saved.tenant_id,
@@ -845,7 +1158,9 @@ def create_app() -> FastAPI:
             data = json.loads(raw.decode("utf-8"))
             tenant_id = str(data.get("tenant_id") or PLATFORM_TENANT)
             hand = str(data["hand"])
-            connected = bool(data["connected"])
+            connected = data["connected"]
+            if type(connected) is not bool:
+                raise ValueError("Invalid connection state")
         except Exception:
             raise HTTPException(422, "Hand change was not understood.") from None
         settings = load_settings(app.state.store, tenant_id)
@@ -855,6 +1170,7 @@ def create_app() -> FastAPI:
             raise HTTPException(422, str(exc)) from None
         saved = save_settings(app.state.store, updated)
         return {
+            "receipt": app.state.store.record_run(saved.tenant_id, "connection_change", "saved"),
             "settings": saved.model_dump(),
             "hands": list_hands(saved),
             "halves": active_halves(saved),
@@ -902,9 +1218,7 @@ def create_app() -> FastAPI:
         Native provider authentication records metadata only, never a tenant action.
         Replay refused; raw bodies are never stored.
         """
-        raw = await request.body()
-        if len(raw) > 64_000:
-            raise HTTPException(413, "Too large.")
+        raw = await bounded_json(request, 64_000)
         try:
             envelope = await accept_webhook(
                 provider, raw, headers=request.headers,
@@ -1017,6 +1331,7 @@ def create_app() -> FastAPI:
             raise HTTPException(403, str(exc)) from None
         except ValueError as exc:
             raise HTTPException(422, str(exc)) from None
+        app.state.store.set_state(tenant_id, "exercise_last", receipt)
         return receipt
 
 
@@ -1048,8 +1363,8 @@ def create_app() -> FastAPI:
                 queue = watch_threat_queue(tenant_id)
             except ValueError:
                 raise HTTPException(400, "tenant_id must be a UUID") from None
-            except Exception as exc:
-                raise HTTPException(422, str(exc)) from None
+            except Exception:
+                raise HTTPException(422, "Invalid Autumbra Watch request.") from None
         else:
             queue = getattr(app.state, "threat_queue", None)
         try:
@@ -1119,8 +1434,8 @@ def create_app() -> FastAPI:
             )
         except ValueError as exc:
             raise HTTPException(400, str(exc)) from None
-        except Exception as exc:
-            raise HTTPException(422, str(exc)) from None
+        except Exception:
+            raise HTTPException(422, "Invalid Autumbra Watch request.") from None
 
     @app.get("/ghost/autumbra/undo/status", dependencies=[Depends(require_tank)])
     async def autumbra_undo_status(
@@ -1138,6 +1453,8 @@ def create_app() -> FastAPI:
         rid = (prior_receipt_id or "").strip()
         if not rid:
             raise HTTPException(400, "prior_receipt_id is required") from None
+        if not re.fullmatch(r"[A-Za-z0-9_-]{1,200}", rid):
+            raise HTTPException(400, "Invalid receipt identifier.")
         if not watch_queue_configured():
             raise HTTPException(503, "THREAT_PAYLOAD_QUEUE is not configured.")
         q = watch_threat_queue(tid)
@@ -1191,8 +1508,8 @@ def create_app() -> FastAPI:
         """Founder console path: receipts for one client (timestamps + tenant_id)."""
         try:
             q = watch_threat_queue(tenant_id)
-        except Exception as exc:
-            raise HTTPException(404, str(exc)) from None
+        except Exception:
+            raise HTTPException(404, "Not found.") from None
         disk = q.list_receipts()
         console = list_founder_console_receipts(q.root)
         # Prefer console view; fall back to disk receipts.
@@ -1238,14 +1555,18 @@ def create_app() -> FastAPI:
         week_start, week_end = week_bounds()
         rows = []
         for receipt in _receipts_for_tenant(tid):
+            if receipt.get("tenant_id", tid) != tid:
+                continue
             moment = _parse_receipt_time(receipt)
             if moment is None or moment < week_start or moment > week_end:
                 continue
+            from .savings import code_cost
+            code_cost(receipt)
             rid = str(receipt.get("id") or "")
             rule_id = str((receipt.get("undo") or {}).get("rule_id") or "")
             site = str(receipt.get("site") or "")
             undo_url = ""
-            if rid:
+            if rid and receipt.get("can_undo", True):
                 undo_url = default_undo_url(
                     rid, tenant_id=tid, rule_id=rule_id, site=site
                 )
@@ -1257,6 +1578,9 @@ def create_app() -> FastAPI:
                 "advisory_url": receipt.get("advisory_url"),
                 "site": receipt.get("site"),
                 "address": receipt.get("address"),
+                "cost_usd": receipt.get("cost_usd"),
+                "would_have_cost_usd": receipt.get("would_have_cost_usd"),
+                "baseline_status": receipt.get("baseline_status"),
                 "url": undo_url if (undo_url and "token=" in undo_url) else "",
                 "receipt": receipt,
             })

@@ -12,6 +12,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type DragEvent, type FormEvent } from "react";
 import { shortDate } from "./model";
+import { bounded } from "./reference-workflow";
 import {
   addBaseConnection,
   addBaseLink,
@@ -434,25 +435,36 @@ export function PluginsDialog({
 }) {
   const router = useRouter();
   const close = useRef<HTMLButtonElement>(null);
+  const closeHandler = useRef(onClose);
+  closeHandler.current = onClose;
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
+    const previous = document.activeElement as HTMLElement | null;
     close.current?.focus();
     function onKey(event: KeyboardEvent) {
-      if (event.key === "Escape") onClose();
+      if (event.key === "Escape") closeHandler.current();
+      if (event.key !== "Tab") return;
+      const dialog = close.current?.closest('[role="dialog"]');
+      const items = Array.from(dialog?.querySelectorAll<HTMLElement>('button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),a[href]') || []).filter(el => el.getClientRects().length);
+      const first = items[0], last = items[items.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
     }
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+    return () => { window.removeEventListener("keydown", onKey); previous?.focus(); };
+  }, []);
 
   const run: Run = async (job) => {
     if (!plugins.enabled || busy) return;
     setBusy(true);
     try {
-      const result = await job();
+      const result = await bounded(() => job());
       setNote(result.message);
       if (result.ok) router.refresh();
+    } catch {
+      setNote("Plugins could not be loaded from Tank. No vault data is shown.");
     } finally {
       setBusy(false);
     }

@@ -7,6 +7,8 @@ RUN pip install --no-cache-dir -r requirements.txt \
     && chown agent:agent /data /browser-evidence
 COPY agents/_chassis/chassis /app/chassis
 COPY agents/base/app.py /app/app.py
+COPY agents/base/configuration.py /app/configuration.py
+COPY agents/base/network.py /app/network.py
 COPY agents/base/pipeline.py /app/pipeline.py
 COPY tank/base_source_scores.py /app/base_source_scores.py
 COPY agents/base/room.py /app/room.py

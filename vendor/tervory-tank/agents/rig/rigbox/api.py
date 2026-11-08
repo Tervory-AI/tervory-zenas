@@ -101,7 +101,7 @@ def _cors(response: Response, origin: str, allowed: bool) -> Response:
     return response
 
 
-async def _auth(request: Request) -> dict[str, Any]:
+async def _auth(request: Request, *, count_request: bool = True) -> dict[str, Any]:
     if request.method == "OPTIONS":
         return {}
     raw = request.headers.get("x-rig-key") or ""
@@ -115,6 +115,10 @@ async def _auth(request: Request) -> dict[str, Any]:
     request.state.rig_origin_ok = bool(origin)
     request.state.tenant_id = row["tenant_id"]
     activate_tenant(row["tenant_id"])
+    # An open SSE response revalidates authorization without charging another
+    # HTTP request to the browse budget on every heartbeat.
+    if not count_request:
+        return row
     decision = await _service(request).public_limits.consume(str(row["tenant_id"]), address, route)
     request.state.rig_hold_quote = decision.hold
     if decision.retry_after:

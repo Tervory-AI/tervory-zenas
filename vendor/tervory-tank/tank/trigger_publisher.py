@@ -134,8 +134,11 @@ async def publish_due(runtime):
                     AND m.page_id=p.location AND m.generation=p.connection_generation))))
             ORDER BY tenant_id LIMIT 100''')
     for row in tenants:
-        with tenant_scope(row['tenant_id']):
-            await Publisher(Marketing(runtime.pool())).once(row['tenant_id'])
+        try:
+            with tenant_scope(row['tenant_id']):
+                await Publisher(Marketing(runtime.pool())).once(row['tenant_id'])
+        except Exception as error:  # noqa: BLE001 — isolate tenants without logging provider data
+            logging.getLogger(__name__).warning('Trigger publication unavailable (%s)', type(error).__name__)
 
 
 async def publish_loop(runtime):

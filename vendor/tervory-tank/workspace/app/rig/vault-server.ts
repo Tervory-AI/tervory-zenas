@@ -22,13 +22,13 @@ async function tank(pathname: string, userId: string, init: RequestInit): Promis
   headers.set("x-tervory-user", userId);
   headers.set("x-tervory-squad", SQUAD);
   if (typeof init.body === "string" && !headers.has("content-type")) headers.set("content-type", "application/json");
-  return fetch(`${TANK_URL}${pathname}`, { ...init, headers, cache: "no-store" });
+  return fetch(`${TANK_URL}${pathname}`, { ...init, headers, cache: "no-store", redirect: "error", signal: AbortSignal.timeout(35000) });
 }
 
 async function tankJson<T>(pathname: string, userId: string, init: RequestInit): Promise<T> {
   const response = await tank(pathname, userId, init);
   const text = await response.text();
-  if (!response.ok) throw new Error(text.slice(0, 180));
+  if (!response.ok) throw new Error("The retailer request was not confirmed.");
   return (text ? JSON.parse(text) : {}) as T;
 }
 
@@ -76,7 +76,7 @@ export async function uploadRigFiles(files: FormData): Promise<void> {
   if (!tenant) throw new Error("Sign in to change Plugins.");
   const query = new URLSearchParams({ tenant_id: tenant.tenantId });
   const response = await tank(pathFor("/files", query), tenant.userId, { method: "POST", body: files });
-  if (!response.ok) throw new Error((await response.text()).slice(0, 180));
+  if (!response.ok) throw new Error("The file was not saved.");
 }
 
 export async function removeRigFile(fileId: string): Promise<void> {

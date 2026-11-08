@@ -248,6 +248,7 @@ async def _complete(tank: Any, body: Chat, tenant: uuid.UUID, task: uuid.UUID | 
     tokens_in = tokens_out = 0
     answered = model
     data: dict[str, Any] = {}
+    payload.update(await __import__('engine_tracing').metadata(tank, tenant, task_type, model, policy))
     try:
         async with httpx.AsyncClient(timeout=120) as client:
             response = await client.post(
@@ -609,4 +610,6 @@ def build_router(tank: Any) -> APIRouter:
             return StreamingResponse(stream_completion(result), media_type="text/event-stream")
         return result
 
+    from agent_tasks import install
+    install(router, tank)
     return router

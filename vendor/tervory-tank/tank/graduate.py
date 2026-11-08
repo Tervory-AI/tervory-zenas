@@ -23,6 +23,13 @@ SEMANTIC_THRESHOLD = 0.97
 DEFAULT_THRESHOLD = 0.99
 DEFAULT_MIN_SAMPLES = 200
 DEFAULT_MAX_REJECT = 0.05
+
+
+async def engine_tick(rt, req, policy, caller=None, *, limit=1):
+    """Automatically graduate tenant traffic only after gold and 99%/200 proof."""
+    from engine_proof import tick
+    return await tick(rt, req, policy, caller, limit)
+
 DEFAULT_TOLERANCE = 0.01
 WATCH_DAYS = 7
 RESEARCH_DAYS = 30

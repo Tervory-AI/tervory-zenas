@@ -89,7 +89,7 @@ body:has(.ml) main {
 }
 
 .ml input::placeholder {
-  color: #6b7590;
+  color: #3d4a66;
 }
 
 .ml-sr {
@@ -369,7 +369,7 @@ body:has(.ml) main {
 .ml-ref-date {
   font-family: var(--font-mono), "JetBrains Mono", ui-monospace, monospace;
   font-size: 12px;
-  color: #6b7590;
+  color: #3d4a66;
 }
 
 .ml-composer {
@@ -449,7 +449,7 @@ body:has(.ml) main {
 
 .ml-lead {
   margin: -14px 0 0;
-  color: #6b7590;
+  color: #3d4a66;
   font-size: 14px;
   line-height: 21px;
 }
@@ -506,7 +506,7 @@ body:has(.ml) main {
 
 .ml-chip-off {
   background: #fff;
-  color: #6b7590;
+  color: #3d4a66;
 }
 
 .ml-dot {
@@ -534,7 +534,7 @@ body:has(.ml) main {
 .ml-detail,
 .ml-problem,
 .ml-card-meta {
-  color: #6b7590;
+  color: #3d4a66;
   font-size: 13px;
 }
 
@@ -548,7 +548,7 @@ body:has(.ml) main {
 
 .ml-empty-value {
   font-size: 18px;
-  color: #6b7590;
+  color: #3d4a66;
 }
 
 .ml-lines,
@@ -582,7 +582,7 @@ body:has(.ml) main {
 }
 
 .ml-linkcard li span {
-  color: #6b7590;
+  color: #3d4a66;
   font-size: 12px;
 }
 
@@ -617,7 +617,7 @@ body:has(.ml) main {
   align-items: center;
   background: #f4f6fb;
   padding: 16px 20px;
-  color: #6b7590;
+  color: #3d4a66;
   font-size: 14px;
 }
 
@@ -658,7 +658,7 @@ body:has(.ml) main {
 
 .ml-foot p {
   margin: 0;
-  color: #6b7590;
+  color: #3d4a66;
   font-size: 13px;
   line-height: 1.45;
 }
@@ -725,7 +725,7 @@ body:has(.ml) main {
 
 .ml-fine {
   margin: 0;
-  color: #6b7590;
+  color: #3d4a66;
   font-size: 12px;
 }
 
@@ -746,7 +746,7 @@ body:has(.ml) main {
 
 .ml button.ml-tab {
   background: transparent;
-  color: #6b7590;
+  color: #3d4a66;
   border: 0;
   border-bottom: 2px solid transparent;
   border-radius: 0;
@@ -913,7 +913,7 @@ body:has(.ml) main {
 
 .ml-or {
   margin: 0;
-  color: #6b7590;
+  color: #3d4a66;
   font-size: 13px;
 }
 
@@ -1196,3 +1196,9 @@ body:has(.ml) main {
   .ml-plugins { box-sizing: border-box; overflow-y: auto; }
   .ml-plugins > * { flex-shrink: 0; }
 }
+
+/* Launch: preserve keyboard visibility, image geometry and reduced motion. */
+.ml :is(button,a,input,select):focus-visible, .ml-h7 :is(button,a,input,select):focus-visible { outline: 2px solid #001840; outline-offset: 3px; }
+.ml-chat { min-height: 136px; }
+.ml-status { min-height: 24px; }
+@media (prefers-reduced-motion: reduce) { .ml *, .ml-h7 * { scroll-behavior: auto !important; transition: none !important; animation: none !important; } }

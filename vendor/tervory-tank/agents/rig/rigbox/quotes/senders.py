@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import os
+import asyncio
 from typing import Any
 from urllib.parse import urlsplit
 
@@ -83,10 +84,11 @@ class RetailerHandoff:
         if not webhook:
             raise DeliveryError("not_configured")
         try:
-            response = await self.http.post(https_url(webhook),
-                json={"tenant_id": tenant_id, "quote": quote},
-                headers={"Idempotency-Key": f"rig:{tenant_id}:{quote['id']}"},
-                timeout=20, follow_redirects=False)
+            async with asyncio.timeout(20):
+                response = await self.http.post(https_url(webhook),
+                    json={"tenant_id": tenant_id, "quote": quote},
+                    headers={"Idempotency-Key": f"rig:{tenant_id}:{quote['id']}"},
+                    timeout=20, follow_redirects=False)
             response.raise_for_status()
         except DeliveryError:
             raise

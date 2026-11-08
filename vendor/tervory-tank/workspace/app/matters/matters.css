@@ -58,3 +58,7 @@
 @media (max-width: 800px) {
   .zenas-page .split { grid-template-columns: 1fr; }
 }
+
+.zenas-page { overflow-wrap: anywhere; }
+.zenas-page :is(button,a,input,textarea,select):focus-visible { outline: 2px solid #001840; outline-offset: 3px; }
+.zenas-page :is(input,textarea,select) { min-width: 0; max-width: 100%; }

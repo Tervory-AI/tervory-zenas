@@ -416,6 +416,11 @@ class LiveCheckTests(unittest.TestCase):
     def reasons(self, index):
         return '; '.join(reason for row in self.rows[index]['viewports'] for reason in row['reasons'])
 
+    def test_failed_host_summary_has_status_and_requested_path(self):
+        summary = (self.output / 'summary.md').read_text()
+        self.assertIn('FAIL host=local-7 status=503 path=/http500', summary)
+        self.assertEqual(self.rows[7]['viewports'][0]['path'], '/http500')
+
     def test_good_hidden_text_redirect_and_isolation_pass(self):
         for index in [0, 10, 11, 12]:
             with self.subTest(path=self.paths[index]):

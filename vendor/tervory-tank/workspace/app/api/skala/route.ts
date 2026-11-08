@@ -21,7 +21,7 @@ export async function GET() {
     const [skills, status] = await Promise.all([listSkills(), skillApprovalStatus()]);
     return NextResponse.json(skills.map(skill => ({...skill, ...status.find(s => s.id === skill.id && s.version === skill.version)})));
   } catch (err) {
-    return NextResponse.json({ error: err instanceof Error ? err.message : "Tank unavailable" }, { status: 502 });
+    return NextResponse.json({ error: "The library could not be reached. Try again in a moment." }, { status: 502 });
   }
 }
 
@@ -44,6 +44,7 @@ export async function POST(req: Request) {
   if (crossOrigin) return crossOrigin;
   const body = (await req.json().catch(() => null)) as { id?: string; version?: string; action?: string; confirmed?: boolean; token?: string; review_token?: string; input?: Record<string, unknown> } | null;
   const { id, version, action } = body ?? {};
+  if (body !== null && (typeof body !== "object" || Array.isArray(body))) return NextResponse.json({error: "action required"}, {status: 400});
   if (!action) return NextResponse.json({ error: "action required" }, { status: 400 });
   try {
     const { userId, tenantId } = await currentTenant();
@@ -53,13 +54,14 @@ export async function POST(req: Request) {
       return NextResponse.json(await confirmSkillApprovals(userId, body.token, body.confirmed === true));
     }
     if (typeof id !== "string" || !id || typeof version !== "string" || !version) return NextResponse.json({ error: "id and version required" }, { status: 400 });
+    if (!/^[a-z][a-z0-9_.-]*$/.test(id) || !/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(version)) return NextResponse.json({error: "id and version required"}, {status: 400});
     if (action === "source-review") return NextResponse.json(await reviewSkillSource(id, version, userId));
     if (action === "rollback") return NextResponse.json(await rollbackSkill(id, version, userId, body?.confirmed === true));
     if (action === "try") {
-      if (!body?.input || typeof body.input !== "object") return NextResponse.json({ error: "input required" }, { status: 400 });
+      if (!body?.input || typeof body.input !== "object" || Array.isArray(body.input)) return NextResponse.json({ error: "input required" }, { status: 400 });
       return NextResponse.json(await trySkill(tenantId, id, version, body.input));
     }
-    if (action === "evals") return NextResponse.json(await runSkillEvals(id, version, userId));
+    if (action === "evals") return NextResponse.json(await runSkillEvals(id, version, userId, req.headers.get("idempotency-key") ?? undefined));
     if (action === "approve") {
       if (typeof body?.review_token === "string") return NextResponse.json(await approveReviewedSkill(id, version, userId, body.review_token, body.confirmed === true));
       return NextResponse.json(await approveSkill(id, version, userId));
@@ -69,6 +71,6 @@ export async function POST(req: Request) {
   } catch (err) {
     const refused = err instanceof Error ? tankRefusal(err.message) : null;
     if (refused) return NextResponse.json({ error: refused.error }, { status: refused.status });
-    return NextResponse.json({ error: err instanceof Error ? err.message : "Tank unavailable" }, { status: 502 });
+    return NextResponse.json({ error: "The library could not be reached. Try again in a moment." }, { status: 502 });
   }
 }

@@ -250,7 +250,7 @@ async def observe(tank: Any, req: Any, policy: dict, messages: list[dict], max_t
 
 async def save(tank: Any, req: Any, config: Configuration, ledger_id: uuid.UUID, primary: str,
                primary_cost: float, primary_known: bool, content: str | None, total_cost: float,
-               receipt: dict, agreement: float | None, method: str, fields: dict) -> None:
+               receipt: dict, agreement: float | None, method: str, fields: dict, quality: dict | None = None) -> None:
     """Persist the existing shadow runner's result, with measured model cost."""
     from tenant_db import tenant_scope
     with tenant_scope(req.tenant_id):
@@ -275,11 +275,11 @@ async def save(tank: Any, req: Any, config: Configuration, ledger_id: uuid.UUID,
                     "delivered" if content is not None else "failed", receipt.get("cost"), ledger_id, req.tenant_id)
             await conn.execute("""INSERT INTO tank.shadow
                 (ledger_id,tenant_id,task_type,primary_model,candidate_model,primary_content,candidate_content,
-                 candidate_cost_usd,primary_cost_usd,agreement,method,fields,routellm_config,candidate_ledger_id)
-                VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb,$13,$14)""",
+                 candidate_cost_usd,primary_cost_usd,agreement,method,fields,routellm_config,candidate_ledger_id,quality)
+                VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb,$13,$14,$15::jsonb)""",
                 ledger_id, req.tenant_id, req.task_type, config.strong, config.candidate, primary[:20000],
                 (content or "")[:20000], total_cost, primary_cost, agreement, method, json.dumps(fields),
-                config.fingerprint, shadow_id)
+                config.fingerprint, shadow_id, json.dumps(quality or {}))
             await conn.execute("""UPDATE tank.ledger SET routellm_status=$3,routellm_primary_cost_known=$4
                 WHERE id=$1 AND tenant_id=$2""", ledger_id, req.tenant_id,
                 "sampled" if content is not None else "sample_failed", primary_known)

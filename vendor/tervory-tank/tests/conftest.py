@@ -148,6 +148,19 @@ def _worker_databases() -> None:
     if parts.hostname in {"127.0.0.1", "localhost"} and stem.endswith("_test") and market != shared:
         os.environ["DATABASE_URL"] = own_copy(market, f"{stem[:-len('_test')]}_{worker}_test")
 
+    # Radix fixtures truncate their dedicated database between tests. They must
+    # not share that database across workers, even though its URL differs from
+    # POOL_SCHEMA_DATABASE_URL. Keep both Radix fixture families on the same
+    # worker-local copy when they were configured with the same disposable URL.
+    copies = {}
+    for key in ('RADIX_PASSIVE_TEST_DATABASE_URL', 'RADIX_I8_TEST_DATABASE_URL'):
+        url = os.environ.get(key, '')
+        parts = urlsplit(url)
+        if parts.hostname == '127.0.0.1' and parts.path == '/radix_passive_test' and not parts.password:
+            if url not in copies:
+                copies[url] = own_copy(url, f'radix_passive_test_{worker}')
+            os.environ[key] = copies[url]
+
 
 # --- Quarantine ---------------------------------------------------------------
 #

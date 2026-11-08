@@ -9,6 +9,7 @@ import logging
 from uuid import UUID, uuid4
 
 from chassis.events import request
+from chassis.tenant_db import tenant_scope
 
 EVENT = "tiger.price.changed"
 log = logging.getLogger(__name__)
@@ -63,10 +64,12 @@ async def consume_loop(service, http) -> None:
     consumer = str(uuid4())
     while True:
         try:
-            tenants = await service.store.tenant_ids()
+            with tenant_scope(None, administrative=True):
+                tenants = await service.store.tenant_ids()
             for tenant in tenants:
                 try:
-                    await consume_tenant(service, http, str(UUID(tenant)), consumer)
+                    with tenant_scope(tenant):
+                        await consume_tenant(service, http, str(UUID(tenant)), consumer)
                 except Exception:
                     log.warning('Price event bus unavailable; catalogue work continues')
         except Exception:

@@ -1,4 +1,5 @@
 "use client";
+import { fetchWithDeadline as fetch } from "../../lib/request";
 import { useEffect, useState } from "react";
 import type { AccessQueueItem } from "@/lib/tank";
 /** Small integration for the conversation window and founder control page. */

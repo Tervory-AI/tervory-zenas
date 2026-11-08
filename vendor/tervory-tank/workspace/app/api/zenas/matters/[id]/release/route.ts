@@ -30,7 +30,7 @@ export async function POST(req: Request, context: { params: Promise<{ id: string
   } | null;
   const documentId = typeof body?.document_id === "string" ? body.document_id.trim() : "";
   const jurisdiction = typeof body?.jurisdiction === "string" ? body.jurisdiction : "";
-  const changes = (body?.changes ?? "").slice(0, 8000);
+  const changes = (typeof body?.changes === "string" ? body.changes : "").slice(0, 8000);
   const memo = (body?.memo ?? "").slice(0, 20000);
   const area = (body?.area ?? "").slice(0, 200);
   const outcome = (body?.outcome ?? "").slice(0, 200);
@@ -46,7 +46,7 @@ export async function POST(req: Request, context: { params: Promise<{ id: string
   try {
     const { tenantId } = await currentTenant();
     const res = await zenas(`matters/${id}/release`, {
-      method: "POST",
+      method: "POST", headers: { "idempotency-key": req.headers.get("idempotency-key") || crypto.randomUUID() },
       body: JSON.stringify({
         tenant_id: tenantId,
         home_region: homeRegion(),
@@ -83,7 +83,7 @@ export async function POST(req: Request, context: { params: Promise<{ id: string
       { status: 201 },
     );
   } catch (err) {
-    const message = err instanceof Error ? err.message : "The draft was not released.";
+    const message = "The draft was not released.";
     return NextResponse.json({ error: message }, { status: 502 });
   }
 }

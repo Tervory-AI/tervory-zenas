@@ -5,6 +5,14 @@ import { marketWarningRequest } from "@/lib/tank";
 export async function POST(request: Request) {
   const tenant = await activeTenant();
   if (!tenant) return NextResponse.json({ error: "Please sign in." }, { status: 401 });
+  const origin = request.headers.get("origin");
+  if (origin) {
+    try {
+      const parsed = new URL(origin);
+      const scheme = request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim() || new URL(request.url).protocol.slice(0,-1);
+      if (parsed.host !== request.headers.get("host") || parsed.protocol !== scheme + ":" || parsed.username || parsed.password) throw new Error();
+    } catch { return NextResponse.json({ error: "Please sign in." }, { status: 403 }); }
+  }
   let body;
   try { body = await request.json(); } catch { return NextResponse.json({ error: "Choose Useful or Not useful." }, { status: 400 }); }
   const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

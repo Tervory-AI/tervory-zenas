@@ -102,8 +102,8 @@ async def join_list(rows, observations, call, *, source_url: str, snapshot: date
     return matched
 
 
-def publish(rows: list[dict], *, region: str) -> None:
-    directory = Path(os.environ.get("DATA_DIR", "/data")) / "gold" / region
+def publish(rows: list[dict], *, region: str, data_dir: Path | None = None) -> None:
+    directory = (data_dir or Path(os.environ.get("DATA_DIR", "/data"))) / "gold" / region
     directory.mkdir(parents=True, exist_ok=True)
     path = directory / "official-matches.jsonl"
     temporary = None

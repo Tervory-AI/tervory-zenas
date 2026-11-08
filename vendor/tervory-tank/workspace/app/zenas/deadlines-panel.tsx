@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { DEADLINE_ALERTS, DEADLINE_NOTE, DEADLINE_ROWS } from "./frame";
 
 /** Deadlines column: Upcoming, then Alerts. Dates appear only when a matter has them. */
@@ -17,7 +18,7 @@ export function DeadlinesPanel() {
             <p>Next 30 days</p>
           </header>
           <ul>
-            {DEADLINE_ROWS.length === 0 ? <li>No matters yet.</li> : DEADLINE_ROWS.map((row, index) => (
+            {DEADLINE_ROWS.length === 0 ? <li>0 · <Link href="/matters">Open a matter</Link></li> : DEADLINE_ROWS.map((row, index) => (
               <li className={index === 0 ? "soon" : ""} key={`${row.title}-${index}`}>
                 <strong>{row.title}</strong>
                 <span>{row.meta}</span>
@@ -29,7 +30,7 @@ export function DeadlinesPanel() {
         <article className="zn-card zn-alerts">
           <h2>Alerts</h2>
           <ul>
-            {DEADLINE_ALERTS.map((alert) => (
+            {DEADLINE_ROWS.length === 0 ? <li>0 · <Link href="/matters">Open a matter</Link></li> : DEADLINE_ALERTS.map((alert) => (
               <li key={alert.title}>
                 <strong>{alert.title}</strong>
                 <span>{alert.detail}</span>

@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useState } from "react";
 import type { ReviewItem } from "@/app/api/zenas/rules";
 import { ReviewDesk } from "./desk";
-import { WORKED_EXAMPLE } from "./example";
 
 const TOP_LINKS = [
   { href: "https://app.tervory.com/", label: "Dashboard" },
@@ -38,7 +37,6 @@ export function ReviewConsole({
   const [menu, setMenu] = useState(false);
   const name = account.trim() || "Your account";
   const initial = name.slice(0, 1).toUpperCase();
-  const example = WORKED_EXAMPLE;
 
   return (
     <div className="zr-app">
@@ -88,15 +86,15 @@ export function ReviewConsole({
             <div className="zr-side-head">
               <p className="zr-kicker">AREAS OF LAW</p>
             </div>
-            <p className="zr-item">No areas of law yet.</p>
+            <p className="zr-item">0 · <Link href="/matters">Open a matter</Link></p>
             <div className="zr-side-head">
               <p className="zr-kicker">DIARY</p>
             </div>
-            <p className="zr-item">No diary entries yet.</p>
+            <p className="zr-item">0 · <Link href="/matters">Open a matter</Link></p>
             <div className="zr-side-head">
               <p className="zr-kicker">UPCOMING COURT DATES</p>
             </div>
-            <p className="zr-item">No court dates yet.</p>
+            <p className="zr-item">0 · <Link href="/matters">Open a matter</Link></p>
           </div>
         </div>
         <div className="zr-panel-foot">
@@ -117,23 +115,6 @@ export function ReviewConsole({
           <p className="lede">Read a draft beside its sources. Approve it or send it back. Your name, admission number, and changes are recorded.</p>
           <p className="meta">Signed in as {reviewer}</p>
         </header>
-        <article className="zr-card" aria-labelledby="worked-example-title">
-          <p className="zr-chip">{example.label}</p>
-          <h2 id="worked-example-title">{example.title}</h2>
-          <p className="meta">{example.jurisdictionLabel} · trigger {example.trigger} · {example.days} days</p>
-          <p className="zr-kicker-date">Deadline</p>
-          <p className="zr-date">{example.deadline}</p>
-          <p>{example.reading}</p>
-          <p className="note">{example.note}</p>
-          <ol className="zr-steps">
-            {example.steps.map((step) => (
-              <li key={step.rule}>
-                <span className="meta">{step.rule}</span>
-                <span>{step.text}</span>
-              </li>
-            ))}
-          </ol>
-        </article>
         <ReviewDesk items={items} note={note} />
         <p className="fine">Zenas prepares drafts and research for review by a licensed lawyer.</p>
       </div>

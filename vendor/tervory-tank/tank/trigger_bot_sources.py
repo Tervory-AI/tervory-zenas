@@ -23,27 +23,34 @@ class Page(HTMLParser):
     def __init__(self):
         super().__init__(convert_charrefs=True)
         self.text, self.links, self.hidden = [], [], 0
+        self.title, self.in_title = [], False
 
     def handle_starttag(self, tag, attrs):
         if tag in {'script', 'style', 'noscript'}:
             self.hidden += 1
-        if tag == 'a':
+        if tag == 'title':
+            self.in_title = True
+        if tag == 'a' and not self.hidden:
             self.links.extend(v for k, v in attrs if k == 'href' and v)
 
     def handle_endtag(self, tag):
+        if tag == 'title':
+            self.in_title = False
         if tag in {'script', 'style', 'noscript'}:
             self.hidden = max(0, self.hidden - 1)
 
     def handle_data(self, text):
         if not self.hidden:
             self.text.append(text)
+            if self.in_title:
+                self.title.append(text)
 
 
 async def robots_text(url):
     # Same SSRF/DNS/TLS guard as pages; public_stream never follows redirects.
     try:
         async with asyncio.timeout(25), public_stream(url, headers={'User-Agent': 'TervoryBot'}) as response:
-            if 400 <= response.status_code < 500:
+            if 400 <= response.status_code < 500 and response.status_code != 429:
                 return b''
             if response.status_code != 200:
                 return b'User-agent: *\nDisallow: /'
@@ -90,7 +97,8 @@ async def crawl(url: str, get=public_get) -> list[dict]:
         page.feed(body.decode('utf-8', 'replace'))
         text = ' '.join(' '.join(page.text).split())
         if text:
-            pages.append({'url': current, 'title': current, 'text': text, 'checked_at': datetime.now(UTC)})
+            title = ' '.join(' '.join(page.title).split()) or current
+            pages.append({'url': current, 'title': title, 'text': text, 'checked_at': datetime.now(UTC)})
         pending.extend(urldefrag(urljoin(current, link))[0] for link in page.links[:500])
     return pages
 
@@ -156,7 +164,8 @@ class Sources:
                 raise ValueError('no_eligible_pages')
             staged = []
             for page in pages[:200]:
-                for ordinal, text in enumerate(chunks(page['text'])):
+                texts = [page['text']] if row['kind'] == 'faq' else chunks(page['text'])
+                for ordinal, text in enumerate(texts):
                     point = uuid5(source, json.dumps([page.get('url'), text, ordinal], sort_keys=True))
                     await self.index.put(tenant, self.region, point, text)
                     staged.append((point, text, page))
@@ -187,7 +196,8 @@ class Sources:
                  AND (p.kind<>'faq' OR NOT EXISTS(SELECT 1 FROM tank.trigger_bot_sources newer
                    WHERE newer.tenant_id=p.tenant_id AND newer.kind='faq' AND newer.status<>'removed'
                    AND lower(trim(newer.content::jsonb->>'question'))=lower(trim(p.question))
-                   AND (newer.created_at,newer.id)>(s.created_at,s.id))) AND p.search @@ plainto_tsquery('english',$2)
+                   AND (newer.created_at,newer.id)>(s.created_at,s.id))) AND (p.search @@ plainto_tsquery('english',$2)
+                     OR (p.kind='faq' AND lower(trim(p.question))=lower(trim($2))))
             ORDER BY ts_rank_cd(p.search,plainto_tsquery('english',$2)) DESC LIMIT 24''', tenant, question)
         terms = set(re.findall(r'\w+', question.casefold()))
         def score(row):
@@ -195,8 +205,10 @@ class Sources:
             denominator = len(terms | other) if row['kind'] == 'faq' else len(terms)
             return len(terms & other) / max(1, denominator)
         lexical = [{**dict(r), 'score': score(r)} for r in rows]
+        exact_faq = any(r['kind'] == 'faq' and ' '.join(r['text'].split()).casefold()
+                        == ' '.join(question.split()).casefold() for r in rows)
         try:
-            points = await self.index.query(tenant, self.region, question)
+            points = [] if exact_faq else await self.index.query(tenant, self.region, question)
         except Exception as exc:  # noqa: BLE001 — fail closed at service boundary
             logging.getLogger(__name__).warning('Bot vector lookup unavailable (%s)', type(exc).__name__)
             points = []  # Full-text evidence stays authoritative; never query another tenant.

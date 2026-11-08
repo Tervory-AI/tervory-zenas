@@ -1,9 +1,13 @@
 # Same browser version as the Tiger image; private to Ghost.
-FROM mcr.microsoft.com/playwright/python:v1.64.1-jammy
+FROM mcr.microsoft.com/playwright/python:v1.64.1-noble@sha256:330d401ae23c905896a0c26c66c36fc971b621519e7b11b435a8328d7bf6e031
 WORKDIR /app
-COPY _chassis/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt playwright==1.64.1 \
+COPY ghost/requirements.browser.lock .
+RUN pip install --no-cache-dir --require-hashes -r requirements.browser.lock \
     && mkdir -p /data && chown pwuser:pwuser /data
+# The browser imports Watch authentication and its SMTP helper.
+COPY _chassis/chassis /app/chassis
+COPY rig/rigbox/reserve.py /app/agents/rig/rigbox/reserve.py
+COPY tisan/promotion.py /app/enforce_coolify.py
 COPY ghost /app/ghost
 USER pwuser
 ENV DATA_DIR=/data PYTHONUNBUFFERED=1

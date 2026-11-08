@@ -1,3 +1,4 @@
+import { fetchWithDeadline as fetch } from "./request";
 import "server-only";
 import { tenantBindings } from "./trigger-signin-principal";
 import { signinRuntime } from "./trigger-signin-runtime";

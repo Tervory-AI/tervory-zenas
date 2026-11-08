@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { readUndoResponse } from "./request";
 
 export function UndoButton({
   receiptId,
@@ -17,55 +18,54 @@ export function UndoButton({
     initialAlreadyUndone ? "already" : "idle",
   );
   const [message, setMessage] = useState(initialAlreadyUndone ? initialMessage : "");
+  const inFlight = useRef(false);
 
   useEffect(() => {
     if (initialAlreadyUndone) return;
     const signed = (token || "").trim();
     if (!signed) return;
     let cancelled = false;
+    const controller = new AbortController();
     (async () => {
       try {
-        const res = await fetch(`/api/autumbra/undo?token=${encodeURIComponent(signed)}`, {
+        const {response: res, data} = await readUndoResponse(`/api/autumbra/undo?token=${encodeURIComponent(signed)}`, {
           method: "GET",
           cache: "no-store",
+          signal: controller.signal,
         });
-        const data = (await res.json()) as {
-          already_undone?: boolean;
-          detail?: string;
-        };
+        if (!res.ok || !data?.ok) throw new Error("Unavailable");
         if (!cancelled && data.already_undone) {
           setStatus("already");
           setMessage(data.detail || "This block was already undone.");
         }
       } catch {
-        /* leave idle — first tap still works */
+        if (!cancelled) setMessage("Could not reach Autumbra. Try again in a moment.");
       }
     })();
     return () => {
       cancelled = true;
+      controller.abort();
     };
   }, [token, initialAlreadyUndone]);
 
   async function onUndo() {
+    if (inFlight.current || status === "done" || status === "already") return;
+    inFlight.current = true;
     setStatus("working");
     setMessage("");
     const signed = (token || "").trim();
     if (!signed) {
       setStatus("error");
       setMessage("This undo link is invalid or has expired.");
+      inFlight.current = false;
       return;
     }
     try {
-      const res = await fetch("/api/autumbra/undo", {
+      const {response: res, data} = await readUndoResponse("/api/autumbra/undo", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ token: signed }),
       });
-      const data = (await res.json()) as {
-        ok?: boolean;
-        detail?: string;
-        already_undone?: boolean;
-      };
       if (data.already_undone) {
         setStatus("already");
         setMessage(data.detail || "This block was already undone.");
@@ -81,6 +81,8 @@ export function UndoButton({
     } catch {
       setStatus("error");
       setMessage("Could not reach Autumbra. Try again in a moment.");
+    } finally {
+      inFlight.current = false;
     }
   }
 
@@ -88,9 +90,9 @@ export function UndoButton({
     status === "working" || status === "done" || status === "already" || !(token || "").trim();
 
   return (
-    <div style={{ marginTop: "1.5rem" }}>
+    <div style={{ marginTop: "1.5rem", minHeight: "9rem" }} aria-busy={status === "working"}>
       {status === "already" ? (
-        <p style={{ marginTop: "0.75rem", color: "#14532d", fontSize: "1.05rem" }}>{message}</p>
+        <p role="status" style={{ marginTop: "0.75rem", color: "#14532d", fontSize: "1.05rem" }}>{message}</p>
       ) : (
         <>
           <button
@@ -99,6 +101,8 @@ export function UndoButton({
             disabled={disabled}
             style={{
               fontSize: "1.05rem",
+              minWidth: "11rem",
+              minHeight: 44,
               padding: "0.75rem 1.25rem",
               borderRadius: 8,
               border: "none",
@@ -110,7 +114,7 @@ export function UndoButton({
             {status === "working" ? "Undoing…" : status === "done" ? "Undone" : "Undo this shield"}
           </button>
           {message ? (
-            <p style={{ marginTop: "0.75rem", color: status === "error" ? "#b91c1c" : "#14532d" }}>
+            <p role={status === "error" ? "alert" : "status"} style={{ marginTop: "0.75rem", color: status === "error" ? "#b91c1c" : "#14532d" }}>
               {message}
             </p>
           ) : null}

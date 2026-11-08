@@ -6,6 +6,7 @@ import hashlib
 import json
 import struct
 import time
+from datetime import datetime, timezone
 from urllib.parse import urlsplit
 from uuid import UUID
 
@@ -53,6 +54,8 @@ class Engine:
         if result.id != job.id or result.tenant_id != job.tenant_id:
             fail("The model service returned the wrong job.", 502)
         await self.store.create(job)
+        if result.progress:
+            await self.store.record_progress(tenant, job.id, [row.model_dump(mode='json') for row in result.progress])
         if result.status == "failed":
             await self.store.finish(tenant, job.id, "failed", reason="The model conversion failed.")
         return self.job_view(await self.store.job(tenant, job.id))
@@ -60,7 +63,7 @@ class Engine:
     @staticmethod
     def job_view(row):
         return {"id": str(row["id"]), "product_id": row["product_id"], "status": row["status"],
-                "report": row.get("report"), "reason": row.get("reason")}
+                "report": row.get("report"), "reason": row.get("reason"), "progress": row.get('progress', [])}
 
     async def poll(self, tenant, job_id):
         await self.require(tenant)
@@ -73,6 +76,8 @@ class Engine:
         result = await self.forge.poll(job)
         if result.id != job.id or result.tenant_id != job.tenant_id:
             fail("The model service returned the wrong job.", 502)
+        if result.progress:
+            await self.store.record_progress(tenant, job.id, [row.model_dump(mode='json') for row in result.progress])
         if result.status == "failed":
             await self.store.finish(tenant, job.id, "failed", reason="The model conversion failed.")
         elif result.status == "draft":
@@ -86,6 +91,16 @@ class Engine:
                 await self.store.finish(tenant, job.id, "failed", result.report.model_dump(mode="json"), reason)
             else:
                 await self.assets.put(tenant, job.id, data)
+                # Price is a real catalogue read after the geometry checks, not
+                # a synthetic client timer or an inferred approval milestone.
+                await self.catalogue.product(tenant, job.product_id)
+                at = datetime.now(timezone.utc)
+                costs = result.progress[-1].cost.model_dump(mode='json') if result.progress else (
+                    row['progress'][-1]['cost'] if row.get('progress') else
+                    {'amount_usd': None, 'basis': 'unknown', 'receipt_ids': []})
+                await self.store.record_progress(tenant, job.id, [{'id': 'catalogue-price', 'stage': 'price',
+                    'at': at.isoformat(), 'elapsed_ms': max(0, int((at-row['created_at']).total_seconds()*1000)),
+                    'outcome': 'delivered', 'cost': costs}])
                 await self.store.finish(tenant, job.id, "draft", result.report.model_dump(mode="json"))
         return self.job_view(await self.store.job(tenant, job.id))
 

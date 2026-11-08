@@ -8,9 +8,10 @@ from typing import Protocol
 from uuid import UUID
 
 import httpx
+from rigbox.deadline import bounded
 
 from rigbox.service import RigError
-from .contracts import Job, Report, Result
+from .contracts import Job, Report, Result, Progress
 
 
 def photo_sources():
@@ -29,6 +30,7 @@ class BrainForge:
     def __init__(self, client: httpx.AsyncClient, key: str, files=None):
         self.client, self.key, self.files = client, key, files
 
+    @bounded(30, lambda: RigError("forge_unavailable", "The product service is not connected.", 503))
     async def _call(self, method: str, job: Job):
         if not self.key:
             raise RigError("forge_unavailable", "The product service is not connected.", 503)
@@ -67,9 +69,10 @@ class BrainForge:
             if UUID(value.get("tenant_id", str(job.tenant_id))) != job.tenant_id or UUID(value.get("job_id", str(job.id))) != job.id:
                 raise ValueError("wrong job")
             status = value["status"]
+            progress = [Progress.model_validate(row) for row in value.get('progress', [])]
             if status in {"queued", "running", "failed"}:
                 return Result(id=job.id, tenant_id=job.tenant_id, status=status,
-                              failure="conversion" if status == "failed" else None)
+                              failure="conversion" if status == "failed" else None, progress=progress)
             if status != "draft" or value.get("asset_key") != f"forge/{job.tenant_id}/{job.id}/drafts/model.glb":
                 raise ValueError("invalid draft")
             report = value["report"]
@@ -95,7 +98,7 @@ class BrainForge:
             parsed = Report(outward_faces=True, watertight=True, real_size=True, gltf_valid=True,
                 triangles=report["triangles"], size_bytes=len(data), dimensions_mm=report["dimensions_mm"],
                 compression="meshopt", sha256=hashlib.sha256(data).hexdigest(), anchors=job.anchors, receipt_ids=receipts)
-            return Result(id=job.id, tenant_id=job.tenant_id, status="draft", report=parsed)
+            return Result(id=job.id, tenant_id=job.tenant_id, status="draft", report=parsed, progress=progress)
         except (ValueError, KeyError, TypeError, AttributeError):
             raise RigError("forge_invalid", "The product service returned an invalid result.", 502) from None
 

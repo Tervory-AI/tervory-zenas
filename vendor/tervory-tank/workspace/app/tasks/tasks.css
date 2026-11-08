@@ -34,3 +34,19 @@
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
+
+.tasks-page button:disabled {
+  opacity: 1;
+  background: #e4e8f0;
+  border-color: #b8bfd0;
+  color: #4a5672;
+  cursor: default;
+}
+
+.tasks-page .meta dl {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.25rem 0.75rem;
+  margin: 0.5rem 0;
+}
+.tasks-page .meta dd { margin: 0; overflow-wrap: anywhere; }

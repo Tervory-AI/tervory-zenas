@@ -1,18 +1,21 @@
 "use client";
 
-import { useState } from "react";
+import { fetchWithDeadline as fetch } from "../lib/request";
+import { useRef, useState } from "react";
 
 type Verdict = "accepted" | "rejected";
 
 // Thumbs up / down on one answer. Writes the verdict to the ledger row through Tank.
 // This is the "outcome" the pack bills on and the graduation loop learns from.
 export function FeedbackButtons({ ledgerId, initial }: { ledgerId: string; initial?: Verdict | null }) {
+  const submitting = useRef(false);
   const [verdict, setVerdict] = useState<Verdict | null>(initial ?? null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function send(next: Verdict) {
-    if (busy) return;
+    if (submitting.current) return;
+    submitting.current = true;
     setBusy(true);
     setError(null);
     try {
@@ -27,6 +30,7 @@ export function FeedbackButtons({ ledgerId, initial }: { ledgerId: string; initi
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save");
     } finally {
+      submitting.current = false;
       setBusy(false);
     }
   }
@@ -54,7 +58,7 @@ export function FeedbackButtons({ ledgerId, initial }: { ledgerId: string; initi
         👎
       </button>
       {verdict && <span className="fb-note">{verdict}</span>}
-      {error && <span className="err"> {error}</span>}
+      {error && <span className="err" role="alert"> {error}</span>}
     </span>
   );
 }

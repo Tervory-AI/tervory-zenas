@@ -8,7 +8,6 @@ from __future__ import annotations
 import asyncio
 from contextlib import asynccontextmanager
 from copy import deepcopy
-from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from html.parser import HTMLParser
 import json
@@ -34,7 +33,10 @@ async def room(conn, schema):
 
 async def ensure_tables(conn, schema):
     async with room(conn, schema):
-        await conn.execute(Path(__file__).with_name("schema.sql").read_text())
+        # The integrated schema also contains qualified Tiger tables/policies.
+        # Keep every statement inside the validated room schema (including test rooms).
+        sql = Path(__file__).with_name("schema.sql").read_text().replace("agent_tiger", schema)
+        await conn.execute(sql)
 
 
 class StructuredListing(HTMLParser):

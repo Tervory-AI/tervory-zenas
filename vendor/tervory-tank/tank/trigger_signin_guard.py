@@ -18,7 +18,7 @@ class TriggerSigninMiddleware:
 
     async def __call__(self, scope, receive, send):
         if scope['type'] != 'http':
-            return await self.app(scope, receive, send)
+            return await self.serve(scope, receive, send)
         issuer_context = registry._issuer.set('')
         proof_context = registry.proof.set({name: value for name, value in Headers(scope=scope).items()
                                             if name in {'authorization', 'x-trigger-signin-token', 'x-trigger-signin-org', 'x-mobile-session'}})
@@ -28,9 +28,23 @@ class TriggerSigninMiddleware:
             registry._issuer.reset(issuer_context)
             registry.proof.reset(proof_context)
 
+    async def serve(self, scope, receive, send):
+        from types import SimpleNamespace
+        from product_identity import current, user_from_actor
+        verified = scope.get("state", {}).get("trigger_signin")
+        actor = None
+        if verified:
+            actor = SimpleNamespace(**verified, founder=verified["user_id"] in registry.founders(),
+                                    role=Headers(scope=scope).get("x-tervory-role") or "member")
+        token = current.set(user_from_actor(actor))
+        try:
+            return await self.app(scope, receive, send)
+        finally:
+            current.reset(token)
+
     async def dispatch(self, scope, receive, send):
         if scope['type'] != 'http':
-            return await self.app(scope, receive, send)
+            return await self.serve(scope, receive, send)
         headers = Headers(scope=scope)
         from main import TANK_API_KEY
         keys = [TANK_API_KEY, *(os.environ.get(name, '') for name in (
@@ -39,7 +53,7 @@ class TriggerSigninMiddleware:
         trusted_service = bool(presented) and any(key and hmac.compare_digest(presented.encode(), key.encode()) for key in keys)
         identity_headers = ['x-tervory-user', 'x-tervory-admin', 'x-tervory-role', 'x-trigger-signin-token']
         if not trusted_service or not any(headers.get(name) for name in identity_headers):
-            return await self.app(scope, receive, send)
+            return await self.serve(scope, receive, send)
         mobile_token = headers.get('x-mobile-session', '')
         if mobile_token and not headers.get('x-trigger-signin-token') and not headers.get('authorization'):
             if scope['method'] == 'POST' and scope['path'] in {'/v1/mobile/handshake', '/v1/personal-tokens'}:
@@ -65,7 +79,7 @@ class TriggerSigninMiddleware:
                 (b'x-tervory-role', b'org:admin' if administrator else b'')]
             issuer_context = registry._issuer.set(principal['issuer'])
             try:
-                return await self.app(scope, receive, send)
+                return await self.serve(scope, receive, send)
             finally:
                 registry._issuer.reset(issuer_context)
         token = headers.get('x-trigger-signin-token', '')
@@ -89,7 +103,7 @@ class TriggerSigninMiddleware:
                 return await JSONResponse({'detail': 'Trigger sign-in required'}, status_code=401,
                                           headers={'Cache-Control': 'no-store'})(scope, receive, send)
             scope.setdefault('state', {})['trigger_signin'] = {'tenant_id': actor.tenant_id, 'user_id': actor.user_id, 'tenant_admin': actor.tenant_admin}
-            return await self.app(scope, receive, send)
+            return await self.serve(scope, receive, send)
         try:
             if not token:
                 raise oidc.IdentityError('Trigger sign-in required')
@@ -122,6 +136,6 @@ class TriggerSigninMiddleware:
         scope['headers'] = sanitized
         issuer_context = registry._issuer.set(claims['iss'])
         try:
-            return await self.app(scope, receive, send)
+            return await self.serve(scope, receive, send)
         finally:
             registry._issuer.reset(issuer_context)

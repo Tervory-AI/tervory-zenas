@@ -1,9 +1,10 @@
 "use client";
 
+import { fetchWithDeadline as fetch } from "../../lib/request";
 import { useEffect, useState } from "react";
 import { batchLabel } from "./model";
 import { countLabel, pageFields, fieldLabels, stateLabel } from "./display";
-import { Evidence } from "./reference-workflow";
+import { Evidence, bounded } from "./reference-workflow";
 import type { VerifiedRow } from "./product-types";
 
 export function BatchWorkflow({ signedIn, selected }: { signedIn: boolean; selected: string | null }) {
@@ -12,15 +13,21 @@ export function BatchWorkflow({ signedIn, selected }: { signedIn: boolean; selec
   useEffect(() => {
     setResult(null); setError("");
     if (!selected || !signedIn) return;
-    let stopped = false;
+    let stopped = false, running = false;
     const query = new URLSearchParams({ batch: selected, include_collectors: "true" });
     async function poll() {
+      if (running || stopped) return;
+      running = true;
       try {
-        const response = await fetch(`/base/product/records?${query}`, { cache: "no-store" });
-        const data = await response.json();
-        if (!response.ok) throw new Error("The results could not be loaded. They will be checked again shortly.");
+        const data = await bounded(async signal => {
+          const response = await fetch(`/base/product/records?${query}`, { cache: "no-store", signal });
+          const data = await response.json();
+          if (!response.ok) throw new Error("The results could not be loaded. They will be checked again shortly.");
+          return data;
+        });
         if (!stopped) { setResult(data); setError(""); }
       } catch { if (!stopped) setError("The results could not be loaded. They will be checked again shortly."); }
+      finally { running = false; }
     }
     void poll();
     const timer = setInterval(() => { void poll(); }, 15000);

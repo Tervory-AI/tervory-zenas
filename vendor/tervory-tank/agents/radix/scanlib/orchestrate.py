@@ -46,11 +46,24 @@ def _redact_findings(findings: list[dict], hidden: list[str]) -> list[dict]:
 
 
 def collect(root: Path, tool_status: dict | None = None) -> tuple[list[dict], list[str]]:
-    secret_findings, hidden = secrets.scan_tree(root)
+    if secrets.system_tools():
+        from scanlib import runtime
+        secret_findings, hidden, secret_complete = runtime.secret_scan(root)
+        dependency_findings, dependency_complete = runtime.dependency_scan(root)
+        static_findings, static_complete = runtime.static_scan(root)
+        if tool_status is not None:
+            for tool, complete in ((secrets.TOOL, secret_complete),
+                                   (dependencies.TOOL, dependency_complete),
+                                   (static.TOOL, static_complete)):
+                tool_status[tool] = "run" if complete else "not run"
+    else:
+        secret_findings, hidden = secrets.scan_tree(root)
+        dependency_findings = dependencies.scan_tree(root)
+        static_findings = static.scan_tree(root)
     infrastructure = iac.scan_tree(root)
     if tool_status is not None:
         tool_status[iac.TOOL] = infrastructure.status
-    findings = secret_findings + dependencies.scan_tree(root) + static.scan_tree(root) + infrastructure
+    findings = secret_findings + dependency_findings + static_findings + infrastructure
     findings.sort(key=lambda item: (item["tool"], item["file"], item["line"], item["rule"]))
     return _redact_findings(findings, hidden), hidden
 
@@ -77,9 +90,10 @@ def build_result(ctx) -> dict:
     shown_ref = _public_ref(ref, hidden)
     critical = sum(1 for item in findings if item.get("severity") == "critical")
     summary = summarize(shown_ref, findings)
+    scan_complete = all(status == "run" for status in tool_status.values())
+    if not scan_complete and not findings:
+        summary = f"Scanned {shown_ref}. This scan does not block the build."
     if tool_status[iac.TOOL] != "run":
-        if not findings:
-            summary = f"Scanned {shown_ref}. This scan does not block the build."
         summary += " scan.iac: not run."
     result = {
         "scan_id": str(ctx.job_id),
@@ -87,7 +101,7 @@ def build_result(ctx) -> dict:
         "ref": shown_ref,
         "summary": summary,
         "tool_status": tool_status,
-        "scan_complete": tool_status[iac.TOOL] == "run",
+        "scan_complete": scan_complete,
         "deploy_blocked": critical > 0,
         "critical": critical,
         "tools": ["scan.secrets", "scan.dependencies", "scan.static", "scan.iac"],

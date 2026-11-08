@@ -1,5 +1,8 @@
 "use client";
+import Link from "next/link";
+import { zenasFetch } from "@/app/zenas/request";
 
+import { fetchWithDeadline as fetch } from "../../lib/request";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { ReviewItem } from "@/app/api/zenas/rules";
@@ -21,7 +24,7 @@ export function ReviewDesk({ items, note }: { items: ReviewItem[]; note: string 
     setConfirm(null);
 
     if (usesMatterRelease(decision, item.matterId)) {
-      const res = await fetch(`/api/zenas/matters/${item.matterId}/release`, {
+      const res = await zenasFetch(`/api/zenas/matters/${item.matterId}/release`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
@@ -44,7 +47,7 @@ export function ReviewDesk({ items, note }: { items: ReviewItem[]; note: string 
       return;
     }
 
-    const res = await fetch(`/api/zenas/documents/${item.documentId}/reviews`, {
+    const res = await zenasFetch(`/api/zenas/documents/${item.documentId}/reviews`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -67,9 +70,9 @@ export function ReviewDesk({ items, note }: { items: ReviewItem[]; note: string 
     <section className="zr-card" aria-labelledby="waiting-title">
       <h2 id="waiting-title">Waiting for review</h2>
       {note && <p className="note">{note}</p>}
-      {confirm && <p className="confirm">{confirm}</p>}
-      {error && <p className="error">{error}</p>}
-      {items.length === 0 && !note && <p className="note">Nothing is waiting in your jurisdictions.</p>}
+      {confirm && <p className="confirm" role="status">{confirm}</p>}
+      {error && <p className="error" role="alert">{error}</p>}
+      {items.length === 0 && !note && <p className="note">0 · <Link href="/matters">Open a matter</Link></p>}
       {items.map((item) => (
         <article className="zr-item-card" key={item.documentId}>
           <h3>{item.title}</h3>
@@ -98,7 +101,7 @@ export function ReviewDesk({ items, note }: { items: ReviewItem[]; note: string 
             </section>
           </div>
           <form onSubmit={(event) => sign(event, item)}>
-            <textarea name="changes" rows={4} placeholder="What you changed. Write none if you changed nothing." />
+            <textarea name="changes" rows={4} aria-label="What you changed. Write none if you changed nothing." placeholder="What you changed. Write none if you changed nothing." />
             <div className="actions">
               <button className="primary" disabled={busy} name="decision" value="approved" type="submit">
                 {item.matterId ? "Release to client" : "Approve"}

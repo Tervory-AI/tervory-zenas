@@ -2,9 +2,16 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  // Bound build workers under CI so trace collection cannot hang the check harness.
+  ...(process.env.CI || process.env.NEXT_TELEMETRY_DISABLED
+    ? { experimental: { cpus: 1 } }
+    : {}),
   async headers() {
     // The CLI approval page grants a credential: never framed, never cached.
     return [{
+      source: "/:path*",
+      headers: [{ key: "X-Content-Type-Options", value: "nosniff" }, { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" }],
+    }, {
       source: "/sw.js",
       headers: [{ key: "Cache-Control", value: "no-cache, no-store" }, { key: "Service-Worker-Allowed", value: "/" }, { key: "X-Content-Type-Options", value: "nosniff" }],
     }, {

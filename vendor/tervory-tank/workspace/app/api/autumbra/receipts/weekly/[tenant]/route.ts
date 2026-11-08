@@ -1,3 +1,4 @@
+import { fetchWithDeadline as fetch } from "../../../../../../lib/request";
 import { NextResponse } from "next/server";
 import { mayReadWeeklyReceipts } from "@/lib/autumbra-receipts-access";
 

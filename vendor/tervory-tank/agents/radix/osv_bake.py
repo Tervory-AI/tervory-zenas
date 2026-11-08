@@ -25,7 +25,7 @@ from scanlib.dependencies import _row  # noqa: E402
 
 # Floors well under today's counts (PyPI ~26k records, npm ~230k incl. MAL-), so
 # only a broken or truncated download trips them.
-FLOORS = {"pypi": 5_000, "npm": 20_000}
+from scanlib.osv_contract import FLOORS
 MUST_HAVE = {"pypi": "GHSA-8q59-q68h-6hv4", "npm": "GHSA-xvch-5gv4-984h"}
 SCHEMA = """
 CREATE TABLE advisories (

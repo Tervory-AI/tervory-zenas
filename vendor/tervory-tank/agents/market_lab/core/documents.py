@@ -26,7 +26,7 @@ async def accept(ledger, tenant: str, ident: str, name: str, extracted: dict, *,
     for index, ((label, title), points) in enumerate(groups.items()):
         series_id = f'{owner}:upload:{file_id}:{index}'
         await call(ledger.save_series, {'id': series_id, 'tenant_id': owner, 'source': source,
-            'ref': name, 'unit': points[0]['unit'], 'currency': points[0]['currency'], 'region': region, 'engine': ''})
+            'ref': title, 'unit': points[0]['unit'], 'currency': points[0]['currency'], 'region': region, 'engine': ''})
         count = await call(ledger.save_points, series_id, owner,
             [{**point, 'fetched_at': now, 'source': source, 'region': region} for point in points], stored=True, source=source)
         if count != len(points):
@@ -35,14 +35,19 @@ async def accept(ledger, tenant: str, ident: str, name: str, extracted: dict, *,
     record = {'id': file_id, 'name': name, 'fetched_at': now, 'kind': 'uploaded_file', 'passages': passages,
         'status': 'learned', 'reason': ' '.join(filter(None, [extracted.get('note', ''), 'Some table figures failed the data checks and are not used in answers.' if blocked else ''])),
         'rows': extracted['rows'], 'pages': extracted['pages']}
+    await save_record(ledger, owner, file_id, record)
+    return record
+
+
+async def save_record(ledger, tenant: str, ident: str, record: dict) -> None:
+    owner, file_id = str(uuid.UUID(tenant)), str(uuid.UUID(ident))
     if hasattr(ledger, 'conn'):
-        await ledger.conn.execute('''INSERT INTO agent_market_lab.uploaded_files(tenant_id,id,content)
-            VALUES($1,$2,$3::jsonb) ON CONFLICT(tenant_id,id) DO UPDATE SET content=excluded.content''',
+        await ledger.conn.execute("""INSERT INTO agent_market_lab.uploaded_files(tenant_id,id,content)
+            VALUES($1,$2,$3::jsonb) ON CONFLICT(tenant_id,id) DO UPDATE SET content=excluded.content""",
             uuid.UUID(owner), uuid.UUID(file_id), json.dumps(record))
     else:
         ledger.uploaded_files = getattr(ledger, 'uploaded_files', {})
         ledger.uploaded_files[(owner, file_id)] = record
-    return record
 
 
 async def records(ledger, tenant: str, ident: str | None = None) -> list[dict]:

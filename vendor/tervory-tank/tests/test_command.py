@@ -28,7 +28,9 @@ def request(**headers):
 
 @pytest.fixture
 def runtime(monkeypatch):
-    runtime = SimpleNamespace(TANK_API_KEY='dummy-workspace-key', box_region=lambda: 'us-east')
+    runtime = SimpleNamespace(TANK_API_KEY='dummy-workspace-key', box_region=lambda: 'us-east',
+        _storage_mask=lambda value: value, model_call_refusal=lambda *args, **kwargs: None,
+        list_models=AsyncMock(return_value=[{'name': 'placeholder-model'}, {'name': 'placeholder-pin'}]))
     monkeypatch.setitem(sys.modules, 'main', runtime)
     set_founders(monkeypatch, 'founder')
     monkeypatch.setenv('TANK_KEY_WORKERS', 'dummy-worker-key')
@@ -48,7 +50,7 @@ async def test_identity_roles_and_region(runtime, monkeypatch):
     headers = {'x-tank-key': runtime.TANK_API_KEY, 'x-tervory-tenant': str(TENANT),
                'x-tervory-user': 'client', 'x-tervory-squad': 'tiger'}
     actor = await command.identity(request(**headers))
-    assert command.allowed_tools(actor) == ['plugins.list', 'tiger.alerts', 'tiger.match', 'tiger.match.confirm', 'tiger.match.reject', 'tiger.match.undo', 'tiger.matches', 'tiger.position', 'tiger.read', 'tiger.watch', 'tiger.watch.bulk', 'tiger.watch.pause', 'tiger.watch.remove', 'tiger.watch.resume', 'tiger.watches']
+    assert command.allowed_tools(actor) == sorted([*command.TENANT_TOOLS, 'plugins.list', 'tiger.alerts', 'tiger.match', 'tiger.match.confirm', 'tiger.match.reject', 'tiger.match.undo', 'tiger.matches', 'tiger.position', 'tiger.read', 'tiger.receipts', 'tiger.watch', 'tiger.watch.bulk', 'tiger.watch.pause', 'tiger.watch.remove', 'tiger.watch.resume', 'tiger.watches'])
     with pytest.raises(HTTPException) as refused:
         command.require_tool(actor, 'worker.build')
     assert refused.value.status_code == 403
@@ -58,6 +60,7 @@ async def test_identity_roles_and_region(runtime, monkeypatch):
     assert 'zenas.review' in command.allowed_tools(founder)
     assert 'training.status' in command.allowed_tools(founder)
     assert {'training.run', 'training.receipt'} <= set(command.allowed_tools(founder))
+    assert 'tiger.receipts' not in command.allowed_tools(command.Actor(TENANT, 'placeholder-other-user', False))
     assert 'training.status' not in command.allowed_tools(command.Actor(TENANT, 'placeholder-admin', False, tenant_admin=True))
     assert not {'training.run', 'training.receipt'} & set(command.allowed_tools(command.Actor(TENANT, 'placeholder-admin', False, tenant_admin=True)))
     headers['x-tervory-home-region'] = 'za'
@@ -812,6 +815,8 @@ async def test_pinned_turn_receipt_uses_actual_model_and_pending_auto(api, runti
 @pytest.fixture
 def shared_router(monkeypatch):
     from contextlib import asynccontextmanager
+    from test_tank_ladder import selected_policy_protocol
+    selected_policy_protocol(monkeypatch)
     monkeypatch.setenv('DATABASE_URL', 'postgresql://localhost/unused')
     monkeypatch.setenv('LITELLM_MASTER_KEY', 'dummy-router-key')
     monkeypatch.setenv('TANK_API_KEY', 'dummy-workspace-key')
@@ -958,7 +963,7 @@ async def test_tenant_squad_grants_are_founder_only_isolated_and_logged(api, mon
     import asyncio
     client, pool = api
     client_headers = {'x-tervory-user': 'client', 'x-tervory-squad': 'base,tiger,zenas'}
-    assert (await client.get('/v1/command/tools', headers=client_headers)).json() == []
+    assert (await client.get('/v1/command/tools', headers=client_headers)).json() == sorted(command.TENANT_TOOLS)
     for method, path, body in [('get', '/v1/command/squads', None), ('get', '/v1/command/squads/log', None),
                                 ('put', '/v1/command/squads/tiger', {'enabled': True})]:
         result = await client.request(method, path, headers=client_headers, json=body)
@@ -970,13 +975,13 @@ async def test_tenant_squad_grants_are_founder_only_isolated_and_logged(api, mon
     grants = (await client.get('/v1/command/squads')).json()
     assert len(grants) == 7
     assert next(g for g in grants if g['agent'] == 'tiger')['enabled_by'] == 'founder'
-    assert (await client.get('/v1/command/tools', headers=client_headers)).json() == ['plugins.list', 'tiger.alerts', 'tiger.match', 'tiger.match.confirm', 'tiger.match.reject', 'tiger.match.undo', 'tiger.matches', 'tiger.position', 'tiger.read', 'tiger.watch', 'tiger.watch.bulk', 'tiger.watch.pause', 'tiger.watch.remove', 'tiger.watch.resume', 'tiger.watches']
-    assert (await client.get('/v1/command/tools', headers={**client_headers, 'x-tervory-tenant': str(OTHER)})).json() == []
+    assert (await client.get('/v1/command/tools', headers=client_headers)).json() == sorted([*command.TENANT_TOOLS, 'plugins.list', 'tiger.alerts', 'tiger.match', 'tiger.match.confirm', 'tiger.match.reject', 'tiger.match.undo', 'tiger.matches', 'tiger.position', 'tiger.read', 'tiger.receipts', 'tiger.watch', 'tiger.watch.bulk', 'tiger.watch.pause', 'tiger.watch.remove', 'tiger.watch.resume', 'tiger.watches'])
+    assert (await client.get('/v1/command/tools', headers={**client_headers, 'x-tervory-tenant': str(OTHER)})).json() == sorted(command.TENANT_TOOLS)
     assert (await client.get('/v1/command/squads/log', headers={'x-tervory-tenant': str(OTHER)})).json() == []
     assert (await client.put('/v1/command/squads/worker', json={'enabled': True})).status_code == 422
     await client.put('/v1/command/squads/tiger', json={'enabled': False})
     await client.put('/v1/command/squads/tiger', json={'enabled': False})
-    assert (await client.get('/v1/command/tools', headers=client_headers)).json() == []
+    assert (await client.get('/v1/command/tools', headers=client_headers)).json() == sorted(command.TENANT_TOOLS)
     log = (await client.get('/v1/command/squads/log')).json()
     assert [row['enabled'] for row in log] == [False, True]
     # Empty grants still allow chat; a model cannot grant access via its plan.

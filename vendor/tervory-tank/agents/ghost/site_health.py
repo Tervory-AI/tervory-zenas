@@ -6,6 +6,7 @@ import hmac
 import json
 import math
 import os
+import sys
 import time
 from urllib.parse import urlsplit
 from pathlib import Path
@@ -125,6 +126,11 @@ def main() -> None:
     site = observer_site()
     if not secret.strip() or site is None:
         print("Health observer is not configured.", flush=True)
+        from .configuration import missing_settings
+        names = missing_settings("health_observer")
+        if site is None and "SITE_NAME" not in names:
+            names.append("SITE_NAME")
+        print("Missing or invalid settings: " + ", ".join(names), file=sys.stderr, flush=True)
         while True:
             time.sleep(15)
     output_dir = OUTPUT_DIR

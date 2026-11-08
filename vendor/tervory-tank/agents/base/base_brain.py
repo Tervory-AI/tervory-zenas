@@ -15,6 +15,10 @@ from typing import Any
 from urllib.parse import urlsplit
 
 import httpx
+try:
+    from network import BoundedHTTP
+except ModuleNotFoundError:  # package imports in offline and shared callers
+    from agents.base.network import BoundedHTTP
 from fastapi import Header, HTTPException
 from pydantic import BaseModel
 
@@ -47,6 +51,8 @@ async def run_code_first(pool: Any, skills: Any, task_id: uuid.UUID, cfg: dict, 
         return await call(skill_id, {**payload, "_base_brain_task": str(task_id), "_base_brain_free": True})
 
     await _run_batch(pool, task_id, cfg, free_skill)
+    from sources.continuation import finish_context
+    await finish_context(pool, getattr(skills, "_http", None), task_id, cfg)
     outcome = await results(ActiveBatch(pool, cfg, call), Task(tenant_id=tenant, task_id=task_id))
     # A pause/failure is not permission to spend. Completed, sourced code
     # answers need no model conversation or paid continuation.
@@ -76,12 +82,13 @@ async def drive_batch(pool, skills, task_id, cfg, call, *, free_result: dict | N
                 "UPDATE agent_base.tasks SET status='running',started_at=coalesce(started_at,now()),finished_at=NULL "
                 "WHERE tenant_id=$1 AND id=$2", tenant, task_id)
         try:
-            async with httpx.AsyncClient(timeout=30) as client:
+            async with httpx.AsyncClient(timeout=30) as raw_client:
+                client = BoundedHTTP(raw_client)
                 response = await client.post(os.environ["BASE_BRAIN_URL"] + "/tasks",
                     headers=skills._headers(), json={"tenant_id": str(tenant), "task_id": str(task_id),
                         "home_region": os.environ.get("TANK_REGION", "us-east"), "batch": cfg["batch"],
                         "count": cfg["count"], "engine": cfg.get("engine")})
-                deadline = time.monotonic() + 86400
+                deadline = time.monotonic() + 300
                 while response.status_code == 202:
                     if time.monotonic() > deadline:
                         raise RuntimeError("Base brain polling deadline reached")
@@ -107,7 +114,8 @@ async def drive_batch(pool, skills, task_id, cfg, call, *, free_result: dict | N
                 # race the fallback. Cancel its job and close the pipeline gate.
                 batch.ran, batch.operation = True, "fallback"
                 try:
-                    async with httpx.AsyncClient(timeout=5) as cancel_client:
+                    async with httpx.AsyncClient(timeout=5) as raw_client:
+                        cancel_client = BoundedHTTP(raw_client)
                         await cancel_client.delete(os.environ["BASE_BRAIN_URL"] + "/tasks/" + str(task_id),
                             headers=skills._headers(), params={"tenant_id": str(tenant),
                                 "home_region": os.environ.get("TANK_REGION", "us-east")})
@@ -138,7 +146,8 @@ async def drive_batch(pool, skills, task_id, cfg, call, *, free_result: dict | N
                     batch.finished = True
                     batch.operation = "finish_fallback"
                 try:
-                    async with httpx.AsyncClient(timeout=5) as cancel_client:
+                    async with httpx.AsyncClient(timeout=5) as raw_client:
+                        cancel_client = BoundedHTTP(raw_client)
                         await cancel_client.delete(os.environ["BASE_BRAIN_URL"] + "/tasks/" + str(task_id),
                             headers=skills._headers(), params={"tenant_id": str(tenant),
                                 "home_region": os.environ.get("TANK_REGION", "us-east")})
