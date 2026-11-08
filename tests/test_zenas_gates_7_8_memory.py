@@ -18,7 +18,7 @@ import yaml
 
 from chassis.memory import MemoryClient
 from agents.zenas import gates_memory
-from agents.zenas.zenas_brain import ask_brain_tasks, brain_enabled, brain_then_route, brain_url
+from agents.zenas.zenas_brain import ask_brain_tasks, brain_enabled, brain_then_route
 
 ROOT = Path(__file__).resolve().parents[1]
 TENANT = "11111111-1111-4111-8111-111111111111"
@@ -360,12 +360,12 @@ def test_remembered_kinds_defined_and_brain_defaults_off_like_main(monkeypatch):
     assert gates_memory.memory_enabled_env() is False
     assert gates_memory.brain_enabled() is False
     assert brain_enabled() is False
-    assert "zenas-brain" in brain_url()
     for name in ("docker-compose.yml", "docker-compose.za.yml"):
         box = yaml.safe_load((ROOT / "agents/zenas" / name).read_text())
         room = box["services"]["agent-zenas"]["environment"]
         assert room["ZENAS_BRAIN_ENABLED"] == "${ZENAS_BRAIN_ENABLED:-false}"
-        assert room["ZENAS_BRAIN_URL"] == "http://zenas-brain:8001"
+        assert "ZENAS_BRAIN_URL" not in room
+        assert room["TANK_URL"] == "http://tank:8000"
         assert room["ZENAS_MEMORY_ENABLED"] == "${ZENAS_MEMORY_ENABLED:-false}"
         assert box["services"]["zenas-brain"]["profiles"] == ["brain"]
         assert box["services"]["zenas-sandbox"]["profiles"] == ["brain"]
@@ -385,52 +385,45 @@ def test_gate_memory_uses_the_chassis_client_not_a_second_store():
 
 @pytest.mark.asyncio
 async def test_brain_then_route_free_first_then_tasks_then_tank(monkeypatch):
+    from chassis.tank import TankClient
+    from chassis.user_assertion import SignedUser, verify_assertion
     monkeypatch.setenv("ZENAS_BRAIN_ENABLED", "true")
-    calls = {"health": 0, "tasks": 0, "route": 0}
+    monkeypatch.setenv("TANK_REGION", "us-east")
+    actor = SignedUser(TENANT, USER, "member")
+    events, nonces = [], set()
 
-    class HTTP:
-        async def get(self, url, params=None, **kwargs):
-            calls["health"] += 1
+    async def claim(tenant, nonce, expires):
+        assert tenant == TENANT
+        if nonce in nonces:
+            return False
+        nonces.add(nonce)
+        return True
 
-            class Resp:
-                status_code = 200
+    async def standby(request):
+        assert request.method == "POST" and request.url.path == "/v1/agents/zenas/delegate"
+        assert request.url.host == "tank"
+        verified = await verify_assertion(request.headers['X-Tervory-User-Assertion'],
+            key='placeholder-zenas-room-key', product='zenas', tenant_id=TENANT,
+            method=request.method, target=request.url.raw_path.decode(), body=request.content,
+            consume_nonce=claim)
+        assert verified == actor
+        payload = json.loads(request.content)
+        assert payload['task_key'] == TASK and payload['input']['messages'] == [{'role':'user','content':'hi'}]
+        events.append('delegate')
+        return httpx.Response(404)
 
-                def raise_for_status(self):
-                    return None
-
-                def json(self):
-                    return {"ok": True, "room": "zenas"}
-
-            return Resp()
-
-        async def post(self, url, json=None, **kwargs):
-            calls["tasks"] += 1
-
-            class Resp:
-                status_code = 404
-
-            return Resp()
-
-    class Tank:
+    class Tank(TankClient):
         async def route(self, tenant_id, task_type, messages):
-            calls["route"] += 1
-            return {
-                "content": "draft-from-tank",
-                "ledger_id": "led-1",
-                "cost_usd": FAKE_COST_USD,
-                "tokens_in": FAKE_TOKENS_IN,
-                "tokens_out": FAKE_TOKENS_OUT,
-                "model": "fake",
-            }
+            assert tenant_id == TENANT and task_type == TASK
+            events.append('route')
+            return {"content":"draft-from-tank", "ledger_id":"led-1", "cost_usd":FAKE_COST_USD,
+                    "tokens_in":FAKE_TOKENS_IN, "tokens_out":FAKE_TOKENS_OUT, "model":"fake"}
 
-    routed = await brain_then_route(
-        HTTP(),
-        Tank(),
-        tenant_id=TENANT,
-        task_type=TASK,
-        messages=[{"role": "user", "content": "hi"}],
-    )
-    assert calls == {"health": 1, "tasks": 1, "route": 1}
+    async with httpx.AsyncClient(transport=httpx.MockTransport(standby)) as http:
+        tank = Tank('http://tank:8000', 'placeholder-zenas-room-key', 'zenas', http)
+        routed = await brain_then_route(http, tank, tenant_id=TENANT, task_type=TASK,
+            messages=[{"role":"user","content":"hi"}], actor=actor, run_id=str(uuid.uuid4()))
+    assert events == ['delegate', 'route']
     assert routed["content"] == "draft-from-tank"
     assert routed["brain"]["free_first"] is True and routed["brain"]["code_first"] is True
     assert routed["brain"]["tasks"]["status"] == "standby"
@@ -439,14 +432,18 @@ async def test_brain_then_route_free_first_then_tasks_then_tank(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_ask_brain_tasks_standby_404():
-    class HTTP:
-        async def post(self, url, json=None, **kwargs):
-            class Resp:
-                status_code = 404
-
-            return Resp()
-
-    gap = await ask_brain_tasks(HTTP(), tenant_id=TENANT, task_type=TASK, messages=[])
+    from chassis.tank import TankClient
+    from chassis.user_assertion import SignedUser
+    calls = []
+    def standby(request):
+        calls.append(request)
+        assert request.method == 'POST' and request.url.path == '/v1/agents/zenas/delegate'
+        return httpx.Response(404)
+    async with httpx.AsyncClient(transport=httpx.MockTransport(standby)) as http:
+        tank = TankClient('http://tank:8000', 'placeholder-zenas-room-key', 'zenas', http)
+        gap = await ask_brain_tasks(tank, actor=SignedUser(TENANT, USER, 'member'),
+            run_id=str(uuid.uuid4()), tenant_id=TENANT, task_type=TASK, messages=[])
+    assert len(calls) == 1
     assert gap["status"] == "standby" and gap["gap_filled"] is False
 
 

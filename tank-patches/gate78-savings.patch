@@ -107,20 +107,20 @@
      path = request.url.path
      skill_run = path.startswith("/v1/skala/") and path.endswith("/run") and path.count("/") == 4
      ghost_route = matched == "ghost" and __import__("ghost_routes").room_method(request.method, path)
-+    zenas_evidence = matched == "zenas" and request.method == "POST" and path in {"/v1/zenas/savings/quote", "/v1/zenas/law/embeddings"}
++    zenas_evidence = matched == "zenas" and request.method == "POST" and path in {"/v1/zenas/savings/quote", "/v1/zenas/law/embeddings", "/v1/zenas/law/vectors"}
      vendor_write = request.method == "POST" and path == "/v1/ledger/vendor"
      batch_route = path == "/v1/route/batch" or (request.method == "GET" and path.startswith("/v1/route/batch/"))
      # Its own queued background calls only; route_job checks the caller.
-@@ -676,7 +677,7 @@
-     event_route = request.method == "POST" and path in {"/v1/events/publish", "/v1/events/receive", "/v1/events/settle", "/v1/mobile/notify"}
+@@ -677,7 +678,7 @@
+     tiger_savings = matched == "tiger" and request.method == "POST" and path == "/v1/tiger/savings"
      paid_status = request.method == "GET" and re.fullmatch(r"/v1/paid-steps/approvals/[0-9a-fA-F-]{36}", path)
      paid_admit = matched == "base" and request.method == "POST" and path == "/v1/paid-steps/admit"
--    if path not in {"/health", "/v1/route"} and not paid_status and not paid_admit and not batch_route and not job_route and not skill_run and not vendor_write and not ghost_route and not event_route:
-+    if path not in {"/health", "/v1/route"} and not paid_status and not paid_admit and not batch_route and not job_route and not skill_run and not vendor_write and not ghost_route and not event_route and not zenas_evidence:
+-    if path not in {"/health", "/v1/route"} and not tiger_savings and not paid_status and not paid_admit and not batch_route and not job_route and not skill_run and not vendor_write and not ghost_route and not event_route:
++    if path not in {"/health", "/v1/route"} and not tiger_savings and not paid_status and not paid_admit and not batch_route and not job_route and not skill_run and not vendor_write and not ghost_route and not event_route and not zenas_evidence:
          raise HTTPException(status_code=403, detail="This agent key cannot call that.")
      return matched
 
-@@ -3880,6 +3881,14 @@
+@@ -3884,6 +3885,14 @@
      if state != "approved" and not body.preview:
          raise HTTPException(status_code=409, detail=f"{pkg.ref} is {state!r}; only approved versions run for clients")
      ctx = make_ctx(pkg, body.tenant_id, preview=body.preview)
@@ -132,18 +132,18 @@
 +            if result.get('ledger_id'): zenas_ledgers.append(str(result['ledger_id']))
 +            return result
 +        ctx._model=with_zenas_receipt
-     if caller:
-         ctx.agent = caller
-     if caller == "base":
-@@ -3907,6 +3916,7 @@
+     if caller == 'tiger':
+         ctx._tiger_run_id = uuid.uuid4()
+         ctx._tiger_ledger_ids = []
+@@ -3924,6 +3933,7 @@
          out["_ledger_id"] = str(receipt.ledger_id)
          out["_receipt"] = receipt.model_dump(mode="json")
      out["_cost_usd"] = round(ctx.cost_usd, 6)
 +    if caller == "zenas": out["_ledger_ids"] = zenas_ledgers
-     return out
-
-
-@@ -3967,6 +3977,8 @@
+     if caller == "tiger" and not body.preview:
+         out['_savings'] = await __import__('tiger_savings').skill_receipt(__import__('sys').modules[__name__], pkg, body, ctx, out)
+     if getattr(ctx, "memory_receipts", None):
+@@ -3988,6 +3998,8 @@
  _LOCAL_ZENAS_HOSTS = frozenset({"agent-zenas", "localhost", "127.0.0.1"})
  _ZENAS_PATH = re.compile(
      r"^(consents|matters|pool|pool/status|health|review|selftest|review-switch|cases/convert|rule-cards|worked|matches|training-pairs|drafts|playbooks|tenants|answers|contract-reviews|moot/published)$"

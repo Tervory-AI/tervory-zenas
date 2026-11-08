@@ -36,7 +36,8 @@ def test_compose_keeps_both_runtimes_off_hardened_and_box_local(region):
     brain, sandbox = (config["services"][name] for name in ("zenas-brain", "zenas-sandbox"))
     assert text.startswith("# coolify: raw compose\n") and leaks(text) == []
     assert room["environment"]["ZENAS_BRAIN_ENABLED"] == "${ZENAS_BRAIN_ENABLED:-false}"
-    assert room["environment"]["ZENAS_BRAIN_URL"] == "http://zenas-brain:8001"
+    assert "ZENAS_BRAIN_URL" not in room["environment"]
+    assert room["environment"]["TANK_URL"] == "http://tank:8000"
     assert room["environment"]["ZENAS_MEMORY_ENABLED"] == "${ZENAS_MEMORY_ENABLED:-false}"
     assert brain["profiles"] == sandbox["profiles"] == ["brain"]
     assert brain["build"]["dockerfile"] == "agents/rig/Dockerfile.brain"

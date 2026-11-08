@@ -18,6 +18,7 @@ class Run:
     uncertain: bool = False
     attempts: int = 0
     baseline_ledgers: list[str] = field(default_factory=list)
+    actor: object = None
 
 
 current: ContextVar[Run | None] = ContextVar("zenas_savings_run", default=None)
@@ -92,6 +93,7 @@ async def command(request, call_next, tenant):
         return await call_next(request)
     from starlette.responses import Response
     run = Run(tenant, request.url.path, request.headers.get("idempotency-key") or str(uuid4()))
+    run.actor = getattr(request.state, "zenas_actor", None)
     token = current.set(run)
     try:
         from .memory_task import prepare
@@ -151,7 +153,7 @@ async def command(request, call_next, tenant):
     except BaseException:
         # Preserve uncertain charges even when a request times out or disconnects.
         if run.attempts:
-            run.uncertain = True
+            run.uncertain = run.uncertain or not run.ledgers
             await save(request.app.state.pool, getattr(request.app.state, "tank", None), run,
                        {"action": run.action}, {"status": "interrupted"}, failed=True)
         raise

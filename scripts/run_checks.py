@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
-import json
 import os
 from pathlib import Path
 import shutil
@@ -47,10 +46,12 @@ def configure_chromium():
 def test_layout(stage):
     # Explicit compatibility dependency: the reviewed shared core, unchanged.
     # Never apply the obsolete product lifecycle/Hermes proposals over #765.
-    shared_sha = "373bc179e57c6230673058fa4c41a2325ea3d71a"
+    shared_sha = "ea9f0d0418951ae7215a165e9df1e590902002fd"
     shared = Path(os.environ.get("ZENAS_TANK_CHECKOUT", str(CACHE / 'shared-tank.git')))
     if not shared.exists():
         run(['git', 'init', '--bare', shared])
+    if subprocess.run(['git', '-C', shared, 'cat-file', '-e', shared_sha + '^{commit}'],
+                      capture_output=True, check=False).returncode:
         run(['git', '-C', shared, 'fetch', '--depth=1',
              'https://github.com/Tervory-AI/tervory-tank.git', shared_sha])
     actual = subprocess.check_output(['git', '-C', str(shared), 'rev-parse', shared_sha]).decode().strip()
@@ -59,6 +60,12 @@ def test_layout(stage):
     archive = subprocess.check_output(['git', '-C', str(shared), 'archive', shared_sha])
     with tarfile.open(fileobj=io.BytesIO(archive)) as source:
         source.extractall(stage, filter='data')
+    # Preserve the exact tracked-file inventory for the unchanged boundary audit.
+    # This is isolated compatibility metadata, never the source checkout's index.
+    run(['git', 'init', '-q', stage])
+    run(['git', '-C', stage, 'fetch', '-q', '--depth=1', '--no-tags', shared, shared_sha])
+    run(['git', '-C', stage, 'read-tree', shared_sha])
+    run(['git', '-C', stage, 'update-ref', 'HEAD', shared_sha])
     print('Product compatibility checks use unchanged Tank core ' + shared_sha, flush=True)
     (stage / 'vendor').mkdir(exist_ok=True)
     (stage / 'vendor/tervory-tank').symlink_to(VENDOR, target_is_directory=True)
@@ -76,6 +83,9 @@ def test_layout(stage):
     proposal = ROOT / 'tank-patches/gate78-savings.patch'
     run(['git', 'apply', '--check', proposal], cwd=stage)
     run(['git', 'apply', proposal], cwd=stage)
+    boundary = ROOT / 'tank-patches/gate78-boundary.patch'
+    run(['git', 'apply', '--check', boundary], cwd=stage)
+    run(['git', 'apply', boundary], cwd=stage)
     contribution = os.environ.get('ZENAS_GATE78_TEST_CHECKOUT')
     if contribution:
         for name in ('test_zenas.py', 'zenas.json', 'zenas_harness.py'):
@@ -114,7 +124,6 @@ def tests(stage):
     import pytest
     sdk = CACHE / 'hf-jobs'
     python = sdk / 'bin/python'
-    expected = '1.7.2'
     ready = python.is_file() and subprocess.run([str(python), '-c',
         "import huggingface_hub; from huggingface_hub import HfApi; assert huggingface_hub.__version__ == '1.7.2'; assert callable(HfApi.list_jobs_hardware)"],
         capture_output=True).returncode == 0
@@ -149,6 +158,8 @@ def tests(stage):
                 ((stage / p).is_dir() and not p.startswith('tests/fixtures/')))]
     if os.environ.get('ZENAS_GATE78_TEST_CHECKOUT'):
         targets += ['tests/gates78/products/test_zenas.py']
+    targets += ['tests/test_tank_one_door.py', 'tests/test_memory_runtime_packaging.py',
+                'tests/test_registry_frozen.py']
     with tempfile.TemporaryDirectory(prefix='zenas-postgres-') as directory:
         server = pgserver.get_server(Path(directory) / 'postgres')
         try:

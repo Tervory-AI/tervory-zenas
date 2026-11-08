@@ -1,0 +1,119 @@
+--- a/agents/_chassis/chassis/tank.py
++++ b/agents/_chassis/chassis/tank.py
+@@ -77,7 +77,7 @@
+         from .task_contract import origin, context, check_receipt
+         base = origin(self._base)
+         tenant, run = context(actor, run_id)
+-        if self.agent != "tiger" or not self._api_key:
++        if self.agent not in {"tiger", "zenas"} or not self._api_key:
+             raise ValueError("Room task client unavailable")
+         path = f"/v1/agents/{self.agent}/{operation}"
+         body = json.dumps({"tenant_id": tenant, "user_id": actor.user_id,
+@@ -97,6 +97,15 @@
+         except (ValueError, KeyError, TypeError, OverflowError):
+             raise ValueError("Invalid Tank task receipt") from None
+         return data
++
++    async def law_embeddings(self, tenant_id: str, home_region: str, jurisdiction: str,
++                             model: str, texts: list[str]) -> dict[str, Any]:
++        """Zenas public-law vectors through the same-region Tank adapter."""
++        if self.agent != "zenas":
++            raise ValueError("Law embeddings require the Zenas room")
++        return await self._post("/v1/zenas/law/vectors", {
++            "tenant_id": str(uuid.UUID(str(tenant_id))), "home_region": home_region,
++            "jurisdiction": jurisdiction, "model": model, "texts": texts})
+
+     async def _wait_job(self, tenant_id: str, job_id: str) -> dict[str, Any]:
+         if not self._api_key:
+--- a/tank/agent_tasks.py
++++ b/tank/agent_tasks.py
+@@ -1,4 +1,4 @@
+-"""Typed Tiger task adapter; reuse room policy, accounting and signed forwarding.
++"""Typed room task adapter; reuse room policy, accounting and signed forwarding.
+
+ A proposal for Head review. No new provider path or deployment configuration.
+ """
+@@ -39,11 +39,11 @@
+     from agent_skills import Chat, complete, local_region, room_key
+
+     async def actor_for(room: str, body: TaskScope, request: Request):
+-        if room != "tiger":
++        if room not in {"tiger", "zenas"}:
+             raise HTTPException(403, "Room task unavailable")
+         room_key(room, request.headers.get("authorization", ""), request.headers.get("x-tank-key", ""))
+-        if os.environ.get("TIGER_BRAIN_ENABLED", "false").lower() not in {"true", "1", "yes"}:
+-            raise HTTPException(409, "Tiger brain is off")
++        if os.environ.get(room.upper() + "_BRAIN_ENABLED", "false").lower() not in {"true", "1", "yes"}:
++            raise HTTPException(409, f"{room.title()} brain is off")
+         local_region(tank, request.headers.get("x-home-region"), room=room)
+         actor = await signed_user(request, tenant_id=str(body.tenant_id), product=room,
+                                   required=True, nonces=PostgresNonces(tank.pool(), "tank"))
+@@ -65,13 +65,13 @@
+     async def delegate_task(room: str, body: DelegatedTask, request: Request):
+         actor = await actor_for(room, body, request)
+         try:
+-            base = origin(os.environ.get("TIGER_BRAIN_URL", "http://tiger-brain:8001"))
++            base = origin(os.environ.get(room.upper() + "_BRAIN_URL", f"http://{room}-brain:8001"))
+             parsed = urlsplit(base)
+             # Private service only; this directory never accepts a caller URL.
+-            if parsed.scheme != "http" or parsed.hostname != "tiger-brain" or parsed.port != 8001:
++            if parsed.scheme != "http" or parsed.hostname != room + "-brain" or parsed.port != 8001:
+                 raise ValueError("Invalid private origin")
+         except ValueError:
+-            raise HTTPException(503, "Tiger task unavailable") from None
++            raise HTTPException(503, f"{room.title()} task unavailable") from None
+         target = "/tasks?" + urlencode({"tenant_id": actor.tenant_id, "user_id": actor.user_id})
+         content = json.dumps({"task_key": body.task_key, "input": body.input,
+                               "recall": body.recall, "run_id": str(body.run_id)}).encode()
+@@ -81,16 +81,37 @@
+             # Reuse Tank's production paid_http signing hook with the exact
+             # configured origin, verified actor, raw target and body.
+             with actor_scope(actor):
++                if room == "zenas":
++                    discovery = await tank._http.get(base + "/health",
++                        extensions={"tervory_product_origin": (room, (parsed.scheme, parsed.hostname, parsed.port))},
++                        timeout=5, follow_redirects=False)
++                    discovery.raise_for_status()
++                    health = discovery.json()
++                    if not isinstance(health, dict) or health.get("ok") is not True or health.get("room") != room:
++                        raise ValueError("Invalid room health")
+                 response = await tank._http.post(base + target, content=content,
+-                    headers={"Content-Type": "application/json", "X-Tank-Key": os.environ["TANK_KEY_TIGER"]},
++                    headers={"Content-Type": "application/json", "X-Tank-Key": os.environ["TANK_KEY_" + room.upper()]},
+                     extensions={"tervory_product_origin": (room, (parsed.scheme, parsed.hostname, parsed.port))},
+-                    timeout=70, follow_redirects=False)
++                    timeout=5 if room == "zenas" else 70, follow_redirects=False)
+             response.raise_for_status()
+             data = response.json()
+             check_receipt(data, actor.tenant_id, actor.user_id, str(body.run_id), room)
++            if room == "zenas":
++                from tenant_db import tenant_scope
++                bill = data["receipt"]
++                with tenant_scope(actor.tenant_id):
++                    row = await tank.pool().fetchrow("""SELECT model,cost_usd,tokens_in,tokens_out FROM tank.ledger
++                        WHERE tenant_id=$1 AND id=$2 AND task_id=$3 AND region=$4
++                          AND agent='zenas' AND task_type='agent.zenas.think'""",
++                        UUID(actor.tenant_id), UUID(bill["ledger_id"]),
++                        UUID(paid_identity(actor.tenant_id, actor.user_id, str(body.run_id))),
++                        local_region(tank, request.headers.get("x-home-region"), room=room))
++                if row is None or row["model"] != bill.get("model") or any(
++                        row[key] is None or float(row[key]) != bill[key] for key in ("cost_usd", "tokens_in", "tokens_out")):
++                    raise ValueError("Unreconciled room receipt")
+             return data
+         except httpx.HTTPStatusError as exc:
+             status = exc.response.status_code
+-            raise HTTPException(status if 400 <= status < 600 else 502, "Tiger task unavailable") from None
++            raise HTTPException(status if 400 <= status < 600 else 502, f"{room.title()} task unavailable") from None
+         except (httpx.HTTPError, ValueError, KeyError, TypeError, OverflowError):
+-            raise HTTPException(502, "Tiger task unavailable") from None
++            raise HTTPException(502, f"{room.title()} task unavailable") from None
+--- a/tests/test_tank_one_door.py
++++ b/tests/test_tank_one_door.py
+@@ -228,7 +228,6 @@
+     ('agents/rig/rigbox/three_d/forge.py', 'model/paid endpoint', '6ccb0ebfdccd8aa5'): (1, 'Local job submission; paid GPU authorization is relayed to Tank before execution.'),
+     ('docker-compose.yml', 'configured endpoint', '29a2f8b609b5bf88'): (1, 'Tank alone receives the internal LiteLLM origin in this stack.'),
+     ('docker-compose.za.yml', 'configured endpoint', '29a2f8b609b5bf88'): (1, 'ZA Tank alone receives the internal LiteLLM origin in this stack.'),
+-    ('agents/zenas/pool/embed.py', 'model/paid endpoint', '682052aabab5db9c'): (1, 'Founder-authorized law embeddings through box-local Hermes only; fixed host, no proxy or redirects, region checked.'),
+     ('hermes/law_routes.py', 'model/paid endpoint', '682052aabab5db9c'): (1, 'Internal endpoint reuses the pinned CPU encoder; Zenas-only authentication and box jurisdiction checks precede encoding.'),
+     ('tests/zenas_za_meaning_search/test_hermes_law.py', 'model/paid endpoint', '682052aabab5db9c'): (2, 'In-process ASGI requests with a stub encoder and local Qdrant; outbound sockets are disabled.'),
+     ('hermes/embeddings.py', 'model invocation', 'f6436138f93f0a6c'): (1, 'Founder-authorized pinned CPU encoder, fixed local files only; no runtime download or external inference API.'),

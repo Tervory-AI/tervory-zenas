@@ -6,8 +6,17 @@ import re
 from pathlib import Path
 from typing import Any
 
+from fastapi import HTTPException
+
 _ROOT = Path(__file__).resolve().parents[3]
 _CODES = frozenset({"paid_work_paused", "paid_work_pause", "cost_cap", "cost_cap_exceeded"})
+
+
+class TaskBoundaryError(HTTPException):
+    """A verified task refusal stays an auth/service error, never legal output."""
+    def __init__(self, status: int):
+        from .boundary import ERROR
+        super().__init__(status, "Room authentication required" if status in {401, 403} else ERROR)
 
 
 def safe_failure(value: Any) -> dict[str, Any]:

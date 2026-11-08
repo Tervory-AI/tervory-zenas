@@ -450,7 +450,7 @@ async def run(
                 }
     except HTTPException:
         raise
-    except Exception as exc:  # noqa: BLE001 — service outage: answer without memory
+    except Exception as exc:
         memory_status = "memory unavailable"
         on = False
         worked = []
@@ -476,7 +476,7 @@ async def run(
             )
         except HTTPException:
             raise
-        except Exception:  # noqa: BLE001 — never fail the user's answer on remember outage
+        except Exception:
             memory_status = "memory unavailable"
             receipt["memory_status"] = memory_status
     receipt = {**receipt, "memory_id": saved.get("id") if saved else None}
