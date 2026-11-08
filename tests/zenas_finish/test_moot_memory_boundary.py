@@ -76,7 +76,7 @@ async def test_signed_hearing_never_prepares_recalls_or_remembers_zenas_memory(d
                 raw = json.dumps(payload, separators=(',', ':')).encode()
                 headers = {'X-Tank-Key': KEY, 'Content-Type': 'application/json', 'Idempotency-Key': command,
                     'X-Moot-Tenant': TENANT, 'X-Moot-Actor': USER, 'X-Moot-Founder': '1',
-                    HEADER: signature or sign_assertion('zenas', actor, 'POST', target, raw, key=KEY)}
+                    HEADER: signature if signature is not None else sign_assertion('zenas', actor, 'POST', target, raw, key=KEY)}
                 return await http.post(target, content=raw, headers=headers)
 
             path = '/moot/hearings/' + state['id'] + '/lock'
@@ -90,6 +90,8 @@ async def test_signed_hearing_never_prepares_recalls_or_remembers_zenas_memory(d
             assert again.status_code == 200 and again.json() == first.json()
             denied = await send(path, payload, str(uuid4()), signature='placeholder-invalid-assertion')
             assert denied.status_code == 401
+            empty = await send(path, payload, str(uuid4()), signature='')
+            assert empty.status_code == 401
             assert not calls and not rows and not prepared
             assert (await store.load(owner, state['id']))['revision'] == first.json()['hearing']['revision']
 

@@ -27,7 +27,7 @@ def is_moot_path(path: str) -> bool:
 async def verified_request_actor(request: Request, tenant: str | None, *, required=False):
     """Verify once before replay, then reuse request-local verified identity only."""
     from chassis.user_assertion import HEADER, signed_user
-    present = bool(request.headers.get(HEADER))
+    present = HEADER in request.headers
     if not tenant:
         if required or present:
             raise HTTPException(401, "Signed identity required")
