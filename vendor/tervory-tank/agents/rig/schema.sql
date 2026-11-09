@@ -21,6 +21,15 @@ CREATE SCHEMA IF NOT EXISTS agent_rig;
 
 -- Durable handoff to Tank's save_pair collector. No contact details or keys.
 -- Events are removed only in the same transaction that stores the training pair.
+CREATE TABLE IF NOT EXISTS agent_rig.savings_runs (
+    tenant_id uuid NOT NULL,
+    id uuid NOT NULL,
+    receipt jsonb NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (tenant_id,id)
+);
+CREATE INDEX IF NOT EXISTS rig_savings_runs_tenant_created ON agent_rig.savings_runs(tenant_id,created_at DESC,id);
+
 CREATE TABLE IF NOT EXISTS agent_rig.training_events (
     tenant_id uuid NOT NULL,
     region text NOT NULL,

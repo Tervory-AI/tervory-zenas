@@ -6,18 +6,50 @@ import json
 import os
 import sys
 import uuid
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 import httpx
-from fastapi import FastAPI, Header, HTTPException
+from rig_actor_context import reset_verified_actor, set_verified_actor
+from brain.security import tenant_dir
+from chassis.memory import MemoryClient
+from chassis.sqlite_nonces import SQLiteNonces
+from chassis.user_assertion import HEADER, signed_user
+from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.responses import JSONResponse
+from rig_memory import run_with_memory
 
 from rig_brain.room import Question, authorize
-from brain.security import tenant_dir
 
-app = FastAPI()
+
+@asynccontextmanager
+async def lifespan(app):
+    app.state.assertion_nonces = SQLiteNonces(Path(os.environ.get("DATA_DIR", "/data")) / "assertion-nonces.sqlite3")
+    yield
+
+
+app = FastAPI(lifespan=lifespan)
 gate = asyncio.Semaphore(1)
 jobs: dict[tuple[str, str], asyncio.Task] = {}
+
+
+@app.post("/delegate")
+async def delegate(body: Question, request: Request, x_tank_key: str = Header(default="")):
+    authorize(x_tank_key, body.home_region)
+    actor = await signed_user(request, tenant_id=str(body.tenant_id), product="rig", required=True,
+                              nonces=getattr(request.app.state, "assertion_nonces", None))
+    await start(body, request, x_tank_key)
+    job = jobs.get((str(body.tenant_id), str(body.task_id)))
+    if job is not None:
+        try:
+            await asyncio.wait_for(asyncio.shield(job), timeout=60)
+        except asyncio.TimeoutError:
+            pass  # The durable task continues; a caller retry never resubmits it.
+    value = await poll(body.task_id, body.tenant_id, body.home_region, request, x_tank_key)
+    if isinstance(value, JSONResponse):
+        value = json.loads(value.body)
+    value.update(room="rig", user_id=actor.user_id, region=body.home_region)
+    return {"result": {"content": value.get("summary", "")}, "receipt": value}
 
 
 def directory(tenant: uuid.UUID, task: uuid.UUID) -> Path:
@@ -47,33 +79,21 @@ async def step(client, body: Question, action: str, status: str, count=None) -> 
     return result
 
 
-async def memory(client, path, payload):
-    response = await asyncio.wait_for(client.post(os.environ.get("HERMES_URL", "http://hermes:8000").rstrip("/") + path, json=payload), timeout=60)
-    response.raise_for_status()
-    return response.json()
-
-
-async def run_task(body: Question) -> dict:
+async def run_task(body: Question, actor=None) -> dict:
     work = directory(body.tenant_id, body.task_id)
     receipt = {"tenant_id": str(body.tenant_id), "task_id": str(body.task_id), "room": "rig",
+               "user_id": actor.user_id if actor else None,
                "region": body.home_region, "status": "running", "steps": [], "model_receipts": []}
     save(work, receipt)
+    token = set_verified_actor(tenant_id=actor.tenant_id, user_id=actor.user_id) if actor else None
     async with httpx.AsyncClient(timeout=60, trust_env=False,
                                 headers={"X-Tank-Key": os.environ.get("TANK_KEY", "")}) as client:
-        action = "recall"
-        try:
-            recalled = await memory(client, "/recall", {"tenant_id": str(body.tenant_id),
-                "query": body.question, "kind": "rig.task", "limit": 8})
-            memories = recalled.get("memories")
-            if not isinstance(memories, list) or any(not isinstance(m, dict) or
-                    m.get("tenant_id") != str(body.tenant_id) for m in memories):
-                raise RuntimeError("Memory tenant boundary failed")
-            receipt["steps"].append(await step(client, body, action, "done", len(memories)))
-            request = {**body.model_dump(mode="json"), "memories": [
-                {"id": m["id"], "text": str(m.get("text", ""))[:1000]} for m in memories[:8]]}
+        memory = MemoryClient(os.environ.get("HERMES_URL", "http://hermes:8000"),
+                              os.environ.get("TANK_KEY", ""), "rig", client)
+        async def paid(task):
+            request = {**body.model_dump(mode="json"), "question": task.get("question", body.question),
+                       "user_id": actor.user_id if actor else None, "memories": task.get("memories", [])}
             (work / "request.json").write_text(json.dumps(request))
-            action = "brain"
-            # The child has no database/R2/provider/control-plane credentials.
             allowed = {"PATH", "PYTHONPATH", "LANG", "TANK_URL", "TANK_KEY", "TANK_REGION",
                        "RIG_BROWSER_URL", "RIG_SANDBOX_URL", "SANDBOX_KEY",
                        "HERMES_BUNDLED_SKILLS", "HERMES_OPTIONAL_SKILLS"}
@@ -94,27 +114,41 @@ async def run_task(body: Question) -> dict:
                 raise RuntimeError("Receipt scope mismatch")
             receipt["steps"].extend(result["steps"])
             receipt["model_receipts"] = result["model_receipts"]
-            receipt["summary"] = result["summary"]
-            action = "remember"
-            saved = await memory(client, "/memories", {"tenant_id": str(body.tenant_id),
-                "text": str(result["summary"])[:6000], "kind": "rig.task", "source": "rig:task:" + str(body.task_id)})
-            if not saved.get("id"):
-                raise RuntimeError("Memory was not saved")
-            receipt["steps"].append(await step(client, body, action, "done", 1))
+            models = result["model_receipts"]
+            cost = sum(float(r["cost_usd"]) for r in models) if models and all(r.get("cost_usd") is not None for r in models) else None
+            return {"result": {"content": result["summary"], "summary": result["summary"]},
+                    "ledger_id": models[-1]["ledger_id"] if models else None,
+                    "ledger_ids": [r["ledger_id"] for r in models],
+                    "paid_calls": len(models), "cost_usd": cost,
+                    "tokens_in": sum(int(r.get("tokens_in") or 0) for r in models),
+                    "tokens_out": sum(int(r.get("tokens_out") or 0) for r in models)}
+        async def recalled(count):
+            receipt["steps"].append(await step(client, body, "recall", "done", count))
+
+        try:
+            if actor:
+                outcome = await run_with_memory(memory, tenant_id=actor.tenant_id, user_id=actor.user_id,
+                    task_key="rig.build", task={"question": body.question, "home_region": body.home_region},
+                    paid_call=paid, on_recall=recalled)
+                receipt.update({k: v for k, v in outcome.items() if k != "steps"})
+                receipt["memory_steps"] = outcome["steps"]
+                receipt["summary"] = (outcome.get("result") or {}).get("content", "")
+            else:
+                outcome = await paid({"question": body.question})
+                receipt.update(outcome, memory_status="skipped_unverified", answered_from_memory=False)
+                receipt["summary"] = outcome["result"]["content"]
+            memory_steps = receipt.get("memory_steps", [])
+            saved = sum(item.get("action") == "remember" for item in memory_steps)
+            failed = any(item.get("action") == "remember_failed" for item in memory_steps)
+            if saved or failed:
+                receipt["steps"].append(await step(client, body, "remember", "failed" if failed else "done", saved))
             receipt["status"] = "done"
         except asyncio.CancelledError:
             receipt.update(status="cancelled", error="Rig task cancelled; completed work retains its Tank receipts.")
             raise
         except Exception:
             receipt.update(status="failed", error="Rig task could not finish; check memory, Tank and the task receipts.")
-            # A missing receipt is never represented as successful work.
-            if action != "brain":
-                try:
-                    receipt["steps"].append(await step(client, body, action, "failed"))
-                except Exception:
-                    receipt["receipt_delivery"] = "failed"
         finally:
-            # Recover billed/failed model receipts even when the child exits early.
             try:
                 response = await asyncio.wait_for(client.get(os.environ.get("TANK_URL", "http://tank:8000").rstrip("/") +
                     "/v1/agents/rig/receipts", params={"tenant_id": str(body.tenant_id), "task_id": str(body.task_id)},
@@ -125,16 +159,25 @@ async def run_task(body: Question) -> dict:
                        r.get("room") != "rig" for r in durable):
                     raise RuntimeError("Receipt scope mismatch")
                 receipt["tank_receipts"] = durable
+                if receipt["status"] != "done":
+                    models = [r for r in durable if r.get("task_type") == "agent.rig.think"]
+                    receipt["model_receipts"] = models
+                    receipt["paid_calls"] = len(models)
+                    receipt["tokens_in"] = sum(int(r.get("tokens_in") or 0) for r in models)
+                    receipt["tokens_out"] = sum(int(r.get("tokens_out") or 0) for r in models)
+                    receipt["cost_usd"] = sum(float(r["cost_usd"]) for r in models) if models and all(r.get("cost_usd") is not None for r in models) else None
             except Exception:
                 receipt.update(status="failed", receipt_delivery="failed",
                                error="Tank receipts are unavailable; no success is claimed.")
             save(work, receipt)
+            if token is not None:
+                reset_verified_actor(token)
     return receipt
 
 
-async def perform(body: Question):
+async def perform(body: Question, actor=None):
     async with gate:
-        return await run_task(body)
+        return await run_task(body, actor)
 
 
 @app.get("/health")
@@ -145,29 +188,37 @@ async def health():
 
 
 @app.post("/tasks")
-async def start(body: Question, x_tank_key: str = Header(default="")):
+async def start(body: Question, request: Request, x_tank_key: str = Header(default="")):
     authorize(x_tank_key, body.home_region)
+    actor = await signed_user(request, tenant_id=str(body.tenant_id), product="rig",
+                              nonces=getattr(request.app.state, "assertion_nonces", None),
+                              required=bool(request.headers.get(HEADER)))
     work = directory(body.tenant_id, body.task_id)
     identity = (str(body.tenant_id), str(body.task_id))
-    payload = body.model_dump(mode="json")
+    payload = {**body.model_dump(mode="json"), "user_id": actor.user_id if actor else None}
     stored = work / "submitted.json"
     if stored.exists():
         if json.loads(stored.read_text()) != payload:
             raise HTTPException(409, "Task id already has a different question.")
-        return await poll(body.task_id, body.tenant_id, body.home_region, x_tank_key)
+        return await poll(body.task_id, body.tenant_id, body.home_region, request, x_tank_key)
     if sum(not job.done() for job in jobs.values()) >= 16:
         raise HTTPException(429, "Rig's brain is busy.")
     # No await between duplicate check, durable intent, and registration.
-    stored.write_text(json.dumps(payload))
-    jobs[identity] = asyncio.create_task(perform(body))
+    try:
+        with stored.open("x") as handle:
+            json.dump(payload, handle)
+    except FileExistsError:
+        raise HTTPException(409, "Task is already submitted.") from None
+    jobs[identity] = asyncio.create_task(perform(body, actor))
     jobs[identity].add_done_callback(lambda job: jobs.pop(identity, None))
     return JSONResponse({"tenant_id": identity[0], "task_id": identity[1], "status": "running"}, status_code=202)
 
 
 @app.get("/tasks/{task_id}")
-async def poll(task_id: uuid.UUID, tenant_id: uuid.UUID, home_region: str, x_tank_key: str = Header(default="")):
+async def poll(task_id: uuid.UUID, tenant_id: uuid.UUID, home_region: str, request: Request, x_tank_key: str = Header(default="")):
     authorize(x_tank_key, home_region)
     work = directory(tenant_id, task_id)
+    await require_task_owner(request, tenant_id, work)
     identity = (str(tenant_id), str(task_id))
     if identity in jobs and not jobs[identity].done():
         return JSONResponse({"tenant_id": identity[0], "task_id": identity[1], "status": "running"}, status_code=202)
@@ -185,8 +236,9 @@ async def poll(task_id: uuid.UUID, tenant_id: uuid.UUID, home_region: str, x_tan
 
 
 @app.delete("/tasks/{task_id}")
-async def cancel(task_id: uuid.UUID, tenant_id: uuid.UUID, home_region: str, x_tank_key: str = Header(default="")):
+async def cancel(task_id: uuid.UUID, tenant_id: uuid.UUID, home_region: str, request: Request, x_tank_key: str = Header(default="")):
     authorize(x_tank_key, home_region)
+    await require_task_owner(request, tenant_id, directory(tenant_id, task_id))
     job = jobs.get((str(tenant_id), str(task_id)))
     cancelled = bool(job and not job.done())
     if cancelled:
@@ -196,4 +248,16 @@ async def cancel(task_id: uuid.UUID, tenant_id: uuid.UUID, home_region: str, x_t
 
 # RIG-5F: private forge connection and receipt relay.
 from rig_brain.forge import router as forge_router
+
 app.include_router(forge_router)
+
+
+async def require_task_owner(request, tenant_id, work):
+    stored = work / "submitted.json"
+    if stored.exists():
+        owner = json.loads(stored.read_text()).get("user_id")
+        if owner:
+            actor = await signed_user(request, tenant_id=str(tenant_id), product="rig", required=True,
+                                      nonces=getattr(request.app.state, "assertion_nonces", None))
+            if actor.user_id != owner:
+                raise HTTPException(404, "Task not found.")

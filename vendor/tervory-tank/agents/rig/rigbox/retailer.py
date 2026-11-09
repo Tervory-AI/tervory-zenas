@@ -71,8 +71,12 @@ class Retailer:
     def __init__(self, service: Service) -> None:
         self.service = service
         self.store = service.store
+        from .savings import measured
+        for name in ('import_file', 'delete_products', 'set_settings', 'set_rule', 'set_rate', 'set_templates'):
+            setattr(self, name, measured(service, 'rig.' + name, getattr(self, name)))
 
     async def panel(self, tenant: str) -> dict[str, Any]:
+        from .savings import view
         settings = await self.store.rule(tenant)
         retailer = await self.store.retailer(tenant) or {}
         products = await self.store.products(tenant)
@@ -88,6 +92,7 @@ class Retailer:
             "fits": (await self.service.suggested_fits(tenant))["fits"],
             "missed_searches": await self.store.missed_searches(tenant),
             "receipts": await self.store.receipts(tenant),
+            "savings": await view(self.service, tenant),
             "products": len(products),
             "product_rows": [{"sku": row["sku"], "name": row["name"], "price": str(row["price"]), "currency": row["currency"]} for row in products],
         }

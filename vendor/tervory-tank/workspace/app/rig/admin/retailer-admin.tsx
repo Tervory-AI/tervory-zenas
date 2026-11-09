@@ -5,6 +5,7 @@ import { request } from "../request";
 import { useState, useRef, type FormEvent } from "react";
 import type { AdminOperation, AdminResult, FitReview, RetailerPanel, MappingPreview } from "./types";
 import { Products } from "./products";
+import { SavingsReceipts } from './savings-receipts';
 
 const PROVIDERS = [["catalogue", "Any catalogue"], ["shopify", "Shopify"], ["woocommerce", "WooCommerce"], ["google", "Google Merchant"], ["zanders", "Zanders"], ["sports_south", "Sports South"], ["rsr", "RSR"], ["jerrys", "Jerry’s"]];
 const providerName = (id: string) => id === "delete-products" ? "Products" : PROVIDERS.find(([key]) => key === id)?.[1] ?? id;
@@ -183,6 +184,7 @@ export function RetailerAdmin({ initial, act = sendRetailer }: { initial: Retail
       </section>
       <section className="retailer-card"><div className="retailer-section-heading"><span>05</span><h2>What shoppers couldn’t find</h2></div><p>Search counts for your catalogue. No shopper identities.</p>{panel.missed_searches.length ? <ul className="retailer-searches">{panel.missed_searches.map(row => <li key={row.query}><span>{row.query}</span><strong>{row.count}</strong></li>)}</ul> : <div><b>0</b><p className="retailer-empty">No unmatched searches in the last 90 days.</p><p><a href="/rig">Search</a></p></div>}</section>
       <section className="retailer-card retailer-wide"><div className="retailer-section-heading"><span>06</span><h2>Import history</h2></div><p>Each file is applied in full, or nothing changes.</p>{panel.receipts.length ? <div className="retailer-history">{panel.receipts.map(row => <article key={row.id}><div><strong>{providerName(row.provider)}</strong><small>{row.site} {row.feed_id}</small><small>{new Date(row.created_at).toLocaleString()}</small></div><p>{row.provider === "delete-products" ? `${row.updated} deleted.` : <><b>{row.added}</b> added · <b>{row.updated}</b> updated · <b>{row.rejected}</b> rejected</>}</p></article>)}</div> : <div><b>0</b><p className="retailer-empty">Import a file to see the result here.</p></div>}</section>
+      <SavingsReceipts receipts={panel.savings?.receipts || []} />
     </div>
   </main>;
 }

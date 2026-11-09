@@ -238,6 +238,8 @@ class Service:
         self.failed_keys = FailedKeyLimits()
         pool = getattr(store, "pool", None)
         self.public_limits = PgRateLimits(pool, rate_limit) if pool is not None else MemoryRateLimits(rate_limit)
+        from .savings import instrument
+        instrument(self)
 
     async def authenticate(self, raw_key: str, address: str = "unknown") -> dict[str, Any]:
         reservation = self.failed_keys.reserve(address)
@@ -580,15 +582,24 @@ class Service:
         # Subject words must be whole tokens on a row. The model only names rows.
         # The sentence is built from that row, or from one approved fit.
         if not answerable(question, products, fits):
+            from .savings import reference
+            reference(select_prompt(payload))
             return {"answer": "I don't know", "cites": []}
         if self.models is None:
+            from .savings import reference
+            reference(select_prompt(payload))
             return {"answer": "I don't know", "cites": []}
-        text = await self.models.complete(
-            tenant_id,
-            "rig.ask",
-            [{"role": "user", "content": select_prompt(payload)}],
-        )
+        text = await self._complete(tenant_id, "rig.ask", payload, select_prompt(payload))
         return grounded_answer(payload, text)
+
+    async def _complete(self, tenant_id, task, payload, prompt):
+        from .savings import reference
+        reference(prompt)
+        structured = getattr(self.models, 'structured', None)
+        from rig_memory import memory_enabled
+        if structured is not None and memory_enabled():
+            return await structured(tenant_id, task, payload)
+        return await self.models.complete(tenant_id, task, [{'role': 'user', 'content': prompt}])
 
     async def link_quote(self, tenant_id: str, url: str, note: str) -> dict[str, str]:
         parsed = urlparse(str(url or "").strip())
@@ -758,11 +769,8 @@ class Service:
             }
             for row in await self._active(tenant_id)
         ]
-        text = await self.models.complete(
-            tenant_id,
-            "rig.fit_suggest",
-            [{"role": "user", "content": suggest_prompt({"products": slim})}],
-        )
+        text = await self._complete(tenant_id, 'rig.fit_suggest', {'products': slim},
+                                    suggest_prompt({'products': slim}))
         suggested = fit_suggest({"products": slim}, text)
         async with self.store.atomic(tenant_id) as store:
             reviewed = {_fit_key(row) for row in await store.fits(tenant_id)
@@ -957,11 +965,9 @@ class Service:
             }
         ]
         try:
-            text = await self.models.complete(
-                tenant_id,
-                "rig.explain",
-                [{"role": "user", "content": explain_prompt({"material": material})}],
-            )
+            text = await self._complete(tenant_id, 'rig.explain',
+                {'material': material, 'centre': centre, 'part': part, 'fit': fit},
+                explain_prompt({'material': material}))
         except Exception:  # noqa: BLE001 — a model outage keeps the plain Fits line
             return []
         why = [line for line in ground_explain({"fallback_why": []}, text)["why"] if line != header]

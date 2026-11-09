@@ -130,7 +130,10 @@ async def perform(body: Job, work: Path, store: Storage):
         save(work / "state.json", state)
     async def gpu_relay(action, payload):
         state["stage"] = payload.get("stage", "gpu_" + action)
-        save(work / "pending-gpu-relay.json", {"action": action, "payload": payload})
+        # Launch carries short-lived R2 capabilities. Persist only delivery
+        # intent; never write those capabilities to state, receipts or logs.
+        retained = body.scope() if action == 'launch' else payload
+        save(work / "pending-gpu-relay.json", {"action": action, "payload": retained})
         result = await relay(action, payload)
         state["receipts"].append(result)
         progress(state['stage'], 'failed' if payload.get('outcome') == 'failed' else 'delivered')
@@ -230,7 +233,7 @@ async def health():
 async def configuration():
     # Names only. The sealed forge does not require database or Tank credentials.
     groups = {'storage': ('R2_ACCOUNT_ID', 'R2_ACCESS_KEY_ID_RIG', 'R2_SECRET_ACCESS_KEY_RIG'),
-              'gpu': ('HF_JOBS_TOKEN', 'HF_JOBS_NAMESPACE')}
+              'gpu': ('HF_JOBS_NAMESPACE',)}
     return {group: {'ready': not (missing := [name for name in names if not os.environ.get(name, '').strip()]),
                     'missing_settings': missing} for group, names in groups.items()}
 
@@ -245,8 +248,8 @@ async def submit(body: Job):
         store = Storage(str(body.tenant_id), str(body.job_id))
     except ValueError:
         raise HTTPException(503, "Rig R2 storage is not configured.") from None
-    if body.method in {"trellis2", "photogrammetry"} and not all(os.environ.get(name) for name in ("HF_JOBS_TOKEN", "HF_JOBS_NAMESPACE")):
-        raise HTTPException(503, "Hugging Face Jobs is not configured.")
+    if body.method in {"trellis2", "photogrammetry"} and not os.environ.get('HF_JOBS_NAMESPACE', '').strip():
+        raise HTTPException(503, "HF_JOBS_NAMESPACE is not configured.")
     work = directory(body.tenant_id, body.job_id)
     identity = (body.tenant_id, body.job_id)
     submitted = work / "request.json"

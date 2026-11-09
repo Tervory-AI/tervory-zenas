@@ -76,6 +76,8 @@ def mount(app: FastAPI) -> None:
     if not any(item.cls is TenantContextMiddleware for item in app.user_middleware):
         app.add_middleware(TenantContextMiddleware)
     app.include_router(router)
+    from .tools import router as tools_router
+    app.include_router(tools_router)
     app.add_exception_handler(RigError, _on_rig_error)
     app.add_exception_handler(RequestValidationError, _on_invalid)
 
@@ -102,6 +104,8 @@ def _cors(response: Response, origin: str, allowed: bool) -> Response:
 
 
 async def _auth(request: Request, *, count_request: bool = True) -> dict[str, Any]:
+    from .savings import latest
+    latest.set(None)
     if request.method == "OPTIONS":
         return {}
     raw = request.headers.get("x-rig-key") or ""
@@ -132,6 +136,8 @@ def _tenant(request: Request) -> str:
 
 
 async def _admin(request: Request) -> dict[str, Any]:
+    from .savings import latest
+    latest.set(None)
     raw = request.headers.get("x-rig-key") or ""
     row = await _service(request).authenticate_admin(raw)
     request.state.tenant_id = row["tenant_id"]
@@ -201,6 +207,28 @@ async def search(
         filters["category"] = category
     body = await _service(request).search(_tenant(request), q, limit, filters)
     return _ok(request, body)
+
+
+@router.get('/receipts')
+async def savings_receipts(request: Request):
+    # Run history belongs to store administrators, never to an embed's visitors.
+    await _admin(request)
+    from .savings import view
+    # Admin receipt fields are already allow-listed. The shopper price guard
+    # intentionally removes keys containing "cost" from catalogue responses.
+    return _cors(JSONResponse(await view(_service(request), _tenant(request)),
+        headers={'Cache-Control': 'private, no-store'}), _origin(request), bool(getattr(request.state, 'rig_origin_ok', False)))
+
+
+@router.get('/receipts/{identity}')
+async def savings_receipt(request: Request, identity: UUID):
+    await _admin(request)
+    from .savings import view
+    result = await view(_service(request), _tenant(request), identity)
+    if not result['receipts']:
+        raise RigError('not_found', 'No such receipt.', 404)
+    return _cors(JSONResponse(result['receipts'][0], headers={'Cache-Control': 'private, no-store'}),
+        _origin(request), bool(getattr(request.state, 'rig_origin_ok', False)))
 
 
 class LocateIn(BaseModel):
@@ -372,7 +400,11 @@ async def admin_suggest(request: Request) -> Response:
 
 
 def _ok(request: Request, body: dict[str, Any]) -> JSONResponse:
+    from .savings import latest
     response = JSONResponse(shopper_body(body))
+    receipt = latest.get()
+    if receipt is not None and receipt['tenant_id'] == str(getattr(request.state, 'tenant_id', '')):
+        response.headers['X-Rig-Receipt'] = receipt['id']
     return _cors(response, _origin(request), bool(getattr(request.state, "rig_origin_ok", False)))
 
 

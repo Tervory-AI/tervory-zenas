@@ -9,7 +9,7 @@ from fastapi.responses import Response
 
 def build_router(tank):
     router = APIRouter()
-    operations = {"capabilities", "dashboard", "submit", "approve", "mounts", "reset", "preview", "runtime"}
+    operations = {"capabilities", "dashboard", "submit", "approve", "mounts", "reset", "preview", "runtime", "poll", "page-settings"}
 
     @router.post("/v1/rig/3d/workspace/{operation}", dependencies=[Depends(tank.require_key)])
     async def call(operation: str, request: Request):

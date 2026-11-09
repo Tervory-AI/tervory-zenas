@@ -824,6 +824,178 @@ model_list:
   # No fallbacks to or from it. Sign-in and revoke: docs/ops/CHATGPT-BUILD-MODEL.md.
   # The token lives in CHATGPT_TOKEN_DIR on a writable volume (see the compose file).
   # $0 per token: the subscription is flat-rate, so spend shows as zero in the ledger.
+
+
+  # ---------- Maker-direct OpenAI-compatible routes (2026-11-07) ----------
+  # Keys: MINIMAX_API_KEY, ZAI_API_KEY, DASHSCOPE_API_KEY, STEPFUN_API_KEY,
+  # ARCEE_API_KEY, SARVAM_API_KEY. TINKER_API_KEY is compose-only (see docs/ops/MAKER-DIRECT-KEYS-2026-11-07.md).
+  # Existing aliases (glm, kimi, deepseek-*, HF seats) unchanged.
+
+  # Price checked 2026-11-07: https://platform.minimax.io/docs/guides/pricing
+  # OpenAI-compatible model id `MiniMax-M3.1-Flash` per https://platform.minimax.io/docs/api-reference/text-openai-api
+  - model_name: minimax-m3.1-flash-direct
+    litellm_params:
+      model: openai/MiniMax-M3.1-Flash
+      api_base: https://api.minimax.io/v1
+      api_key: os.environ/MINIMAX_API_KEY
+      input_cost_per_token: 0.00000015
+      output_cost_per_token: 0.0000006
+    model_info:
+      input_cost_per_token: 0.00000015
+      output_cost_per_token: 0.0000006
+      licence: MiniMax terms
+
+  # Price checked 2026-11-07: https://platform.minimax.io/docs/guides/pricing (Standard ≤512k permanent 50% off)
+  # OpenAI-compatible model id `MiniMax-M3` per https://platform.minimax.io/docs/api-reference/text-openai-api
+  - model_name: minimax-m3-direct
+    litellm_params:
+      model: openai/MiniMax-M3
+      api_base: https://api.minimax.io/v1
+      api_key: os.environ/MINIMAX_API_KEY
+      input_cost_per_token: 0.0000003
+      output_cost_per_token: 0.0000012
+    model_info:
+      input_cost_per_token: 0.0000003
+      output_cost_per_token: 0.0000012
+      licence: MiniMax terms
+
+  # Price checked 2026-11-07: https://docs.z.ai/guides/overview/pricing ($/1M)
+  # OpenAI-compatible base https://api.z.ai/api/paas/v4 ; ids from https://docs.z.ai/api-reference/llm/chat-completion
+  - model_name: glm-5.3-direct
+    litellm_params:
+      model: openai/glm-5.3
+      api_base: https://api.z.ai/api/paas/v4
+      api_key: os.environ/ZAI_API_KEY
+      input_cost_per_token: 0.0000014
+      output_cost_per_token: 0.0000044
+    model_info:
+      input_cost_per_token: 0.0000014
+      output_cost_per_token: 0.0000044
+      licence: Z.ai terms
+
+  - model_name: glm-5.2-direct
+    litellm_params:
+      model: openai/glm-5.2
+      api_base: https://api.z.ai/api/paas/v4
+      api_key: os.environ/ZAI_API_KEY
+      input_cost_per_token: 0.0000014
+      output_cost_per_token: 0.0000044
+    model_info:
+      input_cost_per_token: 0.0000014
+      output_cost_per_token: 0.0000044
+      licence: Z.ai terms
+
+  - model_name: glm-5.1-direct
+    litellm_params:
+      model: openai/glm-5.1
+      api_base: https://api.z.ai/api/paas/v4
+      api_key: os.environ/ZAI_API_KEY
+      input_cost_per_token: 0.0000014
+      output_cost_per_token: 0.0000044
+    model_info:
+      input_cost_per_token: 0.0000014
+      output_cost_per_token: 0.0000044
+      licence: Z.ai terms
+
+  - model_name: glm-5-direct
+    litellm_params:
+      model: openai/glm-5
+      api_base: https://api.z.ai/api/paas/v4
+      api_key: os.environ/ZAI_API_KEY
+      input_cost_per_token: 0.000001
+      output_cost_per_token: 0.0000032
+    model_info:
+      input_cost_per_token: 0.000001
+      output_cost_per_token: 0.0000032
+      licence: Z.ai terms
+
+  - model_name: glm-4.7-direct
+    litellm_params:
+      model: openai/glm-4.7
+      api_base: https://api.z.ai/api/paas/v4
+      api_key: os.environ/ZAI_API_KEY
+      input_cost_per_token: 0.0000006
+      output_cost_per_token: 0.0000022
+    model_info:
+      input_cost_per_token: 0.0000006
+      output_cost_per_token: 0.0000022
+      licence: Z.ai terms
+
+  - model_name: glm-4.6-direct
+    litellm_params:
+      model: openai/glm-4.6
+      api_base: https://api.z.ai/api/paas/v4
+      api_key: os.environ/ZAI_API_KEY
+      input_cost_per_token: 0.0000006
+      output_cost_per_token: 0.0000022
+    model_info:
+      input_cost_per_token: 0.0000006
+      output_cost_per_token: 0.0000022
+      licence: Z.ai terms
+
+  # Price checked 2026-11-07: Singapore/International tier https://www.alibabacloud.com/help/en/model-studio/model-pricing
+  # OpenAI-compatible https://dashscope-intl.aliyuncs.com/compatible-mode/v1 (≤256K tier)
+  - model_name: qwen3.5-27b-direct
+    litellm_params:
+      model: openai/qwen3.5-27b
+      api_base: https://dashscope-intl.aliyuncs.com/compatible-mode/v1
+      api_key: os.environ/DASHSCOPE_API_KEY
+      input_cost_per_token: 0.0000003
+      output_cost_per_token: 0.0000024
+    model_info:
+      input_cost_per_token: 0.0000003
+      output_cost_per_token: 0.0000024
+      licence: Alibaba Model Studio terms
+
+  - model_name: qwen3.5-122b-a10b-direct
+    litellm_params:
+      model: openai/qwen3.5-122b-a10b
+      api_base: https://dashscope-intl.aliyuncs.com/compatible-mode/v1
+      api_key: os.environ/DASHSCOPE_API_KEY
+      input_cost_per_token: 0.0000004
+      output_cost_per_token: 0.0000032
+    model_info:
+      input_cost_per_token: 0.0000004
+      output_cost_per_token: 0.0000032
+      licence: Alibaba Model Studio terms
+
+  - model_name: qwen3.5-397b-a17b-direct
+    litellm_params:
+      model: openai/qwen3.5-397b-a17b
+      api_base: https://dashscope-intl.aliyuncs.com/compatible-mode/v1
+      api_key: os.environ/DASHSCOPE_API_KEY
+      input_cost_per_token: 0.0000006
+      output_cost_per_token: 0.0000036
+    model_info:
+      input_cost_per_token: 0.0000006
+      output_cost_per_token: 0.0000036
+      licence: Alibaba Model Studio terms
+
+  # Price checked 2026-11-07: https://platform.stepfun.ai/docs/en/pricing/details
+  - model_name: step-3.5-flash-direct
+    litellm_params:
+      model: openai/step-3.5-flash
+      api_base: https://api.stepfun.ai/v1
+      api_key: os.environ/STEPFUN_API_KEY
+      input_cost_per_token: 0.0000001
+      output_cost_per_token: 0.0000003
+    model_info:
+      input_cost_per_token: 0.0000001
+      output_cost_per_token: 0.0000003
+      licence: StepFun terms
+
+  - model_name: step-3.7-flash-direct
+    litellm_params:
+      model: openai/step-3.7-flash
+      api_base: https://api.stepfun.ai/v1
+      api_key: os.environ/STEPFUN_API_KEY
+      input_cost_per_token: 0.0000002
+      output_cost_per_token: 0.00000115
+    model_info:
+      input_cost_per_token: 0.0000002
+      output_cost_per_token: 0.00000115
+      licence: StepFun terms
+
   - model_name: build-chatgpt
     litellm_params:
       model: chatgpt/gpt-6.1-sol
@@ -913,3 +1085,34 @@ router_settings:
 
 general_settings:
   master_key: os.environ/LITELLM_MASTER_KEY
+
+# DECISION retain unpriced candidates outside the serving roster; unknown is not free.
+x_unpriced_models:
+  # UNVERIFIED for Tank USD ledger: blog quotes $0.25/$0.80 per 1M
+  # (https://www.arcee.ai/blog/open-models-api-beta) but
+  # https://docs.arcee.ai/get-started/pricing does not list trinity-large-thinking (2026-11-07).
+  # Disabled until an official, verified USD ledger price is recorded.
+  - model_name: trinity-large-thinking-direct
+    litellm_params:
+      model: openai/trinity-large-thinking
+      api_base: https://api.arcee.ai/api/v1
+      api_key: os.environ/ARCEE_API_KEY
+    model_info:
+      licence: Apache 2.0 / Arcee terms
+      price_unverified: blog-only-2026-11-07
+
+  # Official price is INR only: ₹15 / ₹60 per 1M (https://docs.sarvam.ai/api/pricing, 2026-11-07).
+  # Disabled until a verified USD ledger price is available; no invented FX.
+  # Auth header api-subscription-key per https://docs.sarvam.ai/api/token-factory/models/sarvam-105b
+  # extra_headers os.environ/… is resolved by LiteLLM proxy config load (v1.106.4 nested recurse).
+  - model_name: sarvam-105b-direct
+    litellm_params:
+      model: openai/sarvam-105b
+      api_base: https://api.sarvam.ai/v1
+      api_key: os.environ/SARVAM_API_KEY
+      extra_headers:
+        api-subscription-key: os.environ/SARVAM_API_KEY
+    model_info:
+      licence: Apache 2.0 / Sarvam terms
+      official_price_inr_per_1m_tokens: "15→60"
+      usd_ledger: omitted-no-invented-fx

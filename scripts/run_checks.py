@@ -3,15 +3,15 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import io
 import os
-from pathlib import Path
 import shutil
 import socket
 import subprocess
 import sys
-import tempfile
 import tarfile
-import io
+import tempfile
+from pathlib import Path
 
 import asyncpg
 import pgserver
@@ -44,10 +44,11 @@ def configure_chromium():
 
 
 def test_layout(stage):
-    # Explicit compatibility dependency: the reviewed shared core, unchanged.
-    # Never apply the obsolete product lifecycle/Hermes proposals over #765.
-    shared_sha = "9636b9ae7efd64c3c43392699a74e638a2ae57e2"
-    shared = Path(os.environ.get("ZENAS_TANK_CHECKOUT", str(CACHE / 'shared-tank.git')))
+    # The verification pin is also the runtime/test pin. Historical proposals
+    # are retained for provenance, never replayed over the reviewed source.
+    shared_sha = (VENDOR / 'SOURCE').read_text().strip()
+    shared = Path(os.environ.get('TANK_SOURCE_REPO',
+                  os.environ.get('ZENAS_TANK_CHECKOUT', str(CACHE / 'tank-source.git'))))
     if not shared.exists():
         run(['git', 'init', '--bare', shared])
     if subprocess.run(['git', '-C', shared, 'cat-file', '-e', shared_sha + '^{commit}'],
@@ -75,22 +76,11 @@ def test_layout(stage):
             target = stage / name
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(ROOT / name, target)
-    # Non-memory shared dependency is explicit and checked against this core.
-    # No shared authentication, Hermes, SQL filtering or indexing is replaced.
-    prereqs = ROOT / 'tank-patches/gate78-prerequisites.patch'
-    run(['git', 'apply', '--check', prereqs], cwd=stage)
-    run(['git', 'apply', prereqs], cwd=stage)
-    proposal = ROOT / 'tank-patches/gate78-savings.patch'
-    run(['git', 'apply', '--check', proposal], cwd=stage)
-    run(['git', 'apply', proposal], cwd=stage)
-    boundary = ROOT / 'tank-patches/gate78-boundary.patch'
-    run(['git', 'apply', '--check', boundary], cwd=stage)
-    run(['git', 'apply', boundary], cwd=stage)
-    contribution = os.environ.get('ZENAS_GATE78_TEST_CHECKOUT')
-    if contribution:
-        for name in ('test_zenas.py', 'zenas.json', 'zenas_harness.py'):
-            shutil.copy2(Path(contribution) / 'tests/gates78/products' / name,
-                         stage / 'tests/gates78/products' / name)
+    # Only offline SDK test infrastructure is still absent upstream. These two
+    # helpers fake HTTP; they do not alter the launcher or any shipped handler.
+    proof = ROOT / 'tank-patches/hf-sdk-offline-proof.patch'
+    run(['git', 'apply', '--check', proof], cwd=stage)
+    run(['git', 'apply', proof], cwd=stage)
     deps = CACHE / 'workspace'
     deps.mkdir(exist_ok=True)
     lock = (stage / 'workspace/package-lock.json').read_bytes()
@@ -125,16 +115,17 @@ def tests(stage):
     sdk = CACHE / 'hf-jobs'
     python = sdk / 'bin/python'
     ready = python.is_file() and subprocess.run([str(python), '-c',
-        "import huggingface_hub; from huggingface_hub import HfApi; assert huggingface_hub.__version__ == '1.7.2'; assert callable(HfApi.list_jobs_hardware)"],
-        capture_output=True).returncode == 0
+        "import huggingface_hub; from huggingface_hub import HfApi; assert huggingface_hub.__version__ == '1.7.2'; assert callable(HfApi.list_jobs_hardware); assert callable(HfApi.run_uv_job)"],
+        check=False, capture_output=True).returncode == 0
     if not ready:
         run(['uv', 'venv', sdk])
-        run(['uv', 'pip', 'install', '--python', python, 'huggingface-hub==1.7.2', 'asyncpg==0.30.0'])
+        run(['uv', 'pip', 'install', '--python', python, '--require-hashes',
+             '-r', VENDOR / 'tank/training_jobs/requirements.lock'])
     os.environ['HF_JOBS_PYTHON'] = str(python.absolute())
     legacy = Path(sys.executable)
     old_ready = subprocess.run([str(legacy), '-c',
         "from huggingface_hub import HfApi, __version__; assert __version__ == '0.34.4'; assert not hasattr(HfApi, 'list_jobs_hardware')"],
-        capture_output=True).returncode == 0
+        check=False, capture_output=True).returncode == 0
     if not old_ready:
         legacy_env = CACHE / 'hf-jobs-legacy'
         legacy = legacy_env / 'bin/python'
@@ -157,7 +148,7 @@ def tests(stage):
                ((p.endswith('.py') and Path(p).name.startswith('test_')) or
                 ((stage / p).is_dir() and not p.startswith('tests/fixtures/')))]
     targets += ['tests/test_tank_one_door.py', 'tests/test_memory_runtime_packaging.py',
-                'tests/test_registry_frozen.py']
+                'tests/test_registry_frozen.py', 'tests/gates78/products/test_zenas.py']
     with tempfile.TemporaryDirectory(prefix='zenas-postgres-') as directory:
         server = pgserver.get_server(Path(directory) / 'postgres')
         try:
@@ -183,22 +174,6 @@ def tests(stage):
             suites = list(ET.parse(results).getroot().iter('testsuite'))
             assert suites and sum(int(s.attrib['tests']) for s in suites) > 0
             assert not any(int(s.attrib.get('skipped', 0)) for s in suites), 'Skipped product tests are not allowed'
-            if os.environ.get('ZENAS_GATE78_TEST_CHECKOUT'):
-                # Preserve the entire original standby/config proof first.
-                # The enabled-worker candidate is a second explicit assembly;
-                # never alter the deployment checkout or weaken legacy tests.
-                worker = ROOT / 'tank-patches/gate78-worker-runtime.patch'
-                run(['git', 'apply', '--check', worker], cwd=stage)
-                run(['git', 'apply', worker], cwd=stage)
-                results = CACHE / 'worker-tests.xml'
-                result = pytest.main(['tests/gates78/products/test_zenas.py', '-q',
-                    '--disable-socket', '--allow-unix-socket', '--allow-hosts=127.0.0.1,localhost,::1',
-                    '--timeout=120', '-p', 'no:cacheprovider', '--junitxml=' + str(results)])
-                if result:
-                    raise SystemExit(result)
-                suites = list(ET.parse(results).getroot().iter('testsuite'))
-                assert suites and sum(int(s.attrib['tests']) for s in suites) > 0
-                assert not any(int(s.attrib.get('skipped', 0)) for s in suites), 'Skipped worker tests are not allowed'
         finally:
             try:
                 pgserver.pg_ctl(["-w", "stop", "-m", "fast"], pgdata=server.pgdata)

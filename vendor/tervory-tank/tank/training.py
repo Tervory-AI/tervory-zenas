@@ -518,6 +518,9 @@ async def lifespan(_app):
              asyncio.create_task(schedule_loop("export")),
              asyncio.create_task(schedule_loop("gold")),
              asyncio.create_task(schedule_loop("retest"))]
+    import tervor_retrain
+    if tervor_retrain.enabled():
+        tasks.append(asyncio.create_task(tervor_retrain.loop(runtime())))
     try:
         yield
     finally:

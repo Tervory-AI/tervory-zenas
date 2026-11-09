@@ -61,9 +61,12 @@ class TankClient:
         return data
 
     async def room_task(self, actor: "SignedUser", run_id: str,
-                        messages: list[dict[str, str]]) -> dict[str, Any]:
+                        messages: list[dict[str, str]], *, task_key: str | None = None) -> dict[str, Any]:
         """Typed room work through Tank's authenticated, receipted task API."""
-        return await self._personal_task(actor, run_id, "tasks", {"messages": messages})
+        payload = {"messages": messages}
+        if task_key is not None:
+            payload["task_key"] = task_key
+        return await self._personal_task(actor, run_id, "tasks", payload)
 
     async def delegate_task(self, actor: "SignedUser", run_id: str, task: str,
                             payload: dict[str, Any], recall: list[dict[str, Any]]) -> dict[str, Any]:
@@ -77,7 +80,7 @@ class TankClient:
         from .task_contract import origin, context, check_receipt
         base = origin(self._base)
         tenant, run = context(actor, run_id)
-        if self.agent not in {"tiger", "radix", "ghost"} or not self._api_key:
+        if self.agent not in {"tiger", "rig", "radix", "ghost", "zenas"} or not self._api_key:
             raise ValueError("Room task client unavailable")
         path = f"/v1/agents/{self.agent}/{operation}"
         body = json.dumps({"tenant_id": tenant, "user_id": actor.user_id,
@@ -97,6 +100,15 @@ class TankClient:
         except (ValueError, KeyError, TypeError, OverflowError):
             raise ValueError("Invalid Tank task receipt") from None
         return data
+
+    async def law_embeddings(self, tenant_id: str, home_region: str, jurisdiction: str,
+                             model: str, texts: list[str]) -> dict[str, Any]:
+        """Zenas public-law vectors through the same-region Tank adapter."""
+        if self.agent != "zenas":
+            raise ValueError("Law embeddings require the Zenas room")
+        return await self._post("/v1/zenas/law/vectors", {
+            "tenant_id": str(uuid.UUID(str(tenant_id))), "home_region": home_region,
+            "jurisdiction": jurisdiction, "model": model, "texts": texts})
 
     async def _wait_job(self, tenant_id: str, job_id: str) -> dict[str, Any]:
         if not self._api_key:

@@ -3141,6 +3141,38 @@ CREATE TABLE IF NOT EXISTS tank.rig_rooms (
     state text NOT NULL,
     updated_at timestamptz NOT NULL DEFAULT now()
 );
+ALTER TABLE tank.rig_forge_jobs ADD COLUMN IF NOT EXISTS provider_started boolean NOT NULL DEFAULT false;
+ALTER TABLE tank.rig_forge_jobs ADD COLUMN IF NOT EXISTS provider_namespace text;
+ALTER TABLE tank.rig_forge_jobs ADD COLUMN IF NOT EXISTS provider_job_id text;
+
+-- Rig savings comparisons keep reference work separate from actual model tokens.
+ALTER TABLE tank.ledger ADD COLUMN IF NOT EXISTS rig_reference_tokens_in integer;
+ALTER TABLE tank.ledger ADD COLUMN IF NOT EXISTS rig_reference_tokens_out integer;
+CREATE OR REPLACE FUNCTION tank.rig_code_comparison() RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE chosen text; price tank.proof_prices%ROWTYPE;
+BEGIN
+    IF NEW.agent <> 'rig' OR NEW.model <> 'code' OR NEW.rig_reference_tokens_in IS NULL
+       OR NEW.rig_reference_tokens_out IS NULL THEN RETURN NEW; END IF;
+    SELECT coalesce((SELECT override_model FROM tank.baseline_settings WHERE task_type=NEW.task_type),
+                    tank.standard_model_for('openai')) INTO chosen;
+    SELECT * INTO price FROM tank.proof_prices WHERE model=chosen AND active;
+    NEW.standard_model := chosen;
+    NEW.baseline_model := chosen;
+    NEW.standard_cost_usd := NEW.rig_reference_tokens_in*price.input_usd + NEW.rig_reference_tokens_out*price.output_usd;
+    NEW.baseline_cost_usd := NEW.standard_cost_usd;
+    NEW.top_model := NULL;
+    NEW.top_cost_usd := NULL;
+    NEW.baseline_status := CASE WHEN NEW.standard_cost_usd IS NULL THEN 'unpriced' ELSE 'measured' END;
+    NEW.baseline_priced_at := now();
+    RETURN NEW;
+END $$;
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname='zzz_rig_code_comparison' AND tgrelid='tank.ledger'::regclass) THEN
+        CREATE TRIGGER zzz_rig_code_comparison BEFORE INSERT OR UPDATE OF comparison_revision ON tank.ledger
+            FOR EACH ROW EXECUTE FUNCTION tank.rig_code_comparison();
+    END IF;
+END $$;
+
 -- END rig
 -- BEGIN tisan (new blocks for tisan go here)
 -- END tisan

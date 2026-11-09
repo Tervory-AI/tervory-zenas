@@ -20,6 +20,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends git ca-certific
 WORKDIR /app
 COPY agents/_brain /app/brain
 COPY agents/rig/rig_brain /app/rig_brain
+COPY agents/_chassis/chassis /app/chassis
+COPY agents/rig/rig_actor_context.py agents/rig/rig_memory.py /app/
 RUN chmod -R a+rX /app/brain /app/rig_brain
 ENV PYTHONPATH=/opt/hermes:/app \
     HERMES_BUNDLED_SKILLS=/opt/empty-skills \

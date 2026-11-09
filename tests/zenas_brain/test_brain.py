@@ -40,8 +40,10 @@ def test_compose_keeps_both_runtimes_off_hardened_and_box_local(region):
     assert room["environment"]["TANK_URL"] == "http://tank:8000"
     assert room["environment"]["ZENAS_MEMORY_ENABLED"] == "${ZENAS_MEMORY_ENABLED:-false}"
     assert brain["profiles"] == sandbox["profiles"] == ["brain"]
-    assert brain["build"]["dockerfile"] == "agents/rig/Dockerfile.brain"
-    assert brain["command"][1] == "brain.standby:app"
+    assert brain["build"] == {"context": "..", "dockerfile": "zenas/Dockerfile"}
+    assert brain["command"][1] == "agents.zenas.core.brain_service:app"
+    assert brain["environment"]["ZENAS_BRAIN_ENABLED"] == "${ZENAS_BRAIN_ENABLED:-false}"
+    assert brain["environment"]["DATABASE_URL"] == room["environment"]["DATABASE_URL"]
     assert sandbox["build"]["dockerfile"] == "agents/base/Dockerfile.sandbox"
     assert config["networks"]["sandbox"]["internal"] is True
     assert brain["networks"] == ["gw", "sandbox"] and sandbox["networks"] == ["sandbox"]

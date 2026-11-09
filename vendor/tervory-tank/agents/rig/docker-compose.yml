@@ -41,6 +41,10 @@ services:
       RIG_QUOTE_RETENTION_DAYS: ${RIG_QUOTE_RETENTION_DAYS:-30}
       RIG_FORGE_TRELLIS_ENABLED: ${RIG_FORGE_TRELLIS_ENABLED:-false}
       HERMES_URL: http://hermes:8000
+      # SETTING RIG_BRAIN_ENABLED — opt-in; default false (nothing switches on).
+      RIG_BRAIN_ENABLED: ${RIG_BRAIN_ENABLED:-false}
+      # SETTING RIG_MEMORY_ENABLED — global memory switch; opt-in only.
+      RIG_MEMORY_ENABLED: ${RIG_MEMORY_ENABLED:-false}
       DATA_DIR: /data
     volumes:
       - agent_rig_data:/data
@@ -76,6 +80,8 @@ services:
     cap_drop: [ALL]
 
   rig-brain:
+    # FRAME brain — opt-in compose profile; nothing switches on by default.
+    profiles: [brain]
     build:
       context: ../..
       dockerfile: agents/rig/Dockerfile.brain
@@ -87,6 +93,7 @@ services:
       TANK_KEY: ${TANK_KEY_RIG:-}
       TANK_REGION: ${TANK_REGION:-us-east}
       HERMES_URL: http://hermes:8000
+      RIG_MEMORY_ENABLED: ${RIG_MEMORY_ENABLED:-false}
       RIG_BROWSER_URL: http://rig-browser-gateway:3000
       RIG_SANDBOX_URL: http://rig-sandbox:8002
       SANDBOX_KEY: ${SANDBOX_KEY_RIG:?Set the Rig-only sandbox key}
@@ -107,6 +114,8 @@ services:
     cap_drop: [ALL]
 
   rig-sandbox:
+    # FRAME brain — sandbox only starts with the opt-in brain profile.
+    profiles: [brain]
     # The exact Base WASI runtime; a separate container and internal network.
     build:
       context: ../..
@@ -196,7 +205,6 @@ services:
       R2_ACCOUNT_ID: ${R2_ACCOUNT_ID:-}
       R2_ACCESS_KEY_ID_RIG: ${R2_ACCESS_KEY_ID_RIG:-}
       R2_SECRET_ACCESS_KEY_RIG: ${R2_SECRET_ACCESS_KEY_RIG:-}
-      HF_JOBS_TOKEN: ${HF_JOBS_TOKEN:-}
       HF_JOBS_NAMESPACE: ${HF_JOBS_NAMESPACE:-}
       HTTP_PROXY: http://rig-forge-egress:8080
       HTTPS_PROXY: http://rig-forge-egress:8080

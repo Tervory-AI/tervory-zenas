@@ -153,6 +153,12 @@ def _close_public_surface(application: FastAPI) -> None:
 _close_public_surface(app)
 mount_page(app)
 
+# Gates 7+8: memory VIEW/EDIT/FORGET/SWITCH-OFF through signed lifecycle identity.
+from rig_memory_api import attach_memory_routes
+attach_memory_routes(app)
+from rig_actor_context import VerifiedActorMiddleware
+app.add_middleware(VerifiedActorMiddleware)
+
 
 @app.get("/gold/candidates")
 async def gold_candidates(
@@ -417,6 +423,7 @@ async def _lifespan(app: FastAPI):
         retention_days()
         service = QuoteService(store, _TankModels(app.state.tank), RetailerHandoff(app.state.http),
                                PgQuotes(app.state.pool))
+        service.models.app = app
         # Locate confirm re-reads offers live: approved-source API or Tiger
         # check-now. Accept only hands the quote to the store.
         from rigbox.locate_live import product_checkers
@@ -437,10 +444,19 @@ async def _lifespan(app: FastAPI):
             await ensure_schedules(conn, schema_for(AGENT), nightly)
         from rigbox.price_events import consume_loop
         consumer = asyncio.create_task(consume_loop(service, app.state.http))
+        from rigbox.savings import worker as savings_worker
+        from rig_memory import memory_enabled
+        savings_task = asyncio.create_task(savings_worker(service)) if memory_enabled() else None
         try:
             async with serve_retailer(service):
                 yield
         finally:
+            if savings_task is not None:
+                savings_task.cancel()
+            pending = list(getattr(service, '_savings_tasks', ()))
+            for task in pending:
+                task.cancel()
+            await asyncio.gather(*([savings_task] if savings_task is not None else []), *pending, return_exceptions=True)
             consumer.cancel()
             await asyncio.gather(consumer, return_exceptions=True)
             if cart_worker is not None:
@@ -451,13 +467,103 @@ async def _lifespan(app: FastAPI):
 app.router.lifespan_context = _lifespan
 
 
-class _TankModels:
-    def __init__(self, tank: Any) -> None:
-        self.tank = tank
+from rigbox.inference import Models
 
+
+class _TankModels(Models):
     async def complete(self, tenant_id: str, task_type: str, messages: list[dict[str, str]]) -> str:
-        result = await self.tank.route(tenant_id, task_type, messages)
-        return str(result.get("content") or "")
+        from rigbox.savings import model_started, model_result
+        from rig_actor_context import get_verified_actor
+        from rig_memory import MemoryScopeError, run_with_memory
+        from rig_brain_client import brain_then_route
+        async with asyncio.timeout(150):
+            # Code/free passes first; brain only for gaps; Tank route carries the paid call.
+            http = getattr(getattr(self, "app", None), "state", None)
+            http_client = getattr(http, "http", None) if http is not None else None
+            if http_client is None:
+                http_client = getattr(self, "http", None)
+            app_state = getattr(getattr(self, "app", None), "state", None)
+            memory = getattr(app_state, "memory", None) if app_state is not None else None
+            if memory is None:
+                memory = getattr(self, "memory", None)
+
+            async def paid(task):
+                model_started()
+                # Keep Tank ledger path explicit for the room ask contract.
+                class _TankRoute:
+                    async def route(inner, tenant, kind, msgs):
+                        return await self.tank.route(tenant, kind, msgs)
+
+                    async def delegate_task(inner, actor, run_id, kind, payload, recall):
+                        return await self.tank.delegate_task(actor, run_id, kind, payload, recall)
+                routed = await brain_then_route(
+                    http_client,
+                    _TankRoute(),
+                    tenant_id=tenant_id,
+                    task_type=task_type,
+                    messages=messages,
+                )
+                return {
+                    "cost_usd": routed.get("cost_usd"),
+                    "tokens_in": int(routed.get("tokens_in") or 0),
+                    "tokens_out": int(routed.get("tokens_out") or 0),
+                    "paid_calls": routed.get("paid_calls", 1),
+                    "ledger_ids": routed.get("ledger_ids", []),
+                    "result": {
+                        "answered_from_memory": bool(routed.get("answered_from_memory")),
+                        "content": routed.get("content") or "",
+                        "brain": routed.get("brain"),
+                        "past_builds": list((task or {}).get("past_builds") or []),
+                        "quotes": list((task or {}).get("quotes") or []),
+                    },
+                    **{k: routed[k] for k in ("content", "brain", "ledger_id") if k in routed},
+                }
+
+            actor = get_verified_actor()
+            if actor is not None and actor["tenant_id"] != str(tenant_id):
+                raise MemoryScopeError("Rig actor scope mismatch")
+            task = {"query": (messages[-1].get("content") if messages else "") or task_type, "text": task_type, "messages": messages}
+            if memory is not None and actor is not None:
+                try:
+                    receipt = await run_with_memory(
+                        memory,
+                        tenant_id=actor["tenant_id"] if actor["tenant_id"] else tenant_id,
+                        user_id=actor["user_id"],
+                        task_key=str(task_type),
+                        task=task,
+                        paid_call=paid,
+                    )
+                except MemoryScopeError:
+                    raise
+                result = {
+                    "content": (receipt.get("result") or {}).get("content") or "",
+                    "cost_usd": receipt["cost_usd"],
+                    "tokens_in": receipt["tokens_in"],
+                    "tokens_out": receipt["tokens_out"],
+                    "answered_from_memory": receipt.get("answered_from_memory"),
+                    "memory_status": receipt.get("memory_status"),
+                    "receipt": receipt,
+                    "ledger_ids": receipt.get("ledger_ids", []),
+                    **({"ledger_id": receipt["ledger_id"]} if receipt.get("ledger_id") else {}),
+                }
+            else:
+                paid_out = await paid(task)
+                result = {
+                    "content": paid_out.get("content") or (paid_out.get("result") or {}).get("content") or "",
+                    "cost_usd": paid_out.get("cost_usd"),
+                    "tokens_in": paid_out.get("tokens_in"),
+                    "tokens_out": paid_out.get("tokens_out"),
+                    "brain": paid_out.get("brain") or (paid_out.get("result") or {}).get("brain"),
+                    "memory_status": "skipped_unverified",
+                    "ledger_ids": paid_out.get("ledger_ids", []),
+                    **({"ledger_id": paid_out["ledger_id"]} if paid_out.get("ledger_id") else {}),
+                }
+        if result.get("answered_from_memory") or (result.get("receipt") or {}).get("paid_calls") == 0:
+            from rigbox.savings import memory_result
+            memory_result()
+        else:
+            model_result(result)
+        return str(result.get('content') or '')
 
 
 def _public_report(report: dict) -> dict:

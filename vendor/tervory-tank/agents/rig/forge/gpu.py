@@ -7,7 +7,6 @@ import os
 import re
 import time
 
-from huggingface_hub import HfApi
 
 
 # Linux caps one environment string (name=value) at 128 KiB (MAX_ARG_STRLEN).
@@ -27,19 +26,25 @@ class GPU:
 
     async def run(self, scope: dict, method: str, *, transfers: dict, timeout: int,
                   cap: str, relay, save_provider, namespace: str) -> str:
+        upstream = relay
+        async def relay(action, body):
+            async with asyncio.timeout(40):
+                return await upstream(action, body)
         if method == "trellis2" and os.environ.get("RIG_FORGE_TRELLIS_ENABLED", "").lower() != "true":
             raise GPUError("TRELLIS is disabled pending the founder's licence decision.")
-        token = os.environ.get("HF_JOBS_TOKEN", "")
-        if self.api is None and not token:
-            raise GPUError("HF_JOBS_TOKEN is not configured.")
         if not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9_-]{0,95}", namespace):
             raise GPUError("HF_JOBS_NAMESPACE is not configured.")
         secret = json.dumps(transfers, separators=(",", ":"))
         if len(secret.encode()) > TRANSFERS_LIMIT_BYTES:
             raise GPUError("Too many photo links for one GPU job; use fewer or shorter-named photos.")
-        api = self.api or HfApi(endpoint="https://huggingface.co", token=token)
-        authorization = await relay("reserve", {**scope, "method": method,
-                                               "timeout_seconds": timeout, "cost_cap_usd": cap})
+        api = self.api  # An injected provider is only an offline contract-test seam.
+        try:
+            authorization = await relay("reserve", {**scope, "method": method,
+                                                   "timeout_seconds": timeout, "cost_cap_usd": cap})
+        except Exception:
+            if api is not None:
+                raise
+            raise GPUError('Tank GPU routing is not configured or its budget was denied.') from None
         if (authorization.get("tenant_id") != scope["tenant_id"]
                 or authorization.get("job_id") != scope["job_id"]
                 or not re.fullmatch(r"[a-z0-9][a-z0-9./_-]+@sha256:[a-f0-9]{64}", authorization.get("image", ""))):
@@ -48,22 +53,29 @@ class GPU:
         provider_id, outcome = "unknown", "unverified"
         deadline = self.clock() + authorization["timeout_seconds"]
         try:
-            job = await asyncio.wait_for(asyncio.to_thread(api.run_job, image=authorization["image"],
-                command=["python", "/opt/forge/gpu/entrypoint.py", method],
-                env={"FORGE_TENANT_ID": scope["tenant_id"], "FORGE_JOB_ID": scope["job_id"],
-                     "HF_HUB_DISABLE_TELEMETRY": "1"},
-                secrets={"FORGE_TRANSFERS": secret},
-                namespace=namespace, flavor=authorization["flavor"],
-                timeout=authorization["timeout_seconds"]), timeout=30)
-            provider_id = job.id
+            if api is None:
+                result = await relay('launch', {**scope, 'namespace': namespace, 'transfers': transfers})
+                provider_id = result['provider_job_id']
+            else:
+                job = await asyncio.wait_for(asyncio.to_thread(api.run_job, image=authorization["image"],
+                    command=["python", "/opt/forge/gpu/entrypoint.py", method],
+                    env={"FORGE_TENANT_ID": scope["tenant_id"], "FORGE_JOB_ID": scope["job_id"],
+                         "HF_HUB_DISABLE_TELEMETRY": "1"},
+                    secrets={"FORGE_TRANSFERS": secret},
+                    namespace=namespace, flavor=authorization["flavor"],
+                    timeout=authorization["timeout_seconds"]), timeout=30)
+                provider_id = job.id
             if not re.fullmatch(r"[a-zA-Z0-9_-]{1,128}", provider_id):
                 raise GPUError("Provider returned an invalid job identifier.")
             await save_provider(provider_id)
             await relay("steps", {**scope, "stage": "gpu_submit", "outcome": "delivered"})
             while self.clock() < deadline:
-                job = await asyncio.wait_for(asyncio.to_thread(api.inspect_job,
-                    job_id=provider_id, namespace=namespace), timeout=30)
-                state = job.status.stage
+                if api is None:
+                    state = (await relay('inspect', scope))['stage']
+                else:
+                    job = await asyncio.wait_for(asyncio.to_thread(api.inspect_job,
+                        job_id=provider_id, namespace=namespace), timeout=30)
+                    state = job.status.stage
                 if state == "COMPLETED":
                     outcome = "delivered"
                     await relay("steps", {**scope, "stage": "gpu_poll", "outcome": "delivered"})
@@ -76,8 +88,11 @@ class GPU:
         except BaseException:
             if provider_id != "unknown":
                 try:
-                    await asyncio.wait_for(asyncio.to_thread(api.cancel_job,
-                        job_id=provider_id, namespace=namespace), timeout=30)
+                    if api is None:
+                        await relay('cancel', scope)
+                    else:
+                        await asyncio.wait_for(asyncio.to_thread(api.cancel_job,
+                            job_id=provider_id, namespace=namespace), timeout=30)
                     await relay("steps", {**scope, "stage": "gpu_cancel", "outcome": "delivered"})
                 except Exception:
                     outcome = "unverified"  # Retain budget for an uncertain paid job.

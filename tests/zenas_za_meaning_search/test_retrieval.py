@@ -10,18 +10,18 @@ from pathlib import Path
 
 import httpx
 import pytest
+from hermes.embeddings import MODEL_ID
+from test_hermes_law import stack
 
 from agents.zenas.core import law_pool as bridge
 from agents.zenas.core.service import _passages_from_pool
 from agents.zenas.pool.bulk import load_wave
 from agents.zenas.pool.catalogue import CATALOGUE
-from agents.zenas.pool.embed import HermesLawClient, LAW_MODEL, live_backends
+from agents.zenas.pool.embed import LAW_MODEL, HermesLawClient, live_backends
 from agents.zenas.pool.indexing import index_pending
 from agents.zenas.pool.nightly import run_nightly
 from agents.zenas.pool.search import search_hybrid, search_meaning
 from agents.zenas.pool.store import MemoryStore, PostgresStore
-from hermes.embeddings import MODEL_ID
-from test_hermes_law import stack
 
 RECORDINGS = Path(__file__).resolve().parents[1] / "zenas_za_laws_africa/recordings"
 SOURCE = next(row for row in CATALOGUE if row.source_id == "companies-act")
@@ -55,14 +55,16 @@ def services(monkeypatch):
         pass
     monkeypatch.setattr(laws_africa_api.asyncio, "sleep", no_wait)
     qdrant, encoder, app = stack("za")
-    # The real Tank corridor is the only path to local model inference.
-    from fastapi import FastAPI
+    # Exercise the existing Tank vector adapter before the local encoder;
+    # these unit protocol tests keep authentication/billing as explicit fakes.
     from types import SimpleNamespace
     from unittest.mock import AsyncMock
+
     import zenas_law
-    async def identity(): return 'zenas'
-    monkeypatch.setattr(zenas_law,'ledger',AsyncMock(return_value='11111111-1111-4111-8111-111111111111'))
-    tank=SimpleNamespace(require_key=identity,box_region=lambda:'za',law_transport=httpx.ASGITransport(app=app))
+    async def identity():
+        return 'zenas'
+    monkeypatch.setattr(zenas_law, 'ledger', AsyncMock(return_value='11111111-1111-4111-8111-111111111111'))
+    tank = SimpleNamespace(require_key=identity, box_region=lambda: 'za', law_transport=httpx.ASGITransport(app=app))
     app.include_router(zenas_law.build_router(tank))
     client = HermesLawClient(region="za", transport=httpx.ASGITransport(app=app))
     yield qdrant, encoder, client
@@ -110,7 +112,7 @@ async def test_everyday_question_reaches_actual_ask_bridge_with_exact_citation_p
 
 @pytest.mark.asyncio
 async def test_unchanged_nightly_does_no_encoding_and_new_version_is_date_filtered(services):
-    qdrant, encoder, client = services
+    _qdrant, encoder, client = services
     store, replay = MemoryStore(), Replay()
     await load(store, replay, client)
     encoder.calls.clear()

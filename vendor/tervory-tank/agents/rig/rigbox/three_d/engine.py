@@ -24,6 +24,9 @@ class Engine:
     def __init__(self, store, catalogue, forge, assets, *, sample=False):
         self.store, self.catalogue, self.forge, self.assets = store, catalogue, forge, assets
         self.sample = sample
+        from rigbox.savings import measured
+        for name in ('submit', 'approve', 'mount_points', 'assembly'):
+            setattr(self, name, measured(catalogue, 'rig.3d.' + name, getattr(self, name)))
 
     async def capabilities(self, tenant):
         row = await self.store.entitlement(tenant)

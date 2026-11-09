@@ -159,6 +159,14 @@ services:
       PERPLEXITY_API_KEY: ${PERPLEXITY_API_KEY:-}
       # MODELS-3: inference-only Hugging Face token. LiteLLM only; never Tank or a room.
       HF_INFERENCE_TOKEN: ${HF_INFERENCE_TOKEN:-}
+      # Maker first-party keys (2026-11-07). Empty until Coolify fill; no paid calls from this PR.
+      MINIMAX_API_KEY: ${MINIMAX_API_KEY:-}
+      ZAI_API_KEY: ${ZAI_API_KEY:-}
+      DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY:-}
+      STEPFUN_API_KEY: ${STEPFUN_API_KEY:-}
+      ARCEE_API_KEY: ${ARCEE_API_KEY:-}
+      TINKER_API_KEY: ${TINKER_API_KEY:-}
+      SARVAM_API_KEY: ${SARVAM_API_KEY:-}
       # Dedicated shared key for the private llama.cpp route; never a provider token.
       ZENAS_OWN_MODEL_KEY: ${ZENAS_OWN_MODEL_KEY:-}
       # Build-only ChatGPT sign-in. Not a secret value: the token file lives on the volume below.

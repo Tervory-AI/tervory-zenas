@@ -672,6 +672,7 @@ async def require_key(request: Request, x_tank_key: str = Header(default="")) ->
     path = request.url.path
     skill_run = path.startswith("/v1/skala/") and path.endswith("/run") and path.count("/") == 4
     ghost_route = matched == "ghost" and __import__("ghost_routes").room_method(request.method, path)
+    zenas_evidence = matched == "zenas" and request.method == "POST" and path in {"/v1/zenas/savings/quote", "/v1/zenas/law/embeddings", "/v1/zenas/law/vectors"}
     vendor_write = request.method == "POST" and path == "/v1/ledger/vendor"
     batch_route = path == "/v1/route/batch" or (request.method == "GET" and path.startswith("/v1/route/batch/"))
     # Its own queued background calls only; route_job checks the caller.
@@ -680,7 +681,7 @@ async def require_key(request: Request, x_tank_key: str = Header(default="")) ->
     tiger_savings = matched == "tiger" and request.method == "POST" and path == "/v1/tiger/savings"
     paid_status = request.method == "GET" and re.fullmatch(r"/v1/paid-steps/approvals/[0-9a-fA-F-]{36}", path)
     paid_admit = matched == "base" and request.method == "POST" and path == "/v1/paid-steps/admit"
-    if path not in {"/health", "/v1/route"} and not tiger_savings and not paid_status and not paid_admit and not batch_route and not job_route and not skill_run and not vendor_write and not ghost_route and not event_route:
+    if path not in {"/health", "/v1/route"} and not tiger_savings and not paid_status and not paid_admit and not batch_route and not job_route and not skill_run and not vendor_write and not ghost_route and not event_route and not zenas_evidence:
         raise HTTPException(status_code=403, detail="This agent key cannot call that.")
     return matched
 
@@ -3889,6 +3890,14 @@ async def _run_one_skill(
     if state != "approved" and not body.preview:
         raise HTTPException(status_code=409, detail=f"{pkg.ref} is {state!r}; only approved versions run for clients")
     ctx = make_ctx(pkg, body.tenant_id, preview=body.preview)
+    zenas_ledgers=[]
+    if caller == 'zenas':
+        original_model=ctx._model
+        async def with_zenas_receipt(**kw):
+            result=await original_model(**kw)
+            if result.get('ledger_id'): zenas_ledgers.append(str(result['ledger_id']))
+            return result
+        ctx._model=with_zenas_receipt
     if caller == 'tiger':
         ctx._tiger_run_id = uuid.uuid4()
         ctx._tiger_ledger_ids = []
@@ -3929,6 +3938,7 @@ async def _run_one_skill(
         out["_ledger_id"] = str(receipt.ledger_id)
         out["_receipt"] = receipt.model_dump(mode="json")
     out["_cost_usd"] = round(ctx.cost_usd, 6)
+    if caller == "zenas": out["_ledger_ids"] = zenas_ledgers
     if caller == "tiger" and not body.preview:
         out['_savings'] = await __import__('tiger_savings').skill_receipt(__import__('sys').modules[__name__], pkg, body, ctx, out)
     if getattr(ctx, "memory_receipts", None):
@@ -3993,6 +4003,8 @@ async def base_proxy(path: str, request: Request) -> Response:
 _LOCAL_ZENAS_HOSTS = frozenset({"agent-zenas", "localhost", "127.0.0.1"})
 _ZENAS_PATH = re.compile(
     r"^(consents|matters|pool|pool/status|health|review|selftest|review-switch|cases/convert|rule-cards|worked|matches|training-pairs|drafts|playbooks|tenants|answers|contract-reviews|moot/published)$"
+    r"|^(receipts|memory/records|memory/edit|memory/forget|memory/switch|ladder/retrieve|ladder/apply|ladder/compose|ladder/plain)$"
+    r"|^memory/records/[0-9a-fA-F-]{36}$"
     r"|^(matters|documents|rule-cards|worked)/[0-9a-fA-F-]{36}$"
     r"|^matters/[0-9a-fA-F-]{36}/documents$"
     r"|^matters/[0-9a-fA-F-]{36}/release$"
