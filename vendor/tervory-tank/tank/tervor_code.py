@@ -8,12 +8,15 @@ import hashlib
 from pathlib import Path, PurePosixPath
 import sys
 
-from tank.tervor_registry import digest, encoded, identity
+if __package__:
+    from .tervor_registry import digest, encoded, identity
+else:
+    from tervor_registry import digest, encoded, identity
 
 PLATFORM = '00000000-0000-0000-0000-000000000001'
 PRODUCT = 'opli'
 CATEGORIES = frozenset({'multi_file_patch', 'bug_fix', 'tests', 'command_safety', 'repository_rules'})
-FIXTURES = Path(__file__).resolve().parents[1] / 'tests/fixtures/tervor_code/baseline.json'
+FIXTURES = Path(__file__).resolve().parent / 'training_jobs/fixtures/tervor_code/baseline.json'
 MAX_BYTES = 1024 * 1024
 SAFE_COMMANDS = (['python', '-m', 'pytest', '-q'], ['git', 'diff', '--check'])
 
@@ -184,7 +187,7 @@ def preflight(data: dict) -> dict:
         base_model=None, base_revision=None, base_licence=None,
         base_evidence='tervory-build/MODEL.md: Tervor Code: a Qwen coder base; exact choice undecided',
         missing=['Founder-approved coding base model ID, immutable revision and commercial licence evidence',
-                 'Merged coding-capable training interface (current M9 accepts only Zenas/Base/Tiger)',
+                 'Reviewed, adequately sized public coding training and fit-validation corpus',
                  'At least 200 independently reviewed gold cases and calibrated Tank/DeepEval evaluation'],
         split_hashes={key: value['sha256'] for key, value in parts.items()},
         split_counts={key: value['count'] for key, value in parts.items()},

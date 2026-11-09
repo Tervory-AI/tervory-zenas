@@ -91,9 +91,9 @@ def shared_rows(groups: list[list[dict]]) -> list[dict]:
 
 
 def context_length(agent: str) -> int:
-    if agent not in ('', 'zenas', 'tiger'):
+    if agent not in ('', 'zenas', 'tiger', 'opli'):
         raise ValueError('Unsupported training agent')
-    return 4096 if agent in ('zenas', 'tiger') else 1024
+    return 4096 if agent in ('zenas', 'tiger', 'opli') else 1024
 
 
 def load_snapshots(api, org: str, day: str) -> list[dict]:
@@ -363,6 +363,133 @@ def load_tervor_bundle(path, product):
     return rows, cases
 
 
+def coding_partitions(data):
+    """Pure coding data contract, shared by offline preflight and the GPU script.
+
+    Small smoke bundles may be inspected here. load_coding_bundle additionally
+    applies the existing production 200-gold gate before fitting anything.
+    """
+    def digest(value):
+        return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(',', ':'), allow_nan=False).encode()).hexdigest()
+    training, gold, code = data['training'], data['gold'], data['coding']
+    if (data['sha256'] != digest([training, gold]) or code['schema'] != 1
+            or code['region'] != 'us-east' or gold['region'] != code['region'] or gold['holdout'] is not True
+            or code['sha256'] != digest({k: v for k, v in code.items() if k != 'sha256'})):
+        raise ValueError('Coding bundle hash or region mismatch')
+    groups = {'train': training, 'validation': code['validation'], 'gold': gold,
+              'evaluation': code['evaluation_holdouts']}
+    records = code['provenance']
+    if not 1 <= len(records) <= 1000:
+        raise ValueError('Coding provenance exceeds the bounded contract')
+    indexed = {}
+    for record in records:
+        key = (record['split'], record['input_sha256'])
+        if key in indexed:
+            raise ValueError('Duplicate coding provenance')
+        indexed[key] = record
+    fingerprints, inputs, used = {}, set(), set()
+    for split, snapshot in groups.items():
+        field = 'cases' if split == 'gold' else 'rows'
+        rows = snapshot[field]
+        if (snapshot['tenant_id'] != '00000000-0000-0000-0000-000000000001'
+                or snapshot['product'] != 'opli' or snapshot['count'] != len(rows)
+                or snapshot['sha256'] != digest(rows) or (split in ('train', 'validation', 'gold') and not rows)):
+            raise ValueError('Invalid coding snapshot')
+        for row in rows:
+            fingerprint = digest(row['input'])
+            if fingerprint in inputs:
+                raise ValueError('Duplicate or held-out coding input')
+            inputs.add(fingerprint)
+            key = (split, fingerprint)
+            record = indexed.get(key)
+            if record is None or record['output_sha256'] != digest(row['expected'] if split == 'gold' else row['output']):
+                raise ValueError('Coding provenance does not bind the input and answer')
+            used.add(key)
+            source = record['source']
+            if (source['kind'] not in ('public', 'synthetic')
+                    or source['provider'] not in ('public-code', 'synthetic-fixture')
+                    or row.get('tenant_id', snapshot['tenant_id']) != snapshot['tenant_id']
+                    or row.get('product', 'opli') != 'opli'):
+                raise ValueError('Private coding provenance is forbidden')
+            if split != 'gold' and set(row) != {
+                    'tenant_id', 'product', 'kind', 'source', 'provider', 'licence',
+                    'source_ref', 'task_type', 'input', 'output', 'holdout'}:
+                raise ValueError('Unexpected coding row metadata')
+            if (source['sha256'] != digest(source['files'])
+                    or source['provenance_sha256'] != digest({k: source[k] for k in
+                        ('kind', 'reference', 'revision', 'licence', 'provider')})
+                    or any(not isinstance(v, str) for v in source['files'].values())
+                    or len(json.dumps(source).encode()) > 65536):
+                raise ValueError('Coding source hash mismatch')
+            if (len(json.dumps(row).encode()) > 65536 or not isinstance(row['input'], dict)
+                    or not row['task_type'].startswith('opli.') or row['holdout'] is not (split in ('gold', 'evaluation'))
+                    or (split != 'gold' and (row['tenant_id'] != snapshot['tenant_id'] or row['product'] != 'opli'))):
+                raise ValueError('Private or mislabelled coding row')
+            if split in ('train', 'validation'):
+                output = row['output']
+                public_text = '\n'.join(source['files'].values())
+                if (source['kind'] != 'public' or source['provider'] != 'public-code'
+                        or source['licence'] not in ('MIT', 'BSD-3-Clause') or row['kind'] != 'public'
+                        or row['provider'] != source['provider'] or row['licence'] != source['licence']
+                        or row['source'] != source['reference']
+                        or row['source_ref'] != source['revision'] + ':' + source['sha256']
+                        or not re.fullmatch('[a-f0-9]{40}', source['revision'])
+                        or not source['reference'].startswith('https://github.com/')
+                        or hashlib.sha256(source['licence_text'].encode()).hexdigest() != source['licence_sha256']
+                        or not source['licence_text'].strip() or output.get('commands') != []
+                        or not output.get('files') or any(not isinstance(text, str) or not text.strip()
+                            or text not in public_text for text in output['files'].values())):
+                    raise ValueError('Coding fit data must be licensed public source, never synthetic or tenant data')
+            keys = [digest(source['reference']), source['sha256'], source['provenance_sha256'], fingerprint]
+            keys += [digest(text) for text in source['files'].values() if text.strip()]
+            keys += [digest(text) for text in row['input'].get('files', {}).values() if text.strip()]
+            answer = row['expected'] if split == 'gold' else row['output']
+            keys += [digest(text) for text in answer.get('files', {}).values() if text.strip()]
+            for value in keys:
+                if value in fingerprints and fingerprints[value] != split:
+                    raise ValueError('Coding source family or content overlaps splits')
+                fingerprints[value] = split
+    if used != set(indexed):
+        raise ValueError('Unused coding provenance')
+    return training['rows'], code['validation']['rows']
+
+
+def coding_samples(data):
+    def sample(row):
+        return {'prompt': [{'role': 'user', 'content': row['task_type'] + '\n' + json.dumps(row['input'], sort_keys=True)}],
+                'completion': [{'role': 'assistant', 'content': json.dumps(row['output'], sort_keys=True)}]}
+    training, validation = coding_partitions(data)
+    return [sample(row) for row in training], [sample(row) for row in validation]
+
+
+def coding_selection(data, base, revision):
+    fields = ('base_model', 'base_revision', 'licence', 'licence_evidence',
+              'founder_approval', 'hardware', 'hardware_fit_evidence')
+    chosen = data['coding']['selection']
+    if (set(chosen) != set(fields) or any(not isinstance(chosen[field], str)
+            or not chosen[field].strip() or len(chosen[field]) > 2000 for field in fields)):
+        raise ValueError('Explicit coding base, licence, founder approval and hardware-fit evidence are required')
+    if chosen['hardware'] != 'a10g-small':
+        raise ValueError('Coding selection must match the existing training hardware policy')
+    if (chosen['base_model'] != base or chosen['base_revision'] != revision
+            or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.-]*/[A-Za-z0-9][A-Za-z0-9_.-]*', base)
+            or not re.fullmatch('[a-f0-9]{40}', revision)):
+        raise ValueError('Coding checkpoint evidence does not match the configured base')
+    return chosen
+
+
+def load_coding_bundle(path):
+    source = Path(path)
+    if source.is_symlink() or source.stat().st_size > 8 * 1024 * 1024:
+        raise ValueError('Coding bundle exceeds the bounded size')
+    data = json.loads(source.read_text())
+    rows, cases = load_tervor_bundle(path, 'opli')  # Existing 200-gold gate stays mandatory.
+    if rows != data['training']['rows'] or cases != data['gold']['cases']:
+        raise ValueError('Coding bundle changed during validation')
+    coding_partitions(data)
+    return data
+
+
 def main() -> dict | None:
     missing = [name for name in ('HF_TOKEN', 'HF_ORG', 'OUTPUT_REPO', 'TRAIN_DAY')
                if not os.environ.get(name, '').strip()]
@@ -386,7 +513,13 @@ def main() -> dict | None:
     train_agent = os.environ.get('TRAIN_AGENT', '')
     max_length = context_length(train_agent)
     bundle_path = os.environ.get('TERVOR_TRAIN_BUNDLE_PATH')
-    if bundle_path:
+    if train_agent == 'opli' and not bundle_path:
+        raise ValueError('Opli training requires a sealed coding bundle')
+    if train_agent == 'opli':
+        coding_data = load_coding_bundle(bundle_path)
+        coding_selection(coding_data, base, revision)
+        rows, bundle_gold = coding_data['training']['rows'], coding_data['gold']['cases']
+    elif bundle_path:
         rows, bundle_gold = load_tervor_bundle(bundle_path, train_agent)
     elif train_agent == 'tiger':
         rows, tiger_holdouts = tiger_data(api, org, day, revision=os.environ.get('TIGER_DATASET_REVISION'))
@@ -398,15 +531,18 @@ def main() -> dict | None:
     if any(hashlib.sha256(json.dumps(row['input'], sort_keys=True).encode()).hexdigest()
            in held_hashes for row in rows):
         raise ValueError('Court holdouts overlap the training snapshot')
-    train, validation, seen = [], [], set()
-    for row in rows:
-        digest = hashlib.sha256(json.dumps(row['input'], sort_keys=True).encode()).hexdigest()
-        if digest in seen:
-            continue
-        seen.add(digest)
-        sample = {'prompt': [{'role': 'user', 'content': row['task_type'] + '\n' + json.dumps(row['input'])}],
-                  'completion': [{'role': 'assistant', 'content': json.dumps(row['output'])}]}
-        (validation if int(digest, 16) % 10 == 0 else train).append(sample)
+    if train_agent == 'opli':
+        train, validation = coding_samples(coding_data)
+    else:
+        train, validation, seen = [], [], set()
+        for row in rows:
+            digest = hashlib.sha256(json.dumps(row['input'], sort_keys=True).encode()).hexdigest()
+            if digest in seen:
+                continue
+            seen.add(digest)
+            sample = {'prompt': [{'role': 'user', 'content': row['task_type'] + '\n' + json.dumps(row['input'])}],
+                      'completion': [{'role': 'assistant', 'content': json.dumps(row['output'])}]}
+            (validation if int(digest, 16) % 10 == 0 else train).append(sample)
     if not train or not validation:
         raise ValueError('Training and validation examples are required')
     trainer, metrics = fit(base, revision, train, validation, max_length=max_length)

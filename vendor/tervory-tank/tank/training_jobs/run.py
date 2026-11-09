@@ -19,7 +19,7 @@ HARDWARE = frozenset({'a10g-small', 'a10g-large'})
 
 
 def training_hardware(agent: str) -> str:
-    if agent not in ('', 'zenas', 'base', 'tiger'):
+    if agent not in ('', 'zenas', 'base', 'tiger', 'opli'):
         raise ValueError('Unsupported training agent')
     # Legacy job flavor. A real run still needs the founder's explicit base;
     # fitting a different base on this GPU must be verified before submission.
@@ -122,6 +122,14 @@ async def record_receipt(conn, job_id: str, actual: Decimal, evaluation: dict | 
 
 
 def prepare_bundle(args, agent):
+    if agent == 'opli' and not (args.receipt or getattr(args, 'job_id', '')):
+        if __package__:
+            from .coding import prepare
+        else:
+            import sys
+            sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+            from training_jobs.coding import prepare
+        return prepare(args)
     if not getattr(args, 'bundle', None):
         return None, None
     if __package__:
@@ -153,12 +161,23 @@ async def check_database_holdouts(conn, prepared, agent, region):
     import tervor_gold
     forbidden = await tervor_gold.forbidden_inputs(conn, PLATFORM, region)
     tervor_dataset.build(PLATFORM, agent, prepared['training']['rows'], gold_inputs=forbidden)
+    if agent == 'opli':
+        tervor_dataset.build(PLATFORM, agent, prepared['coding']['validation']['rows'], gold_inputs=forbidden)
 
 
 async def run(args):
     if getattr(args, 'dry_run', False) and (args.submit or args.receipt or getattr(args, 'job_id', '')):
         raise ValueError('Dry run cannot submit a job or record a receipt')
     dry_run = getattr(args, 'dry_run', False)
+    if dry_run and getattr(args, 'agent', '') == 'opli':
+        if __package__:
+            from .coding import dry_run as coding_dry_run
+        else:
+            import sys
+            sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+            from training_jobs.coding import dry_run as coding_dry_run
+        return coding_dry_run(getattr(args, 'bundle', None), version=args.model_version or 'tervor-code-1.0',
+            day=args.day or '2026-11-08', region=os.environ.get('TANK_REGION', 'us-east'))
     names = ['HF_ORG', 'HF_TOKEN']
     if (dry_run and (getattr(args, 'agent', '') == 'tiger' or getattr(args, 'bundle', None))) or args.submit or args.receipt or getattr(args, 'job_id', ''):
         names.append('DATABASE_URL')
@@ -324,7 +343,7 @@ def cli(argv=None):
     parser.add_argument('--day', default='')
     parser.add_argument('--submit', action='store_true')
     parser.add_argument('--dry-run', action='store_true')
-    parser.add_argument('--agent', choices=['zenas', 'base', 'tiger'], default='')
+    parser.add_argument('--agent', choices=['zenas', 'base', 'tiger', 'opli'], default='')
     parser.add_argument('--bundle', type=Path, help='Private tenant/product training and held-out gold bundle')
     parser.add_argument('--model-version', default='', help='Explicit Tervor version for a bundled run')
     parser.add_argument('--receipt', help='Local final HF billing receipt JSON; no credentials')

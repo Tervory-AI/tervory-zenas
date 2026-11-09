@@ -2513,6 +2513,11 @@ async def code_turn(thread_id: uuid.UUID, body: CodeTurn, actor: Actor = Depends
         gate = code_gate.advance(state, str(body.prompt_id), body.tool_results, body.progress, body.continuation)
         if gate:
             return await code_gate.stopped_response(__import__(__name__), conn, row, state, actor, turn_id, gate)
+        import code_preflight  # Gate before: preflight hook (off unless ENGINE_CODE_PREFLIGHT_ENABLED=true)
+        held = await code_preflight.before_paid_call(__import__(__name__), conn, row, state, actor, turn_id, body,
+                                                     paid=_memory_answer is None)
+        if held:
+            return held
     read_tools = {'list_files', 'read_file', 'search', 'git'}
     schema = {name: model.model_json_schema() for name, model in CODE_TOOLS.items()
               if body.mode != 'plan' or name in read_tools}
@@ -2560,7 +2565,7 @@ async def code_turn(thread_id: uuid.UUID, body: CodeTurn, actor: Actor = Depends
             options['max_tokens'] = context['limit']
         async with asyncio.timeout(150):
             if _memory_answer is None:
-                answer = await route_code(actor, messages, body.model, uuid.UUID(turn_id), **options)
+                answer = await code_preflight.paid_call(state, route_code, actor, messages, body.model, uuid.UUID(turn_id), **options)
             else:
                 # Only the internal OPLI corridor supplies this value. All normal
                 # identity/model, thread, prompt and durable request reservations
