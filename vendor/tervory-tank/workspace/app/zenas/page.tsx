@@ -55,7 +55,7 @@ export default async function ZenasPage() {
       const runs = res && res.ok ? publicScores(await res.json()).runs : [];
       const hold = runs.filter((row) => row.kind === "holdout" && !(row.area || "").startsWith("Made-up"));
       const top = hold[0];
-      founderLine = top
+      founderLine = top && top.cases > 0
         ? `Test scores: ${top.outcome_agreement}% outcome, ${top.cases} cases`
         : "Test scores";
     }

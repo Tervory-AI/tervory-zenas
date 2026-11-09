@@ -71,7 +71,8 @@ class Storage:
         self._access = env.get(f'R2_ACCESS_KEY_ID_{suffix}', '')
         self._secret = env.get(f'R2_SECRET_ACCESS_KEY_{suffix}', '')
         if not self._access or not self._secret:
-            raise StorageError(f'R2 credentials for {suffix} are missing')
+            missing = [name for name in (f'R2_ACCESS_KEY_ID_{suffix}', f'R2_SECRET_ACCESS_KEY_{suffix}') if not env.get(name)]
+            raise StorageError(f'R2 credentials for {suffix} are missing: ' + ', '.join(missing))
         own_keys = {f'R2_ACCESS_KEY_ID_{suffix}', f'R2_SECRET_ACCESS_KEY_{suffix}'}
         if any(name.startswith(('R2_ACCESS_KEY_ID_', 'R2_SECRET_ACCESS_KEY_'))
                and name not in own_keys for name in env):
@@ -216,7 +217,7 @@ def room_key(room: str) -> str:
         raise StorageError('Unknown storage room')
     value = os.environ.get(f'TANK_KEY_{room.upper()}', '')
     if not value:
-        raise StorageError('Room storage is not configured')
+        raise StorageError(f'Room storage is not configured: TANK_KEY_{room.upper()}')
     return value
 
 
@@ -252,7 +253,8 @@ async def usage():
             if store is not None:
                 await store.close()
 
-    async with httpx.AsyncClient(timeout=30, trust_env=False, follow_redirects=False) as http:
+    async with httpx.AsyncClient(timeout=30, trust_env=False, follow_redirects=False,
+                                 event_hooks={"request": [__import__("product_identity").request_hook]}) as http:
         buckets = await asyncio.gather(uploads_usage(), *(room_usage(http, room) for room in sorted(ROOMS)))
     result = {'buckets': buckets, 'reference_capacity_bytes': CAPACITY_BYTES,
               'complete': not any('error' in row for row in buckets)}
@@ -268,7 +270,7 @@ async def archive_training_snapshot(agent: str, day: str, data: bytes, *, region
     marker back. A failed or uncertain operation prevents the HF export. The HF
     bearer-token client is never reused for room or R2 traffic.
     """
-    if agent not in ROOMS | {'tank'}:
+    if agent not in ROOMS | {'tank', 'trigger'}:
         raise StorageError('Unknown snapshot owner')
     if region not in {'us-east', 'za'} or region != os.environ.get('TANK_REGION', 'us-east'):
         raise StorageError('Snapshot must stay in its own region')
@@ -278,6 +280,10 @@ async def archive_training_snapshot(agent: str, day: str, data: bytes, *, region
     except ValueError:
         raise StorageError('Invalid snapshot date') from None
     name = f'{day}/{uuid.uuid4().hex}'
+    if agent == 'trigger':
+        # Trigger has no storage room/bucket. Its public platform training
+        # snapshots use Tank's existing uploads store, with a separate prefix.
+        name = 'trigger/' + name
     parts = []
 
     async def archive(put, get):
@@ -293,7 +299,7 @@ async def archive_training_snapshot(agent: str, day: str, data: bytes, *, region
         if await get(manifest_name) != manifest:
             raise StorageError('Snapshot completion could not be verified')
 
-    if agent == 'tank':
+    if agent in {'tank', 'trigger'}:
         store = uploads()
         try:
             async def put(name, content):
@@ -310,6 +316,7 @@ async def archive_training_snapshot(agent: str, day: str, data: bytes, *, region
     # Region is cross-checked by the room before any write, even for public rows.
     params = {'tenant_id': PLATFORM_TENANT, 'public': 'true', 'region': region}
     async with httpx.AsyncClient(timeout=180, trust_env=False, follow_redirects=False,
+                                 event_hooks={"request": [__import__("product_identity").request_hook]},
                                  headers={'X-Tank-Key': key}) as http:
         async def put(name, content):
             response = await http.put(base + name, params=params, content=content)

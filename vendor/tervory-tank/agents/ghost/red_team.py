@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from typing import Any
-from uuid import uuid4
+from uuid import uuid4, uuid5, NAMESPACE_URL
 
 from .client_settings import ClientAutumbraSettings
 from .never_block import extract_ips, may_block_ip
@@ -56,7 +56,7 @@ def run_exercise(
                 "or a client with written permission."
             )
         # Client path still requires the site to match the client's configured site.
-        if settings.site_name and site != settings.site_name.strip().lower():
+        if not settings.site_name or site != settings.site_name.strip().lower():
             raise PermissionError("Exercise target is not this client's site.")
 
     receipt: dict[str, Any] = {
@@ -73,8 +73,11 @@ def run_exercise(
     }
 
     if exercise_id == "forged_webhook_fixture":
-        # Signature failure is success for this exercise.
-        receipt["result"] = "expected_drop"
+        from .webhooks import signature_matches
+        rejected = not signature_matches(secret="exercise-only", body=b"{}", timestamp="1",
+                                         nonce="exercise", signature="0" * 64)
+        receipt["result"] = "expected_drop" if rejected else "failed"
+        receipt["checks"] = {"signature_rejected": rejected}
         receipt["learning"].append("unsigned webhook must be dropped and counted, never stored")
     elif exercise_id == "credential_stuffing_fixture":
         blocked = []
@@ -87,11 +90,27 @@ def run_exercise(
         if not blocked and refused:
             receipt["learning"].append("miss: no blockable address after never-block — review rules")
     elif exercise_id == "path_scan_fixture":
+        from .watch_oss.common import AnomalyEvent, anomaly_only, kind_for_signal
+        events = anomaly_only([AnomalyEvent(source="vector", site=site, signal="rate", score=0.95)])
+        receipt["checks"] = {"anomaly_detected": len(events) == 1,
+                             "rate_limit_proposed": bool(events) and kind_for_signal(events[0].signal) == "rate_limit"}
+        receipt["result"] = "ran" if all(receipt["checks"].values()) else "failed"
         receipt["learning"].append("path scan fixture recorded; Watch rules should propose rate_limit")
     elif exercise_id == "outdated_package_fixture":
+        from .advisories import evaluate, parse_osv
+        from .inventory import parse_requirements
+        components = [vars(c) for c in parse_requirements("exercise", "fastapi==0.115.6")]
+        advisory = parse_osv({"id": "EXERCISE-OUTDATED", "published": "2026-01-01T00:00:00Z",
+            "affected": [{"package": {"ecosystem": "PyPI", "name": "fastapi"},
+                          "ranges": [{"type": "ECOSYSTEM", "events": [{"introduced": "0"}, {"fixed": "0.115.7"}]}]}]})
+        matched = evaluate([advisory], components, {})
+        receipt["checks"] = {"package_detected": len(components) == 1,
+                             "advisory_matched": len(matched) == 1 and matched[0]["what_to_do"]["patch_to"] == "0.115.7"}
+        receipt["result"] = "ran" if all(receipt["checks"].values()) else "failed"
         receipt["learning"].append("supply-chain watch should open a match against the planted lockfile version")
 
-    return receipt
+    from .savings import code_cost
+    return code_cost(receipt)
 
 
 def run_own_sites_exercise_pass(
@@ -112,4 +131,22 @@ def run_own_sites_exercise_pass(
         if receipt.get("kind") != "exercise":
             raise AssertionError("receipt must be marked exercise")
         receipts.append(receipt)
+    return receipts
+
+
+def scheduled_exercises(store, tenant: str, *, now: datetime | None = None) -> list[dict]:
+    """Daily local fixture pass. No network, client queue, edge write or live-screen data."""
+    day = (now or datetime.now(timezone.utc)).astimezone(timezone.utc).date().isoformat()
+    if store.get_state(tenant, "exercise_day") == day:
+        return []
+    receipts = []
+    for exercise in EXERCISES:
+        for site in sorted(OWN_SITES):
+            receipt = run_exercise(exercise["id"], target_site=site,
+                                   fixture_log="exercise from 203.0.113.9 against /login")
+            receipt["id"] = str(uuid5(NAMESPACE_URL, f"autumbra-exercise:{day}:{site}:{exercise['id']}"))
+            receipt["tenant_id"] = tenant
+            receipts.append(receipt)
+    store.set_state(tenant, "exercise_receipts", receipts)
+    store.set_state(tenant, "exercise_day", day)
     return receipts

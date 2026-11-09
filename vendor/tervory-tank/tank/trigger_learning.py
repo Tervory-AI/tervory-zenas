@@ -152,4 +152,5 @@ async def scorecard(actor):
     now = datetime.now(timezone.utc)
     async with pool().acquire() as conn:
         rows = await conn.fetch('SELECT format,draft,feedback_status,checker_results,accepted_write_ids,created_at FROM tank.trigger_writes WHERE tenant_id=$1 AND created_at >= $2 AND created_at < $3', actor.tenant_id, now-timedelta(days=60), now)
-    return {'as_of': now.isoformat(), **score_rows(rows, now)}
+    return {'as_of': now.isoformat(), **score_rows(rows, now),
+            'first_action': 'Write a draft in Chats, then confirm feedback to fill your scorecard.' if not rows else None}

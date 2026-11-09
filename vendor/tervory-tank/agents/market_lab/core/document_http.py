@@ -1,13 +1,15 @@
 """Authenticated room upload/delete; the original uses only this room's bucket."""
 from __future__ import annotations
 
-import asyncio
+import hashlib
+from datetime import datetime, timezone
 import uuid
 
 from fastapi import APIRouter, Header, HTTPException, Request
 from chassis.storage import Storage, StorageError, MAX_OBJECT_BYTES
-from core.document_read import extract, ReadError
-from core.documents import accept, forget
+from core.document_read import ReadError
+from core.document_process import extract
+from core.documents import accept, forget, records, save_record
 
 
 def build_router(*, key_ok, ledger_context):
@@ -27,22 +29,41 @@ def build_router(*, key_ok, ledger_context):
         store = None
         try:
             store = await check(x_tank_key, request)
-            if len(name) > 240 or '/' in name or '\\' in name or not name.lower().endswith(('.pdf', '.xlsx', '.csv')):
+            if len(name) > 240 or '/' in name or '\\' in name or any(ord(c) < 32 or ord(c) == 127 for c in name) or not name.lower().endswith(('.pdf', '.xlsx', '.csv', '.docx')):
                 raise HTTPException(422, 'Choose a PDF, XLSX or CSV file.')
             data = bytearray()
             async for chunk in request.stream():
                 data.extend(chunk)
                 if len(data) > MAX_OBJECT_BYTES:
                     raise HTTPException(413, 'File is too large.')
+            digest = hashlib.sha256(data).hexdigest()
+            reason = None
             try:
-                parsed = await asyncio.to_thread(extract, name, bytes(data))
+                parsed = await extract(name, bytes(data))
             except ReadError as exc:
-                await store.put(str(tenant_id), 'uploads', str(ident), bytes(data))
-                return {'status': 'failed', 'reason': str(exc), 'pages': None, 'rows': None}
+                parsed, reason = None, str(exc)
+            except TimeoutError:
+                from core.document_process import UNREADABLE
+                parsed, reason = None, UNREADABLE
             async with ledger_context() as ledger, ledger.conn.transaction():
                 await ledger.conn.execute('SELECT pg_advisory_xact_lock(hashtextextended($1,0))', f'upload:{tenant_id}:{ident}')
-                await store.put(str(tenant_id), 'uploads', str(ident), bytes(data))
-                result = await accept(ledger, str(tenant_id), str(ident), name, parsed, region=store.region)
+                prior = await records(ledger, str(tenant_id), str(ident))
+                if prior:
+                    # An original's identity cannot be reused for different evidence.
+                    if prior[0].get('sha256') != digest or prior[0]['name'] != name:
+                        raise HTTPException(409, 'Check the fields and try again.')
+                    result = prior[0]
+                else:
+                    await store.put(str(tenant_id), 'uploads', str(ident), bytes(data))
+                    if parsed is None:
+                        result = {'id': str(ident), 'name': name, 'kind': 'uploaded_file',
+                                  'fetched_at': datetime.now(timezone.utc).isoformat(),
+                                  'status': 'failed', 'reason': reason, 'pages': None, 'rows': None,
+                                  'passages': []}
+                    else:
+                        result = await accept(ledger, str(tenant_id), str(ident), name, parsed, region=store.region)
+                    result['sha256'] = digest
+                    await save_record(ledger, str(tenant_id), str(ident), result)
             return {key: result[key] for key in ('status', 'reason', 'pages', 'rows')}
         except StorageError:
             raise HTTPException(503, 'File storage is unavailable. Check the room storage settings.') from None

@@ -16,7 +16,7 @@ function Lines({ points, cumulative = false, names }: { points: Savings["daily"]
   return <><svg className="savings-chart" viewBox="0 0 600 170" role="img" aria-label={cumulative ? "Savings growing over time" : "Daily spent and would have cost"}>
     <path d="M12 12V150H588" fill="none" stroke="#B8BFD0"/>
     {[0.5,1].map(y => <path key={y} d={`M12 ${150-y*130}H588`} stroke="#E4E8F0"/>)}
-    {keys.map((key,i) => <g key={key}><polyline fill="none" stroke={i ? "#7C89A3" : "#001840"} strokeWidth="3" strokeDasharray={i ? "7 5" : undefined} points={points.map(p => `${x(p.day)},${150-Number(p[key])/(max||1)*130}`).join(" ")}/>{points.length===1 && <circle cx={x(points[0].day)} cy={150-Number(points[0][key])/(max||1)*130} r="4" fill="#001840"/>}</g>)}
+    {keys.map((key,i) => <g key={key}><polyline fill="none" stroke={i ? "#7C89A3" : "#001840"} strokeWidth="3" strokeDasharray={i ? "7 5" : undefined} points={points.length ? points.map(p => `${x(p.day)},${150-Number(p[key])/(max||1)*130}`).join(" ") : "12,150 588,150"}/>{points.length===1 && <circle cx={x(points[0].day)} cy={150-Number(points[0][key])/(max||1)*130} r="4" fill="#001840"/>}</g>)}
   </svg><div className="savings-axis"><span>{points[0]?.day ?? "No work yet"}</span><span>{dollars(max)} · {names}</span><span>{points.at(-1)?.day}</span></div></>;
 }
 
@@ -71,7 +71,7 @@ export function SavingsSet({ data, title, loadRows, client = false }: { data: Sa
       <p>{number(`${cheaper(data.total.top_spent,data.total.top_cost)} vs ${client ? "the top model" : `the top model (${label(data.total.tops,true)})`} · ${dollars(data.total.top_saved)} saved`)} · {data.total.top_count} of {data.total.work_count} steps compared</p>
       {data.total.quality_pending && <p>same work assumed; quality comparison pending</p>}</div>
     <p className="savings-note">Only work with a checked comparison and a linked job is included. All amounts are in US dollars. Open any amount to see the work behind it.</p>
-    {!data.total.work_count && <p className="savings-empty">No comparable work yet. Your savings will appear here when a checked comparison is available.</p>}
+    {!data.total.work_count && <p className="savings-empty">No comparable work yet. Ask for work in Chats to start a checked comparison.</p>}
     <div className="savings-grid">
       <section className="savings-card savings-wide"><div className="savings-card-top"><h3>Spent and would have cost</h3><label>Show<select aria-label="Show" value={months} onChange={e => setMonths(Number(e.target.value))}><option value={1}>This month</option><option value={3}>Last 3 months</option><option value={12}>Last 12 months</option></select></label></div>
         <p className="savings-legend">Solid: spent · Dashed: would have cost</p><Lines points={days} names={names}/>

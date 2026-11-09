@@ -1,6 +1,8 @@
 "use client";
+import { fetchWithDeadline as fetch } from "../../../lib/request";
+import { request } from "../request";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import type { AdminOperation, AdminResult, CartOrder, CommerceResult } from "./types";
 
 const platforms = { shopify: "Shopify", woocommerce: "WooCommerce", bigcommerce: "BigCommerce" } as const;
@@ -9,9 +11,10 @@ type Act = (operation: AdminOperation, data: Record<string, unknown>) => Promise
 export type CommerceSection = "connection" | "orders" | "delivery";
 
 async function send(operation: AdminOperation, data: Record<string, unknown>): Promise<AdminResult> {
-  const response = await fetch("/rig/admin/api", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ operation, data }) });
-  if (!response.ok) return { ok: false, message: "" };
-  return response.json();
+  return request("/rig/admin/api", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ operation, data }) }, async response => {
+    if (!response.ok) throw new Error("The retailer request was not confirmed.");
+    return response.json() as Promise<AdminResult>;
+  }, 120000);
 }
 
 export function orderStatus(order: CartOrder): string {
@@ -35,7 +38,7 @@ function amount(order: CartOrder): string {
 }
 
 export function OrderRows({ orders, now }: { orders: CartOrder[]; now: number }) {
-  return <div className="rig-commerce-card rig-commerce-orders">{orders.map(order => {
+  return <div className="rig-commerce-card rig-commerce-orders">{!orders.length && <div><strong>0</strong><p><a href="/rig/admin?cart=connection">Shop connection</a></p></div>}{orders.map(order => {
     const status = orderStatus(order);
     const back = order.lines.filter(line => line.kind === "back_order").map(line => line.title).join(", ");
     const placementFailure = order.state === "needs_person" && order.payment_confirmed;
@@ -50,6 +53,8 @@ export function OrderRows({ orders, now }: { orders: CartOrder[]; now: number })
 }
 
 export function CommerceAdmin({ section, initial = {}, initialOrders = [], act = send, embedded = false }: { section: CommerceSection; initial?: CommerceResult; initialOrders?: CartOrder[]; act?: Act; embedded?: boolean }) {
+  const inFlight = useRef(false);
+  const [readError, setReadError] = useState(false);
   const [open, setOpen] = useState(false);
   const [config, setConfig] = useState(initial);
   const [platform, setPlatform] = useState<Platform | "">(initial.platform && initial.platform in platforms ? initial.platform as Platform : "");
@@ -62,9 +67,18 @@ export function CommerceAdmin({ section, initial = {}, initialOrders = [], act =
   const [invalid, setInvalid] = useState(false);
   useEffect(() => { setNow(Date.now()); const timer = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(timer); }, []);
   useEffect(() => {
-    let active = true;
+    let active = true, reading = false, failures = 0;
     if (section === "orders") {
-      const read = () => { void act("commerce-orders", {}).then(result => { if (active && result.ok && result.commerce?.orders) setOrders(result.commerce.orders); }).catch(() => {}); };
+      const read = async () => {
+        // Reuse quote delivery's six-attempt ceiling; reload starts a new read.
+        if (!active || reading || failures >= 6) return;
+        reading = true;
+        try { const result = await act("commerce-orders", {});
+          if (!result.ok || !result.commerce?.orders) throw new Error();
+          if (active) { setOrders(result.commerce.orders); setReadError(false); failures = 0; }
+        } catch { failures++; if (active) setReadError(true); }
+        finally { reading = false; }
+      };
       read(); const timer = setInterval(read, 5000); return () => { active = false; clearInterval(timer); };
     }
     void act("commerce-connect", {}).then(result => {
@@ -78,7 +92,8 @@ export function CommerceAdmin({ section, initial = {}, initialOrders = [], act =
   }, [act, section]);
   async function connect(event?: FormEvent<HTMLFormElement>) {
     event?.preventDefault();
-    if (!platform) return;
+    if (!platform || inFlight.current) return;
+    inFlight.current = true;
     const form = event?.currentTarget;
     const fields = form ? new FormData(form) : null;
     const data: Record<string, unknown> = { platform, vault_name: `rig-commerce-${platform}` };
@@ -94,20 +109,23 @@ export function CommerceAdmin({ section, initial = {}, initialOrders = [], act =
     setStatus("testing");
     try { const result = await act("commerce-connect", data); if (result.ok) setConfig(old => ({ ...old, platform, site: data.site as string, store_hash: data.store_hash as string })); setStatus(result.ok ? "connected" : "failed"); }
     catch { setStatus("failed"); }
+    finally { inFlight.current = false; }
   }
   async function delivery(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (inFlight.current) return;
     const good = min !== "" && max !== "" && Number.isInteger(Number(min)) && Number.isInteger(Number(max)) && 0 <= Number(min) && Number(min) <= Number(max) && Number(max) <= 60;
     setInvalid(!good);
     if (!good) { event.currentTarget.querySelector<HTMLInputElement>("input")?.focus(); return; }
+    inFlight.current = true;
     setSaving(true);
     try { const result = await act("store-delivery", { min_days: Number(min), max_days: Number(max) }); setInvalid(!result.ok); }
     catch { setInvalid(true); }
-    finally { setSaving(false); }
+    finally { inFlight.current = false; setSaving(false); }
   }
   const name = platform ? platforms[platform] : "";
   const title = section === "orders" ? "Orders" : "Retailer settings";
-  const body = section === "orders" ? <OrderRows orders={orders} now={now} /> : section === "delivery" ? <form className="rig-commerce-card" onSubmit={delivery}>
+  const body = section === "orders" ? <>{readError ? <p role="alert">Rig did not answer. Try again.</p> : <OrderRows orders={orders} now={now} />}</> : section === "delivery" ? <form className="rig-commerce-card" onSubmit={delivery}>
     <h2>Delivery from your own stock</h2>
     <label className="rig-commerce-field">Minimum business days<input type="number" min="0" max="60" step="1" required value={min} onChange={event => setMin(event.target.value)} aria-invalid={invalid} /></label>
     <label className="rig-commerce-field">Maximum business days<input type="number" min="0" max="60" step="1" required value={max} onChange={event => setMax(event.target.value)} aria-invalid={invalid} /></label>

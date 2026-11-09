@@ -86,6 +86,12 @@ async def findings(actor, scan_id: UUID):
                        ("summary", "critical", "tools", "tool_status", "scan_complete", "ref", "leaked")})
         if result.get('repository')=='Tervory-AI/tervory-tank' and result.get('commit'):
             public.update(repository=result['repository'],commit=result['commit'])
+        receipt = result.get("receipt")
+        if receipt is not None:
+            if (not isinstance(receipt, dict) or receipt.get("tenant_id") != str(actor.tenant_id)
+                    or receipt.get("user_id") != actor.user_id):
+                raise HTTPException(404, "Radix results are unavailable.")
+            public["receipt"] = receipt
         public["findings"] = [
             {**{key: row[key] for key in ("rule", "severity", "tool", "file", "line") if key in row},
              **({"explanation": row["explanation"]} if row.get("explanation") else {}),

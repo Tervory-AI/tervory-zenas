@@ -10,7 +10,7 @@ const ACTIONS = {
 } as const;
 
 function BatchTable({ rows }: { rows: QuarantineBatch[] }) {
-  if (!rows.length) return <p>None.</p>;
+  if (!rows.length) return <><p>0</p><p>Refresh feeds to collect records for review.</p></>;
   return (
     <div className="ml-quarantine-scroll">
       <table>

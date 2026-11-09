@@ -430,7 +430,7 @@ test('code catalogue cards use Confirm, follow the thread and return redacted re
     const placeholderSecret = 'ghp_' + 'placeholder'.repeat(3);
     await writeFile(join(f.root, 'AGENTS.md'), `Branches use codex/task.\n${placeholderSecret}\n`);
     const token = 'tv1.us-east.' + '1'.repeat(32) + '.' + ('placeholder' + 'x'.repeat(43)).slice(0, 43);
-    const prompts = ['read findings', answer, '/exit'];
+    const prompts = ['read findings', answer, '/cost', '/exit'];
     const requests = []; let turns = 0; let action; let shown = '';
     const card = { card_id: 'placeholder-card', tool: 'radix.repo.findings', status: 'pending', summary: 'Read findings', arguments: { scan_id: 'placeholder-scan' } };
     const stored = { ...card, status: answer === 'y' ? 'confirmed' : 'cancelled', result: { text: placeholderSecret } };
@@ -443,18 +443,23 @@ test('code catalogue cards use Confirm, follow the thread and return redacted re
           assert.equal(body.history[0].kind, 'project');
           assert(body.history[0].content.includes('Branches use codex/task.'));
           assert(!init.body.includes(placeholderSecret));
-          return Response.json(turns++ === 0 ? { answer: '', requests: [{ name: 'tervory', arguments: { tool: card.tool, arguments: {} } }], cards: [card] } : { answer: '', requests: [] });
+          return Response.json(turns++ === 0 ? { answer: '', requests: [{ name: 'tervory', arguments: { tool: card.tool, arguments: {} } }], cards: [card] } : { answer: '', requests: [], turn: { model: 'Auto', cost_usd: 0.002 } });
         }
         if (url.endsWith('/cards/placeholder-card')) {
           action = JSON.parse(init.body).action;
           return Response.json(stored);
         }
         assert(url.endsWith('/threads/placeholder-thread'));
-        return Response.json({ cards: [stored], steps: [{ step_id: card.card_id, status: 'done' }] });
+        return Response.json({ thread: { spent_usd: 0.1 }, cards: [stored], steps: [{ step_id: card.card_id, status: 'done' }] });
       } });
     assert(shown.includes(JSON.stringify({ tool: card.tool, arguments: card.arguments }) + '\n'));
     assert.equal(action, answer === 'y' ? 'confirm' : 'cancel');
+    if (answer !== 'y') {
+      assert.equal(requests.length, 1, 'denial stops before another model turn');
+      continue;
+    }
     const result = JSON.parse(requests[1].tool_results[0].output).result;
+    assert(shown.includes('Session cost $0.102000'));
     assert.equal(result.tool, card.tool);
     assert.equal(result.status, stored.status);
     if (answer !== 'y') assert(!('result' in result));

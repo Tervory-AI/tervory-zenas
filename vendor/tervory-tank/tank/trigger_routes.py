@@ -78,14 +78,16 @@ async def code_plan(actor: Actor, messages: list[dict], task_id: UUID | None):
     return SimpleNamespace(content=content, ledger_id=await code_receipt(actor.tenant_id, "command.turn", task_id=task_id))
 
 
-async def room(operation: str, body: dict):
+async def room(operation: str, body: dict, *, actor=None):
     key = os.environ.get("TANK_KEY_TRIGGER", "")
     if not key:
         raise HTTPException(503, "Trigger is not configured")
     try:
-        async with httpx.AsyncClient(timeout=120, follow_redirects=False, trust_env=False) as client:
-            response = await client.post("http://agent-trigger:8000/" + operation,
-                                         json=body, headers={"X-Tank-Key": key})
+        from product_identity import actor_scope, request_hook
+        with actor_scope(actor):
+            async with httpx.AsyncClient(timeout=120, follow_redirects=False, trust_env=False, event_hooks={"request": [request_hook]}) as client:
+                response = await client.post("http://agent-trigger:8000/" + operation,
+                                             json=body, headers={"X-Tank-Key": key})
         data = response.json()
     except (httpx.HTTPError, ValueError):
         raise HTTPException(503, "Trigger is unavailable") from None
@@ -161,7 +163,7 @@ async def get_scorecard(tenant_id: UUID, actor: Annotated[Actor, Depends(identit
 
 async def draft_and_record(actor, body, parent=None):
     from trigger_learning import record
-    data = await room('write', {**body, 'tenant_id': str(actor.tenant_id)})
+    data = await room('write', {**body, 'tenant_id': str(actor.tenant_id)}, actor=actor)
     if data.get('delegate') == 'zenas.draft':
         response = await zenas_draft(body, actor)
         if response.status_code >= 400:
@@ -192,18 +194,18 @@ async def invoke(operation: str, request: Request, actor: Annotated[Actor, Depen
     if operation.startswith("voice.") or operation == "feedback":
         from trigger_commands import confirmation
         if operation == "voice.show":
-            data = await room("voice/show", {**body, "tenant_id": str(actor.tenant_id)})
+            data = await room("voice/show", {**body, "tenant_id": str(actor.tenant_id)}, actor=actor)
         else:
             operation_id = confirmation(actor, "trigger." + operation, body)
             if operation == 'voice.learn':
                 data = await room('voice/commit', {'tenant_id': str(actor.tenant_id),
                     'rules': body['rules'], 'expected_revision': body['expected_revision'],
-                    'preview_hash': body['preview_hash'], 'operation_id': str(operation_id)})
+                    'preview_hash': body['preview_hash'], 'operation_id': str(operation_id)}, actor=actor)
             elif operation == "feedback":
                 from trigger_learning import feedback
                 data = await feedback(actor, UUID(body["write_id"]), body["status"], body["changes"], operation_id)
             else:
-                data = await room("voice/commit", {k: v for k, v in {**body, "tenant_id": str(actor.tenant_id), "operation_id": str(operation_id)}.items() if k != "brief_markdown"})
+                data = await room("voice/commit", {k: v for k, v in {**body, "tenant_id": str(actor.tenant_id), "operation_id": str(operation_id)}.items() if k != "brief_markdown"}, actor=actor)
         return {**data, "text": json.dumps(data, ensure_ascii=False, indent=2), "model_calls": 0,
                 "ledger_id": str(await code_receipt(actor.tenant_id, "trigger." + operation)), "cost_usd": 0}
     from trigger_commands import confirmation
@@ -231,7 +233,7 @@ async def invoke(operation: str, request: Request, actor: Annotated[Actor, Depen
                 'item_count': len(items), 'cost_usd': (None if any(i.get('cost_usd') is None for i in items)
                     else sum(float(i['cost_usd']) for i in items)),
                 'ledger_ids': [i.get('ledger_id') for i in items]}
-    data = await room(operation, {**body, 'tenant_id': str(actor.tenant_id)})
+    data = await room(operation, {**body, 'tenant_id': str(actor.tenant_id)}, actor=actor)
     if operation == "check":
         data["ledger_id"] = str(await code_receipt(actor.tenant_id, "trigger.check"))
         data["cost_usd"] = 0

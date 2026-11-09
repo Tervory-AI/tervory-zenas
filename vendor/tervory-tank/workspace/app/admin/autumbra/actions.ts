@@ -3,7 +3,7 @@
 import { auth } from "@/lib/trigger-signin";
 import { revalidatePath } from "next/cache";
 import { isFounder } from "@/lib/admin";
-import { ghostLook, ghostResolve } from "@/lib/tank";
+import { ghostLook, ghostResolve } from "./watch-request";
 import { shieldTap } from "./shields-data";
 
 export type GhostResult = { ok: boolean; message: string } | null;
@@ -53,7 +53,8 @@ export async function shieldAction(_previous: GhostResult, form: FormData): Prom
   const { userId } = await auth();
   if (!userId || !isFounder(userId)) return { ok: false, message: "Not found." };
   const id = String(form.get("id") ?? "");
-  const tap = form.get("tap") === "undo" ? "undo" : "raise";
+  const tap = form.get("tap");
+  if (tap !== "raise" && tap !== "undo") return { ok: false, message: "Autumbra could not finish. Nothing has been marked as changed." };
   try {
     const shield = await shieldTap(userId, id, tap);
     revalidatePath("/admin/autumbra");

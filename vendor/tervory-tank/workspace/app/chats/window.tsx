@@ -1,5 +1,6 @@
 "use client";
 
+import { fetchWithDeadline as fetch } from "../../lib/request";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { SquadLinks, SQUAD_MEMBERS } from "../squad-links";
 import { RadixCard } from "./radix-card";
@@ -24,7 +25,7 @@ function CostReceipt({ receipt, founder, threadId, messageId }: { receipt: Recei
   const rows = <div className="cw-receipt-rows">{pending && <p className="cw-note">Cost pending. Totals remain unavailable until the work is accounted for.</p>}{receipt.rows.map((row, index) => <a className="cw-receipt-row" key={`${row.ledger_id}-${index}`} href={`/chats/evidence/${encodeURIComponent(threadId)}/${encodeURIComponent(row.ledger_id)}`}>
     <span>{founder ? row.step_id : `Step ${index + 1}`}{row.paid_step_mode && <small>{row.paid_step_id} · {row.paid_step_mode}</small>}</span>
     {founder && <span>{row.model === "code" ? "code (no model)" : row.model}<small>{row.tokens_in ?? "—"} in · {row.tokens_out ?? "—"} out</small></span>}
-    <span>Cost {dollars(row.cost_usd)}</span><span>{founder && row.baseline_model ? `${row.baseline_model} ` : "Would have cost "}{dollars(row.baseline_cost_usd)}</span><span className="cw-saving">Saved {dollars(row.saved_usd)}{row.baseline_status === "baseline pending" && <small>Comparison pending</small>}</span>
+    <span>Cost {dollars(row.cost_usd)}</span><span>{founder && row.baseline_model ? `${row.baseline_model} ` : "Would have cost "}{dollars(row.baseline_cost_usd)}</span><span className="cw-saving">Saved {dollars(row.saved_usd)}{row.baseline_status === "baseline pending" && <small>Comparison pending</small>}{row.baseline_status === "estimated" && <small>Estimated paid default comparison</small>}</span>
     {founder && <small>{row.ledger_id}</small>}
   </a>)}<a className="cw-receipt-total" href={`/chats/evidence/${encodeURIComponent(threadId)}`}><span>Total</span><span>Cost {dollars(receipt.totals.cost_usd)}</span><span>Would have cost {dollars(receipt.totals.baseline_cost_usd)}</span><span>Saved {dollars(receipt.totals.saved_usd)}</span>{receipt.totals.auto_cost_usd !== undefined && <span>Auto would have cost {dollars(receipt.totals.auto_cost_usd)}</span>}</a></div>;
   return <section className="cw-receipt" id={`cost-${messageId}`} aria-label="Answer cost"><div className="cw-receipt-desktop"><header><strong>Receipt{pending ? " · Cost pending" : ""}</strong><small>Each step links to its cost details</small></header>{rows}</div><details className="cw-receipt-mobile"><summary>Receipt{pending ? " · Cost pending" : ""} · {dollars(receipt.totals.cost_usd)} · would have cost {dollars(receipt.totals.baseline_cost_usd)} · saved {dollars(receipt.totals.saved_usd)}</summary>{rows}</details></section>;

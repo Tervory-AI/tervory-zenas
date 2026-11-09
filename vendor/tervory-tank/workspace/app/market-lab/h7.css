@@ -89,3 +89,9 @@
   .h7-cohort-summary { padding: 16px; border-radius: 8px; background: var(--h7-surface); box-shadow: inset 0 0 0 1px var(--crm-input-border, #848da3); }
   .h7-cohort-caption { width: 100%; }
 }
+
+/* Launch: preserve keyboard visibility, image geometry and reduced motion. */
+.ml :is(button,a,input,select):focus-visible, .ml-h7 :is(button,a,input,select):focus-visible { outline: 2px solid #001840; outline-offset: 3px; }
+.ml-chat { min-height: 136px; }
+.ml-status { min-height: 24px; }
+@media (prefers-reduced-motion: reduce) { .ml *, .ml-h7 * { scroll-behavior: auto !important; transition: none !important; animation: none !important; } }

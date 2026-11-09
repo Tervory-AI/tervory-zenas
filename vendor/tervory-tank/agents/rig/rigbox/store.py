@@ -464,6 +464,7 @@ class MemoryStore(RetailerMemoryStore):
     async def tenant_ids(self) -> list[str]:
         found = {tenant for tenant, _sku in self._products}
         found.update(self.retailers)
+        found.update(tenant for tenant, _url in self.feeds)
         return sorted(found)
 
     async def add_quote(self, tenant_id: str, quote_id: str, payload: dict[str, Any], contact: dict[str, Any]) -> None:
@@ -1241,7 +1242,7 @@ class PgStore(RetailerPgStore):
 
     async def tenant_ids(self) -> list[str]:
         async with self.pool.acquire() as conn:
-            rows = await conn.fetch("SELECT tenant_id FROM agent_rig.retailers UNION SELECT tenant_id FROM agent_rig.products")
+            rows = await conn.fetch("SELECT tenant_id FROM agent_rig.retailers UNION SELECT tenant_id FROM agent_rig.products UNION SELECT tenant_id FROM agent_rig.feeds")
         return [str(row["tenant_id"]) for row in rows]
 
     async def add_quote(self, tenant_id: str, quote_id: str, payload: dict[str, Any], contact: dict[str, Any]) -> None:

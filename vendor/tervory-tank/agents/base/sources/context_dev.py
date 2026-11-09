@@ -2,6 +2,11 @@
 
 from __future__ import annotations
 
+try:
+    from network import BoundedHTTP, paid_post
+except ModuleNotFoundError:  # package imports in offline and shared callers
+    from agents.base.network import BoundedHTTP, paid_post
+
 import asyncio
 import ipaddress
 import hashlib
@@ -10,6 +15,7 @@ import math
 import os
 import re
 import uuid
+from datetime import date
 from typing import Any, Protocol
 from urllib.parse import urlsplit
 
@@ -95,13 +101,21 @@ def charged_credits(response: httpx.Response, body: dict[str, Any]) -> float | N
         return None
 
 
+def _api_key():
+    return os.environ.get("CONTEXT_DEV_API_KEY")
+
+
+def configured():
+    return bool(_api_key())
+
+
 class ContextDev:
     def __init__(self, http: httpx.AsyncClient, ledger: Ledger | None, *, tenant_id: str, run_id: str) -> None:
-        self.http = http
+        self.http = BoundedHTTP(http)
         self.ledger = ledger
         self.tenant_id = str(uuid.UUID(tenant_id))
         self.run_id = str(uuid.UUID(run_id))
-        self.max_credits = int(os.environ.get("CONTEXT_DEV_MAX_CREDITS") or "500")
+        self.max_credits = int(os.environ.get("BASE_CTX_MAX_CREDITS") or os.environ.get("CONTEXT_DEV_MAX_CREDITS") or "500")
         if self.max_credits < 0:
             raise ValueError("credit limit must not be negative")
         self.reserved = 0
@@ -109,13 +123,12 @@ class ContextDev:
         self.lock = asyncio.Lock()
 
     async def _paid_admission(self, payload, record_id):
-        from chassis.paid_steps import post
         key = os.environ.get("TANK_KEY", "")
         if not key:
             raise RuntimeError("Paid-step admission is unavailable")
         digest = hashlib.sha256(json.dumps([record_id,payload],sort_keys=True,separators=(",", ":")).encode()).hexdigest()
         run_id = uuid.uuid5(uuid.UUID(str(self.run_id)), digest)
-        response = await post(self.http, os.environ.get("TANK_URL", "http://tank:8000").rstrip("/"),
+        response = await paid_post(self.http, os.environ.get("TANK_URL", "http://tank:8000").rstrip("/"),
             "/v1/paid-steps/admit", {"tenant_id": str(self.tenant_id), "run_id": str(run_id),
             "step_id": "base.context_dev.credit", "request_hash": digest}, {"X-Tank-Key": key}, timeout=30)
         response.raise_for_status()
@@ -125,9 +138,11 @@ class ContextDev:
         payload = lookup_body(name=name, domain=domain, url=url)
         if self.ledger is None:
             return {"status": "ledger_unavailable", "fields": {}}
-        key = os.environ.get("CONTEXT_DEV_API_KEY")
+        key = _api_key()
         if not key:
-            return {"status": "not_configured", "fields": {}}
+            return {"status": "not_configured", "fields": {},
+                    "missing_settings": ["CONTEXT_DEV_API_KEY"],
+                    "message": "Missing setting: CONTEXT_DEV_API_KEY"}
         if self.stopped or self.reserved + BRAND_CREDITS > self.max_credits:
             return {"status": "credit_limit", "message": "credit cap reached", "fields": {}}
         approval = await self._paid_admission(payload, record_id)
@@ -147,7 +162,8 @@ class ContextDev:
                 self.stopped = True
                 return {"status": "credit_limit", "message": "credit cap reached", "fields": {}}
             self.reserved += BRAND_CREDITS
-            result: dict[str, Any] = {"status": "unknown", "fields": {}, "credits": None}
+            result: dict[str, Any] = {"status": "unknown", "fields": {}, "credits": None,
+                                      "observed_on": date.today().isoformat()}
             try:
                 response = await self.http.post(
                     ENDPOINT, json=payload, headers={"Authorization": f"Bearer {key}"},

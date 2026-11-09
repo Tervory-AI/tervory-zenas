@@ -1529,3 +1529,18 @@ body:has(.zn) main {
 .zn-moot pre { white-space: pre-wrap; overflow-wrap: anywhere; }
 .zn-moot .zn-card { min-width: 0; overflow-wrap: anywhere; }
 .zn-moot button { margin: 6px 6px 6px 0; }
+
+.zn :is(button, a, input, textarea, select):focus-visible { outline: 2px solid #001840; outline-offset: 3px; }
+.zn :is(input,textarea,select) { max-width: 100%; }
+.zn-main, .zn-body, .zn-thread, .zn-answer { min-width: 0; overflow-wrap: anywhere; }
+.zn-search-results { max-width: 100%; }
+.zn-panel :is(button,a,input,select):focus-visible { outline-color: #fff; }
+.zn-avatar { color: #001840; }
+.zn-panel .zn-muted, .zn-panel .zn-side p, .zn-panel .zn-side a { color: #c9d0e0; }
+
+.zn.zn-moot-screen { display: block; height: auto; min-height: 100dvh; padding: clamp(16px,4vw,64px); overflow: auto; }
+.zn-moot-screen .zn-moot { max-width: 1600px; margin: auto; }
+.zn-moot-screen [role="status"] { font-size: clamp(24px,3vw,56px); min-height: 3em; }
+@media print { .zn.zn-moot-screen { height: auto; overflow: visible; padding: 0; } .zn-moot-screen details > * { display: block; } }
+
+.zn-moot-screen-link { color: inherit; text-decoration: none; }

@@ -16,12 +16,8 @@ from typing import Any
 from uuid import uuid4
 from urllib.parse import urlparse
 
-from rigbox.catalogue import (
-    map_google_merchant,
-    map_shopify,
-    map_woocommerce,
-    price_patch,
-)
+from rigbox.catalogue import price_patch
+from rigbox.feeds import pull as map_feed
 from rigbox.claims import answerable
 from rigbox.claims import grounded_answer
 from rigbox.claims import select_prompt
@@ -56,11 +52,6 @@ from rigbox.store import _fit_key
 from rigbox.quotes.limits import FailedKeyLimits, MemoryRateLimits, PgRateLimits
 
 _KEY = re.compile(r"^rk_pub_[A-Za-z0-9][A-Za-z0-9_-]{0,80}$")
-_MAPS = {
-    "shopify": map_shopify,
-    "woocommerce": map_woocommerce,
-    "google": map_google_merchant,
-}
 
 
 def _part_from_rank(piece: str, ranked: dict[str, Any], cap: int) -> dict[str, Any]:
@@ -247,6 +238,8 @@ class Service:
         self.failed_keys = FailedKeyLimits()
         pool = getattr(store, "pool", None)
         self.public_limits = PgRateLimits(pool, rate_limit) if pool is not None else MemoryRateLimits(rate_limit)
+        from .savings import instrument
+        instrument(self)
 
     async def authenticate(self, raw_key: str, address: str = "unknown") -> dict[str, Any]:
         reservation = self.failed_keys.reserve(address)
@@ -589,15 +582,24 @@ class Service:
         # Subject words must be whole tokens on a row. The model only names rows.
         # The sentence is built from that row, or from one approved fit.
         if not answerable(question, products, fits):
+            from .savings import reference
+            reference(select_prompt(payload))
             return {"answer": "I don't know", "cites": []}
         if self.models is None:
+            from .savings import reference
+            reference(select_prompt(payload))
             return {"answer": "I don't know", "cites": []}
-        text = await self.models.complete(
-            tenant_id,
-            "rig.ask",
-            [{"role": "user", "content": select_prompt(payload)}],
-        )
+        text = await self._complete(tenant_id, "rig.ask", payload, select_prompt(payload))
         return grounded_answer(payload, text)
+
+    async def _complete(self, tenant_id, task, payload, prompt):
+        from .savings import reference
+        reference(prompt)
+        structured = getattr(self.models, 'structured', None)
+        from rig_memory import memory_enabled
+        if structured is not None and memory_enabled():
+            return await structured(tenant_id, task, payload)
+        return await self.models.complete(tenant_id, task, [{'role': 'user', 'content': prompt}])
 
     async def link_quote(self, tenant_id: str, url: str, note: str) -> dict[str, str]:
         parsed = urlparse(str(url or "").strip())
@@ -767,11 +769,8 @@ class Service:
             }
             for row in await self._active(tenant_id)
         ]
-        text = await self.models.complete(
-            tenant_id,
-            "rig.fit_suggest",
-            [{"role": "user", "content": suggest_prompt({"products": slim})}],
-        )
+        text = await self._complete(tenant_id, 'rig.fit_suggest', {'products': slim},
+                                    suggest_prompt({'products': slim}))
         suggested = fit_suggest({"products": slim}, text)
         async with self.store.atomic(tenant_id) as store:
             reviewed = {_fit_key(row) for row in await store.fits(tenant_id)
@@ -851,31 +850,29 @@ class Service:
         reports = []
         for feed in await self.store.feeds_for(tenant_id):
             fmt = str(feed.get("format") or "")
-            mapper = _MAPS.get(fmt)
-            if mapper is None:
-                reports.append(
-                    {"format": fmt, "added": 0, "updated": 0, "rejected": [{"row": 0, "reason": "unknown feed format"}]}
-                )
-                continue
-            body = await fetch(str(feed["url"]))
-            if fmt == "google":
-                mapped = mapper(body if isinstance(body, str) else str(body))
+            report = {"format": fmt, "added": 0, "updated": 0, "rejected": []}
+            if fmt not in {"shopify", "woocommerce", "google", "csv", "tsv", "json", "xml", "xlsx"}:
+                mapped = {"rows": [], "rejected": [{"row": 0, "reason": "unknown feed format"}]}
             else:
-                mapped = mapper(body, str(feed.get("currency") or ""))
-            if any(item.get("row") == 0 for item in mapped["rejected"]):
-                reports.append({"format": fmt, "added": 0, "updated": 0, "rejected": mapped["rejected"]})
-                continue
-            added = updated = 0
+                try:
+                    mapped = map_feed(feed, await fetch(str(feed["url"])))
+                except Exception:
+                    # A failed source must not suppress the next store feed or
+                    # put a URL, credential or remote response on a receipt.
+                    mapped = {"rows": [], "rejected": [{"row": 0, "reason": "feed unavailable"}]}
+            report["rejected"] = mapped["rejected"]
+            receipt = {"id": str(uuid4()), "provider": fmt, "site": "",
+                       "feed_id": hashlib.sha256(str(feed.get("url", "")).encode()).hexdigest()[:60]}
             async with self.store.atomic(tenant_id) as store:
-                for row in mapped["rows"]:
-                    action = await store.upsert_product(tenant_id, row)
-                    if action == "added":
-                        added += 1
-                    elif action == "updated":
-                        updated += 1
-                await store.index_feed_products(tenant_id, str(feed["url"]), [row["sku"] for row in mapped["rows"]],
-                                                complete=not mapped["rejected"])
-            reports.append({"format": fmt, "added": added, "updated": updated, "rejected": mapped["rejected"]})
+                if not mapped["rejected"]:
+                    for row in mapped["rows"]:
+                        action = await store.upsert_product(tenant_id, row)
+                        if action in {"added", "updated"}:
+                            report[action] += 1
+                    await store.index_feed_products(tenant_id, str(feed["url"]), [row["sku"] for row in mapped["rows"]])
+                await store.save_feed_receipt(tenant_id, {**receipt, "added": report["added"],
+                    "updated": report["updated"], "rejected": len(report["rejected"])})
+            reports.append(report)
         return reports
 
     async def _bundle(self, tenant_id: str, product_id: str) -> dict[str, Any]:
@@ -968,11 +965,9 @@ class Service:
             }
         ]
         try:
-            text = await self.models.complete(
-                tenant_id,
-                "rig.explain",
-                [{"role": "user", "content": explain_prompt({"material": material})}],
-            )
+            text = await self._complete(tenant_id, 'rig.explain',
+                {'material': material, 'centre': centre, 'part': part, 'fit': fit},
+                explain_prompt({'material': material}))
         except Exception:  # noqa: BLE001 — a model outage keeps the plain Fits line
             return []
         why = [line for line in ground_explain({"fallback_why": []}, text)["why"] if line != header]

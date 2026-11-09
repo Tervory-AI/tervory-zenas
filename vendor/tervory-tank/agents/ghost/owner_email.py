@@ -43,15 +43,17 @@ def _count_link(label: str, receipt_url: str) -> str:
     return _link(label, _DASHBOARD_URL)
 
 
-def _receipt_footer(receipt_url: str) -> str:
+def _receipt_footer(receipt_url: str, *, acted: bool = True) -> str:
     url = (receipt_url or "").strip()
+    privacy = ("Nothing from your logs was kept. We read them, acted, and deleted them. "
+               if acted else "Nothing from your logs is kept. ")
     if url and "token=" in url:
         return (
-            "Nothing from your logs was kept. We read them, acted, and deleted them. "
+            privacy +
             f"{_link('Full receipt', url)}"
         )
     return (
-        "Nothing from your logs was kept. We read them, acted, and deleted them. "
+        privacy +
         f"Sign in at {_link('your Autumbra dashboard', _DASHBOARD_URL)} to see your receipts."
     )
 
@@ -93,10 +95,11 @@ def build_owner_update(
     # Quiet week — brief: "Quiet week. [1,204] checks, 0 threats, 0 actions."
     if n == 0 and c == 0 and not shield:
         checks = int(checks_run if checks_run is not None else 0)
+        first_action = "Connect your site's log feed to start a check.\n\n" if checks == 0 else ""
         body = (
             f"Quiet week. {_count_link(_fmt_count(checks), receipt_url)} "
             f"checks, 0 threats, 0 actions.\n\n"
-            f"{_receipt_footer(receipt_url)}"
+            f"{first_action}{_receipt_footer(receipt_url, acted=False)}"
         )
         _assert_no_placeholders(body)
         return {"subject": subject, "body": body}
@@ -304,6 +307,7 @@ def send_owner_update(
     result = sender.send(to=to, subject=email["subject"], body=email["body"])
     return {
         "sent": bool(result.get("sent")),
+        "delivery_state": result.get("state"),
         "transport": result.get("transport") or type(sender).__name__,
         "to": to,
         "subject": email["subject"],

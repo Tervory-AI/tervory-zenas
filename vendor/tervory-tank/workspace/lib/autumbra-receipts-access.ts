@@ -1,5 +1,4 @@
 import { auth } from "@/lib/trigger-signin";
-import { activeTenant } from "@/lib/tenant";
 import { verifyReceiptsToken } from "@/lib/autumbra-undo-token";
 
 /**
@@ -22,10 +21,10 @@ export async function mayReadWeeklyReceipts(
     }
   }
   try {
-    const { userId } = await auth();
-    if (!userId) return false;
-    const tenantSession = await activeTenant();
-    return !!tenantSession && tenantSession.tenantId === tid;
+    // The verified Trigger principal already binds this user to a tenant.
+    // Receipt access must not depend on unrelated case-study provisioning.
+    const { userId, tenantId } = await auth();
+    return !!userId && tenantId === tid;
   } catch {
     return false;
   }

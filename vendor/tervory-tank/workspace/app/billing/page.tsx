@@ -23,7 +23,7 @@ export default async function BillingPage({
     const tenant = await currentTenant();
     const view = await loadBilling(tenant.tenantId);
     const threeD = tab === "plans" ? await loadRigThreeDBilling(tenant.tenantId) : null;
-    return <BillingScreen tab={tab} view={view} notice={notice}
+    return <BillingScreen tab={tab} view={view} notice={notice ?? (!process.env.STRIPE_SECRET_KEY?.trim() ? "Billing needs the STRIPE_SECRET_KEY setting. No payment will be started." : !process.env.STRIPE_PLAN_PRICE_IDS?.trim() ? "Billing needs the STRIPE_PLAN_PRICE_IDS setting. No payment will be started." : null)}
       addon={threeD ? <RigThreeDAddon view={threeD} /> : null} />;
   } catch (err) {
     const message = err instanceof Error && err.message.includes("not signed in")

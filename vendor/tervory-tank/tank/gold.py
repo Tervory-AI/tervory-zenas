@@ -19,7 +19,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel, Field
 
 PLATFORM_TENANT = uuid.UUID("00000000-0000-0000-0000-000000000001")
-AGENTS = ("tank", "base", "tiger", "market_lab", "zenas", "radix", "tisan", "rig", "ghost")
+AGENTS = ("tank", "base", "tiger", "market_lab", "zenas", "radix", "tisan", "rig", "ghost", "trigger")
 
 
 def runtime():

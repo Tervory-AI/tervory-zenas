@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from typing import Any, NotRequired, TypedDict, Unpack
 
 from feeds import licences
 from feeds.engines.ffl import lists
@@ -10,8 +11,22 @@ from feeds.keys import FRED_KEY
 from feeds.models import SourceSpec
 
 
-def _copy(**kwargs: object) -> SourceSpec:
-    return SourceSpec(allow_bulk=True, enabled=True, **kwargs)  # type: ignore[arg-type]
+class _CopyFields(TypedDict):
+    id: str
+    name: str
+    kind: str
+    url: str
+    licence: str
+    terms_checked_at: str
+    cadence: str
+    adapter: str
+    config: NotRequired[dict[str, Any]]
+    key_name: NotRequired[str]
+    key_required: NotRequired[bool]
+
+
+def _copy(**kwargs: Unpack[_CopyFields]) -> SourceSpec:
+    return SourceSpec(allow_bulk=True, enabled=True, **kwargs)
 
 
 def _link(

@@ -23,7 +23,8 @@ const severity: Record<string, string> = {
 };
 
 function duration(seconds: number | null): string {
-  if (seconds === null) return "None yet";
+  if (seconds === null || !Number.isFinite(seconds)) return "—";
+  if (seconds === 0) return "0 min";
   if (seconds < 3600) return `${Math.max(1, Math.round(seconds / 60))} min`;
   if (seconds < 172800) return `${Math.round(seconds / 3600)} h`;
   return `${Math.round(seconds / 86400)} days`;
@@ -51,18 +52,28 @@ function ShieldRow({ item, act }: { item: Shield; act: Action }) {
     <details><summary>Exactly what would change</summary><p className="ghost-meta">Rule: {item.plan.rule.action} when</p><code className="ghost-rule">{item.plan.rule.expression}</code></details>
     <details><summary>Receipts</summary><ol className="ghost-receipts">
       {item.receipts.map((r) => <li key={r.ledger_id}><strong>{r.step.replaceAll("_", " ")}</strong><code>{r.ledger_id}</code><span>{r.status}</span></li>)}
-    </ol></details>
-    {(canRaise || canUndo) && <form action={action} className="ghost-shield-actions">
-      <input type="hidden" name="id" value={item.id} />
-      {canRaise && <button type="submit" name="tap" value="raise" disabled={pending}>{pending ? "Working…" : "Shield"}</button>}
-      {canUndo && <button type="submit" name="tap" value="undo" disabled={pending} className="ghost-secondary">Undo</button>}
-      {result && <p role="status">{result.message}</p>}
-    </form>}
+    </ol>{!item.receipts.length && <p>{canRaise ? "Use Shield to record a shield receipt." : "Use Look to start a check."}</p>}</details>
+    {(canRaise || canUndo) && <div className="ghost-shield-actions" aria-busy={pending}>
+      {canRaise && <form action={action}>
+        <input type="hidden" name="id" value={item.id} /><input type="hidden" name="tap" value="raise" />
+        <button type="submit" disabled={pending}>{pending ? "Working…" : "Shield"}</button>
+      </form>}
+      {canUndo && <form action={action}>
+        <input type="hidden" name="id" value={item.id} /><input type="hidden" name="tap" value="undo" />
+        <button type="submit" disabled={pending} className="ghost-secondary">Undo</button>
+      </form>}
+      <p role="status" style={{minHeight: "3em", flexBasis: "100%"}}>{result?.message}</p>
+    </div>}
   </article>;
 }
 
 export function ShieldsTile({ board, act }: { board: ShieldBoard | null; act: Action }) {
-  if (!board) return <section className="ghost-tile" aria-label="Shields"><h2>Shields</h2><p className="ghost-error">Shield numbers are unavailable. An unavailable count is not a clean result.</p></section>;
+  if (!board || board.tile.fixture) return <section className="ghost-tile" aria-label="Shields">
+    <h2>Shields</h2>
+    <dl className="ghost-numbers">{["Open issues", "Time to know", "Time to shield", "Sites broken by a shield", "Cost this month"].map(label => <div key={label}><dt>{label}</dt><dd>—</dd></div>)}</dl>
+    <p className="ghost-error">Shield numbers are unavailable. An unavailable count is not a clean result.</p>
+    <p className="ghost-empty">Connect Autumbra Watch to load shield receipts.</p>
+  </section>;
   const t = board.tile;
   const open = Object.entries(t.open_by_severity);
   const modeLabel = t.mode === "live"
@@ -77,6 +88,6 @@ export function ShieldsTile({ board, act }: { board: ShieldBoard | null; act: Ac
       <div><dt>Sites broken by a shield</dt><dd>{t.sites_broken_by_a_shield}</dd><p>Goal 0 · a failed check takes the shield down</p></div>
       <div><dt>Cost this month</dt><dd>${t.cost_this_month_usd.toFixed(4)}</dd><p>From {t.receipts_this_month} receipts</p></div>
     </dl>
-    {board.shields.length ? board.shields.map((item) => <ShieldRow key={item.id} item={item} act={act} />) : <p className="ghost-empty">No shields proposed. Autumbra Enforce proposes one when a serious issue matches one of our sites.</p>}
+    {board.shields.length ? board.shields.map((item) => <ShieldRow key={item.id} item={item} act={act} />) : <p className="ghost-empty">No shields proposed. Use Look to start a check.</p>}
   </section>;
 }

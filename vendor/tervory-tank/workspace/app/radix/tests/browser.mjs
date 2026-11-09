@@ -277,21 +277,15 @@ try {
   page.on("request", (request) => {
     if (!request.url().startsWith(url) && !request.url().startsWith("data:")) unexpected.push(request.url());
   });
-  await page.getByRole("button", { name: "View example report", exact: true }).click();
-  assert.equal(await page.getByRole("heading", { name: "Example reports" }).count(), 1);
-  await page.getByLabel("Severity", { exact: true }).selectOption("Critical");
-  assert.equal(await page.locator(".rx-findings article").count(), 1);
-  await page.getByText("Review the fix", { exact: true }).click();
-  assert.equal(await page.getByText("Keep credentials in the server environment.", { exact: false }).isVisible(), true);
-  await page.getByRole("searchbox", { name: "Find a file or issue" }).fill("no-match");
-  await page.getByRole("heading", { name: "No matching example findings" }).waitFor();
-  await page.getByRole("button", { name: "Clear filters" }).click();
-  assert.equal(await page.locator(".rx-findings article").count(), 3);
-  const download = page.getByRole("link", { name: "Download example report" });
-  assert.match(decodeURIComponent(await download.getAttribute("href")), /EXAMPLE ONLY/);
-  await screenshot("desktop-example-report");
-  await page.getByRole("button", { name: "Leave example" }).click();
-  await page.getByRole("heading", { name: "Reports are not connected" }).waitFor();
+  assert.equal(await page.getByRole("button", { name: "View example report", exact: true }).count(), 0);
+  assert.equal(await page.locator('svg[aria-label="Findings by severity"]').count(), 1);
+  assert.equal(await page.locator('svg[aria-label="Findings by severity"] line').count(), 5);
+  assert.equal(await page.locator('svg[aria-label="Findings by severity"] rect').count(), 0);
+  await page.locator(".rx-panel").getByRole("button", { name: "Reports", exact: true }).click();
+  await page.getByRole("heading", { name: "Reports", exact: true }).first().waitFor();
+  assert.equal(await page.getByRole("link", { name: "Download example report" }).count(), 0);
+  assert.ok(await page.getByText("Upload your code in Chats, then confirm radix.repo.scan.", { exact: true }).count());
+  await screenshot("desktop-day-zero");
 
   const sourceButton = page.locator(".rx-panel").getByRole("button", { name: "Plugins", exact: true });
   await sourceButton.click();

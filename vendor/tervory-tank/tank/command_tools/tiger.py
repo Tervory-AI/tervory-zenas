@@ -1,5 +1,5 @@
 """tiger command declarations; argument classes remain exported by command."""
-TOOLS = {'tiger': ['tiger.watch', 'tiger.read', 'tiger.match', 'tiger.match.confirm', 'tiger.match.reject', 'tiger.match.undo', 'tiger.position', 'tiger.matches', 'tiger.alerts', 'tiger.watches', 'tiger.watch.pause', 'tiger.watch.resume', 'tiger.watch.remove', 'tiger.watch.bulk']}
+TOOLS = {'tiger': ['tiger.watch', 'tiger.read', 'tiger.match', 'tiger.match.confirm', 'tiger.match.reject', 'tiger.match.undo', 'tiger.position', 'tiger.matches', 'tiger.alerts', 'tiger.watches', 'tiger.watch.pause', 'tiger.watch.resume', 'tiger.watch.remove', 'tiger.watch.bulk', 'tiger.receipts']}
 FOUNDER_TOOLS = []
 TENANT_ADMIN_TOOLS = []
 ADMIN_ONLY_TOOLS = frozenset([])
@@ -21,5 +21,6 @@ def adapters(command):
         'tiger.watch.resume': command.Adapter('POST', '/v1/command/tiger/watches/resume', command.UrlArgs, 'tiger.watch.resume'),
         'tiger.watch.remove': command.Adapter('POST', '/v1/command/tiger/watches/remove', command.UrlArgs, 'tiger.watch.remove'),
         'tiger.watch.bulk': command.Adapter('POST', '/v1/command/tiger/watches/bulk', __import__('tiger_watch_commands').BulkArgs, 'tiger.watch.bulk', True, 'paid_run'),
+        'tiger.receipts': command.Adapter('GET', '/v1/command/tiger/watches/receipts', command.EmptyArgs, 'tiger.receipts'),
         'tiger.alerts': command.Adapter('GET', '/v1/command/tiger/alerts', __import__('tiger_alerts').AlertsArgs, 'tiger.alerts'),
     }

@@ -3104,6 +3104,32 @@ ALTER TABLE tank.trigger_bot_messages ADD COLUMN IF NOT EXISTS person text;
 -- BEGIN base (new blocks for base go here)
 -- END base
 -- BEGIN tiger (new blocks for tiger go here)
+CREATE TABLE IF NOT EXISTS tank.tiger_savings (
+ tenant_id uuid NOT NULL, id uuid NOT NULL, action text NOT NULL,
+ component boolean NOT NULL DEFAULT false, receipt jsonb NOT NULL,
+ created_at timestamptz NOT NULL DEFAULT now(), PRIMARY KEY(tenant_id,id)
+);
+CREATE INDEX IF NOT EXISTS tiger_savings_history ON tank.tiger_savings(tenant_id,created_at DESC) WHERE NOT component;
+CREATE TABLE IF NOT EXISTS tank.tiger_extract_cache (
+ tenant_id uuid NOT NULL, key text NOT NULL, output jsonb NOT NULL,
+ created_at timestamptz NOT NULL DEFAULT now(), PRIMARY KEY(tenant_id,key)
+);
+DO $$
+DECLARE relation text;
+BEGIN
+ IF NOT EXISTS(SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+     WHERE n.nspname='tank' AND c.relname='ledger' AND c.relrowsecurity) THEN RETURN; END IF;
+ FOREACH relation IN ARRAY ARRAY['tiger_savings','tiger_extract_cache'] LOOP
+  EXECUTE format('ALTER TABLE tank.%I ENABLE ROW LEVEL SECURITY', relation);
+  EXECUTE format('ALTER TABLE tank.%I FORCE ROW LEVEL SECURITY', relation);
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='tank' AND tablename=relation AND policyname='tenant_access') THEN
+   EXECUTE format('CREATE POLICY tenant_access ON tank.%I FOR ALL TO PUBLIC USING(tenant_id=NULLIF(current_setting(''app.tenant_id'',true),'''')::uuid) WITH CHECK(tenant_id=NULLIF(current_setting(''app.tenant_id'',true),'''')::uuid)',relation);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='tank' AND tablename=relation AND policyname='tenant_boundary') THEN
+   EXECUTE format('CREATE POLICY tenant_boundary ON tank.%I AS RESTRICTIVE FOR ALL TO PUBLIC USING(tenant_id=NULLIF(current_setting(''app.tenant_id'',true),'''')::uuid) WITH CHECK(tenant_id=NULLIF(current_setting(''app.tenant_id'',true),'''')::uuid)',relation);
+  END IF;
+ END LOOP;
+END $$;
 -- END tiger
 -- BEGIN market_lab (new blocks for market_lab go here)
 -- END market_lab
@@ -3115,6 +3141,38 @@ CREATE TABLE IF NOT EXISTS tank.rig_rooms (
     state text NOT NULL,
     updated_at timestamptz NOT NULL DEFAULT now()
 );
+ALTER TABLE tank.rig_forge_jobs ADD COLUMN IF NOT EXISTS provider_started boolean NOT NULL DEFAULT false;
+ALTER TABLE tank.rig_forge_jobs ADD COLUMN IF NOT EXISTS provider_namespace text;
+ALTER TABLE tank.rig_forge_jobs ADD COLUMN IF NOT EXISTS provider_job_id text;
+
+-- Rig savings comparisons keep reference work separate from actual model tokens.
+ALTER TABLE tank.ledger ADD COLUMN IF NOT EXISTS rig_reference_tokens_in integer;
+ALTER TABLE tank.ledger ADD COLUMN IF NOT EXISTS rig_reference_tokens_out integer;
+CREATE OR REPLACE FUNCTION tank.rig_code_comparison() RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE chosen text; price tank.proof_prices%ROWTYPE;
+BEGIN
+    IF NEW.agent <> 'rig' OR NEW.model <> 'code' OR NEW.rig_reference_tokens_in IS NULL
+       OR NEW.rig_reference_tokens_out IS NULL THEN RETURN NEW; END IF;
+    SELECT coalesce((SELECT override_model FROM tank.baseline_settings WHERE task_type=NEW.task_type),
+                    tank.standard_model_for('openai')) INTO chosen;
+    SELECT * INTO price FROM tank.proof_prices WHERE model=chosen AND active;
+    NEW.standard_model := chosen;
+    NEW.baseline_model := chosen;
+    NEW.standard_cost_usd := NEW.rig_reference_tokens_in*price.input_usd + NEW.rig_reference_tokens_out*price.output_usd;
+    NEW.baseline_cost_usd := NEW.standard_cost_usd;
+    NEW.top_model := NULL;
+    NEW.top_cost_usd := NULL;
+    NEW.baseline_status := CASE WHEN NEW.standard_cost_usd IS NULL THEN 'unpriced' ELSE 'measured' END;
+    NEW.baseline_priced_at := now();
+    RETURN NEW;
+END $$;
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname='zzz_rig_code_comparison' AND tgrelid='tank.ledger'::regclass) THEN
+        CREATE TRIGGER zzz_rig_code_comparison BEFORE INSERT OR UPDATE OF comparison_revision ON tank.ledger
+            FOR EACH ROW EXECUTE FUNCTION tank.rig_code_comparison();
+    END IF;
+END $$;
+
 -- END rig
 -- BEGIN tisan (new blocks for tisan go here)
 -- END tisan
@@ -3129,6 +3187,51 @@ CREATE TABLE IF NOT EXISTS tank.rig_rooms (
 -- BEGIN worker (new blocks for worker go here)
 -- END worker
 -- BEGIN platform (new blocks for platform go here)
+CREATE TABLE IF NOT EXISTS tank.engine_state (
+    tenant_id uuid NOT NULL, region text NOT NULL, task_type text NOT NULL,
+    model text NOT NULL, revision text NOT NULL,
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY(tenant_id,region,task_type)
+);
+CREATE TABLE IF NOT EXISTS tank.engine_candidates (
+    tenant_id uuid NOT NULL, region text NOT NULL, task_type text NOT NULL,
+    model text NOT NULL, checkpoint text NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY(tenant_id,region,task_type,model)
+);
+CREATE TABLE IF NOT EXISTS tank.engine_proofs (
+    tenant_id uuid NOT NULL, region text NOT NULL, task_type text NOT NULL,
+    model text NOT NULL, revision text NOT NULL, input_hash text NOT NULL,
+    ledger_id uuid NOT NULL, candidate_ledger_id uuid NOT NULL, agreement numeric NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY(tenant_id,region,task_type,model,revision,input_hash)
+);
+CREATE TABLE IF NOT EXISTS tank.engine_graduations (
+    tenant_id uuid NOT NULL, region text NOT NULL, task_type text NOT NULL,
+    model text NOT NULL, revision text NOT NULL, previous_model text NOT NULL,
+    samples integer NOT NULL, agreement numeric NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY(tenant_id,region,task_type,model,revision)
+);
+ALTER TABLE tank.engine_proofs ADD COLUMN IF NOT EXISTS quality jsonb NOT NULL DEFAULT '{}';
+ALTER TABLE tank.shadow ADD COLUMN IF NOT EXISTS quality jsonb NOT NULL DEFAULT '{}';
+CREATE TABLE IF NOT EXISTS tank.engine_judges (
+    tenant_id uuid NOT NULL, region text NOT NULL, task_type text NOT NULL,
+    model text NOT NULL, revision text NOT NULL, passed boolean NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY(tenant_id,region,task_type,model,revision)
+);
+CREATE TABLE IF NOT EXISTS tank.engine_evals (
+    tenant_id uuid NOT NULL, region text NOT NULL, task_type text NOT NULL,
+    model text NOT NULL, revision text NOT NULL, agreement numeric NOT NULL,
+    samples integer NOT NULL, created_at timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY(tenant_id,region,task_type,model,revision)
+);
+CREATE TABLE IF NOT EXISTS tank.engine_receipts (
+    tenant_id uuid NOT NULL, region text NOT NULL, task_type text NOT NULL,
+    ledger_id uuid NOT NULL, detail jsonb NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now(), PRIMARY KEY(tenant_id,ledger_id)
+);
 ALTER TABLE tank.training_pairs ADD COLUMN IF NOT EXISTS teacher_model text;
 
 -- Home is assigned at onboarding; changing it requires a separate data migration.
@@ -3172,7 +3275,8 @@ DO $$
 DECLARE relation text;
 BEGIN
     IF EXISTS (SELECT 1 FROM pg_class WHERE oid='tank.command_threads'::regclass AND relrowsecurity) THEN
-        FOREACH relation IN ARRAY ARRAY['tenants','roster_observations','platform_releases','founder_morning_reports']
+        FOREACH relation IN ARRAY ARRAY['tenants','roster_observations','platform_releases','founder_morning_reports',
+            'engine_state','engine_candidates','engine_proofs','engine_graduations','engine_evals','engine_receipts','engine_judges']
         LOOP
             EXECUTE format('ALTER TABLE tank.%I ENABLE ROW LEVEL SECURITY',relation);
             EXECUTE format('ALTER TABLE tank.%I FORCE ROW LEVEL SECURITY',relation);
@@ -3304,6 +3408,8 @@ ALTER TABLE tank.paid_step_approvals ADD COLUMN IF NOT EXISTS delivery_thread_id
 ALTER TABLE tank.paid_steps ADD COLUMN IF NOT EXISTS task_type text;
 ALTER TABLE tank.paid_steps ADD COLUMN IF NOT EXISTS model text;
 -- END PAID LADDER STEPS
+-- DECISION C1 is default-off; enabling it also requires a positive per-task TTL.
+ALTER TABLE tank.policy ADD COLUMN IF NOT EXISTS cache_ttl_s integer NOT NULL DEFAULT 0 CHECK (cache_ttl_s BETWEEN 0 AND 2592000);
 -- END platform
 
 -- BEGIN mobile
@@ -3391,6 +3497,207 @@ CREATE TABLE IF NOT EXISTS tank.trigger_signin_founders (
     subject text NOT NULL
 );
 -- END trigger_signin
+
+-- BEGIN opli
+CREATE TABLE IF NOT EXISTS tank.opli_mcp_policy (
+    tenant_id uuid NOT NULL,
+    server_id text NOT NULL,
+    blocked boolean NOT NULL,
+    updated_by text NOT NULL,
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY(tenant_id,server_id)
+);
+DO $$
+BEGIN
+ IF EXISTS (SELECT 1 FROM pg_class WHERE oid='tank.command_threads'::regclass AND relrowsecurity) THEN
+  ALTER TABLE tank.opli_mcp_policy ENABLE ROW LEVEL SECURITY;
+  ALTER TABLE tank.opli_mcp_policy FORCE ROW LEVEL SECURITY;
+  IF NOT EXISTS (SELECT 1 FROM pg_policy WHERE polrelid='tank.opli_mcp_policy'::regclass AND polname='tenant_access') THEN
+   CREATE POLICY tenant_access ON tank.opli_mcp_policy FOR ALL TO PUBLIC
+     USING (tenant_id=NULLIF(current_setting('app.tenant_id',true),'')::uuid)
+     WITH CHECK (tenant_id=NULLIF(current_setting('app.tenant_id',true),'')::uuid);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policy WHERE polrelid='tank.opli_mcp_policy'::regclass AND polname='tenant_boundary') THEN
+   CREATE POLICY tenant_boundary ON tank.opli_mcp_policy AS RESTRICTIVE FOR ALL TO PUBLIC
+     USING (tenant_id=NULLIF(current_setting('app.tenant_id',true),'')::uuid)
+     WITH CHECK (tenant_id=NULLIF(current_setting('app.tenant_id',true),'')::uuid);
+  END IF;
+ END IF;
+END;
+$$;
+-- END opli
+
+-- BEGIN workspace
+-- Workspace code-only comparisons keep hypothetical tokens separate from usage.
+ALTER TABLE tank.ledger ADD COLUMN IF NOT EXISTS comparison_tokens_in integer CHECK (comparison_tokens_in >= 0);
+ALTER TABLE tank.ledger ADD COLUMN IF NOT EXISTS comparison_tokens_out integer CHECK (comparison_tokens_out >= 0);
+CREATE OR REPLACE FUNCTION tank.price_receipt() RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE chosen_family text; standard_name text; selected_name text; top_name text;
+        setting tank.baseline_settings%ROWTYPE; priced numeric; selected_cost numeric; top_cost numeric;
+BEGIN
+    IF TG_OP='UPDATE' THEN
+      INSERT INTO tank.comparison_history(ledger_id,tenant_id,region,valid_from,valid_until,comparison,reason)
+      VALUES(OLD.id,OLD.tenant_id,OLD.region,coalesce(OLD.baseline_priced_at,OLD.ts),now(),
+        jsonb_build_object('standard_model',OLD.standard_model,'standard_cost_usd',OLD.standard_cost_usd,
+          'top_model',OLD.top_model,'top_cost_usd',OLD.top_cost_usd,'baseline_model',OLD.baseline_model,
+          'baseline_cost_usd',OLD.baseline_cost_usd,'baseline_status',OLD.baseline_status,
+          'baseline_priced_at',OLD.baseline_priced_at,'comparison_revision',OLD.comparison_revision),
+        CASE WHEN OLD.comparison_revision=0 THEN 'default migration'
+          WHEN OLD.comparison_revision=NEW.comparison_revision THEN 'price refresh' ELSE 'task override' END)
+      ON CONFLICT DO NOTHING;
+    END IF;
+    -- A plain MVCC read: receipts never lock a shared task setting. The durable
+    -- receipt-check queue catches rows committed after a repricing batch finishes.
+    SELECT * INTO setting FROM tank.baseline_settings WHERE task_type=NEW.task_type;
+    NEW.comparison_revision := coalesce(setting.revision,1);
+    -- Invalidate all comparisons when actual costs are unknown or are vendor fees.
+    IF to_jsonb(NEW)->>'research_cost_status'='unknown' OR NEW.model LIKE 'vendor:%' OR to_jsonb(NEW)->>'vendor' IS NOT NULL THEN
+      NEW.baseline_model:=NULL; NEW.baseline_cost_usd:=NULL;
+      NEW.standard_model:=NULL; NEW.standard_cost_usd:=NULL;
+      NEW.top_model:=NULL; NEW.top_cost_usd:=NULL; NEW.baseline_status:='unpriced';
+      NEW.baseline_priced_at:=now(); RETURN NEW;
+    END IF;
+    SELECT family INTO chosen_family FROM tank.proof_prices WHERE model=NEW.model;
+    IF chosen_family IS NULL AND (NEW.rung=3 OR NEW.cache_hit) THEN
+      SELECT a.family INTO chosen_family FROM tank.policy p JOIN tank.proof_prices a ON a.model=p.model
+        WHERE p.task_type=NEW.task_type AND (p.tenant_id=NEW.tenant_id OR p.tenant_id IS NULL)
+        ORDER BY p.tenant_id NULLS LAST LIMIT 1;
+    END IF;
+    standard_name:=tank.standard_model_for(chosen_family);
+    selected_name:=coalesce(setting.override_model,standard_name);
+    standard_name:=selected_name; -- A founder override replaces this task's comparison.
+    SELECT model INTO top_name FROM tank.proof_prices WHERE family=chosen_family AND active
+      ORDER BY input_usd+output_usd DESC,model LIMIT 1;
+    SELECT coalesce(NEW.comparison_tokens_in,NEW.tokens_in)*input_usd+coalesce(NEW.comparison_tokens_out,NEW.tokens_out)*output_usd INTO priced
+      FROM tank.proof_prices WHERE model=standard_name AND family=chosen_family AND active;
+    SELECT coalesce(NEW.comparison_tokens_in,NEW.tokens_in)*input_usd+coalesce(NEW.comparison_tokens_out,NEW.tokens_out)*output_usd INTO selected_cost
+      FROM tank.proof_prices WHERE model=selected_name AND family=chosen_family AND active;
+    SELECT coalesce(NEW.comparison_tokens_in,NEW.tokens_in)*input_usd+coalesce(NEW.comparison_tokens_out,NEW.tokens_out)*output_usd INTO top_cost
+      FROM tank.proof_prices WHERE model=top_name AND family=chosen_family AND active;
+    IF coalesce(NEW.comparison_tokens_in,NEW.tokens_in)=0 AND coalesce(NEW.comparison_tokens_out,NEW.tokens_out)=0 AND NEW.cost_usd=0 AND (NEW.rung=3 OR NEW.cache_hit) THEN
+      priced:=0; selected_cost:=0; top_cost:=0;
+      standard_name:=coalesce(standard_name,'No AI call');
+      selected_name:=coalesce(selected_name,'No AI call'); top_name:=coalesce(top_name,'No AI call');
+    END IF;
+    NEW.standard_model:=standard_name; NEW.standard_cost_usd:=priced;
+    NEW.top_model:=top_name; NEW.top_cost_usd:=top_cost;
+    NEW.baseline_model:=selected_name; NEW.baseline_cost_usd:=selected_cost;
+    NEW.baseline_priced_at:=now();
+    IF priced IS NULL THEN
+      NEW.baseline_status := 'unpriced';
+    ELSIF NEW.comparison_tokens_in IS NOT NULL OR NEW.comparison_tokens_out IS NOT NULL THEN
+      NEW.baseline_status := 'estimated';
+    ELSIF TG_OP='INSERT' THEN
+      NEW.baseline_status := 'measured';
+    ELSIF OLD.standard_cost_usd IS NOT NULL OR OLD.baseline_cost_usd IS NOT NULL THEN
+      NEW.baseline_status := 're-priced';
+    ELSE
+      NEW.baseline_status := 'backfilled';
+    END IF;
+    RETURN NEW;
+END $$;
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname='workspace_price_comparison' AND tgrelid='tank.ledger'::regclass) THEN
+      CREATE TRIGGER workspace_price_comparison BEFORE UPDATE OF comparison_tokens_in,comparison_tokens_out ON tank.ledger
+        FOR EACH ROW EXECUTE FUNCTION tank.price_receipt();
+    END IF;
+END $$;
+
+-- One completion-memory attempt per real task, independent of deletable memory.
+CREATE TABLE IF NOT EXISTS tank.workspace_task_memory (
+    task_id uuid PRIMARY KEY REFERENCES tank.tasks(id) ON DELETE CASCADE,
+    tenant_id uuid NOT NULL,
+    user_id text NOT NULL CHECK(length(btrim(user_id)) > 0),
+    state text NOT NULL CHECK(state IN ('pending','done','unavailable','denied')),
+    result jsonb NOT NULL DEFAULT '{}'::jsonb
+);
+DO $$ BEGIN
+    IF EXISTS(SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+        WHERE n.nspname='tank' AND c.relname='command_threads' AND c.relrowsecurity) THEN
+        ALTER TABLE tank.workspace_task_memory ENABLE ROW LEVEL SECURITY;
+        ALTER TABLE tank.workspace_task_memory FORCE ROW LEVEL SECURITY;
+        IF NOT EXISTS(SELECT 1 FROM pg_policies WHERE schemaname='tank' AND tablename='workspace_task_memory' AND policyname='tenant_access') THEN
+            CREATE POLICY tenant_access ON tank.workspace_task_memory FOR ALL TO PUBLIC
+            USING(tenant_id=NULLIF(current_setting('app.tenant_id',true),'')::uuid)
+            WITH CHECK(tenant_id=NULLIF(current_setting('app.tenant_id',true),'')::uuid);
+        END IF;
+    END IF;
+END $$;
+
+-- END workspace
+
+-- BEGIN tervor
+CREATE TABLE IF NOT EXISTS tank.tervor_models (
+    tenant_id uuid NOT NULL,
+    id text NOT NULL,
+    product text NOT NULL,
+    version text NOT NULL,
+    manifest jsonb NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (tenant_id,id),
+    UNIQUE (tenant_id,product,version)
+);
+DO $$
+BEGIN
+ IF EXISTS (SELECT 1 FROM pg_class WHERE oid='tank.command_threads'::regclass AND relrowsecurity) THEN
+  ALTER TABLE tank.tervor_models ENABLE ROW LEVEL SECURITY;
+  ALTER TABLE tank.tervor_models FORCE ROW LEVEL SECURITY;
+  IF NOT EXISTS (SELECT 1 FROM pg_policy WHERE polrelid='tank.tervor_models'::regclass AND polname='tenant_access') THEN
+   CREATE POLICY tenant_access ON tank.tervor_models FOR ALL TO PUBLIC
+    USING (tenant_id=NULLIF(current_setting('app.tenant_id',true),'')::uuid)
+    WITH CHECK (tenant_id=NULLIF(current_setting('app.tenant_id',true),'')::uuid);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policy WHERE polrelid='tank.tervor_models'::regclass AND polname='tenant_boundary') THEN
+   CREATE POLICY tenant_boundary ON tank.tervor_models AS RESTRICTIVE FOR ALL TO PUBLIC
+    USING (tenant_id=NULLIF(current_setting('app.tenant_id',true),'')::uuid)
+    WITH CHECK (tenant_id=NULLIF(current_setting('app.tenant_id',true),'')::uuid);
+  END IF;
+ END IF;
+END;
+$$;
+-- END tervor
+
+-- BEGIN moot_media
+-- Confidential Moot media ownership (Mux ids stay Tank-side; signed playback only).
+CREATE TABLE IF NOT EXISTS tank.moot_media (
+    upload_id       text PRIMARY KEY,
+    tenant_id       uuid NOT NULL,
+    user_id         text NOT NULL,
+    hearing_id      uuid NOT NULL,
+    asset_id        text,
+    playback_ids    jsonb NOT NULL DEFAULT '[]'::jsonb,
+    passthrough     text NOT NULL DEFAULT '',
+    idempotency_key text,
+    region          text NOT NULL DEFAULT 'us-east',
+    created_at      timestamptz NOT NULL DEFAULT now(),
+    updated_at      timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS moot_media_tenant_hearing ON tank.moot_media (tenant_id, hearing_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS moot_media_asset ON tank.moot_media (asset_id) WHERE asset_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS moot_media_idempotency
+    ON tank.moot_media (tenant_id, user_id, hearing_id, idempotency_key)
+    WHERE idempotency_key IS NOT NULL;
+
+-- Durable pre-provider upload intent; uncertain attempts continue to consume quota.
+CREATE TABLE IF NOT EXISTS tank.moot_upload_requests (
+    request_id uuid PRIMARY KEY,
+    tenant_id uuid NOT NULL,
+    user_id text NOT NULL,
+    hearing_id uuid NOT NULL,
+    idempotency_key text NOT NULL,
+    input_hash text NOT NULL CHECK (input_hash ~ '^[a-f0-9]{64}$'),
+    upload_id text,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    UNIQUE (tenant_id,user_id,hearing_id,idempotency_key)
+);
+CREATE INDEX IF NOT EXISTS moot_upload_request_budget
+    ON tank.moot_upload_requests(tenant_id,user_id,created_at);
+-- END moot_media
+-- BEGIN autumbra
+CREATE SCHEMA IF NOT EXISTS agent_ghost;
+-- Counterfactual tokens reuse the shared comparison columns, never billed usage.
+ALTER TABLE tank.ledger ADD COLUMN IF NOT EXISTS autumbra_reference_hash text;
+-- END autumbra
 
 -- BEGIN GENERATED AGENT MEMORY (hermes/record_schema.py)
 CREATE SCHEMA IF NOT EXISTS agent_tank;

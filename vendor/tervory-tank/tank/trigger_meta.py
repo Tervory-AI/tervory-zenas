@@ -35,7 +35,7 @@ def settings():
     values = {'client_id': os.environ.get('TRIGGER_META_APP_ID', ''),
               'client_secret': os.environ.get('TRIGGER_META_APP_SECRET', '')}
     if not all(values.values()):
-        raise HTTPException(503)
+        raise HTTPException(503, {"missing_settings": [env for key, env in (("client_id", "TRIGGER_META_APP_ID"), ("client_secret", "TRIGGER_META_APP_SECRET")) if not values[key]]})
     return values
 
 

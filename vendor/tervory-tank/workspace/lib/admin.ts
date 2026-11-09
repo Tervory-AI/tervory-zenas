@@ -218,7 +218,7 @@ async function adminFetch<T>(userId: string, path: string, init: RequestInit = {
   }
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`The console could not load (${res.status}). ${text.slice(0, 180)}`);
+    throw new Error("The console could not be loaded. Please try again.");
   }
   return (await res.json()) as T;
 }

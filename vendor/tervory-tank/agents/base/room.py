@@ -10,6 +10,11 @@ import time
 import uuid
 from typing import Any
 
+try:
+    from network import BoundedHTTP, paid_post
+except ModuleNotFoundError:  # package imports in offline and shared callers
+    from agents.base.network import BoundedHTTP, paid_post
+
 from chassis.events import publish
 from chassis.job_contract import Job
 from chassis.tenant_db import tenant_scope
@@ -105,9 +110,9 @@ def models_paused() -> bool:
 
 def pause_models(reason: str) -> None:
     if time.time() >= _model_pause["until"]:
-        log.error("base worker: model account blocked, pausing %ss: %s", _MODEL_PAUSE_S, reason[:200])
+        log.error("base worker: model account blocked, pausing %ss", _MODEL_PAUSE_S)
     _model_pause["until"] = time.time() + _MODEL_PAUSE_S
-    _model_pause["reason"] = reason[:300]
+    _model_pause["reason"] = "Model account unavailable; completed work was kept."
 
 
 def wake() -> None:
@@ -130,7 +135,7 @@ class SkillClient:
     """Runs Skala skills through Tank. The key is sent and never logged."""
 
     def __init__(self, http: Any, base_url: str, api_key: str) -> None:
-        self._http = http
+        self._http = BoundedHTTP(http)
         self._base = base_url.rstrip("/")
         self._api_key = api_key
 
@@ -141,16 +146,21 @@ class SkillClient:
 
     async def _read(self, response: Any) -> dict[str, Any]:
         if response.status_code >= 400:
-            detail = ""
+            # Provider bodies can contain credentials or private input.
+            from pipeline import is_account_error
+            blocked = response.status_code in (401, 402, 403)
             try:
                 body = response.json()
-                raw = body.get("detail") if isinstance(body, dict) else ""
-                detail = raw if isinstance(raw, str) else ""
-            except Exception:  # noqa: BLE001 — the body may not be JSON
-                detail = ""
-            error = SkillError(detail or f"tank answered {response.status_code}", response.status_code)
+                blocked = blocked or is_account_error(Exception(str(body.get("detail", "")) if isinstance(body, dict) else ""))
+            except ValueError:
+                pass
+            error = SkillError("Base could not complete this request.", response.status_code)
+            error.account_blocked = blocked
             raise error
-        data = response.json()
+        try:
+            data = response.json()
+        except ValueError:
+            raise SkillError("Base could not complete this request.", 502) from None
         if not isinstance(data, dict):
             raise SkillError("tank answer was not an object", response.status_code)
         return data
@@ -204,7 +214,6 @@ class SkillClient:
 
     def bind(self, versions: dict[str, str], preview: bool, tenant_id: str) -> SkillCall:
         async def direct(skill_id: str, payload: dict[str, Any]) -> dict[str, Any]:
-            from chassis.paid_steps import post as paid_post
             response = await paid_post(
                 self._http, self._base, f"/v1/skala/{skill_id}/run",
                 body={
@@ -259,7 +268,7 @@ class UnknownEngine(Exception):
         super().__init__(engine)
 
 
-async def ensure_tables(conn: Any) -> None:
+async def ensure_tables(conn: Any, *, recover: bool = True) -> None:
     try:
         await conn.execute(RECORDS_SQL)
         await conn.execute(
@@ -284,11 +293,19 @@ async def ensure_tables(conn: Any) -> None:
             present = None
         if present != 1:
             raise
+    if not recover:
+        return
     await conn.execute(
-        "UPDATE agent_base.records SET status='queued', updated_at=now() WHERE status='running'"
+        "UPDATE agent_base.records r SET status='queued', updated_at=now() WHERE r.status='running' "
+        "AND EXISTS (SELECT 1 FROM agent_base.tasks t WHERE t.id=r.task_id AND t.tenant_id=r.tenant_id "
+        "AND t.task_type='base.enrich')"
     )
     await conn.execute(
         "UPDATE agent_base.tasks SET status='queued' WHERE status='running' AND task_type='base.enrich'"
+    )
+    await conn.execute(
+        "UPDATE agent_base.tasks SET status='queued' WHERE task_type='base.enrich' "
+        "AND status IN ('done','failed') AND input->>'context_pending'='true'"
     )
 
 
@@ -303,6 +320,7 @@ async def insert_batch(
     engine: str | None,
     concurrency: int,
     registry: list[dict[str, Any]] | None,
+    *, task_id: uuid.UUID | None = None,
 ) -> Any:
     cfg = {
         "batch": label,
@@ -320,25 +338,26 @@ async def insert_batch(
         f"Base passes 1-7{' + ' + engine + ' engine' if engine else ''}: "
         f"{label} ({len(records)} records){note}"
     )
-    task_id = uuid.uuid4()
-    row = await conn.fetchrow(
-        """
-        INSERT INTO agent_base.tasks
-            (id, tenant_id, created_by, agent, task_type, title, input)
-        VALUES ($1,$2,$3,'base','base.enrich',$4,$5::jsonb)
-        RETURNING id, tenant_id, created_by, agent, task_type, title, status, result, error,
-                  ledger_id, created_at, started_at, finished_at
-        """,
-        task_id,
-        tenant_id,
-        created_by,
-        title,
-        json.dumps(cfg),
-    )
-    await conn.executemany(
-        "INSERT INTO agent_base.records (tenant_id, task_id, batch, raw) VALUES ($1,$2,$3,$4::jsonb)",
-        [(tenant_id, task_id, label, json.dumps(record)) for record in records],
-    )
+    task_id = task_id or uuid.uuid4()
+    async with conn.transaction():
+        row = await conn.fetchrow(
+            """
+            INSERT INTO agent_base.tasks
+                (id, tenant_id, created_by, agent, task_type, title, input)
+            VALUES ($1,$2,$3,'base','base.enrich',$4,$5::jsonb)
+            RETURNING id, tenant_id, created_by, agent, task_type, title, status, result, error,
+                      ledger_id, created_at, started_at, finished_at
+            """,
+            task_id,
+            tenant_id,
+            created_by,
+            title,
+            json.dumps(cfg),
+        )
+        await conn.executemany(
+            "INSERT INTO agent_base.records (tenant_id, task_id, batch, raw) VALUES ($1,$2,$3,$4::jsonb)",
+            [(tenant_id, task_id, label, json.dumps(record)) for record in records],
+        )
     return row
 
 
@@ -366,58 +385,64 @@ async def _run_batch(pool: Any, task_id: uuid.UUID, cfg: dict[str, Any], call: S
         raws, rec_ids, engine, cfg.get("registry"), call
     )
     spent = float(cfg.get("model_spend") or 0) + prep_cost
-    outcomes = await enrich_queued(
-        todo,
-        rec_ids,
-        inputs,
-        engine_rows,
-        registry,
-        supplied,
-        engine,
-        call,
-        models_paused,
+    save_lock = asyncio.Lock()
+
+    async def checkpoint(index: int, outcome: Any) -> None:
+        nonlocal spent
+        rec_id = uuid.UUID(rec_ids[index])
+        saved_at = None
+        async with save_lock:
+            async with pool.acquire() as conn, conn.transaction():
+                spent += outcome.cost_usd
+                if outcome.status == "queued":
+                    pause_models(outcome.error or "")
+                    await conn.execute(
+                        "UPDATE agent_base.records SET status='queued', updated_at=now() "
+                        "WHERE id=$1 AND tenant_id=$2",
+                        rec_id,
+                        tenant_id,
+                    )
+                elif outcome.status == "failed":
+                    await conn.execute(
+                        "UPDATE agent_base.records SET status='failed', error=$3, profile=$4::jsonb, "
+                        "passes=$5::jsonb, updated_at=now() WHERE id=$1 AND tenant_id=$2",
+                        rec_id,
+                        tenant_id,
+                        outcome.error,
+                        json.dumps(outcome.profile),
+                        json.dumps(outcome.passes),
+                    )
+                else:
+                    saved_at = await conn.fetchval(
+                        "UPDATE agent_base.records SET status='done', profile=$3::jsonb, passes=$4::jsonb, "
+                        "confidence=$5, updated_at=now() WHERE id=$1 AND tenant_id=$2 RETURNING updated_at",
+                        rec_id,
+                        tenant_id,
+                        json.dumps(outcome.profile),
+                        json.dumps(outcome.passes),
+                        outcome.confidence,
+                    )
+                cfg["model_spend"] = spent
+                await conn.execute(
+                    "UPDATE agent_base.tasks SET input=$3::jsonb WHERE id=$1 AND tenant_id=$2",
+                    task_id, tenant_id, json.dumps(cfg),
+                )
+        if saved_at is not None:
+            try:
+                await publish(str(tenant_id), "base.record.enriched", f"{task_id}:{rec_id}", {
+                    "record_id": str(rec_id), "task_id": str(task_id), "confidence": outcome.confidence,
+                    "observed_at": saved_at.isoformat()})
+            except Exception as exc:
+                log.warning("enriched event deferred (%s)", type(exc).__name__)
+
+    await enrich_queued(
+        todo, rec_ids, inputs, engine_rows, registry, supplied, engine, call, models_paused,
         int(cfg.get("concurrency") or 8),
         cfg.get("refs") if isinstance(cfg.get("refs"), dict) else None,
         cfg.get("engine_data_version") if isinstance(cfg.get("engine_data_version"), str) else None,
+        on_result=checkpoint,
     )
     async with pool.acquire() as conn:
-        for index, outcome in outcomes:
-            if outcome is None:
-                continue
-            spent += outcome.cost_usd
-            rec_id = uuid.UUID(rec_ids[index])
-            if outcome.status == "queued":
-                pause_models(outcome.error or "")
-                await conn.execute(
-                    "UPDATE agent_base.records SET status='queued', updated_at=now() "
-                    "WHERE id=$1 AND tenant_id=$2",
-                    rec_id,
-                    tenant_id,
-                )
-            elif outcome.status == "failed":
-                await conn.execute(
-                    "UPDATE agent_base.records SET status='failed', error=$3, profile=$4::jsonb, "
-                    "passes=$5::jsonb, updated_at=now() WHERE id=$1 AND tenant_id=$2",
-                    rec_id,
-                    tenant_id,
-                    outcome.error,
-                    json.dumps(outcome.profile),
-                    json.dumps(outcome.passes),
-                )
-            else:
-                saved_at = await conn.fetchval(
-                    "UPDATE agent_base.records SET status='done', profile=$3::jsonb, passes=$4::jsonb, "
-                    "confidence=$5, updated_at=now() WHERE id=$1 AND tenant_id=$2 RETURNING updated_at",
-                    rec_id,
-                    tenant_id,
-                    json.dumps(outcome.profile),
-                    json.dumps(outcome.passes),
-                    outcome.confidence,
-                )
-                if saved_at is not None:
-                    await publish(str(tenant_id), "base.record.enriched", f"{task_id}:{rec_id}", {
-                        "record_id": str(rec_id), "task_id": str(task_id), "confidence": outcome.confidence,
-                        "observed_at": saved_at.isoformat()})
         cfg["model_spend"] = spent
         waiting = await conn.fetchval(
             "SELECT count(*) FROM agent_base.records WHERE task_id=$1 AND tenant_id=$2 AND status='queued'",
@@ -456,6 +481,28 @@ async def _run_batch(pool: Any, task_id: uuid.UUID, cfg: dict[str, Any], call: S
 
 
 async def base_loop(pool: Any, skills: SkillClient) -> None:
+    """Only the database lock owner may recover and consume the room queue."""
+    discovery_pool = getattr(pool, "admin_pool", None) or pool
+    async with discovery_pool.acquire() as owner:
+        if not await owner.fetchval("SELECT pg_try_advisory_lock(hashtextextended('base.enrich.worker', 0))", timeout=5):
+            return
+        try:
+            # Keep the owning session alive. A disconnected lock holder must
+            # stop before another process can recover its in-flight work.
+            worker = asyncio.create_task(_owned_loop(pool, skills))
+            try:
+                while not worker.done():
+                    await asyncio.wait({worker}, timeout=1)
+                    await owner.fetchval("SELECT 1", timeout=5)
+                await worker
+            finally:
+                worker.cancel()
+                await asyncio.gather(worker, return_exceptions=True)
+        finally:
+            await owner.execute("SELECT pg_advisory_unlock(hashtextextended('base.enrich.worker', 0))")
+
+
+async def _owned_loop(pool: Any, skills: SkillClient) -> None:
     """One batch at a time, oldest queued first."""
     discovery_pool = getattr(pool, "admin_pool", None) or pool
     async with discovery_pool.acquire() as conn:
@@ -497,6 +544,8 @@ async def base_loop(pool: Any, skills: SkillClient) -> None:
                         await run_code_first(pool, skills, row["id"], cfg, call)
                     else:
                         await _run_batch(pool, row["id"], cfg, call)
+                        from sources.continuation import finish_context
+                        await finish_context(pool, skills._http, row["id"], cfg)
                 except Exception as exc:  # noqa: BLE001 — one bad batch must not stop the queue
                     log.error("base worker: %s", type(exc).__name__)
                     async with pool.acquire() as conn:
@@ -504,7 +553,7 @@ async def base_loop(pool: Any, skills: SkillClient) -> None:
                             "UPDATE agent_base.tasks SET status='failed', error=$2, finished_at=now() "
                             "WHERE id=$1 AND tenant_id=$3",
                             row["id"],
-                            str(exc)[:1000],
+                            "Base could not complete this request. Completed records were kept; retry the batch.",
                             row["tenant_id"],
                         )
         except Exception as exc:  # noqa: BLE001 — the database blinked; back off and carry on

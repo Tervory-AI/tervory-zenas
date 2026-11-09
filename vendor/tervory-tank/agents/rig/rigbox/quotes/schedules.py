@@ -7,6 +7,7 @@ from .store import PgQuotes
 async def refresh(pool, store, agent: str) -> int:
     tenants = await store.tenant_ids()
     quotes = PgQuotes(pool)
+    feeds = [tenant for tenant in tenants if await store.feeds_for(tenant)]
     for tenant in await quotes.expired_tenants():
         await quotes.purge(tenant)
     async with pool.acquire() as conn:
@@ -19,5 +20,8 @@ async def refresh(pool, store, agent: str) -> int:
         await ensure_schedules(conn, schema_for(agent), [
             {"tenant_id": tenant, "cron": "*/5 * * * *", "kind": "retry_quotes", "input": {}}
             for tenant in tenants
+        ] + [
+            {"tenant_id": tenant, "cron": "0 3 * * *", "kind": "pull_feeds", "input": {}}
+            for tenant in feeds
         ])
     return len(tenants)

@@ -8,6 +8,9 @@ on:
   # before it lands, so branches no longer merge main to stay current.
   merge_group:
     types: [checks_requested]
+  # Full suite once (6 Nov, founder): tank, workspace, command-acceptance and savings-page
+  # run on the pull request only. The merge queue runs the fast checks (security, lint,
+  # routing, changes), so a green PR merges in minutes instead of re-running the suite.
   # No push trigger on main (3 Nov, founder): the merge queue (merge method MERGE) already
   # ran this whole workflow on the exact commit that lands, so a run on the push was a
   # pure repeat. workflow_dispatch (above) still runs everything on main by hand:
@@ -63,8 +66,8 @@ jobs:
           retention-days: 14
 
   lint:
-    # Founder, 3 Nov: the full suite runs once, in the merge queue (the exact commit that lands).
-    # A pull request gets the fast checks only: this lint, security and the changes scope.
+    # 6 Nov: the pull request runs the scoped full suite (tank, workspace, command
+    # acceptance, savings page) once; the merge queue runs only these fast checks.
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -78,6 +81,23 @@ jobs:
         run: |
           python -m pip install --disable-pip-version-check "ruff==0.17.2"
           ruff check tank tests --select E9,F --per-file-ignores "tank/skills/base.socials/1.0.0/run.py:F401"
+          python -m unittest discover -s tests -p test_ci_rig_toolchain.py
+
+  routing:
+    # Always required, including docs-only edits to the ingress contract.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7
+        with:
+          python-version: "3.12.14"
+      - name: Install existing pinned YAML parser
+        run: python -m pip install --disable-pip-version-check --require-hashes -r .github/requirements-routing.lock
+      - name: Validate every Compose file and product ingress
+        run: python3 tests/test_routing.py
 
   changes:
     runs-on: ubuntu-latest
@@ -159,7 +179,7 @@ jobs:
   tank:
     needs: [changes, runner]
     # Run even when "pick runner" was skipped; then the runner falls back to ubuntu-latest.
-    if: ${{ !cancelled() && github.event_name != 'pull_request' && needs.changes.result == 'success' && needs.changes.outputs.run == 'true' }}
+    if: ${{ !cancelled() && github.event_name != 'merge_group' && needs.changes.result == 'success' && needs.changes.outputs.run == 'true' }}
     # Self-hosted only when "pick runner" chose it and the change is not from a fork.
     runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && needs.runner.outputs.runner && fromJSON(needs.runner.outputs.runner) || 'ubuntu-latest' }}
     # Full suite: about 14 minutes on the hosted 4-core runner (run 41229068797: 808 s of tests in
@@ -206,8 +226,16 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r tank/requirements.txt -r tank/requirements-dev.txt
           pip install --require-hashes -r agents/rig/forge/requirements.lock
+          pip install --require-hashes -r tank/moot/requirements.sdk.lock
       - name: Prepare video processing tools for offline acceptance
         run: bash .github/scripts/install-video-test-tools.sh
+      - name: Prepare real Radix advisory database for offline proofs
+        run: |
+          mkdir -p "$RUNNER_TEMP/radix-osv"
+          curl --fail --silent --show-error --location --retry 3 https://osv-vulnerabilities.storage.googleapis.com/PyPI/all.zip --output "$RUNNER_TEMP/radix-osv/PyPI.zip"
+          curl --fail --silent --show-error --location --retry 3 https://osv-vulnerabilities.storage.googleapis.com/npm/all.zip --output "$RUNNER_TEMP/radix-osv/npm.zip"
+          python agents/radix/osv_bake.py "$RUNNER_TEMP/radix-osv/osv.sqlite" "PyPI=$RUNNER_TEMP/radix-osv/PyPI.zip" "npm=$RUNNER_TEMP/radix-osv/npm.zip"
+          echo "RADIX_OSV_REAL=$RUNNER_TEMP/radix-osv/osv.sqlite" >> "$GITHUB_ENV"
       - name: Prepare pinned k6 for offline Tisan smoke tests
         run: |
           python3 - <<'PYK6'
@@ -273,6 +301,7 @@ jobs:
         run: |
           npm ci --no-audit --no-fund
           npx --no-install playwright install chromium
+          echo "TISAN_NPM_CACHE=$(npm config get cache)" >> "$GITHUB_ENV"
       - name: Prepare pinned Tiger acceptance browser dependencies
         working-directory: tests/acceptance/tiger-browser
         run: |
@@ -283,6 +312,13 @@ jobs:
           npm ci --prefix tests/trigger_browser_tools --ignore-scripts --no-audit --no-fund
           tests/trigger_browser_tools/node_modules/.bin/playwright install chromium
           echo "TRIGGER_BROWSER_TOOLS=$GITHUB_WORKSPACE/tests/trigger_browser_tools/node_modules" >> "$GITHUB_ENV"
+          echo "BASE_TEST_PLAYWRIGHT=$GITHUB_WORKSPACE/tests/trigger_browser_tools/node_modules/playwright" >> "$GITHUB_ENV"
+          echo "RIG_PLAYWRIGHT_PATH=$GITHUB_WORKSPACE/tests/trigger_browser_tools/node_modules/playwright" >> "$GITHUB_ENV"
+          echo "RIG_ESBUILD_PATH=$GITHUB_WORKSPACE/tests/trigger_browser_tools/node_modules/esbuild" >> "$GITHUB_ENV"
+      - name: Prepare pinned Workspace acceptance browser dependencies
+        run: |
+          npm ci --prefix tests/browser --ignore-scripts --no-audit --no-fund
+          echo "WORKSPACE_BROWSER_TOOLS=$GITHUB_WORKSPACE/tests/browser/node_modules" >> "$GITHUB_ENV"
       - name: Prepare CLI acceptance fixtures
         run: |
           npm ci --prefix cli --ignore-scripts --no-audit --no-fund
@@ -339,7 +375,10 @@ jobs:
         # tests/test_skala_patch_code_unchanged.py (#484) runs as part of the suite.
         run: python3 .github/scripts/offline_suite.py
         env:
-          PYTHONPATH: tank
+          PYTHONPATH: .:tank:agents/_chassis
+          COMMAND_TEST_TOOLS: ${{ github.workspace }}/cli/node_modules
+          TIGER_PROJECT_ROOT: ${{ github.workspace }}
+          CI_PREPARE_RIG_TOOLS: "1"
           SUITE_SHARD: ${{ matrix.shard }}
           SUITE_SHARDS: 10
           # One Postgres service. tests/conftest.py gives each xdist worker its own
@@ -359,6 +398,23 @@ jobs:
           # Market Lab real-Postgres proofs (subscriptions, round trip, real Tank, documents,
           # warning job); they skip without it. Tervory Review on #486, item 2.
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/market_test
+      - name: Gate 7/8 foundation and product readiness matrix
+        if: ${{ matrix.shard == 1 }}
+        # Migration mode: execute every submitted real-path suite; missing products
+        # remain INCOMPLETE. Head uses the default (all twelve required) for signoff.
+        env:
+          MEMORY_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/pooltest
+        run: |
+          test "$RUNNER_ENVIRONMENT" = github-hosted || { echo "Gate 7/8 runs only on disposable GitHub-hosted infrastructure"; exit 1; }
+          python scripts/gates_7_8.py --submitted
+      - name: Save Gate 7/8 evidence
+        if: ${{ always() && matrix.shard == 1 }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: gates-7-8-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .tmp/gates78/
+          if-no-files-found: error
+          retention-days: 14
       - name: Runner memory and kernel log after a failed suite
         # A crashed xdist worker looks the same whether pytest-timeout killed it or the
         # kernel did (OOM). This prints the evidence; it never changes the result.
@@ -372,7 +428,7 @@ jobs:
 
   workspace:
     needs: [changes, runner]
-    if: ${{ !cancelled() && github.event_name != 'pull_request' && needs.changes.result == 'success' && needs.changes.outputs.full == 'true' }}
+    if: ${{ !cancelled() && github.event_name != 'merge_group' && needs.changes.result == 'success' && needs.changes.outputs.full == 'true' }}
     runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && needs.runner.outputs.runner && fromJSON(needs.runner.outputs.runner) || 'ubuntu-latest' }}
     timeout-minutes: 15
     steps:
@@ -422,7 +478,7 @@ jobs:
   # Any skipped or missing test fails the job, so it never passes silently.
   command-acceptance:
     needs: [changes]
-    if: ${{ !cancelled() && github.event_name != 'pull_request' && needs.changes.result == 'success' && needs.changes.outputs.full == 'true' }}
+    if: ${{ !cancelled() && github.event_name != 'merge_group' && needs.changes.result == 'success' && needs.changes.outputs.full == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 12
     services:
@@ -494,7 +550,7 @@ jobs:
     needs: [changes]
     # Only when the savings pages (or what they render) change. Founder, 27 Oct: no
     # check runs on a pull request it cannot affect.
-    if: ${{ !cancelled() && github.event_name != 'pull_request' && needs.changes.result == 'success' && needs.changes.outputs.savings == 'true' }}
+    if: ${{ !cancelled() && github.event_name != 'merge_group' && needs.changes.result == 'success' && needs.changes.outputs.savings == 'true' }}
     # Chromium system dependencies need sudo; keep this job on GitHub hosted runners.
     runs-on: ubuntu-latest
     # 8 minutes timed out twice on 22 Oct and cancelled CI on main. Usually ~1 minute.
@@ -552,7 +608,7 @@ jobs:
   # when any failed or was cancelled.
   ci-ok:
     if: always()
-    needs: [security, lint, changes, tank, workspace, command-acceptance, savings-page]
+    needs: [security, lint, routing, changes, tank, workspace, command-acceptance, savings-page]
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:

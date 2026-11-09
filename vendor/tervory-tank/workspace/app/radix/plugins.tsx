@@ -1,6 +1,8 @@
 "use client";
 
+import { fetchWithDeadline as fetch } from "../../lib/request";
 import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
+import { radixJSON, withDeadline } from "./io";
 import { PLUGIN_TABS, offPanel, type PluginPanel } from "./plugins-model";
 import {
   readRadixPlugins, saveRadixKey, removeRadixSecret, removeRadixFile,
@@ -23,7 +25,7 @@ export function Plugins({ open, onEnabled }: { open: boolean; onEnabled: (value:
     onEnabled(false);
     setNote("");
     if (!open) return;
-    void readRadixPlugins().then((next) => {
+    void withDeadline(() => readRadixPlugins()).then((next) => {
       if (current !== revision.current) return;
       setPanel(next); onEnabled(next.enabled);
     }).catch(() => {
@@ -37,9 +39,9 @@ export function Plugins({ open, onEnabled }: { open: boolean; onEnabled: (value:
     const current = revision.current;
     setBusy(true); setNote("");
     try {
-      const result = await action();
+      const result = await withDeadline(() => action());
       // Reload even after a refused write: Tank may have turned the vault off.
-      const next = await readRadixPlugins();
+      const next = await withDeadline(() => readRadixPlugins());
       if (current !== revision.current) return;
       setPanel(next); onEnabled(next.enabled); setNote(result.message);
     } catch {
@@ -65,9 +67,8 @@ export function Plugins({ open, onEnabled }: { open: boolean; onEnabled: (value:
       }
       for (const file of data.getAll("file")) {
         const body = new FormData(); body.append("file", file);
-        const response = await fetch("/radix/plugins/files", { method: "POST", body });
-        const result = await response.json() as PluginResult;
-        if (!response.ok || !result.ok) return { ok: false, message: result.message || "The file was not saved." };
+        const result = await radixJSON("/radix/plugins/files", { method: "POST", body }) as PluginResult;
+        if (!result.ok) return { ok: false, message: result.message || "The file was not saved." };
       }
       return { ok: true, message: "Files saved." };
     });

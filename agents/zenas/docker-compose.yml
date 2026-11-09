@@ -15,6 +15,7 @@ services:
     environment:
       AGENT_NAME: zenas
       ZENAS_BRAIN_ENABLED: ${ZENAS_BRAIN_ENABLED:-false}
+      ZENAS_MEMORY_ENABLED: ${ZENAS_MEMORY_ENABLED:-false}
       R2_BUCKET: tervory-zenas
       R2_ACCOUNT_ID: ${R2_ACCOUNT_ID:-}
       R2_ACCESS_KEY_ID_ZENAS: ${R2_ACCESS_KEY_ID_ZENAS:-}
@@ -52,9 +53,9 @@ services:
   zenas-brain:
     profiles: [brain]
     build:
-      context: ../..
-      dockerfile: agents/rig/Dockerfile.brain
-    command: [uvicorn, "brain.standby:app", --host, "0.0.0.0", --port, "8001", --no-access-log]
+      context: ..
+      dockerfile: zenas/Dockerfile
+    command: [uvicorn, "agents.zenas.core.brain_service:app", --host, "0.0.0.0", --port, "8001", --no-access-log]
     restart: unless-stopped
     mem_limit: 2g
     cpus: 1
@@ -63,6 +64,8 @@ services:
     tmpfs: [/tmp:rw,noexec,nosuid,nodev,size=32m]
     environment:
       BRAIN_ROOM: zenas
+      ZENAS_BRAIN_ENABLED: ${ZENAS_BRAIN_ENABLED:-false}
+      DATABASE_URL: postgresql://agent_zenas:${AGENT_DB_PASSWORD_ZENAS}@postgres:5432/${POSTGRES_DB:-tervory}
       TANK_REGION: us-east
       TANK_URL: http://tank:8000
       TANK_KEY: ${TANK_KEY_ZENAS:-}

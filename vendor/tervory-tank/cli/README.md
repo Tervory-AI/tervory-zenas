@@ -216,9 +216,41 @@ Receipt pending
 
 `tervory code [folder]` opens an interactive session inside a git repository (the
 current folder by default). It uses the existing keychain credential and its region;
-there is no token argument, environment credential or URL override. Only Auto is
-available to customers; model pins remain founder-only. Receipts display Tank's
-amounts unchanged. An interrupted turn is never retried automatically.
+there is no token argument, environment credential or URL override. Auto is the
+default and uses Tank's existing cheapest-capable routing. `/model` lists the
+signed-in user's Tank roster: founders see the full roster, customers see only
+permitted models. `/model <name>` selects a listed model; `/model auto` returns
+to Auto. Permissions are checked again on every turn. Each model round shows its
+permitted model name and recorded USD cost; unavailable prices say `pending`.
+Receipts keep Tank's amounts. An interrupted turn is never retried automatically.
+
+The agent plans, reads, searches, proposes edits and requests commands in a loop
+until it finishes or needs your input. `/mode` selects one of three modes:
+
+- `ask` (default): every edit and command needs approval.
+- `auto-edit`: validated edits apply immediately; commands and Tervory actions
+  still ask for approval.
+- `plan`: only reads, searches and git inspection run. Edits, commands, Tervory
+  actions and `/undo` are refused. A completed plan asks `Approve plan [y/N]`;
+  approving starts an Ask turn, whose edits and commands need separate approval.
+
+Declining an action stops the loop before another model call. The existing
+32-round bound remains. `/help` lists `/mode`, `/model`, `/resume`, `/undo`,
+`/cost`, `/clear` and `/exit`. `/cost` reports recorded session spending, including
+confirmed Tervory actions; incomplete receipts show `pending`. `/clear` creates a
+new thread, clears local history and undo snapshots, and resets Ask/Auto.
+`/exit` leaves the session.
+
+`tervory code [folder] --resume` and `/resume` list your saved code sessions and
+prompt for a session identifier. `/resume <id>` selects a listed session directly.
+Reopening restores redacted user requests and final assistant answers, with
+Ask/Auto defaults. It does not replay tools or recover local undo snapshots.
+The chosen folder stays local; saved sessions contain no folder attachment.
+Active turns cannot be restarted by resume. Older threads created before this
+feature have no resumable code-history marker.
+
+These gate-1 features require the accompanying `tank-patches/opli-agent.patch`
+to arrive through Tank sync. New terminal wording remains subject to founder review.
 
 The six local tools list files, read text, search text, inspect git status/diff,
 propose a unified diff, and run a command. File tools stay inside the selected
@@ -228,7 +260,8 @@ Secret-looking lines and whole private-key PEM blocks are redacted before any lo
 An edit may contain one unified diff for up to 20 files (200,000 UTF-8 bytes
 across the patch). Every file is read first, including a missing-file read for a
 new file. The CLI validates all paths, current contents and hunks before showing
-every diff and asking once for an explicit `y`. A stale file or failing hunk
+every diff. Ask mode asks once for an explicit `y`; Auto-edit uses the same
+validation and write path without the prompt. A stale file or failing hunk
 writes nothing. Files are staged in their own directories and renamed, so a
 crash leaves each file entirely old or new.
 
@@ -285,10 +318,14 @@ or events.
 
 **Storage:** the Command thread and `/chats` retain user requests, steps, receipts
 and tool names/sizes, without tool-result file contents or proposed patches.
-A prompt is stored once across its continuation rounds. Earlier prompts,
-answers, and tool names/arguments remain in a bounded, redacted CLI transcript
-(at most 40 entries and 200,000 UTF-8 bytes). It is sent as untrusted session data
-for model context and never stored in the Command thread, tasks or events.
+A prompt is stored once across its continuation rounds. Resumable code history
+stores redacted user requests and final assistant answers in the same owned
+thread (at most 40 entries and 200,000 UTF-8 bytes). Intermediate tool proposals,
+tool-result bodies, proposed patches and project notes are not added to that
+history. The richer local transcript also contains tool names/arguments, with
+the same bound; it is sent as untrusted context and is not copied into thread
+state, tasks or events. Saved sessions use the existing tenant, user and
+Trigger sign-in issuer ownership checks.
 The `command.code` policy uses `cache_scope='none'`; code turns neither read nor
 write the route cache, including its word-split `semantic_form`.
 The model-call transcript follows Tank's existing handling for every chat turn:
@@ -300,6 +337,25 @@ Unreadable project notes (a symlink, more than 200 KB, or invalid UTF-8) are
 skipped while the code session continues. The CLI notice is
 `AGENTS.md skipped: Code tool refused.` Repository notes are labeled as DATA,
 limited to conventions and test commands, never instructions or authority.
+
+## Headless tasks
+
+Run `tervory -p "inspect the folder" --output json` from a Git repository.
+`--output text` is the default. Headless tasks use the same region, keychain,
+redaction and Auto routing. They can list, read, search and inspect git in a
+multi-step loop. Any edit, command or Tervory action requires interactive
+approval, so headless stops with `needs_input`; piped `y` cannot approve it.
+This includes paid steps and destructive commands. Use interactive code mode
+to continue work that needs approval.
+
+JSON output is one object with `status`, `thread_id`, `answer`, `model`,
+`cost_usd` and a `turns` array of actual model/cost entries. `model` at the top
+is the selected setting (`auto`); each turn reports the permitted model that
+answered. An unavailable cost is `null`, not zero. Early failures may have no
+thread or model. Text shows the answer, each turn's model/cost, status and total.
+Exit codes are 0 for completion, 2 for required input, and 1 for an error. No
+update notice is mixed into script output. Failed or interrupted work is never
+retried automatically.
 
 ## Signed tag builds and CI
 

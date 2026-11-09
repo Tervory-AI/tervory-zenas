@@ -15,8 +15,17 @@ const CAP = 20000;
 async function readRecords(): Promise<BaseRecord[]> {
   const { tenantId } = await currentTenant();
   const all: BaseRecord[] = [];
+  const deadline = Date.now() + 30_000;
   for (let offset = 0; offset < CAP; offset += PAGE) {
-    const page = await baseRecords(tenantId, { limit: PAGE, offset });
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) throw new Error("Base is unavailable.");
+    let timer: ReturnType<typeof setTimeout>;
+    let page: BaseRecord[];
+    try {
+      page = await Promise.race([baseRecords(tenantId, { limit: PAGE, offset }), new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error("Base is unavailable.")), remaining);
+      })]);
+    } finally { clearTimeout(timer!); }
     all.push(...page);
     if (page.length < PAGE) break;
   }

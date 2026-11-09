@@ -53,7 +53,7 @@ from agents.zenas.core.precedent import (
     unverified_note,
 )
 from agents.zenas.core.selftest import is_holdout
-from agents.zenas.core.answer_failures import exception_failure, route_failure, safe_failure
+from agents.zenas.core.answer_failures import TaskBoundaryError, exception_failure, route_failure, safe_failure
 from agents.zenas.core.answer_quotes import named_quotation, neutral_citations
 from agents.zenas.core.citation_sources import cited_sources, public_source_url
 
@@ -236,6 +236,8 @@ async def _masked_call(
             task_type=task_type,
             provider=provider,
         )
+    except TaskBoundaryError:
+        raise
     except Exception as exc:
         return _refuse("unavailable", failure=exception_failure(exc))
     if result.get("refused"):

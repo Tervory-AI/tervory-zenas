@@ -350,20 +350,34 @@ class Store:
               WHERE tenant_id=$1 AND id=$2 AND status='pending' RETURNING id""", tenant, ident)
         return row is not None
 
-    async def reap_expired(self) -> None:
-        """Gateway maintenance only, never invoked from a tenant HTTP request.
+    async def reap_expired(self, discovery=None) -> None:
+        """Gateway/scheduler maintenance, never a tenant HTTP request.
 
         Discover expired lease owners, then update each row with its persisted
         tenant/id and recheck expiry. An active lease is never touched.
         """
-        maintenance = getattr(self.pool, "admin_pool", None) or self.pool
-        async with maintenance.acquire() as conn:
-            owners = await conn.fetch("""SELECT tenant_id,id FROM agent_radix.passive_scans
-              WHERE status='running' AND lease_until<now()""")
-            for owner in owners:
-                await conn.execute("""UPDATE agent_radix.passive_scans SET status='error'
-                  WHERE tenant_id=$1 AND id=$2 AND status='running' AND lease_until<now()""",
-                  owner['tenant_id'], owner['id'])
+        from chassis.tenant_db import tenant_scope
+        query = """SELECT tenant_id,id FROM agent_radix.passive_scans
+          WHERE status='running' AND lease_until<now()"""
+        if discovery is None:
+            maintenance = getattr(self.pool, 'admin_pool', None) or getattr(self.pool, 'raw', self.pool)
+            async with maintenance.acquire() as conn:
+                owners = await conn.fetch(query)
+        else:
+            owners = await discovery.fetch(query)
+        for owner in owners:
+            with tenant_scope(owner['tenant_id']):
+                async with self.pool.acquire() as conn:
+                    # Durable queues keep their scan IDs across a worker crash.
+                    # Execution still rechecks current DNS proof and consent.
+                    await conn.execute("""UPDATE agent_radix.passive_scans s SET
+                      status=CASE WHEN EXISTS(SELECT 1 FROM agent_radix.weekly_runs w
+                        WHERE w.tenant_id=s.tenant_id AND w.scan_id=s.id)
+                        OR EXISTS(SELECT 1 FROM agent_radix.regulation_runs r
+                        WHERE r.tenant_id=s.tenant_id AND r.scan_id=s.id AND NOT r.settled)
+                        THEN 'pending' ELSE 'error' END,lease_until=NULL
+                      WHERE s.tenant_id=$1 AND s.id=$2 AND s.status='running' AND s.lease_until<now()""",
+                      owner['tenant_id'], owner['id'])
 
     async def fail(self, tenant: UUID, ident: UUID) -> None:
         async with self.pool.acquire() as conn:

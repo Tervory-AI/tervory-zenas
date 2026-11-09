@@ -10,6 +10,7 @@ adapter and Tiger's one-shot check-now route. Test doubles live in tests only.
 """
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import hmac
 import os
@@ -115,9 +116,9 @@ class SourceApiChecker:
         if not suffix or not base or not key:
             return LiveResult.unknown("source_api", "not_configured")
         try:
-            response = await self.http.get(base.rstrip("/") + "/stock/" + urlquote(str(offer["sku"]), safe=""),
+            response = await asyncio.wait_for(self.http.get(base.rstrip("/") + "/stock/" + urlquote(str(offer["sku"]), safe=""),
                                            headers={"Authorization": "Bearer " + key}, timeout=20,
-                                           follow_redirects=False)
+                                           follow_redirects=False), timeout=20)
             if response.status_code != 200:
                 return LiveResult.unknown("source_api", "unavailable")
             return _result("source_api", response.json(), self.clock())
@@ -144,10 +145,10 @@ class TigerChecker:
         if not base or not key:
             return LiveResult.unknown("tiger", "not_configured")
         try:
-            response = await self.http.post(base.rstrip("/") + "/rig/check-now",
+            response = await asyncio.wait_for(self.http.post(base.rstrip("/") + "/rig/check-now",
                                             json={"tenant_id": str(tenant), "url": url},
                                             headers={"x-rig-check-key": key},
-                                            timeout=TIGER_BUDGET_SECONDS + 5, follow_redirects=False)
+                                            timeout=TIGER_BUDGET_SECONDS + 5, follow_redirects=False), timeout=TIGER_BUDGET_SECONDS + 5)
             if response.status_code != 200:
                 return LiveResult.unknown("tiger", "unavailable")
             return _result("tiger", response.json(), self.clock())

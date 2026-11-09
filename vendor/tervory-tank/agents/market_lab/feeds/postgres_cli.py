@@ -5,7 +5,7 @@ import json
 import uuid
 from argparse import Namespace
 
-import asyncpg
+from core.database import connect
 
 from core.evidence import overview
 from core.jobs import perform_refresh
@@ -16,7 +16,7 @@ async def run_postgres(args: Namespace, db: str) -> int:
     if not args.tenant:
         raise ValueError("--tenant is required for Postgres")
     tenant = str(uuid.UUID(args.tenant))
-    conn = await asyncpg.connect(db)
+    conn = await connect(db)
     try:
         ledger = PostgresLedger(conn)
         await ledger.apply_schema()

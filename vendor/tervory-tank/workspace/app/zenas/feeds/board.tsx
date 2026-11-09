@@ -1,6 +1,8 @@
 "use client";
+import { zenasFetch } from "@/app/zenas/request";
 
-import { useEffect, useState } from "react";
+import { fetchWithDeadline as fetch } from "../../../lib/request";
+import { useEffect, useRef, useState } from "react";
 import { emptyConvert, type PublicConvert, type PublicScore, type PublicSource } from "@/app/api/zenas/feeds/public";
 
 type Region = "us-east" | "za";
@@ -34,18 +36,23 @@ export function FeedSwitch({
   const [busy, setBusy] = useState("");
   const [watching, setWatching] = useState(initialConvert.running);
   const [why, setWhy] = useState("");
+  const selection = useRef(0);
   const anyRunning = sources.some((row) => row.last_status === "running");
 
   useEffect(() => {
     if (!anyRunning) return;
     let stop = false;
+    let fetching = false;
     const timer = setInterval(() => {
-      void refreshSources();
+      if (fetching) return;
+      fetching = true;
+      void refreshSources().finally(() => { fetching = false; });
     }, 3000);
 
     async function refreshSources() {
-      const res = await fetch(`/api/zenas/feeds/region?region=${region}`);
-      if (!res.ok || stop) return;
+      const res = await zenasFetch(`/api/zenas/feeds/region?region=${region}`);
+      if (stop) return;
+      if (!res.ok) { setMessage("Feeds could not be loaded."); return; }
       const body = (await res.json()) as { sources?: PublicSource[] };
       if (stop) return;
       setSources(body.sources ?? []);
@@ -60,13 +67,17 @@ export function FeedSwitch({
   useEffect(() => {
     if (!watching) return;
     let stop = false;
+    let fetching = false;
     const timer = setInterval(() => {
-      void refresh();
+      if (fetching) return;
+      fetching = true;
+      void refresh().finally(() => { fetching = false; });
     }, 3000);
 
     async function refresh() {
-      const res = await fetch(`/api/zenas/feeds/region/convert?region=${region}`);
-      if (!res.ok || stop) return;
+      const res = await zenasFetch(`/api/zenas/feeds/region/convert?region=${region}`);
+      if (stop) return;
+      if (!res.ok) { setMessage("Feeds could not be loaded."); return; }
       const body = (await res.json()) as PublicConvert;
       if (stop) return;
       setCounts(body);
@@ -83,15 +94,17 @@ export function FeedSwitch({
   }, [watching, region]);
 
   async function choose(next: Region) {
+    const selected = ++selection.current;
     setRegion(next);
     setWhy("");
     setMessage("");
     const [feeds, scored, switched, converted] = await Promise.all([
-      fetch(`/api/zenas/feeds/region?region=${next}`),
-      fetch(`/api/zenas/selftest?region=${next}`),
-      fetch(`/api/zenas/review-switch?region=${next}`),
-      fetch(`/api/zenas/feeds/region/convert?region=${next}`),
+      zenasFetch(`/api/zenas/feeds/region?region=${next}`),
+      zenasFetch(`/api/zenas/selftest?region=${next}`),
+      zenasFetch(`/api/zenas/review-switch?region=${next}`),
+      zenasFetch(`/api/zenas/feeds/region/convert?region=${next}`),
     ]);
+    if (selected !== selection.current) return;
     if (!feeds.ok) {
       setSources([]);
       setMessage("Feeds could not be loaded.");
@@ -123,7 +136,7 @@ export function FeedSwitch({
   async function convertCases() {
     setBusy("convert");
     setMessage("");
-    const res = await fetch("/api/zenas/feeds/region/convert", {
+    const res = await zenasFetch("/api/zenas/feeds/region/convert", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ region }),
@@ -147,7 +160,7 @@ export function FeedSwitch({
   async function flipReview() {
     const next = review === "on" ? "off" : "on";
     setBusy("review");
-    const res = await fetch("/api/zenas/review-switch", {
+    const res = await zenasFetch("/api/zenas/review-switch", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ region, review: next }),
@@ -164,7 +177,7 @@ export function FeedSwitch({
   async function load(source: string) {
     setBusy(source);
     setMessage("");
-    const res = await fetch("/api/zenas/feeds/region/load", {
+    const res = await zenasFetch("/api/zenas/feeds/region/load", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ source, region }),
@@ -191,7 +204,7 @@ export function FeedSwitch({
           South Africa
         </button>
       </div>
-      {message ? <p className="note">{message}</p> : null}
+      {message ? <p className="note" role="status">{message}</p> : null}
       <h2>Decided cases</h2>
       <p className="note">
         <span className="meta">{counts.decided}</span> decided cases loaded.{" "}
@@ -257,7 +270,8 @@ export function FeedSwitch({
       </p>
       <h2>Test scores</h2>
       <p className="note">LegalBench rows are a code baseline, not a model score.</p>
-      {scores.length === 0 ? <p>No scores yet.</p> : (
+      {scores.length === 0 ? <p>No scores yet. Load now · Convert cases</p> : null}
+      {(
         <div className="zf-scroll">
         <table>
           <thead>
@@ -272,7 +286,7 @@ export function FeedSwitch({
             </tr>
           </thead>
           <tbody>
-            {scores.map((row) => (
+            {scores.length === 0 ? <tr><td>—</td><td>—</td><td>0</td><td>—</td><td>—</td><td>—</td><td>—</td></tr> : scores.map((row) => (
               <tr key={`${row.kind}-${row.area}-${row.set}`}>
                 <td>{row.area || row.jurisdiction}</td>
                 <td>{row.error ? "error" : row.label || row.set || row.kind}</td>
@@ -281,10 +295,10 @@ export function FeedSwitch({
                   <td colSpan={4}>{row.reason}</td>
                 ) : (
                   <>
-                    <td className="meta">{row.outcome_agreement}%</td>
-                    <td className="meta">{row.element_agreement}%</td>
-                    <td className="meta">{row.citations_valid}%</td>
-                    <td className="meta">{row.cost_per_case}</td>
+                    <td className="meta">{row.cases > 0 ? `${row.outcome_agreement}%` : "—"}</td>
+                    <td className="meta">{row.cases > 0 ? `${row.element_agreement}%` : "—"}</td>
+                    <td className="meta">{row.cases > 0 ? `${row.citations_valid}%` : "—"}</td>
+                    <td className="meta">{row.cases > 0 ? row.cost_per_case : "—"}</td>
                   </>
                 )}
               </tr>
@@ -294,6 +308,7 @@ export function FeedSwitch({
         </div>
       )}
       <h2>Sources</h2>
+      {sources.length === 0 ? <p className="note">Load now</p> : null}
       <div className="zf-scroll">
       <table>
         <thead>
@@ -307,7 +322,7 @@ export function FeedSwitch({
           </tr>
         </thead>
         <tbody>
-          {sources.map((row) => (
+          {sources.length === 0 ? <tr><td>—</td><td>0</td><td>—</td><td>—</td><td>—</td><td>Load now</td></tr> : sources.map((row) => (
             <tr key={row.id}>
               <td>{row.title}</td>
               <td className="meta">{row.documents}</td>

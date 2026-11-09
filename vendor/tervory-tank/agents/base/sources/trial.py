@@ -8,6 +8,7 @@ from typing import Any
 
 from sources.context_dev import BRAND_CREDITS, ContextDev
 from sources.vendor_ledger import PLATFORM_TENANT, SCHEMA, TankVendorLedger, decoded
+from sources.learning import save_lesson
 
 
 async def run_trial(pool: Any, http: Any, tenant_id: str, run_id: str, records: list[dict[str, Any]]) -> dict[str, Any]:
@@ -55,6 +56,11 @@ async def run_trial(pool: Any, http: Any, tenant_id: str, run_id: str, records: 
                     identity = {key: record[key] for key in ("name", "domain", "url") if record.get(key)}
                     result = await adapter.lookup(**identity, record_id=record["record_id"])
                     records_sent += result["status"] in ("candidate", "failed", "transport_error", "unknown")
+                    posted = await conn.fetchval(
+                        'SELECT result FROM agent_base.context_dev_calls WHERE tenant_id=$1 AND run_id=$2 AND record_id=$3',
+                        tenant, run, uuid.UUID(record['record_id']))
+                    if posted is not None:
+                        result = decoded(posted)
                 checked = record.get("checked_answers")
                 if checked is not None:
                     await conn.execute(
@@ -63,7 +69,10 @@ async def run_trial(pool: Any, http: Any, tenant_id: str, run_id: str, records: 
                         tenant, run, uuid.UUID(record["record_id"]),
                         json.dumps({"checked": bool(checked), "expected": checked, "label_source": record.get("label_source")}),
                     )
-                results.append({"record_id": record["record_id"], **result})
+                learned = await save_lesson(conn, tenant, run, record, result)
+                results.append({"record_id": record["record_id"], **result,
+                                "lessons": len(learned['candidates']),
+                                "disagrees": learned['status'] == 'disagrees'})
                 if result["status"] == "credit_limit":
                     break
             spent = await conn.fetchval(

@@ -16,40 +16,19 @@ from uuid import UUID
 
 import httpx
 import pytest
+import tervor_training_fixtures
 from fastapi import HTTPException
+
+configured_base = tervor_training_fixtures.configured_base
 
 ROOT = Path(__file__).resolve().parents[2]
 PLATFORM = UUID(int=1)
 
 
 def projected(name):
-    base = ROOT / 'vendor/tervory-tank'
-    if not base.is_dir():
-        base = ROOT  # The check runner reconstructs Tank's original layout.
-    path = base / name
-    if path.is_file():
-        original = path.read_text().splitlines(keepends=True)
-    else:
-        assert name == 'tank/training_jobs/requirements.txt'
-        original = []
-    patch = (ROOT / 'tank-patches/finish.patch').read_text()
-    section = patch.split(f'diff --git a/{name} b/{name}\n', 1)[1].split('diff --git ', 1)[0]
-    result, cursor = [], 0
-    for hunk in re.split(r'(?m)^@@ ', section)[1:]:
-        header, body = hunk.split('\n', 1)
-        start = max(0, int(re.match(r'-(\d+)', header)[1]) - 1)
-        result.extend(original[cursor:start])
-        cursor = start
-        for line in body.splitlines(keepends=True):
-            if line == '\n':
-                line = ' \n'  # Git accepts a bare blank context line.
-            if line.startswith((' ', '-')):
-                assert original[cursor] == line[1:]
-                cursor += 1
-            if line.startswith((' ', '+')):
-                result.append(line[1:])
-    result.extend(original[cursor:])
-    return ''.join(result)
+    if (ROOT / name).is_file():
+        return (ROOT / name).read_text()
+    return (ROOT / 'vendor/tervory-tank' / name).read_text()
 
 
 def shared_functions(*names, runtime):
@@ -261,7 +240,8 @@ def test_overlap_is_refused_before_trainer_or_model_construction(monkeypatch):
 def test_hf_jobs_client_is_isolated_from_the_cpu_router_dependencies():
     dockerfile = projected('tank/Dockerfile')
     assert 'python -m venv /opt/hf-jobs' in dockerfile
-    assert '/opt/hf-jobs/bin/pip install --no-cache-dir -r /tmp/hf-jobs-requirements.txt' in dockerfile
+    assert '/opt/hf-jobs/bin/pip install --no-cache-dir --require-hashes -r /tmp/hf-jobs-requirements.lock' in dockerfile
+    assert (ROOT / 'tank/training_jobs/requirements.lock').is_file()
     assert 'ENV HF_JOBS_PYTHON=/opt/hf-jobs/bin/python' in dockerfile
     assert projected('tank/training_jobs/requirements.txt').splitlines() == ['huggingface-hub==1.7.2', 'asyncpg==0.30.0']
 
@@ -271,8 +251,10 @@ async def test_training_subprocess_uses_jobs_sdk_without_changing_parent_offline
     namespace = shared_functions('_training_subprocess', runtime=None)
     process = SimpleNamespace(returncode=0, communicate=AsyncMock(return_value=(b'{"status":"ready"}\n', b'')))
     create = AsyncMock(return_value=process)
-    namespace.update(asyncio=SimpleNamespace(create_subprocess_exec=create, subprocess=asyncio.subprocess),
-                     sys=sys, Path=Path, __file__=str(ROOT / 'tank/training.py'), json=json)
+    namespace.update(asyncio=SimpleNamespace(create_subprocess_exec=create, subprocess=asyncio.subprocess,
+                                            wait_for=asyncio.wait_for, CancelledError=asyncio.CancelledError),
+                     sys=sys, Path=Path, __file__=str(ROOT / 'tank/training.py'), json=json,
+                     TRAINING_COMMAND_TIMEOUT_SECONDS=__import__('training').TRAINING_COMMAND_TIMEOUT_SECONDS)
     monkeypatch.setenv('HF_JOBS_PYTHON', '/opt/hf-jobs/bin/python')
     monkeypatch.setenv('HF_HUB_OFFLINE', '1')
     result = await namespace['_training_subprocess']('--agent', 'zenas')

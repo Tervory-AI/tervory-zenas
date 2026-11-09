@@ -22,6 +22,9 @@ changed=$(printf '%s\n' "$changed" | sort -u | grep -v '^$' || true)
 
 step() { echo; echo "== $1"; }
 
+step "diff gate (as CI)"
+python3 .github/scripts/diff_gate.py "$base" HEAD || failed+=(diff-gate)
+
 step "lint (ruff, as CI)"
 ruff check tank tests --select E9,F --per-file-ignores "tank/skills/base.socials/1.0.0/run.py:F401" || failed+=(lint)
 

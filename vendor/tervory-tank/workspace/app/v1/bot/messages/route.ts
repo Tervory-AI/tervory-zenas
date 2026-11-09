@@ -1,3 +1,4 @@
+import { fetchWithDeadline as fetch } from "../../../../lib/request";
 /** Public bot transport only. No page, widget, SigninDirectory role or Workspace key. */
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

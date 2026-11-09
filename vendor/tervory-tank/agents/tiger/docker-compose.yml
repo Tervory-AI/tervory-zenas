@@ -24,8 +24,9 @@ services:
       CHASSIS_RLS_ADMIN_ROLE: ${CHASSIS_RLS_ADMIN_ROLE:-}
       TANK_URL: http://tank:8000
       TANK_KEY: ${TANK_KEY_TIGER:-}
+      RIG_TIGER_CHECK_KEY: ${RIG_TIGER_CHECK_KEY:-}
       TIGER_URL: http://tiger-browser-gateway:3000
-      # Reserved for a future caller; current extraction stays code-only.
+      # Opt-in only. Existing page extraction remains code-only.
       TIGER_BRAIN_ENABLED: ${TIGER_BRAIN_ENABLED:-false}
       HERMES_URL: http://hermes:8000
       DATA_DIR: /data
@@ -41,7 +42,7 @@ services:
     networks:
       - gw
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
+      test: ["CMD", "python", "-c", "import os, urllib.request; urllib.request.urlopen(urllib.request.Request('http://127.0.0.1:8000/health', headers={'X-Tank-Key': os.environ.get('TANK_KEY', '')}), timeout=3)"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -51,15 +52,17 @@ services:
   tiger-brain:
     profiles: [brain]
     build:
-      context: ../..
-      dockerfile: agents/rig/Dockerfile.brain
-    # Reuse the pinned Hermes build and shared adapter, never Rig's task API.
-    command: [uvicorn, "brain.standby:app", --host, "0.0.0.0", --port, "8001", --no-access-log]
+      context: ..
+      dockerfile: tiger/Dockerfile
+    # Tiger-owned signed coordinator, with all inference routed through Tank.
+    command: [uvicorn, "gates_brain_service:app", --host, "0.0.0.0", --port, "8001", --no-access-log]
     restart: unless-stopped
     mem_limit: 2g
     cpus: 1
     environment:
       BRAIN_ROOM: tiger
+      TIGER_BRAIN_ENABLED: ${TIGER_BRAIN_ENABLED:-false}
+      DATABASE_URL: postgresql://agent_tiger:${AGENT_DB_PASSWORD_TIGER}@postgres:5432/${POSTGRES_DB:-tervory}
       TANK_URL: http://tank:8000
       TANK_KEY: ${TANK_KEY_TIGER:-}
       TANK_REGION: ${TANK_REGION:-us-east}

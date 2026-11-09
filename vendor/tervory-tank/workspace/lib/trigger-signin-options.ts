@@ -3,15 +3,19 @@ import ZitadelProvider from "next-auth/providers/zitadel";
 import { signinPrincipal, signinOrganisations, ORG_CLAIM, ROLES_CLAIM } from "./trigger-signin-principal";
 import { isWorkspaceOrigin } from "./workspace-origin";
 import { signinRuntime } from "./trigger-signin-runtime";
+import { workspaceSetupMessage } from "./workspace-setup";
+import { WORKSPACE_SESSION_COOKIE } from "./signin-cookies";
 
 export async function signinOptions(): Promise<NextAuthOptions> {
+  const problem = workspaceSetupMessage();
+  if (problem) throw new Error(problem);
   const { issuer } = await signinRuntime();
   return {
   secret: process.env.TRIGGER_SIGNIN_WORKSPACE_SECRET,
   useSecureCookies: true,
   session: { strategy: "jwt", maxAge: 3600 },
   cookies: {
-    sessionToken: { name: "__Secure-tervory-signin", options: { httpOnly: true, secure: true, sameSite: "lax", path: "/", domain: ".tervory.com" } },
+    sessionToken: { name: WORKSPACE_SESSION_COOKIE, options: { httpOnly: true, secure: true, sameSite: "lax", path: "/", domain: ".tervory.com" } },
     csrfToken: { name: "__Secure-tervory-signin-csrf", options: { httpOnly: true, secure: true, sameSite: "lax", path: "/", domain: ".tervory.com" } },
     callbackUrl: { name: "__Secure-tervory-signin-callback", options: { httpOnly: true, secure: true, sameSite: "lax", path: "/", domain: ".tervory.com" } },
     state: { name: "__Secure-tervory-signin-state", options: { httpOnly: true, secure: true, sameSite: "lax", path: "/", domain: ".tervory.com", maxAge: 900 } },

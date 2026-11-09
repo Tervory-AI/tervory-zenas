@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import asyncio
 import hashlib
 import os
 import re
@@ -11,7 +12,8 @@ from uuid import UUID, uuid4
 import httpx
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 from rigbox.service import RigError
-from chassis.storage import Storage
+from chassis.storage import Storage, StorageError
+from rigbox.deadline import bounded
 
 PREFIX = '/v1/rig/rooms/'
 SNAPSHOT_CHUNK_BYTES = 16 * 1024 * 1024
@@ -139,6 +141,10 @@ async def archive(service, tenant):
 
 
 class RoomStorage(Storage):
+    @bounded(180, lambda: StorageError('Storage request failed'))
+    async def _request(self, *args, **kwargs):
+        return await super()._request(*args, **kwargs)
+
     def _prefix(self, tenant_id, category, *, public):
         require_owner(tenant_id)
         return super()._prefix(tenant_id, category, public=public)
@@ -179,7 +185,7 @@ class RoomGateway:
         headers["X-Forwarded-For"] = client_address(request)
         started = False
         try:
-            async with httpx.AsyncClient(trust_env=False, follow_redirects=False) as http:
+            async with asyncio.timeout(90), httpx.AsyncClient(trust_env=False, follow_redirects=False) as http:
                 async with http.stream(request.method, room_host(tenant) + ':8000/' + tail,
                         params=request.query_params.multi_items(), content=bytes(raw), headers=headers, timeout=90) as result:
                     response = StreamingResponse(result.aiter_bytes(), status_code=result.status_code,
@@ -187,7 +193,7 @@ class RoomGateway:
                             'connection', 'transfer-encoding', 'content-length', 'content-encoding'}})
                     started = True
                     await response(scope, receive, send)
-        except httpx.HTTPError:
+        except (httpx.HTTPError, TimeoutError):
             if started:
                 raise
             response = JSONResponse({'error': {'code': 'unavailable', 'message': 'This store room is unavailable.'}}, status_code=503)

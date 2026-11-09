@@ -5,7 +5,7 @@ import { addProduct, removeProduct } from "./actions";
 import { EVERY_OPTIONS, FOOT, LEDE } from "./copy";
 import { SECTIONS, searchTiger, type AlertRow, type ProductRow, type ReadRow, type Section, type TigerData } from "./model";
 import { SquadLinks } from "../squad-links";
-import { AttemptTime, PageLink, Pill, SimpleTable } from "./parts";
+import { AttemptTime, PageLink, Pill, SimpleTable, useDialogFocus } from "./parts";
 import { PositionViews } from "./position-views";
 import type { ComparisonData, WatchView } from "./position-model";
 
@@ -79,7 +79,7 @@ export function TigerApp({
   return (
     <div className={rootClass}>
       <header className="topbar">
-        <img src={comparing ? "/brand/tervory-logo.png" : "/brand/tervory-logo-reversed.png"} alt="Tervory" />
+        <img src={comparing ? "/brand/tervory-logo.png" : "/brand/tervory-logo-reversed.png"} alt="Tervory" width={186} height={34} decoding="async" />
         <button type="button" className="menu" aria-expanded={menuOpen} onClick={() => setMenuOpen((open) => !open)}>Menu</button>
       </header>
 
@@ -133,7 +133,7 @@ export function TigerApp({
           {!comparing ? <button type="button" className={headerRed ? "primary" : "line"} onClick={() => setAddOpen(true)}>Add a product</button> : null}
         </header>
 
-        {notice && !comparing ? <p className="notice">{notice}</p> : null}
+        {notice ? <p className="notice" role="alert">{notice}</p> : null}
         {help && !comparing ? <p className="notice">Manage check intervals and alert preferences when adding a product. Each watch shows its latest check status; completed readings are available in History.</p> : null}
 
         {hit && !comparing ? <Results hit={hit} /> : null}
@@ -149,7 +149,7 @@ export function TigerApp({
             <p className="intro">The latest 40 check attempts from your watched pages.</p>
             <SimpleTable heads={["When", "Product", "Price", "Stock", "Status"]}
               rows={data.reads.map((row) => [row.when, <ProductIdentifier key="product" name={row.product} url={row.url} />, row.price, row.stock, row.reason ? `Not checked — ${row.reason}` : "Read"])}
-              empty="No readings yet." priceCol={2} />
+              empty="Add a product" priceCol={2} />
           </section>
         ) : null}
 
@@ -168,15 +168,15 @@ function Overview({ data, onWatch, onAlerts }: { data: TigerData; onWatch: () =>
   return (
     <>
       <section className="counts" aria-label="Counts">
-        <article className="count"><b>{data.watchedCount}</b><strong>{data.watchedCount === 1 ? "Watched product" : "Watched products"}</strong><p className="fine">Product pages Tiger checks.</p></article>
-        <article className="count"><b>{data.changesToday}</b><strong>{data.changesToday === 1 ? "Change today" : "Changes today"}</strong><p className="fine">Confirmed changes since midnight UTC.</p></article>
+        <article className="count"><b>{data.watchedCount}</b><strong>{data.watchedCount === 1 ? "Watched product" : "Watched products"}</strong><p className="fine">{data.watchedCount === 0 ? "Add a product" : "Product pages Tiger checks."}</p></article>
+        <article className="count"><b>{data.changesToday}</b><strong>{data.changesToday === 1 ? "Change today" : "Changes today"}</strong><p className="fine">{data.watchedCount === 0 ? "Add a product" : "Confirmed changes since midnight UTC."}</p></article>
       </section>
       <section className="block">
         <div className="title-row">
           <h2>Latest reads</h2>
         </div>
         <p className="intro">The latest check for each watched product.</p>
-        {data.products.length === 0 ? <p className="empty">No products watched yet.</p> : (
+        {data.products.length === 0 ? <div><p className="empty">No products watched yet.</p><p className="fine">Add a product</p></div> : (
         <ul className="cards">
           {data.products.map((row) => (
             <li key={row.id}>
@@ -222,7 +222,7 @@ function Overview({ data, onWatch, onAlerts }: { data: TigerData; onWatch: () =>
           <h2>Recent alerts</h2>
         </div>
         <p className="intro">Recent confirmed price and stock changes.</p>
-        {recent.length === 0 ? <p className="empty">No alerts yet.</p> : (
+        {recent.length === 0 ? <div><p className="empty">No alerts yet.</p><p className="fine">Add a product</p></div> : (
         <ul className="cards">
           {recent.map((row) => (
             <li key={row.id}>
@@ -264,7 +264,7 @@ function Alerts({ rows, example }: { rows: AlertRow[]; example: boolean }) {
         <h2>Alerts</h2>
       </div>
       <p className="intro">Confirmed changes from completed product checks.</p>
-      {rows.length === 0 ? <p className="empty">No alerts yet.</p> : null}
+      {rows.length === 0 ? <div><p className="empty">No alerts yet.</p><p className="fine">Add a product</p></div> : null}
       <div className="filters">
         {(["All", "Price", "Stock"] as const).map((item) => (
           <button key={item} type="button" className={kind === item ? "chip on" : "chip"} onClick={() => setKind(item)}>{item}</button>
@@ -288,7 +288,7 @@ function Alerts({ rows, example }: { rows: AlertRow[]; example: boolean }) {
         </table>
       </div>
       <div className="table-foot">
-        <span>{listed.length} {listed.length === 1 ? "alert" : "alerts"}{example ? " · Example" : ""}</span>
+        <span>{listed.length} {listed.length === 1 ? "alert" : "alerts"}</span>
       </div>
       <article className="note-card">
         <h3>How alerts work</h3>
@@ -306,7 +306,7 @@ function Watch({ rows, note, onHide }: { rows: ProductRow[]; note: string | null
         <h2>Watch list</h2>
       </div>
       <p className="intro">Your watched pages, check intervals and alert preferences.</p>
-      {rows.length === 0 ? <p className="empty">No products watched yet.</p> : null}
+      {rows.length === 0 ? <div><p className="empty">No products watched yet.</p><p className="fine">Add a product</p></div> : null}
       <div className="table-wrap">
         <table>
           <thead><tr><th>Product</th><th>Page</th><th>How often</th><th>Alert me on</th><th>Last attempt</th><th>Status</th><th /></tr></thead>
@@ -372,11 +372,12 @@ function Results({ hit }: { hit: NonNullable<ReturnType<typeof searchTiger>> }) 
 }
 
 function AddProduct({ onClose }: { onClose: () => void }) {
+  const dialog = useDialogFocus(onClose);
   const [priceOn, setPriceOn] = useState(true);
   const [stockOn, setStockOn] = useState(true);
   return (
     <div className="scrim" role="presentation" onClick={onClose}>
-      <div className="popup narrow" role="dialog" aria-modal="true" aria-labelledby="add-title" onClick={(event) => event.stopPropagation()}>
+      <div ref={dialog} tabIndex={-1} className="popup narrow" role="dialog" aria-modal="true" aria-labelledby="add-title" onClick={(event) => event.stopPropagation()}>
         <form action={addProduct} className="add-form">
           <div className="popup-head">
             <div>

@@ -271,3 +271,14 @@
     font-size:9px;
   }
 }
+
+.gold-page, .gold-page * { box-sizing: border-box; }
+.gold-page { overflow-wrap: anywhere; }
+.gold-page button, .gold-page select { min-height: 44px; }
+.gold-card { min-height: 308px; }
+.gold-card .gold-meta { min-height: 40px; }
+.gold-filters { min-width: 0; }
+.gold-filters label, .gold-filters select { min-width: 0; }
+.gold-review[aria-busy="true"] { min-height: 570px; }
+
+.gold-review nav.gold-filters { height: 84px; overflow: auto; flex-wrap: nowrap; align-items: center; }

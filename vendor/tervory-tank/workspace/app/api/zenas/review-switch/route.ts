@@ -36,7 +36,7 @@ export async function POST(req: Request) {
   if (!region || !review) return NextResponse.json({ error: "Name the box and on or off." }, { status: 400 });
   try {
     const res = await zenasIn(region, "review-switch", {
-      method: "POST",
+      method: "POST", headers: { "idempotency-key": req.headers.get("idempotency-key") || crypto.randomUUID() },
       body: JSON.stringify({ home_region: region, review }),
     });
     if (!res) return NextResponse.json({ error: "That box is not connected." }, { status: 404 });

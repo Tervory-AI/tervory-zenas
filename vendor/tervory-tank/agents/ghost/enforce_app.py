@@ -34,6 +34,7 @@ from .store import Store
 from .tenant_queue import load_mirrored_settings
 from .threat_payload import ThreatPayload
 from .threat_queue import ThreatPayloadQueue, enforce_drain_once, queue_root_from_env
+from .configuration import interval_seconds, missing_settings, setting_status
 
 
 def _content_length(request: Request) -> int:
@@ -156,7 +157,8 @@ def _boot_durable_control(app: FastAPI) -> list[dict[str, Any]]:
     control = load_control(data_dir, tenant_id=tenant_id)
     cfg = load_enforce_client_settings()
     site = control.site or cfg.site_name
-    control = select_control(site=site, settings=cfg, control=control)
+    if not getattr(app.state, "service_started", False) or not missing_settings("enforce"):
+        control = select_control(site=site, settings=cfg, control=control)
     restored = {r["rule_id"]: r for r in control.list_blocked()}
     # If somehow restored is smaller than the table we read, emit per-shield drops.
     receipts.extend(
@@ -186,6 +188,14 @@ def drain_once_for_enforce(
     target = app
     if target is None:
         target = globals().get("app")
+    # A running service must never turn missing provider settings into fake
+    # successful blocks. Explicit in-process controls remain usable offline.
+    if (target is not None and getattr(target.state, "service_started", False)
+            and control is None
+            and target.state.control is getattr(target.state, "boot_control", None)
+            and (missing_settings("enforce")
+                 or getattr(target.state.control, "control_name", "fixture_edge") != "cloudflare")):
+        return None
     q = queue
     if q is None:
         if target is not None and getattr(target.state, "threat_queue", None) is not None:
@@ -200,6 +210,7 @@ def drain_once_for_enforce(
             mirrored = load_mirrored_settings(
                 q.root,
                 fallback_tenant_id=(os.environ.get("TENANT_ID") or "").strip()
+                or (getattr(getattr(target.state, "settings", None), "tenant_id", "") if target else "")
                 or "00000000-0000-0000-0000-0000000000ef",
             )
         if mirrored is not None:
@@ -253,16 +264,15 @@ def drain_once_for_enforce(
 
 
 async def _queue_drain_loop(app: FastAPI) -> None:
-    interval = float(os.environ.get("ENFORCE_DRAIN_INTERVAL_SEC") or "1.0")
-    if interval < 0.05:
-        interval = 0.05
+    interval = interval_seconds("ENFORCE_DRAIN_INTERVAL_SEC", 1.0, 0.05, 3600)
     while True:
         await asyncio.sleep(interval)
         try:
             if getattr(app.state, "threat_queue", None) is not None:
                 drain_once_for_enforce(app=app)
+                app.state.drain_error = None
         except Exception:
-            pass
+            app.state.drain_error = "Edge outcome could not be confirmed. Inspect the owned rule before retrying."
 
 
 
@@ -306,14 +316,28 @@ def _default_on_act_email(receipt: dict[str, Any], settings: ClientAutumbraSetti
 def create_enforce_app() -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        drop_receipts = _boot_durable_control(app)
+        app.state.service_started = True
+        app.state.invalid_settings = []
+        try:
+            drop_receipts = _boot_durable_control(app)
+        except Exception:
+            app.state.invalid_settings = ["DATA_DIR", "TENANT_ID", "SITE_NAME"]
+            app.state.boot_control = app.state.control
+            yield
+            return
+        app.state.boot_control = app.state.control
         app.state.action_cap = ActionCap(data_dir=data_dir_path())
         app.state.threat_queue = None
         app.state.drain_loop_running = False
         app.state.on_act_email = _default_on_act_email
         drain_task: asyncio.Task | None = None
         if queue_configured():
-            app.state.threat_queue = enforce_threat_queue()
+            try:
+                app.state.threat_queue = enforce_threat_queue()
+            except (OSError, ValueError):
+                app.state.invalid_settings = ["THREAT_PAYLOAD_QUEUE"]
+                yield
+                return
             app.state.settings = load_enforce_client_settings(queue=app.state.threat_queue)
             for receipt in drop_receipts:
                 app.state.threat_queue.write_receipt(receipt)
@@ -334,7 +358,7 @@ def create_enforce_app() -> FastAPI:
                 drain_task.cancel()
                 await asyncio.gather(drain_task, return_exceptions=True)
 
-    app = FastAPI(title="Autumbra Enforce", docs_url=None, redoc_url=None, lifespan=lifespan)
+    app = FastAPI(title="Autumbra Enforce", docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
     app.state.control = DEFAULT_CONTROL
     app.state.settings = ClientAutumbraSettings(
         tenant_id=(os.environ.get("TENANT_ID") or "").strip()
@@ -348,18 +372,28 @@ def create_enforce_app() -> FastAPI:
 
     @app.get("/health")
     async def health() -> dict[str, Any]:
+        status = setting_status("enforce")
+        live = getattr(app.state.control, "control_name", "fixture_edge") == "cloudflare"
+        invalid = getattr(app.state, "invalid_settings", [])
         return {
             "ok": True,
+            "ready": status["configured"] and live and not invalid,
+            **status,
+            "invalid_settings": invalid,
             "role": "enforce",
             "tank_key_configured": bool(os.environ.get("TANK_KEY", "").strip()),
             "control": getattr(app.state.control, "control_name", "fixture_edge"),
+            # Preserve the durable-record count during provider outages. The
+            # separate verification count never claims those rules are live.
             "blocked": len(app.state.control.list_blocked()),
+            "verified_blocked": len(app.state.control.list_blocked()) if live else None,
             "shield_mode": app.state.settings.shield_mode.value,
-            "tenant_id": app.state.settings.tenant_id,
+            "tenant_id": os.environ.get("TENANT_ID") or None,
             "threat_payload_queue_configured": queue_configured(),
             "drain_loop_running": bool(getattr(app.state, "drain_loop_running", False)),
             "drain_entrypoint": "ghost.enforce_app:drain_once_for_enforce",
             "durable_shields": True,
+            "error": getattr(app.state, "drain_error", None),
         }
 
     @app.post("/v1/apply")
@@ -380,6 +414,15 @@ def create_enforce_app() -> FastAPI:
 
     @app.post("/v1/drain-once")
     async def drain_once_http(request: Request) -> JSONResponse:
+        if (request.client is None or request.client.host not in {"127.0.0.1", "::1", "testclient"}
+                or request.headers.get("x-forwarded-for")):
+            raise HTTPException(404, "Not found.")
+        # Production work enters through the signed Watch queue, not an HTTP
+        # administrative door. Explicitly injected offline controls stay usable.
+        if (getattr(app.state, "service_started", False)
+                and app.state.control is getattr(app.state, "boot_control", None)
+                and not missing_settings("enforce")):
+            raise HTTPException(404, "Not found.")
         if _content_length(request) != 0:
             return _refuse_raw_http()
         if not queue_configured() and getattr(app.state, "threat_queue", None) is None:

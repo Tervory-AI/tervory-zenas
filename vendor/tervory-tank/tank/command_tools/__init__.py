@@ -2,7 +2,7 @@
 from importlib import import_module
 from types import SimpleNamespace
 
-PRODUCTS = ('trigger', 'base', 'tiger', 'market_lab', 'rig', 'tisan', 'radix', 'zenas', 'mcp', 'skala', 'worker', 'plugins', 'training', 'autumbra')
+PRODUCTS = ('trigger', 'base', 'tiger', 'market_lab', 'rig', 'tisan', 'radix', 'zenas', 'mcp', 'skala', 'worker', 'plugins', 'training', 'autumbra', 'workspace', 'opli_memory')
 FOUNDER_ORDER = (('worker', 2), ('base', 6), ('skala', 6), ('tisan', 1), ('worker', 4), ('training', 3), ('mcp', 3), ('radix', 3), ('tisan', 4), ('autumbra', 7))
 ADAPTER_ORDER = (('worker', 2), ('autumbra', 7), ('training', 3), ('tisan', 4), ('base', 6), ('plugins', 3), ('mcp', 3), ('trigger', 13), ('worker', 3), ('base', 2), ('tiger', 4), ('base', 8), ('tiger', 7), ('market_lab', 11), ('tiger', 1), ('market_lab', 1), ('rig', 3), ('tisan', 1), ('radix', 13), ('tisan', 1), ('radix', 3), ('zenas', 10), ('skala', 6), ('trigger', 33))
 

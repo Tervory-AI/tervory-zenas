@@ -24,6 +24,9 @@ export async function POST(request: Request) {
   } catch {
     return Response.json({ error: "Rig did not answer. Try again." }, { status: 400 });
   }
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return Response.json({ error: "Rig did not answer. Try again." }, { status: 400 });
+  }
   const op = body.op ?? "";
   if (op !== "search" && op !== "graph" && op !== "compare" && op !== "ask") {
     return Response.json({ error: "Rig did not answer. Try again." }, { status: 400 });

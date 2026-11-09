@@ -261,8 +261,11 @@ async def retention_due(runtime):
                 AND l.task_type='trigger.bot.retention' AND l.ts>now()-interval '1 day'
                 AND r.receipt->>'complete'='true') ORDER BY t.tenant_id LIMIT 50''')
     for row in tenants:
-        with tenant_scope(row['tenant_id']):
-            await Bot(runtime).retain_conversations(row['tenant_id'])
+        try:
+            with tenant_scope(row['tenant_id']):
+                await Bot(runtime).retain_conversations(row['tenant_id'])
+        except Exception as error:  # noqa: BLE001 — one failed tenant cannot stop maintenance
+            logging.getLogger(__name__).warning('Bot maintenance unavailable (%s)', type(error).__name__)
 
 
 async def refresh_loop(runtime):

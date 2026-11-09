@@ -248,6 +248,7 @@ async def _complete(tank: Any, body: Chat, tenant: uuid.UUID, task: uuid.UUID | 
     tokens_in = tokens_out = 0
     answered = model
     data: dict[str, Any] = {}
+    payload.update(await __import__('engine_tracing').metadata(tank, tenant, task_type, model, policy))
     try:
         async with httpx.AsyncClient(timeout=120) as client:
             response = await client.post(
@@ -604,9 +605,16 @@ def build_router(tank: Any) -> APIRouter:
                    x_tenant_id: uuid.UUID = Header(), x_task_id: uuid.UUID | None = Header(default=None),
                    x_home_region: str | None = Header(default=None)):
         room_key(room, request.headers.get("authorization", ""), request.headers.get("x-tank-key", ""))
-        result = await complete(tank, body, x_tenant_id, x_task_id, local_region(tank, x_home_region, room=room), room=room)
+        if room == "rig":
+            from rig_agent_tasks import sdk_completion
+            result = await sdk_completion(tank, body, request, x_tenant_id, x_task_id,
+                                          local_region(tank, x_home_region, room=room))
+        else:
+            result = await complete(tank, body, x_tenant_id, x_task_id, local_region(tank, x_home_region, room=room), room=room)
         if body.stream:
             return StreamingResponse(stream_completion(result), media_type="text/event-stream")
         return result
 
+    from agent_tasks import install
+    install(router, tank)
     return router

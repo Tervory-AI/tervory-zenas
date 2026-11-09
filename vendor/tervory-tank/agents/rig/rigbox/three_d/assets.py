@@ -6,6 +6,7 @@ short-lived, tenant-partitioned kiosk cache instead.
 """
 import hashlib
 import hmac
+import asyncio
 from datetime import datetime, timezone
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -14,6 +15,7 @@ from uuid import UUID
 from chassis.storage import StorageError
 from rigbox.rooms import RoomStorage as Storage, require_owner
 import httpx
+from rigbox.deadline import bounded
 
 
 PHOTO_MAX_BYTES = 20_000_000
@@ -50,6 +52,7 @@ class ForgeFiles(Storage):
         headers["authorization"] = f"AWS4-HMAC-SHA256 Credential={self._access}/{scope}, SignedHeaders={names}, Signature={signature}"
         return headers
 
+    @bounded(180, lambda: StorageError("Input storage is unavailable"))
     async def _read_photo(self, key, suffix, remaining, target=None):
         path = "/" + self.bucket + "/" + key
         size, signature, digest = 0, bytearray(), hashlib.sha256()
@@ -108,7 +111,7 @@ class ForgeFiles(Storage):
                         with local.open("rb") as source:
                             while chunk := source.read(CHUNK_BYTES):
                                 yield chunk
-                    async with self._http.stream("PUT", f"https://{self.host}{path}", headers=headers,
+                    async with asyncio.timeout(180), self._http.stream("PUT", f"https://{self.host}{path}", headers=headers,
                                                  content=chunks()) as response:
                         if response.status_code == 412:
                             existing = await self._read_photo(key, name.rsplit(".", 1)[-1].lower(), PHOTO_MAX_BYTES)

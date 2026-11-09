@@ -1,4 +1,5 @@
 "use client";
+import { fetchWithDeadline as fetch } from "../../../lib/request";
 import { useCallback, useEffect, useState } from "react";
 import { pauseAction } from "../../control/actions";
 

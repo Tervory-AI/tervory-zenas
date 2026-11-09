@@ -15,6 +15,8 @@ from fastapi import HTTPException
 
 
 def key(name: str = "TANK_VAULT_KEY") -> bytes:
+    if not os.environ.get(name):
+        raise HTTPException(503, {"missing_settings": [name]})
     try:
         value = base64.urlsafe_b64decode(os.environ.get(name, ""))
         if len(value) != 32:

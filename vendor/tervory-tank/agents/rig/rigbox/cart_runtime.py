@@ -1,16 +1,43 @@
 """US-only wiring. Credentials stay in the existing Tank vault at rest."""
 import asyncio
+import logging
 import os
+import socket
+import httpx
 
 from chassis.tenant_db import tenant_scope
 from rigbox.cart import Cart
 from rigbox.commerce import CommerceError, Platform
+from rigbox.deadline import bounded
+
+
+class PublicCommerceHTTP:
+    """Pin each credential-bearing store request to its checked public address."""
+    def __init__(self, http):
+        self.http = http
+
+    async def request(self, method, url, **kwargs):
+        from chassis.public_urls import _blocked_address
+        target = httpx.URL(url)
+        hostname = target.raw_host.decode('ascii')
+        async with asyncio.timeout(kwargs.get('timeout', 25)):
+            answers = await asyncio.get_running_loop().getaddrinfo(hostname, 443, type=socket.SOCK_STREAM)
+            addresses = list(dict.fromkeys(answer[4][0] for answer in answers))
+            if target.scheme != 'https' or target.port not in (None, 443) or not addresses or any(
+                    _blocked_address(address) for address in addresses):
+                raise CommerceError('connection_unavailable')
+            # Pool keys use the pinned IP. Do not reuse a TLS connection for
+            # a different shop on that IP with a different certificate name.
+            headers = {**kwargs.pop('headers', {}), 'Host': target.netloc.decode('ascii'), 'Connection': 'close'}
+            return await self.http.request(method, target.copy_with(host=addresses[0]),
+                headers=headers, extensions={'sni_hostname': hostname}, **kwargs)
 
 
 class Platforms:
     def __init__(self, http, tank):
         self.http, self.tank = http, tank
 
+    @bounded(60, lambda: CommerceError('connection_unavailable'))
     async def __call__(self, tenant, config):
         from chassis.public_urls import check_url
         # Reuse the rooms' existing public-address check. Never follow redirects
@@ -34,7 +61,7 @@ class Platforms:
                     raise ValueError()
                 config['site'] = store.json()['secure_url']
             await asyncio.to_thread(check_url, config['site'])
-            return Platform(self.http, config, credential)
+            return Platform(PublicCommerceHTTP(self.http), config, credential)
         except Exception:
             raise CommerceError('connection_unavailable') from None
 
@@ -55,9 +82,12 @@ def install(service, http, tank):
 
     async def loop():
         while True:
-            with tenant_scope(None, administrative=True):
-                tenants = await service.store.tenant_ids()
-            await asyncio.gather(*(sweep_tenant(tenant) for tenant in tenants))
+            try:
+                with tenant_scope(None, administrative=True):
+                    tenants = await service.store.tenant_ids()
+                await asyncio.gather(*(sweep_tenant(tenant) for tenant in tenants))
+            except Exception:
+                logging.getLogger(__name__).warning('Cart tenant discovery will retry')
             await asyncio.sleep(1)
 
     return asyncio.create_task(loop())

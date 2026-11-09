@@ -1,7 +1,10 @@
 """Configured reference-file transport using the existing public-web policy."""
 from __future__ import annotations
 
+import asyncio
 import httpx
+
+DNS_TIMEOUT = 10
 
 try:  # The Base image copies the existing helper under this import name.
     from reference_security import public_destination, public_url
@@ -23,7 +26,8 @@ def validate(url: str) -> None:
 
 async def destination(url: str) -> tuple[httpx.URL, str]:
     validate(url)
-    host, _, addresses = await public_destination(url)
+    async with asyncio.timeout(DNS_TIMEOUT):
+        host, _, addresses = await public_destination(url)
     # Pin the socket destination so a second DNS lookup cannot reach a private IP.
     # Preserve the original TLS name and Host header in the caller.
     return httpx.URL(url).copy_with(host=addresses[0]), host

@@ -136,6 +136,9 @@ def run(work: Path) -> None:
             skip_context_files=True, skip_memory=True, skip_background_review=True,
             load_soul_identity=False, quiet_mode=True, save_trajectories=False, fallback_model=None,
             run_budget_seconds=540, request_overrides={"extra_headers": {k: v for k, v in headers.items() if k != "X-Tank-Key"}})
+        if request.get("user_id"):
+            from rig_brain.signing import bind_sdk_actor
+            bind_sdk_actor(agent, tank, key, tenant, request["user_id"], task)
         try:
             result = agent.run_conversation(
                 "Answer this catalogue question using only the approved Rig skills and their tenant-scoped results. "

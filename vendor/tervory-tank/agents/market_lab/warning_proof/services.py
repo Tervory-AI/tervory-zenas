@@ -81,6 +81,7 @@ def services(*, log=None, api_port=None, seed_data=True):
         ),
         "TANK_API_KEY": secrets.token_hex(32),
         "TANK_KEY_MARKET_LAB": secrets.token_hex(32),
+        "TANK_KEY_TIGER": secrets.token_hex(32),
         "LITELLM_MASTER_KEY": secrets.token_hex(32),
         "REDIS_URL": "redis://127.0.0.1:1/0",
         "TANK_URL": f"http://127.0.0.1:{api_port}",
@@ -124,13 +125,16 @@ def services(*, log=None, api_port=None, seed_data=True):
                     "AGENT_NAME": room,
                     "TANK_KEY": env["TANK_KEY_MARKET_LAB"]
                     if room == "market_lab"
-                    else secrets.token_hex(32),
+                    else env["TANK_KEY_TIGER"],
                 },
                 stdout=log,
                 stderr=log,
             )
             children.append(child)
-            wait_ready(f"http://127.0.0.1:{port}/openapi.json", child)
+            if room == 'market_lab':
+                wait_ready(f"http://127.0.0.1:{port}/market/settings", child, headers={'X-Tank-Key': env['TANK_KEY_MARKET_LAB']})
+            else:
+                wait_ready(f"http://127.0.0.1:{port}/health", child, headers={"X-Tank-Key": env["TANK_KEY_TIGER"]})
         tank_env = {
             **env,
             "HTTP_PROXY": f"http://127.0.0.1:{proxy.server_port}",

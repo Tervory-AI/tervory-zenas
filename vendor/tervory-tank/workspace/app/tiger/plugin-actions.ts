@@ -20,9 +20,7 @@ const SQUAD = "tiger";
 export type PluginResult = { ok: boolean; message: string };
 
 async function actor() {
-  const tenant = await activeTenant();
-  if (!tenant) return null;
-  return tenant;
+  try { return await activeTenant(); } catch { return null; }
 }
 
 function safe(error: unknown, fallback: string): string {

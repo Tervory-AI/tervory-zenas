@@ -109,12 +109,28 @@ class Report(Strict):
         return None
 
 
+class ProgressCost(Strict):
+    amount_usd: str | None = Field(default=None, pattern=r"^[0-9]+(?:\.[0-9]+)?$")
+    basis: Literal['unknown', 'recorded', 'upper_bound']
+    receipt_ids: list[UUID] = Field(default_factory=list)
+
+
+class Progress(Strict):
+    id: str = Field(max_length=100)
+    stage: Literal['understand', 'design', 'check', 'price', 'ready']
+    at: str = Field(max_length=64)
+    elapsed_ms: int = Field(ge=0)
+    outcome: Literal['running', 'delivered', 'failed']
+    cost: ProgressCost
+
+
 class Result(Strict):
     contract: Literal["rig-forge/1"] = "rig-forge/1"
     id: UUID
     tenant_id: UUID
     status: Literal["queued", "running", "failed", "draft"]
     report: Report | None = None
+    progress: list[Progress] = Field(default_factory=list)
     # An opaque code from a fixed vocabulary, never an upstream error message.
     failure: Literal["conversion", "budget", "timeout", "validation", "unavailable"] | None = None
 

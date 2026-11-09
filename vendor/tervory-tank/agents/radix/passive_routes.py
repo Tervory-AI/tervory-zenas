@@ -166,10 +166,13 @@ def attach(app):
         if request.headers.get('x-tervory-active-authorized')!='true' or not request.headers.get('x-tervory-user'):
             raise HTTPException(403,'scan not authorized')
         result=await Store(app.state.pool).withdraw_consent(body.tenant_id,body.domain,request.headers['x-tervory-user'])
-        async with httpx.AsyncClient(trust_env=False,timeout=15) as client:
-            # scan_id is not used to select authority: the gateway reads its own current lease.
-            response=await client.post(GATEWAY+'/active/revoke',json={'tenant_id':str(body.tenant_id),'scan_id':str(UUID(int=0))})
-            response.raise_for_status()
+        try:
+            async with httpx.AsyncClient(trust_env=False,timeout=15) as client:
+                # No retry of a write: consent is already withdrawn durably.
+                response=await client.post(GATEWAY+'/active/revoke',json={'tenant_id':str(body.tenant_id),'scan_id':str(UUID(int=0))})
+                response.raise_for_status()
+        except httpx.HTTPError:
+            raise HTTPException(503, 'scan egress unavailable') from None
         return result
 
     @router.post('/infra')
@@ -196,10 +199,14 @@ def attach(app):
     @router.post('/watch')
     async def watch(body: Watch, request: Request):
         identity(request, body.tenant_id)
-        async with httpx.AsyncClient(trust_env=False, timeout=15) as client:
-            response = await client.post(GATEWAY + '/proof', json={
-                'tenant_id': str(body.tenant_id), 'domain': body.domain})
-        if response.status_code != 200 or response.json().get('ready') is not True:
+        try:
+            async with httpx.AsyncClient(trust_env=False, timeout=15) as client:
+                response = await client.post(GATEWAY + '/proof', json={
+                    'tenant_id': str(body.tenant_id), 'domain': body.domain})
+            ready = response.json() if response.status_code == 200 else {}
+        except (httpx.HTTPError, ValueError):
+            raise HTTPException(503, 'domain proof required') from None
+        if response.status_code != 200 or not isinstance(ready, dict) or ready.get('ready') is not True:
             raise HTTPException(403 if response.status_code == 403 else 503, 'domain proof required')
         try:
             result = await Store(app.state.pool).watch(body.tenant_id, body.domain, body.interval, run_now=body.run_now)

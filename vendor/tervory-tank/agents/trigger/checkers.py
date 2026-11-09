@@ -106,6 +106,7 @@ def local_checks(text: str, voice: Voice | None, excluded: frozenset[str] = froz
 async def _check_piece(text: str, voice: Voice | None, http: httpx.AsyncClient, *, tank=None, tenant_id=None, bounded=True) -> dict:
     import asyncio
     approved = {}
+    grammar_failed = False
     if tank is not None:
         if tenant_id is None:
             raise ValueError("Checker tenant is required")
@@ -113,7 +114,14 @@ async def _check_piece(text: str, voice: Voice | None, http: httpx.AsyncClient, 
             payload = {"text": text}
             if component != "languagetool" and voice is not None:
                 payload["voice"] = voice.model_dump()
-            output = await tank.approved_skill(str(tenant_id), "trigger." + component, payload)
+            try:
+                output = await tank.approved_skill(str(tenant_id), "trigger." + component, payload)
+            except (httpx.HTTPError, RuntimeError, ValueError):
+                if component != "languagetool":
+                    raise
+                # Approval failures must not silently switch to legacy room code.
+                grammar_failed = True
+                continue
             if output is not None:
                 approved[component] = output
     result = await asyncio.to_thread(local_checks, text, voice, frozenset(approved))
@@ -122,7 +130,10 @@ async def _check_piece(text: str, voice: Voice | None, http: httpx.AsyncClient, 
     if approved:
         result["skills"] = [{"skill": o["_skill"], "ledger_id": o.get("_ledger_id")}
                            for o in approved.values()]
-    if "languagetool" in approved:
+    if grammar_failed:
+        result["complete"] = False
+        result["checker_errors"] = ["LanguageTool is unavailable; its checks have not completed."]
+    elif "languagetool" in approved:
         result["complete"] = True
         result["checker_errors"] = []
     else:
@@ -135,12 +146,25 @@ async def _check_piece(text: str, voice: Voice | None, http: httpx.AsyncClient, 
             matches = payload["matches"]
             if not isinstance(matches, list):
                 raise TypeError("Invalid matches")
+            grammar = []
+            units = len(text.encode("utf-16-le")) // 2
             for match in matches:
-                result["issues"].append({"source": "languagetool", "rule": match["rule"]["id"],
-                                         "message": match["message"], "offset": match["offset"], "length": match["length"]})
+                if not isinstance(match, dict) or not isinstance(match.get("rule"), dict):
+                    raise TypeError("Invalid matches")
+                offset, length = match.get("offset"), match.get("length")
+                if (type(offset) is not int or type(length) is not int
+                        or offset < 0 or length < 0 or offset + length > units
+                        or not isinstance(match["rule"].get("id"), str)
+                        or not isinstance(match.get("message"), str)):
+                    raise TypeError("Invalid matches")
+                grammar.append({"source": "languagetool", "rule": match["rule"]["id"],
+                                "message": match["message"], "offset": offset, "length": length})
             warnings = payload.get("warnings", {})
             if not isinstance(warnings, dict):
                 raise TypeError("Invalid warnings")
+            if type(warnings.get("incompleteResults", False)) is not bool:
+                raise TypeError("Invalid warnings")
+            result["issues"].extend(grammar)
             result["complete"] = not warnings.get("incompleteResults", False)
             result["checker_errors"] = [] if result["complete"] else ["LanguageTool returned incomplete results."]
         except (httpx.HTTPError, ValueError, KeyError, TypeError):
@@ -207,7 +231,9 @@ async def check(text: str, voice: Voice | None, http: httpx.AsyncClient, *, tank
     if not isinstance(text, str) or not 1 <= len(text) <= DOCUMENT_LIMIT:
         raise ValueError("Text exceeds the checker limit")
     if len(text) <= PIECE_LIMIT:
-        return await _check_piece(text, voice, http, tank=tank, tenant_id=tenant_id)
+        report = await _check_piece(text, voice, http, tank=tank, tenant_id=tenant_id)
+        report["issues"] = [_whole_position(issue, text, 0, text) for issue in report["issues"]]
+        return report
     reports = []
     findings = []
     global_seen = set()

@@ -20,8 +20,26 @@ async function route(request: Request, context: Context): Promise<Response> {
   let body: Record<string, unknown> | undefined;
   if (request.method === "POST") {
     if (!isWorkspaceOrigin(request)) return Response.json({ detail: "Open this form in your workspace." }, { status: 403 });
-    const text = await request.text();
-    if (Buffer.byteLength(text) > 2_100_000) return Response.json({ detail: "This file is too large." }, { status: 413 });
+    const reader = request.body?.getReader();
+    const chunks: Uint8Array[] = [];
+    let size = 0;
+    const deadline = AbortSignal.timeout(30_000);
+    let aborted: (() => void) | undefined;
+    const expired = new Promise<never>((_, reject) => {
+      aborted = () => { void reader?.cancel(); reject(new Error("body timeout")); };
+      deadline.addEventListener("abort", aborted, { once: true });
+    });
+    try {
+      while (reader) {
+        const { done, value } = await Promise.race([reader.read(), expired]);
+        if (done) break;
+        size += value.byteLength;
+        if (size > 2_100_000) { await reader.cancel(); return Response.json({ detail: "This file is too large." }, { status: 413 }); }
+        chunks.push(value);
+      }
+    } catch { return Response.json({ detail: "The request could not be read." }, { status: 400 }); }
+    finally { if (aborted) deadline.removeEventListener("abort", aborted); reader?.releaseLock(); }
+    const text = Buffer.concat(chunks).toString("utf8");
     try {
       const value: unknown = JSON.parse(text);
       if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error();

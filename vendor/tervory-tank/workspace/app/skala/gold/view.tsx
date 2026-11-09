@@ -1,5 +1,7 @@
 "use client";
+import { skalaFetch } from "../request";
 
+import { fetchWithDeadline as fetch } from "../../../lib/request";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 type Skill = { agent: string; skill_id: string; checked: number; target: number; holdout: number; candidates: number; last_score: number | null; trend: number | null; ran_at: string | null };
@@ -7,9 +9,9 @@ type Summary = { skills: Skill[]; pairs: Record<string, number>; region: string 
 type Example = { id: string; input: unknown; expected: Record<string, unknown>; source: string; auto_label?: boolean; label_source?: string };
 const agents = ["tank", "base", "tiger", "market_lab", "zenas", "radix", "tisan", "rig"];
 const names: Record<string, string> = { tank: "Tank", base: "Base", tiger: "Tiger", market_lab: "Market Lab", zenas: "Zenas", radix: "Radix", tisan: "Tisan", rig: "RIG" };
-const pct = (n: number | null) => n === null ? "Not tested" : `${(n * 100).toFixed(1)}%`;
+const pct = (n: number | null) => n === null || !Number.isFinite(n) ? "—" : `${(n * 100).toFixed(1)}%`;
 
-export function GoldView({ founder }: { founder: boolean }) {
+export function GoldView({ founder, configurationError = null }: { founder: boolean; configurationError?: string | null }) {
   const [scope, setScope] = useState("platform");
   const [summary, setSummary] = useState<Summary | null>(null);
   const [agent, setAgent] = useState(founder ? "base" : "zenas");
@@ -20,21 +22,25 @@ export function GoldView({ founder }: { founder: boolean }) {
   const [correction, setCorrection] = useState("");
   const [correcting, setCorrecting] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(!configurationError);
+  const [error, setError] = useState(configurationError ?? "");
   const [notice, setNotice] = useState("");
   const correctionRef = useRef<HTMLTextAreaElement>(null);
   const saving = useRef(false);
 
   useEffect(() => {
+    if (configurationError) return;
     const controller = new AbortController();
     setSummary(null);
-    fetch(`/api/skala/gold?scope=${scope}`, { signal: controller.signal }).then(async response => {
+    skalaFetch(`/api/skala/gold?scope=${scope}`, { signal: controller.signal }).then(async response => {
       if (!response.ok) throw new Error();
-      setSummary(await response.json());
+      const value = await response.json();
+      if (!value || !Array.isArray(value.skills) || !value.pairs || typeof value.pairs !== "object"
+          || !["us-east", "za"].includes(value.region)) throw new Error();
+      if (!controller.signal.aborted) setSummary(value);
     }).catch(() => { if (!controller.signal.aborted) setError("Training totals are unavailable. Try reloading."); });
     return () => controller.abort();
-  }, [scope, revision]);
+  }, [scope, revision, configurationError]);
 
   const skills = summary?.skills.filter(s => s.agent === agent) ?? [];
   useEffect(() => {
@@ -45,19 +51,21 @@ export function GoldView({ founder }: { founder: boolean }) {
   }, [summary, agent, skill]);
 
   useEffect(() => {
+    if (configurationError) return;
     const controller = new AbortController();
     setExample(null); setCorrecting(false); setCorrection("");
     if (!skill) { setLoading(false); return () => controller.abort(); }
     setLoading(true);
     const query = new URLSearchParams({ scope, view: "next", agent, skill });
     if (after) query.set("after", after);
-    fetch(`/api/skala/gold?${query}`, { signal: controller.signal }).then(async response => {
+    skalaFetch(`/api/skala/gold?${query}`, { signal: controller.signal }).then(async response => {
       if (!response.ok) throw new Error();
-      setExample(await response.json());
+      const value = await response.json();
+      if (!controller.signal.aborted) setExample(value);
     }).catch(() => { if (!controller.signal.aborted) setError("The next example could not be loaded."); })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
-  }, [scope, agent, skill, after, revision]);
+  }, [scope, agent, skill, after, revision, configurationError]);
 
   const submit = useCallback(async (action: "right" | "wrong" | "skip") => {
     if (!example || saving.current || loading) return;
@@ -75,7 +83,7 @@ export function GoldView({ founder }: { founder: boolean }) {
     }
     saving.current = true; setBusy(true); setError("");
     try {
-      const response = await fetch(`/api/skala/gold?scope=${scope}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: example.id, action, correction: corrected }) });
+      const response = await skalaFetch(`/api/skala/gold?scope=${scope}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: example.id, action, correction: corrected }) });
       if (!response.ok) throw new Error();
       setNotice(action === "right" ? "Checked. Thank you." : "Wrong answer rejected. The correction is queued for a separate check.");
       setAfter(""); setExample(null); setRevision(v => v + 1);
@@ -102,23 +110,10 @@ export function GoldView({ founder }: { founder: boolean }) {
       <p>Check real examples, follow re-test scores, and build the squad’s training collection.</p>
       <label className="gold-scope">Examples <select value={scope} disabled={busy} onChange={e => { setScope(e.target.value); setSkill(""); setAfter(""); setError(""); }}>
         <option value="platform">Shared skill examples</option><option value="tenant">Current workspace examples</option>
-      </select></label><p className="gold-meta">{summary ? `Stored in ${summary.region === "za" ? "South Africa" : "United States"}` : "Loading training totals…"}</p>
+      </select></label><p className="gold-meta">{summary ? `Stored in ${summary.region === "za" ? "South Africa" : "United States"}` : (error ? "—" : "Loading training totals…")}</p>
     </section>
-    <section aria-labelledby="squad-title"><h2 id="squad-title">Squad training</h2><div className="gold-cards">
-      {(founder ? agents : ["zenas"]).map(name => {
-        const rows = summary?.skills.filter(s => s.agent === name) ?? [];
-        const latest = rows.filter(s => s.ran_at).sort((a, b) => (b.ran_at ?? "").localeCompare(a.ran_at ?? ""))[0];
-        return <article className="gold-card" key={name}><h3>{names[name]}</h3>
-          <p className="gold-count">{summary ? rows.reduce((n, s) => n + s.checked, 0) : "—"}<span> / {Math.max(rows.length, 1) * 100} checked</span></p>
-          <dl><div><dt>Latest skill score</dt><dd>{pct(latest?.last_score ?? null)}</dd></div>
-            <div><dt>Change</dt><dd>{latest?.trend == null ? "—" : `${latest.trend > 0 ? "+" : ""}${(latest.trend * 100).toFixed(1)} points`}</dd></div>
-            <div><dt>Training pairs</dt><dd>{summary ? summary.pairs[name] ?? 0 : "—"}</dd></div>
-            <div><dt>Held back</dt><dd>{summary ? rows.reduce((n, s) => n + s.holdout, 0) : "—"}</dd></div></dl>
-          {latest && <small>{latest.skill_id}</small>}
-        </article>;
-      })}
-    </div></section>
-    <section className="gold-review" aria-labelledby="review-title"><div className="gold-review-heading"><div><p className="gold-eyebrow">ONE EXAMPLE AT A TIME</p><h2 id="review-title">Sample queue</h2></div>
+    <TrainingSummary summary={summary} founder={founder} />
+    <section aria-busy={loading || busy} className="gold-review" aria-labelledby="review-title"><div className="gold-review-heading"><div><p className="gold-eyebrow">ONE EXAMPLE AT A TIME</p><h2 id="review-title">Sample queue</h2></div>
       <p className="gold-meta">Ten machine-labelled examples per source for each skill, plus every judgement example.<br />A source counts after 9 of 10 checks agree.</p></div>
       <nav aria-label="Skills closest to 100" className="gold-filters">
         {summary?.skills.filter(s => s.candidates > 0).map(s => <button key={s.skill_id} disabled={busy}
@@ -132,9 +127,9 @@ export function GoldView({ founder }: { founder: boolean }) {
           {!skills.length && <option value="">No examples yet</option>}{skills.map(s => <option key={s.skill_id} value={s.skill_id}>{s.skill_id}</option>)}</select></label>
         {chosen && <p className="gold-meta">{chosen.checked} / 100 checked · {chosen.holdout} held back<br />Last score: {pct(chosen.last_score)}</p>}
       </div>
-      {error && <p role="alert" className="gold-error">{error} <button onClick={() => { setError(""); setRevision(v => v + 1); }}>Reload</button></p>}
+      {error && <p role="alert" className="gold-error">{error} {!configurationError && <button onClick={() => { setError(""); setRevision(v => v + 1); }}>Reload</button>}</p>}
       <p role="status" className="gold-notice">{notice}</p>
-      {loading ? <p className="gold-empty">Loading the next example…</p> : example ? <>
+      {configurationError || (error && !example) ? null : loading ? <p className="gold-empty">Loading the next example…</p> : example ? <>
         <div className="gold-example"><section><h3>Input</h3><pre>{JSON.stringify(example.input, null, 2)}</pre></section>
           <section><h3>Expected answer</h3><pre>{JSON.stringify(example.expected, null, 2)}</pre></section></div>
         {correcting && <label className="gold-correction">Corrected answer (JSON)<textarea ref={correctionRef} value={correction} onChange={e => setCorrection(e.target.value)} rows={8} disabled={busy} /><span>The original will be rejected. This correction needs a separate check.</span></label>}
@@ -144,9 +139,29 @@ export function GoldView({ founder }: { founder: boolean }) {
           {correcting && <button disabled={busy} onClick={() => setCorrecting(false)}>Cancel correction</button>}
           <span className="gold-meta">{busy ? "Saving…" : `${agent === "zenas" ? "Lawyer check · " : ""}Source: ${example.label_source ?? example.source.replaceAll("_", " ")}`}</span></div>
       </> : <div className="gold-empty"><h3>{after ? "You’ve reached the end of this queue." : "No examples waiting for this skill."}</h3>
-        <p>{after ? "Skipped examples are still available when you start again." : "Existing skill examples and accepted work appear here as they arrive."}</p>
+        <p>{after ? "Skipped examples are still available when you start again." : (scope === "tenant" ? "Accept a result in this workspace to start its training collection." : "Add a skill package to create the first examples.")}</p>
         {after && <button onClick={() => setAfter("")}>Review skipped examples</button>}</div>}
     </section>
     <footer className="gold-meta">Weekly re-tests use checked examples only. Held-back examples stay out of weekly runs and training exports.</footer>
   </main>;
+}
+
+export function TrainingSummary({ summary, founder }: { summary: Summary | null; founder: boolean }) {
+  return (
+    <section aria-labelledby="squad-title"><h2 id="squad-title">Squad training</h2><div className="gold-cards">
+      {(founder ? agents : ["zenas"]).map(name => {
+        const rows = summary?.skills.filter(s => s.agent === name) ?? [];
+        const latest = rows.filter(s => s.ran_at).sort((a, b) => (b.ran_at ?? "").localeCompare(a.ran_at ?? ""))[0];
+        return <article className="gold-card" key={name}><h3>{names[name]}</h3>
+          <p className="gold-count">{summary ? rows.reduce((n, s) => n + s.checked, 0) : "—"}<span> / {summary ? rows.reduce((n, s) => n + s.target, 0) : "—"} checked</span></p>
+          <dl><div><dt>Latest skill score</dt><dd>{pct(latest?.last_score ?? null)}</dd></div>
+            <div><dt>Change</dt><dd>{latest?.trend == null ? "—" : `${latest.trend > 0 ? "+" : ""}${(latest.trend * 100).toFixed(1)} points`}</dd></div>
+            <div><dt>Training pairs</dt><dd>{summary ? summary.pairs[name] ?? 0 : "—"}</dd></div>
+            <div><dt>Held back</dt><dd>{summary ? rows.reduce((n, s) => n + s.holdout, 0) : "—"}</dd></div></dl>
+          {latest && <small>{latest.skill_id}</small>}
+          {summary && rows.every(row => row.checked === 0) && <p className="gold-meta">Check the first example to fill this training summary.</p>}
+        </article>;
+      })}
+    </div></section>
+  );
 }

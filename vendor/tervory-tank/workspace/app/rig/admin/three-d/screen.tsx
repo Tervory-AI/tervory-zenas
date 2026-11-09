@@ -31,7 +31,7 @@ export function ThreeDAdminScreen({ jobs, enabled, fewPhotos = false, error, not
     {error ? <p role="alert" className="three-notice">{error}</p> : null}
     {!enabled ? <section><h2>3D is not available for this organisation</h2><p>Check your add-on in billing.</p></section> : <>
       <section>
-        <h2>Prepare a product</h2>
+        <h2 id="prepare-product">Prepare a product</h2>
         <p>Use photos already uploaded to your shop. Enter one file name per line, including its extension. Each photo must be a JPEG or PNG, at most 20 MB. A job can contain up to 70 photos and 1 GB in total.</p>
         <form action={action}>
           <input type="hidden" name="operation" value="submit" /><input type="hidden" name="jobId" value={jobId} />
@@ -50,7 +50,7 @@ export function ThreeDAdminScreen({ jobs, enabled, fewPhotos = false, error, not
         </form>
       </section>
       <section><h2>Products to review</h2>
-        {!drafts.length ? <p>No products are waiting for approval.</p> : drafts.map(job => <article key={job.id}>
+        {!drafts.length ? <div><b>0</b><p>No products are waiting for approval.</p><p><a href="#prepare-product">Prepare product view</a></p></div> : drafts.map(job => <article key={job.id}>
           <h3>{job.product_id}</h3>
           <p>Dimensions: {job.report?.dimensions_mm.join(" × ")} mm</p>
           <p>Attachment points: {Object.keys(job.report?.anchors ?? {}).join(", ")}</p>
@@ -64,7 +64,7 @@ export function ThreeDAdminScreen({ jobs, enabled, fewPhotos = false, error, not
           </form>
         </article>)}
       </section>
-      <section><h2>Preparation progress</h2>{!jobs.length ? <p>No products have been submitted.</p> : <ul>{jobs.map(job =>
+      <section><h2>Preparation progress</h2>{!jobs.length ? <div><b>0</b><p>No products have been submitted.</p><p><a href="#prepare-product">Prepare product view</a></p></div> : <ul>{jobs.map(job =>
         <li key={job.id}><strong>{job.product_id}</strong> — {LABELS[job.status] ?? "Check progress"}
           {job.status === "failed" ? <p>The product did not pass preparation. Check the files and dimensions before trying again.</p> : null}
         </li>)}</ul>}</section>

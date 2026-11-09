@@ -38,9 +38,11 @@ def test_optional_services_reuse_pinned_runtime_and_sandbox_without_caller():
     brain, sandbox = services["tiger-brain"], services["tiger-sandbox"]
     assert services["agent-tiger"]["environment"]["TIGER_BRAIN_ENABLED"] == "${TIGER_BRAIN_ENABLED:-false}"
     assert brain["profiles"] == sandbox["profiles"] == ["brain"]
-    assert brain["build"]["dockerfile"] == "agents/rig/Dockerfile.brain"
-    assert brain["command"][1] == "brain.standby:app"
-    assert "HERMES_COMMIT=d923a5eb487a17c0a68801bba9ef0f56c81040a8" in (ROOT / brain["build"]["dockerfile"]).read_text()
+    assert brain["build"] == {"context": "..", "dockerfile": "tiger/Dockerfile"}
+    assert brain["command"][1] == "gates_brain_service:app"
+    assert brain["environment"]["TIGER_BRAIN_ENABLED"] == "${TIGER_BRAIN_ENABLED:-false}"
+    assert "COPY tiger/gates_brain_service.py /app/gates_brain_service.py" in (ROOT / "agents/tiger/Dockerfile").read_text()
+    assert "HERMES_COMMIT=d923a5eb487a17c0a68801bba9ef0f56c81040a8" in (ROOT / "agents/rig/Dockerfile.brain").read_text()
     assert sandbox["build"]["dockerfile"] == "agents/base/Dockerfile.sandbox"
     assert brain["networks"] == ["gw", "sandbox"] and sandbox["networks"] == ["sandbox"]
     assert config["networks"]["sandbox"] == {"internal": True}

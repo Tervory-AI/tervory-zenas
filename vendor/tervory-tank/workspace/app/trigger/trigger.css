@@ -628,3 +628,17 @@ body:has(.trigger-console) main {
 .trigger-subtable th:last-child {
   width: 12%;
 }
+
+.trigger-first-action, .trigger-first-receipt { min-height: 24px; overflow-wrap: anywhere; }
+.trigger-console [role="alert"] { overflow-wrap: anywhere; }
+.trigger-error-space { min-height: 48px; }
+@media (max-width: 767px) {
+  .trigger-sidebar:not(.is-open) { visibility: hidden; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .trigger-console *, .trigger-console *::before, .trigger-console *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}

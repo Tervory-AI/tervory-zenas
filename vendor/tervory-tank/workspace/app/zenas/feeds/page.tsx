@@ -1,3 +1,4 @@
+import { configurationNote } from "@/app/api/zenas/rules";
 import { auth } from "@/lib/trigger-signin";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -25,7 +26,7 @@ async function readBox(region: Region): Promise<{
     const feeds = await zenasIn(region, `pool/status?home_region=${region}`, { method: "GET" });
     if (!feeds) note = "That box is not connected.";
     else if (feeds.ok) sources = publicFeeds(await feeds.json()).sources;
-    else note = "Feeds could not be loaded.";
+    else note = configurationNote(await feeds.json().catch(() => null)) || "Feeds could not be loaded.";
   } catch {
     note = "Feeds could not be loaded.";
   }

@@ -15,14 +15,14 @@ export async function GET() {
     const payload = await res.json();
     return NextResponse.json({ matters: presentMatters(payload) });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Matters could not be loaded.";
+    const message = "Matters could not be loaded.";
     return NextResponse.json({ error: message }, { status: 502 });
   }
 }
 
 export async function POST(req: Request) {
   const body = (await req.json().catch(() => null)) as { title?: string; jurisdiction?: string } | null;
-  const title = body?.title?.trim() ?? "";
+  const title = typeof body?.title === "string" ? body.title.trim() : "";
   const jurisdiction = body?.jurisdiction ?? "";
   if (!title || !["us", "za", "both"].includes(jurisdiction)) {
     return NextResponse.json({ error: "A matter needs a title and a jurisdiction." }, { status: 400 });
@@ -30,7 +30,7 @@ export async function POST(req: Request) {
   try {
     const { tenantId, userId } = await currentTenant();
     const res = await zenas("matters", {
-      method: "POST",
+      method: "POST", headers: { "idempotency-key": req.headers.get("idempotency-key") || crypto.randomUUID() },
       body: JSON.stringify({
         tenant_id: tenantId,
         home_region: homeRegion(),
@@ -48,7 +48,7 @@ export async function POST(req: Request) {
     }
     return NextResponse.json(payload, { status: 201 });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "The matter was not opened.";
+    const message = "The matter was not opened.";
     return NextResponse.json({ error: message }, { status: 502 });
   }
 }

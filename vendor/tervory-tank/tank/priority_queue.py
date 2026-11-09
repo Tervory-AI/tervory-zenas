@@ -1,11 +1,12 @@
-"""Explicit off-peak jobs; only the existing Tank router/batch gateway sends work."""
+"""Explicit and automatic cheaper-window jobs; only the existing Tank router/batch gateway sends work."""
 from __future__ import annotations
 
 import asyncio
-from contextlib import asynccontextmanager, nullcontext
+from contextlib import asynccontextmanager, contextmanager, nullcontext
 import json
+import os
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from zoneinfo import ZoneInfo
 from weakref import WeakKeyDictionary
@@ -102,6 +103,62 @@ def usage_cost(info: dict, usage: dict, at: datetime) -> float | None:
         return None
 
 
+async def automatic_request(tank, req, policy, messages, generation):
+    """I8 uses only published discounts for work that may finish asynchronously."""
+    if os.environ.get('ENGINE_I8_ENABLED') != '1':
+        return req
+    priority = req.priority or policy['priority']
+    # Internal evaluations and seats must answer their controller immediately;
+    # a parent's background eligibility is not permission to defer its grading.
+    if '#' in req.task_type:
+        return req
+    if (priority in {'urgent', 'offpeak'} or req.interactive or not policy.get('batch_eligible')
+            or policy.get('moa_enabled') or policy.get('_engine', {}).get('free')
+            or policy['model'] in {'local', 'local-large'}):
+        return req
+    try:
+        prices = await tank._batch_price(policy['model'])
+    except HTTPException as exc:
+        if exc.status_code != 409:
+            raise
+        return req  # No published price proves a cheaper plan.
+    if prices['input'] == prices['output'] == 0:
+        return req
+    info = await model_info(tank, policy['model'])
+    batched = batch_providers.compatible(prices, messages, generation)
+    # DECISION reuse the existing 24h provider completion window plus a 120s
+    # dispatch allowance when a background caller supplies no deadline.
+    # Only a strictly cheaper, feasible plan changes the foreground path.
+    at = now()
+    deadline = req.deadline or at + timedelta(hours=24, seconds=120)
+    try:
+        plan = offpeak_schedule.select(info, at, deadline,
+            batch_discount=prices['discount'] if batched else None)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from None
+    if plan['charge_multiplier'] >= 1:
+        return req
+    return req.model_copy(update={'priority': 'offpeak', 'deadline': deadline})
+
+
+@contextmanager
+def job_actor(snapshot, tenant_id):
+    """Restore server-owned authentication, never a user field from request JSON."""
+    import product_identity
+    saved = snapshot.get('actor')
+    actor = None
+    if saved is not None:
+        if (not isinstance(saved, dict) or saved.get('tenant_id') != str(tenant_id)
+                or not all(isinstance(saved.get(k), str) and saved[k].strip() for k in ('user_id', 'role'))):
+            raise HTTPException(409, 'Deferred actor does not match its tenant')
+        actor = product_identity.User(saved['tenant_id'], saved['user_id'], saved['role'])
+    token = product_identity.current.set(actor)
+    try:
+        yield
+    finally:
+        product_identity.current.reset(token)
+
+
 async def enqueue(tank, item, *, caller=None, task_id=None, model_override=None) -> QueuedResponse:
     req, policy = item.req, item.policy
     prices = await tank._batch_price(policy['model'])
@@ -129,6 +186,12 @@ async def enqueue(tank, item, *, caller=None, task_id=None, model_override=None)
     snapshot = {'routing': policy, 'messages': item.messages, 'max_tokens': item.max_tokens,
                 'generation': item.generation, 'escalation': item.escalation,
                 'semantic_cache': item.cache_snapshot, 'schedule': schedule}
+    import product_identity
+    actor = product_identity.current.get()
+    if actor is not None and (os.environ.get('ENGINE_C1_ENABLED') == '1' or os.environ.get('ENGINE_I8_ENABLED') == '1'):
+        if actor.tenant_id != str(req.tenant_id):
+            raise HTTPException(403, 'Deferred actor does not match its tenant')
+        snapshot['actor'] = vars(actor)
     run = paid_steps.current.get()
     if run is not None:
         if run.tenant_id != req.tenant_id or run.run_id != req.paid_run_id:
@@ -270,7 +333,8 @@ async def _process(tank, conn, job):
             # This server-owned snapshot preserves the original Command fingerprint.
             # Fresh admission still checks the current controls and existing grant.
             scope = paid_steps.run_scope(run)
-        with scope:
+        restore_actor = os.environ.get('ENGINE_C1_ENABLED') == '1' or os.environ.get('ENGINE_I8_ENABLED') == '1'
+        with scope, job_actor(snapshot, req.tenant_id) if restore_actor else nullcontext():
             work = tank.run_route(req, caller=job['caller'], task_id=job['task_id'],
                 model_override=job['model_override'], _paid_policy=policy, _prior_escalation=snapshot['escalation'],
                 _paid_limit=float(policy['max_cost_usd']), _offpeak_dispatch=True, _receipt_id=job['id'], _deferred_snapshot=snapshot)

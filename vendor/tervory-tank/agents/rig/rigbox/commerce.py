@@ -13,6 +13,7 @@ import re
 import time
 from decimal import Decimal, InvalidOperation
 from urllib.parse import quote, urlsplit
+from rigbox.deadline import bounded
 
 
 class CommerceError(Exception):
@@ -82,6 +83,7 @@ class Platform:
     def __repr__(self):
         return f'Platform({self.kind})'
 
+    @bounded(25, lambda: CommerceError('platform_request'))
     async def request(self, method, path, **kwargs):
         headers = {'Accept': 'application/json'}
         if self.kind == 'woocommerce':
@@ -129,8 +131,14 @@ class Platform:
         if self.kind == 'woocommerce':
             found = [p for p in await self.request('GET', '/products', params={'sku': sku}) if p.get('sku') == sku]
         else:
-            found = [p for p in (await self.request('GET', '/v3/catalog/products', params={'sku': sku}))['data']
-                     if p.get('sku') == sku]
+            # BigCommerce product lookup excludes option SKUs. The global
+            # variant endpoint returns both base and option variants.
+            data = await self.request('GET', '/v3/catalog/variants', params={'sku': sku})
+            found = [p for p in data['data'] if p.get('sku') == sku]
+            pages = data.get('meta', {}).get('pagination', {})
+            if len(found) != 1 or pages.get('total_pages', 1) > 1:
+                return None
+            return {'product_id': found[0]['product_id'], 'variant_id': found[0]['id']}
         return {'product_id': found[0]['id']} if len(found) == 1 else None
 
     async def stock(self, product: dict) -> dict:
@@ -141,22 +149,32 @@ class Platform:
                 path += '/variations/' + str(int(product['variant_id']))
             p = await self.request('GET', path)
             return {'price': money(p['price']), 'available': p['stock_status'] == 'instock',
-                    'quantity': p.get('stock_quantity')}
+                    'quantity': None if p.get('manage_stock') is False else p.get('stock_quantity')}
         if self.kind == 'shopify':
-            data = await self.graphql('query($id:ID!){productVariant(id:$id){price inventoryQuantity availableForSale}}',
+            data = await self.graphql('query($id:ID!){productVariant(id:$id){price inventoryQuantity availableForSale inventoryItem{tracked}}}',
                                       {'id': product['variant_id']})
             p = data['productVariant']
+            if not p:
+                raise CommerceError('product')
             return {'price': money(p['price']), 'available': p['availableForSale'] is True,
-                    'quantity': p.get('inventoryQuantity')}
+                    'quantity': None if p.get('inventoryItem', {}).get('tracked') is False else p.get('inventoryQuantity')}
         p = (await self.request('GET', '/v3/catalog/products/' + str(int(product['product_id']))))['data']
+        available = p.get('availability') == 'available' and p.get('is_visible') is not False
+        tracking = p.get('inventory_tracking')
         # A variant mapping is mandatory for a product with variants.
         if product.get('variant_id'):
-            p = (await self.request('GET', '/v3/catalog/products/' + str(int(product['product_id']))
+            variant = (await self.request('GET', '/v3/catalog/products/' + str(int(product['product_id']))
                                     + '/variants/' + str(int(product['variant_id']))))['data']
-            return {'price': money(p['calculated_price']), 'available': p.get('purchasing_disabled') is False,
-                    'quantity': p.get('inventory_level')}
-        return {'price': money(p['calculated_price']), 'available': p.get('availability') == 'available',
-                'quantity': p.get('inventory_level') if p.get('inventory_tracking') == 'product' else None}
+            if variant.get('product_id') != int(product['product_id']) or variant.get('id') != int(product['variant_id']):
+                raise CommerceError('product_mapping')
+            quantity = variant.get('inventory_level') if tracking == 'variant' else p.get('inventory_level') if tracking == 'product' else None
+            return {'price': money(variant['calculated_price']),
+                    'available': available and variant.get('purchasing_disabled') is False,
+                    'quantity': quantity}
+        if tracking == 'variant':
+            raise CommerceError('product_mapping')
+        return {'price': money(p['calculated_price']), 'available': available,
+                'quantity': p.get('inventory_level') if tracking == 'product' else None}
 
     def checkout_url(self, url):
         p = urlsplit(url)

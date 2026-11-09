@@ -1,3 +1,4 @@
+import { fetchWithDeadline as fetch } from "../../../../../lib/request";
 /** Origin-preserving B2 transport; embed key selects the region, never fallback. */
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

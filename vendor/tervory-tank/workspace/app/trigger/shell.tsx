@@ -28,10 +28,11 @@ export default function TriggerShell({
         menu.current?.querySelectorAll<HTMLElement>(
           'a[href],button,[tabindex="0"]',
         ) ?? [],
-      );
+      ).filter(item => !item.hasAttribute("disabled") && item.getClientRects().length > 0);
     items()[0]?.focus();
     const key = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
+        event.preventDefault();
         setOpen(false);
         toggle.current?.focus();
       }
@@ -52,6 +53,7 @@ export default function TriggerShell({
     return () => {
       document.body.style.overflow = previous;
       document.removeEventListener("keydown", key);
+      toggle.current?.focus();
     };
   }, [open]);
   return (
@@ -80,6 +82,8 @@ export default function TriggerShell({
         id="trigger-menu"
         className={`trigger-sidebar ${open ? "is-open" : ""}`}
         aria-label={title}
+        role={open ? "dialog" : undefined}
+        aria-modal={open ? true : undefined}
       >
         <div className="trigger-identity">
           <div className="trigger-logo-row">

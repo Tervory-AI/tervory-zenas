@@ -84,6 +84,7 @@ Public project/client IDs, native founder subjects and organisation links are pr
 6. GitHub repository secrets (not Coolify): CLI_RELEASE_SIGNING_KEY, CLI_RELEASE_SIGNING_PUBLIC_KEY. Only needed to sign CLI releases.
 
 7. Radix deploy gate in GitHub (not Coolify): repository variable RADIX_DEPLOY_TENANT_ID is the founder workspace id; repository secret TANK_API_KEY reuses the existing Tank service key. No new key is created.
+8. Diff gate in GitHub (not Coolify): add **diff-gate** as a required status check on main, beside ci-ok. To approve a protected change on a PR, apply the label **founder-unlock** yourself; a label applied by anyone else is ignored. Optional repository variable FOUNDER_LOGIN (default zenascapetown-code).
 
 ## D. Wording only you can write (legal text)
 
@@ -142,3 +143,11 @@ On Tank and enforce-lifecycle only: RIG_LIFECYCLE_KEY. It must differ from AUTUM
 Per store application only: RIG_ROOM_DB_PASSWORD (unique URL-safe value), plus the existing names in the create receipt’s founder_fills. The lifecycle supplies RIG_ROOM_TENANT, RIG_ROOM_NAME, RIG_ROOM_DATA_VOLUME, RIG_ROOM_DB_VOLUME and RIG_ROOM_NETWORK; never edit these bindings. Existing R2 settings are needed for the retained bucket snapshot before destroy. See [Rig room operations](RIG-STORE-ROOMS.md).
 
 Existing per-room names used by the room template and retention step: TANK_KEY_RIG, RIG_RETAILER_KEY, RIG_TRUSTED_PROXY_CIDRS, RIG_WIDGET_PUBLISHABLE_KEY, R2_ACCOUNT_ID, R2_ACCESS_KEY_ID_RIG, R2_SECRET_ACCESS_KEY_RIG. Store mail uses the existing SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD and SMTP_FROM names. These are names only; values belong in the owning application.
+
+## Signed user assertions for product memory
+
+DECISION Reuse each product's existing room key with a separate signing purpose. No shared cross-product signing key or new account.
+
+Tank setting names: TANK_KEY_GHOST (Autumbra's existing Ghost room), TANK_KEY_BASE, TANK_KEY_MARKET_LAB, TANK_KEY_RADIX, TANK_KEY_RIG, TANK_KEY_SKALA, TANK_KEY_TIGER, TANK_KEY_TISAN, TANK_KEY_WORKSPACE, TANK_KEY_ZENAS, TANK_KEY_TRIGGER, TANK_KEY_OPLI.
+
+Each owning product references only its matching Tank setting through its existing TANK_KEY setting (or its product-specific TANK_KEY name). Replay protection reuses that product's DATABASE_URL. Setting names only; no values belong here.

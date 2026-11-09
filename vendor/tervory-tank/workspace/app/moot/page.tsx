@@ -18,7 +18,7 @@ export default async function MootIndexPage({ searchParams }: { searchParams?: P
     <main className="moot-watch" aria-label="Moot Court">
       <h1>Moot Court</h1>
       <p>
-        This is where Zenas trains in text. Public watch pages only — nothing spoken here yet.
+        This is where Zenas trains in text. Public watch pages only.
         Law students will use it later, for free.
       </p>
       <p>
@@ -29,7 +29,7 @@ export default async function MootIndexPage({ searchParams }: { searchParams?: P
         {result.status === "unavailable" || result.status === "malformed" ? (
           <p role="alert" data-moot-state={result.status}>Room unavailable</p>
         ) : result.status === "empty" ? (
-          <p>No published matches yet.</p>
+          <><p>No published matches yet.</p><ul><li>0 · <Link href="/zenas">Moot Court</Link></li></ul></>
         ) : (
           <ul>
             {result.matches.map((row) => (

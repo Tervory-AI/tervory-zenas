@@ -39,6 +39,41 @@ model_list:
       hosted_in: za
       owned: true
 
+  # DECISION local CPU inference has zero provider-token charges.
+  - model_name: local
+    litellm_params:
+      model: openai/local
+      api_base: http://local-model:8080/v1
+      api_key: placeholder  # Non-secret; local server has no provider credential.
+      input_cost_per_token: 0
+      output_cost_per_token: 0
+    model_info:
+      input_cost_per_token: 0
+      output_cost_per_token: 0
+      open_weights: true
+      family: alibaba
+      size: small
+      host: local-model
+      licence: Apache-2.0
+      licence_url: https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct/blob/main/LICENSE
+
+  - model_name: local-large
+    litellm_params:
+      model: openai/local-large
+      api_base: http://local-model-large:8080/v1
+      api_key: placeholder
+      input_cost_per_token: 0
+      output_cost_per_token: 0
+    model_info:
+      input_cost_per_token: 0
+      output_cost_per_token: 0
+      open_weights: true
+      family: alibaba
+      size: small
+      host: local-model-large
+      licence: Apache-2.0
+      licence_url: https://huggingface.co/Qwen/Qwen3-4B-Instruct-2507/blob/main/LICENSE
+
   # ---------- OpenAI (API key, Responses/Chat) ----------
   - model_name: luna            # cheap, fast workhorse: classify, extract, short drafts
     litellm_params:
@@ -85,6 +120,9 @@ model_list:
       model: gemini/gemini-3.5-flash-lite
       api_key: os.environ/GEMINI_API_KEY
     model_info:
+      # C5 automatic cache; rate from the pinned LiteLLM 1.106.4 model map.
+      cache_read_input_token_cost: 0.000000030000
+      prompt_cache_mode: implicit
       input_cost_per_token: 0.0000003
       output_cost_per_token: 0.0000025
 
@@ -93,6 +131,9 @@ model_list:
       model: gemini/gemini-3.8-flash
       api_key: os.environ/GEMINI_API_KEY
     model_info:
+      # C5 automatic cache; rate from the pinned LiteLLM 1.106.4 model map.
+      cache_read_input_token_cost: 0.000000075000
+      prompt_cache_mode: implicit
       input_cost_per_token: 0.00000075     # introductory until 31 Dec 2026, then doubles
       output_cost_per_token: 0.00000375
 
@@ -101,6 +142,9 @@ model_list:
       model: gemini/gemini-4-argon
       api_key: os.environ/GEMINI_API_KEY
     model_info:
+      # C5 automatic cache; rate from the pinned LiteLLM 1.106.4 model map.
+      cache_read_input_token_cost: 0.000000100000
+      prompt_cache_mode: implicit
       input_cost_per_token: 0.000002
       output_cost_per_token: 0.00001
 
@@ -143,6 +187,9 @@ model_list:
       input_cost_per_token: 0.0000003
       output_cost_per_token: 0.0000012
     model_info:
+      # C5 automatic cache; rate from the pinned LiteLLM 1.106.4 model map.
+      cache_read_input_token_cost: 0.000000006000
+      prompt_cache_mode: implicit
       input_cost_per_token: 0.0000003
       output_cost_per_token: 0.0000012
       # Guaranteed recurring off-peak periods (UTC, end exclusive).
@@ -166,6 +213,9 @@ model_list:
       input_cost_per_token: 0.00000132
       output_cost_per_token: 0.00000396
     model_info:
+      # C5 automatic cache; rate from the pinned LiteLLM 1.106.4 model map.
+      cache_read_input_token_cost: 0.000000044000
+      prompt_cache_mode: implicit
       input_cost_per_token: 0.00000132
       output_cost_per_token: 0.00000396
       offpeak:
@@ -189,6 +239,9 @@ model_list:
       input_cost_per_token: 0.000003
       output_cost_per_token: 0.000015
     model_info:
+      # C5 automatic cache; rate from the pinned LiteLLM 1.106.4 model map.
+      cache_read_input_token_cost: 0.000000300000
+      prompt_cache_mode: implicit
       id: kimi-direct
       input_cost_per_token: 0.000003
       output_cost_per_token: 0.000015
@@ -316,6 +369,9 @@ model_list:
       input_cost_per_token: 0.0000002500
       output_cost_per_token: 0.0000015000
     model_info:
+      # C5 automatic cache; rate from the pinned LiteLLM 1.106.4 model map.
+      cache_read_input_token_cost: 0.000000025000
+      prompt_cache_mode: implicit
       input_cost_per_token: 0.0000002500
       output_cost_per_token: 0.0000015000
 
@@ -328,6 +384,9 @@ model_list:
       input_cost_per_token: 0.0000009500
       output_cost_per_token: 0.0000040000
     model_info:
+      # C5 automatic cache; rate from the pinned LiteLLM 1.106.4 model map.
+      cache_read_input_token_cost: 0.000000190000
+      prompt_cache_mode: implicit
       input_cost_per_token: 0.0000009500
       output_cost_per_token: 0.0000040000
 
@@ -340,6 +399,9 @@ model_list:
       input_cost_per_token: 0.0000009500
       output_cost_per_token: 0.0000040000
     model_info:
+      # C5 automatic cache; rate from the pinned LiteLLM 1.106.4 model map.
+      cache_read_input_token_cost: 0.000000160000
+      prompt_cache_mode: implicit
       id: kimi-lite-direct
       input_cost_per_token: 0.0000009500
       output_cost_per_token: 0.0000040000
@@ -474,7 +536,8 @@ model_list:
   # Route: LiteLLM's OpenAI-compatible client on the Hugging Face router (model id + ':' + host).
   # LiteLLM v1.106.0's huggingface/ prefix prices every call at $0, which would zero the receipt;
   # this route reaches the same router with the same token and records the cost.
-  # Bench entries only: no serving chain falls back to them and no policy row names them.
+  # Engine serving uses the llama-small, gpt-oss-small, qwen-small, gpt-oss and llama seats.
+  # Other entries remain explicit candidates; Tank requires task evals before serving.
   # Catalogue: https://huggingface.co/api/models?inference_provider=all&pipeline_tag=text-generation&author=<org>&sort=downloads
   # Hosts and prices: https://router.huggingface.co/v1/models/<hf id> (USD per MTok), checked 2026-10-21.
 
@@ -795,6 +858,178 @@ model_list:
   # No fallbacks to or from it. Sign-in and revoke: docs/ops/CHATGPT-BUILD-MODEL.md.
   # The token lives in CHATGPT_TOKEN_DIR on a writable volume (see the compose file).
   # $0 per token: the subscription is flat-rate, so spend shows as zero in the ledger.
+
+
+  # ---------- Maker-direct OpenAI-compatible routes (2026-11-07) ----------
+  # Keys: MINIMAX_API_KEY, ZAI_API_KEY, DASHSCOPE_API_KEY, STEPFUN_API_KEY,
+  # ARCEE_API_KEY, SARVAM_API_KEY. TINKER_API_KEY is compose-only (see docs/ops/MAKER-DIRECT-KEYS-2026-11-07.md).
+  # Existing aliases (glm, kimi, deepseek-*, HF seats) unchanged.
+
+  # Price checked 2026-11-07: https://platform.minimax.io/docs/guides/pricing
+  # OpenAI-compatible model id `MiniMax-M3.1-Flash` per https://platform.minimax.io/docs/api-reference/text-openai-api
+  - model_name: minimax-m3.1-flash-direct
+    litellm_params:
+      model: openai/MiniMax-M3.1-Flash
+      api_base: https://api.minimax.io/v1
+      api_key: os.environ/MINIMAX_API_KEY
+      input_cost_per_token: 0.00000015
+      output_cost_per_token: 0.0000006
+    model_info:
+      input_cost_per_token: 0.00000015
+      output_cost_per_token: 0.0000006
+      licence: MiniMax terms
+
+  # Price checked 2026-11-07: https://platform.minimax.io/docs/guides/pricing (Standard ≤512k permanent 50% off)
+  # OpenAI-compatible model id `MiniMax-M3` per https://platform.minimax.io/docs/api-reference/text-openai-api
+  - model_name: minimax-m3-direct
+    litellm_params:
+      model: openai/MiniMax-M3
+      api_base: https://api.minimax.io/v1
+      api_key: os.environ/MINIMAX_API_KEY
+      input_cost_per_token: 0.0000003
+      output_cost_per_token: 0.0000012
+    model_info:
+      input_cost_per_token: 0.0000003
+      output_cost_per_token: 0.0000012
+      licence: MiniMax terms
+
+  # Price checked 2026-11-07: https://docs.z.ai/guides/overview/pricing ($/1M)
+  # OpenAI-compatible base https://api.z.ai/api/paas/v4 ; ids from https://docs.z.ai/api-reference/llm/chat-completion
+  - model_name: glm-5.3-direct
+    litellm_params:
+      model: openai/glm-5.3
+      api_base: https://api.z.ai/api/paas/v4
+      api_key: os.environ/ZAI_API_KEY
+      input_cost_per_token: 0.0000014
+      output_cost_per_token: 0.0000044
+    model_info:
+      input_cost_per_token: 0.0000014
+      output_cost_per_token: 0.0000044
+      licence: Z.ai terms
+
+  - model_name: glm-5.2-direct
+    litellm_params:
+      model: openai/glm-5.2
+      api_base: https://api.z.ai/api/paas/v4
+      api_key: os.environ/ZAI_API_KEY
+      input_cost_per_token: 0.0000014
+      output_cost_per_token: 0.0000044
+    model_info:
+      input_cost_per_token: 0.0000014
+      output_cost_per_token: 0.0000044
+      licence: Z.ai terms
+
+  - model_name: glm-5.1-direct
+    litellm_params:
+      model: openai/glm-5.1
+      api_base: https://api.z.ai/api/paas/v4
+      api_key: os.environ/ZAI_API_KEY
+      input_cost_per_token: 0.0000014
+      output_cost_per_token: 0.0000044
+    model_info:
+      input_cost_per_token: 0.0000014
+      output_cost_per_token: 0.0000044
+      licence: Z.ai terms
+
+  - model_name: glm-5-direct
+    litellm_params:
+      model: openai/glm-5
+      api_base: https://api.z.ai/api/paas/v4
+      api_key: os.environ/ZAI_API_KEY
+      input_cost_per_token: 0.000001
+      output_cost_per_token: 0.0000032
+    model_info:
+      input_cost_per_token: 0.000001
+      output_cost_per_token: 0.0000032
+      licence: Z.ai terms
+
+  - model_name: glm-4.7-direct
+    litellm_params:
+      model: openai/glm-4.7
+      api_base: https://api.z.ai/api/paas/v4
+      api_key: os.environ/ZAI_API_KEY
+      input_cost_per_token: 0.0000006
+      output_cost_per_token: 0.0000022
+    model_info:
+      input_cost_per_token: 0.0000006
+      output_cost_per_token: 0.0000022
+      licence: Z.ai terms
+
+  - model_name: glm-4.6-direct
+    litellm_params:
+      model: openai/glm-4.6
+      api_base: https://api.z.ai/api/paas/v4
+      api_key: os.environ/ZAI_API_KEY
+      input_cost_per_token: 0.0000006
+      output_cost_per_token: 0.0000022
+    model_info:
+      input_cost_per_token: 0.0000006
+      output_cost_per_token: 0.0000022
+      licence: Z.ai terms
+
+  # Price checked 2026-11-07: Singapore/International tier https://www.alibabacloud.com/help/en/model-studio/model-pricing
+  # OpenAI-compatible https://dashscope-intl.aliyuncs.com/compatible-mode/v1 (≤256K tier)
+  - model_name: qwen3.5-27b-direct
+    litellm_params:
+      model: openai/qwen3.5-27b
+      api_base: https://dashscope-intl.aliyuncs.com/compatible-mode/v1
+      api_key: os.environ/DASHSCOPE_API_KEY
+      input_cost_per_token: 0.0000003
+      output_cost_per_token: 0.0000024
+    model_info:
+      input_cost_per_token: 0.0000003
+      output_cost_per_token: 0.0000024
+      licence: Alibaba Model Studio terms
+
+  - model_name: qwen3.5-122b-a10b-direct
+    litellm_params:
+      model: openai/qwen3.5-122b-a10b
+      api_base: https://dashscope-intl.aliyuncs.com/compatible-mode/v1
+      api_key: os.environ/DASHSCOPE_API_KEY
+      input_cost_per_token: 0.0000004
+      output_cost_per_token: 0.0000032
+    model_info:
+      input_cost_per_token: 0.0000004
+      output_cost_per_token: 0.0000032
+      licence: Alibaba Model Studio terms
+
+  - model_name: qwen3.5-397b-a17b-direct
+    litellm_params:
+      model: openai/qwen3.5-397b-a17b
+      api_base: https://dashscope-intl.aliyuncs.com/compatible-mode/v1
+      api_key: os.environ/DASHSCOPE_API_KEY
+      input_cost_per_token: 0.0000006
+      output_cost_per_token: 0.0000036
+    model_info:
+      input_cost_per_token: 0.0000006
+      output_cost_per_token: 0.0000036
+      licence: Alibaba Model Studio terms
+
+  # Price checked 2026-11-07: https://platform.stepfun.ai/docs/en/pricing/details
+  - model_name: step-3.5-flash-direct
+    litellm_params:
+      model: openai/step-3.5-flash
+      api_base: https://api.stepfun.ai/v1
+      api_key: os.environ/STEPFUN_API_KEY
+      input_cost_per_token: 0.0000001
+      output_cost_per_token: 0.0000003
+    model_info:
+      input_cost_per_token: 0.0000001
+      output_cost_per_token: 0.0000003
+      licence: StepFun terms
+
+  - model_name: step-3.7-flash-direct
+    litellm_params:
+      model: openai/step-3.7-flash
+      api_base: https://api.stepfun.ai/v1
+      api_key: os.environ/STEPFUN_API_KEY
+      input_cost_per_token: 0.0000002
+      output_cost_per_token: 0.00000115
+    model_info:
+      input_cost_per_token: 0.0000002
+      output_cost_per_token: 0.00000115
+      licence: StepFun terms
+
   - model_name: build-chatgpt
     litellm_params:
       model: chatgpt/gpt-6.1-sol
@@ -804,6 +1039,17 @@ model_list:
       build_only: true
 
 litellm_settings:
+  callbacks: [tenant_traces.callback]
+  # DECISION reuse regional Redis, opt in only with Tank's user-scoped C1 key.
+  cache: false
+  cache_params:
+    type: redis
+    host: redis
+    port: 6379
+    mode: default_off
+    max_messages: null
+    supported_call_types: [acompletion]
+    ttl: 604800
   # Return the gateway's actual priced usage at the end of Command streams.
   include_cost_in_streaming_usage: true
   drop_params: true
@@ -815,6 +1061,8 @@ litellm_settings:
   # tests/test_model_roster.py keeps them sorted. Every model here is approved for use; anything
   # outside this roster (search APIs, data vendors) is a paid route that needs approval.
   fallbacks:
+    - local: ["local-large", "llama-small", "gpt-oss-small", "qwen-small", "gpt-oss", "llama"]
+    - local-large: ["llama-small", "gpt-oss-small", "qwen-small", "gpt-oss", "llama"]
     - luna: ["haiku", "flash-lite", "grok", "flash"]
     - haiku: ["luna", "flash-lite", "grok", "flash"]
     - flash-lite: ["grok", "flash"]
@@ -844,7 +1092,8 @@ litellm_settings:
     - research-medium: ["research-low", "research-fast", "research-high"]
     - research-high: ["research-low", "research-medium", "research-fast"]
 
-    # MODELS-3 open-weight bench entries: fall back to existing serving models only, cheapest first.
+    # Legacy open-weight fallback definitions. Tank disables gateway fallbacks and
+    # admits each evaluated engine rung explicitly.
     - llama: ["luna", "haiku", "flash-lite", "grok", "flash"]
     - llama-small: ["luna", "haiku", "flash-lite", "grok", "flash"]
     - qwen: ["grok-top", "sol", "argon", "sonnet"]
@@ -867,3 +1116,34 @@ router_settings:
 
 general_settings:
   master_key: os.environ/LITELLM_MASTER_KEY
+
+# DECISION retain unpriced candidates outside the serving roster; unknown is not free.
+x_unpriced_models:
+  # UNVERIFIED for Tank USD ledger: blog quotes $0.25/$0.80 per 1M
+  # (https://www.arcee.ai/blog/open-models-api-beta) but
+  # https://docs.arcee.ai/get-started/pricing does not list trinity-large-thinking (2026-11-07).
+  # Disabled until an official, verified USD ledger price is recorded.
+  - model_name: trinity-large-thinking-direct
+    litellm_params:
+      model: openai/trinity-large-thinking
+      api_base: https://api.arcee.ai/api/v1
+      api_key: os.environ/ARCEE_API_KEY
+    model_info:
+      licence: Apache 2.0 / Arcee terms
+      price_unverified: blog-only-2026-11-07
+
+  # Official price is INR only: ₹15 / ₹60 per 1M (https://docs.sarvam.ai/api/pricing, 2026-11-07).
+  # Disabled until a verified USD ledger price is available; no invented FX.
+  # Auth header api-subscription-key per https://docs.sarvam.ai/api/token-factory/models/sarvam-105b
+  # extra_headers os.environ/… is resolved by LiteLLM proxy config load (v1.106.4 nested recurse).
+  - model_name: sarvam-105b-direct
+    litellm_params:
+      model: openai/sarvam-105b
+      api_base: https://api.sarvam.ai/v1
+      api_key: os.environ/SARVAM_API_KEY
+      extra_headers:
+        api-subscription-key: os.environ/SARVAM_API_KEY
+    model_info:
+      licence: Apache 2.0 / Sarvam terms
+      official_price_inr_per_1m_tokens: "15→60"
+      usd_ledger: omitted-no-invented-fx

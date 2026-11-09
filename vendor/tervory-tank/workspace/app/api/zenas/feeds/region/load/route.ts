@@ -11,7 +11,7 @@ export async function POST(req: Request) {
   const { userId } = await auth();
   if (!isFounder(userId)) notFound();
   const body = (await req.json().catch(() => null)) as { source?: string; region?: string } | null;
-  const source = body?.source?.trim() ?? "";
+  const source = typeof body?.source === "string" ? body.source.trim() : "";
   const region: Region | null = body?.region === "za" || body?.region === "us-east" ? body.region : null;
   if (!region) return NextResponse.json({ error: "Name US or South Africa." }, { status: 400 });
   if (!source || !/^[a-z0-9._-]{1,80}$/i.test(source)) {
@@ -20,7 +20,7 @@ export async function POST(req: Request) {
   const sent = loadBody(source, region);
   try {
     const res = await zenasIn(region, `pool/sources/${source}/load`, {
-      method: "POST",
+      method: "POST", headers: { "idempotency-key": req.headers.get("idempotency-key") || crypto.randomUUID() },
       body: JSON.stringify(sent),
     });
     if (!res) return NextResponse.json({ error: "That box is not connected." }, { status: 404 });

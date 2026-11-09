@@ -3,12 +3,16 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 import time
-from typing import Any
+from typing import Any, TYPE_CHECKING
 import uuid
 
 import httpx
+
+if TYPE_CHECKING:
+    from .user_assertion import SignedUser
 
 # A provider batch may take its whole 24h window; allow an hour on top.
 _BACKGROUND_WAIT_S = 25 * 3600
@@ -55,6 +59,56 @@ class TankClient:
             data = await self._wait_job(str(tenant_id), str(data["id"]))
         _check_execution(data, str(tenant_id), task_type)
         return data
+
+    async def room_task(self, actor: "SignedUser", run_id: str,
+                        messages: list[dict[str, str]], *, task_key: str | None = None) -> dict[str, Any]:
+        """Typed room work through Tank's authenticated, receipted task API."""
+        payload = {"messages": messages}
+        if task_key is not None:
+            payload["task_key"] = task_key
+        return await self._personal_task(actor, run_id, "tasks", payload)
+
+    async def delegate_task(self, actor: "SignedUser", run_id: str, task: str,
+                            payload: dict[str, Any], recall: list[dict[str, Any]]) -> dict[str, Any]:
+        """Tank owns optional private runtime discovery and signed forwarding."""
+        return await self._personal_task(actor, run_id, "delegate", {
+            "task_key": task, "input": payload, "recall": recall})
+
+    async def _personal_task(self, actor: "SignedUser", run_id: str, operation: str,
+                             payload: dict[str, Any]) -> dict[str, Any]:
+        from .user_assertion import sign_assertion
+        from .task_contract import origin, context, check_receipt
+        base = origin(self._base)
+        tenant, run = context(actor, run_id)
+        if self.agent not in {"tiger", "rig", "radix", "ghost", "zenas"} or not self._api_key:
+            raise ValueError("Room task client unavailable")
+        path = f"/v1/agents/{self.agent}/{operation}"
+        body = json.dumps({"tenant_id": tenant, "user_id": actor.user_id,
+                           "run_id": run, **payload}, separators=(",", ":")).encode()
+        headers = {"X-Tank-Key": self._api_key, "Content-Type": "application/json",
+                   "X-Home-Region": os.environ.get("TANK_REGION", "us-east"),
+                   "X-Tervory-User-Assertion": sign_assertion(
+                       self.agent, actor, "POST", path, body, key=self._api_key)}
+        # One bounded attempt. Retrying belongs to the caller with the same run
+        # identity; never follow a redirect carrying room credentials/assertions.
+        response = await self._http.post(base + path, content=body, headers=headers,
+                                         timeout=70, follow_redirects=False)
+        response.raise_for_status()
+        try:
+            data = response.json()
+            check_receipt(data, tenant, actor.user_id, run, self.agent)
+        except (ValueError, KeyError, TypeError, OverflowError):
+            raise ValueError("Invalid Tank task receipt") from None
+        return data
+
+    async def law_embeddings(self, tenant_id: str, home_region: str, jurisdiction: str,
+                             model: str, texts: list[str]) -> dict[str, Any]:
+        """Zenas public-law vectors through the same-region Tank adapter."""
+        if self.agent != "zenas":
+            raise ValueError("Law embeddings require the Zenas room")
+        return await self._post("/v1/zenas/law/vectors", {
+            "tenant_id": str(uuid.UUID(str(tenant_id))), "home_region": home_region,
+            "jurisdiction": jurisdiction, "model": model, "texts": texts})
 
     async def _wait_job(self, tenant_id: str, job_id: str) -> dict[str, Any]:
         if not self._api_key:

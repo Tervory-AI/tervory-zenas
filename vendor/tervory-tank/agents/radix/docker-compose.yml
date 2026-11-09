@@ -33,6 +33,7 @@ services:
     environment:
       AGENT_NAME: radix
       RADIX_BRAIN_ENABLED: ${RADIX_BRAIN_ENABLED:-false}
+      RADIX_MEMORY_ENABLED: ${RADIX_MEMORY_ENABLED:-false}
       R2_BUCKET: tervory-radix
       R2_ACCOUNT_ID: ${R2_ACCOUNT_ID:-}
       R2_ACCESS_KEY_ID_RADIX: ${R2_ACCESS_KEY_ID_RADIX:-}
@@ -130,11 +131,11 @@ services:
     profiles:
     - brain
     build:
-      context: ../..
-      dockerfile: agents/rig/Dockerfile.brain
+      context: ..
+      dockerfile: radix/Dockerfile
     command:
     - uvicorn
-    - brain.standby:app
+    - radix_brain_service:app
     - --host
     - 0.0.0.0
     - --port
@@ -149,7 +150,8 @@ services:
     - /tmp:rw,noexec,nosuid,nodev,size=32m
     environment:
       BRAIN_ROOM: radix
-      TANK_REGION: us-east
+      RADIX_BRAIN_ENABLED: ${RADIX_BRAIN_ENABLED:-false}
+      TANK_REGION: ${TANK_REGION:-us-east}
       TANK_URL: http://tank:8000
       TANK_KEY: ${TANK_KEY_RADIX:-}
       HERMES_URL: http://hermes:8000

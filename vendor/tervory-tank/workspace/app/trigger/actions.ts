@@ -1,14 +1,16 @@
 "use server";
 
-import { auth } from "@/lib/trigger-signin";
+import { triggerIdentity } from "@/lib/trigger";
 import { activeTenant } from "@/lib/tenant";
 import { commandRequest } from "@/lib/tank";
+import { waitForAction } from "./request";
 
 async function identity() {
   const tenant = await activeTenant();
   if (!tenant) throw new Error("This item is unavailable.");
-  const { orgRole } = await auth();
-  return { ...tenant, tenantAdmin: orgRole === "org:admin" };
+  const actor = await triggerIdentity(tenant);
+  if (!actor) throw new Error("This item is unavailable.");
+  return actor;
 }
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 // Select constant routes; request strings never become an upstream path prefix.
@@ -72,7 +74,9 @@ export async function readTrigger(
         ? `${route.path}/${encodeURIComponent(recordId)}`
         : `${route.path}?record_id=${encodeURIComponent(recordId)}`;
   const actor = await identity();
-  const result = await (await commandRequest(actor, path)).json();
+  const result = await waitForAction((async () => (await commandRequest(actor, path, {
+    signal: AbortSignal.timeout(10_000),
+  })).json())(), 10_000);
   if (route.path === "trigger/console/bot/settings")
     result.settings = { name: actor.orgName, ...result.settings };
   return result;
@@ -93,6 +97,7 @@ export async function confirmTrigger(
   card: string,
   action: "confirm" | "cancel" = "confirm",
 ) {
+  if (action !== "confirm" && action !== "cancel") throw new Error("This item is unavailable.");
   if (
     typeof thread !== "string" ||
     thread.length !== 36 ||

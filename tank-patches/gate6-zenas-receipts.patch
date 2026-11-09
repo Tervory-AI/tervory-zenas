@@ -1,0 +1,57 @@
+diff --git a/workspace/app/zenas/receipts/page.tsx b/workspace/app/zenas/receipts/page.tsx
+new file mode 100644
+index 0000000..69444ae
+--- /dev/null
++++ b/workspace/app/zenas/receipts/page.tsx
+@@ -0,0 +1,17 @@
++import {currentTenant} from "@/lib/tenant";
++import {zenas} from "@/app/api/zenas/tank";
++import {Receipts} from "./view";
++import "../zenas.css";
++
++export const dynamic="force-dynamic";
++export default async function ReceiptPage(){
++  const {tenantId}=await currentTenant();
++  try {
++    const response=await zenas(`receipts?tenant_id=${encodeURIComponent(tenantId)}`,{method:"GET"});
++    if(!response.ok)throw new Error('unavailable');
++    const data=await response.json();
++    return <main className="zn"><h1>Zenas</h1><Receipts receipts={data.receipts}/></main>;
++  } catch {
++    return <main className="zn"><h1>Zenas</h1><p role="alert">Room unavailable</p></main>;
++  }
++}
+diff --git a/workspace/app/zenas/receipts/view.tsx b/workspace/app/zenas/receipts/view.tsx
+new file mode 100644
+index 0000000..32a3500
+--- /dev/null
++++ b/workspace/app/zenas/receipts/view.tsx
+@@ -0,0 +1,16 @@
++export type SavingsReceipt = {id:string;action:string;cost:number|null;"would have cost":number|null;baseline_model:string|null;created_at:string};
++const money=(value:number|null)=>value===null?"—":`$${value.toFixed(8)}`;
++const actionName=(action:string)=>action.startsWith('/answers')?'Ask Zenas':action.startsWith('/drafts')?'Templates':
++  action.startsWith('/contract-reviews')?'Review':action.startsWith('/matters')?'Matters':'Zenas';
++
++export function Receipts({receipts:all}:{receipts:SavingsReceipt[]}) {
++  const receipts=all.filter(row=>row.action!=="/moot"&&!row.action.startsWith("/moot/"));
++  return <section className="zn-card" aria-label="Receipts" tabIndex={0}
++    style={{maxHeight:"calc(100dvh - 100px)",overflow:"auto",boxSizing:"border-box"}}><h2>Receipts</h2>
++    <table><thead><tr><th scope="col">Run</th><th scope="col">Cost</th><th scope="col">Would have cost</th></tr></thead>
++      <tbody>{receipts.map(receipt=><tr key={receipt.id}><th scope="row">{actionName(receipt.action)}</th>
++        <td>{money(receipt.cost)}</td><td>{money(receipt["would have cost"])}{receipt.baseline_model&&<> · {receipt.baseline_model}</>}</td></tr>)}
++      {receipts.length===0&&<tr><th scope="row">—</th><td>—</td><td>—</td></tr>}</tbody></table>
++    {receipts.length===0&&<p>Ask Zenas</p>}
++  </section>;
++}
+diff --git a/workspace/app/zenas/view.tsx b/workspace/app/zenas/view.tsx
+index f9c8b89..959ef8d 100644
+--- a/workspace/app/zenas/view.tsx
++++ b/workspace/app/zenas/view.tsx
+@@ -21,6 +21,7 @@ const TOP_LINKS = [
+ ] as const;
+
+ const PAGE_LINKS = [
++  { href: "/zenas/receipts", label: "Receipts" },
+   { href: "/matters", label: "Matters" },
+   { href: "/review", label: "Review" },
+ ] as const;

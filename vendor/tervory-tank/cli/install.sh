@@ -21,13 +21,20 @@ set -eu
 # through `curl | sh` defines a function that never runs, instead of half an install.
 main() {
   BASE="${TERVORY_CLI_BASE:-https://app.tervory.com/cli}"
+  PUBLIC_KEY_DER="" # TERVORY_RELEASE_TRUST
+  KEY_FILE="${TERVORY_CLI_PUBLIC_KEY_FILE:-}"
   BASE="${BASE%/}"
-  HOME_DIR="${TERVORY_HOME:-${HOME:?HOME is not set}/.tervory}"
-  BIN_DIR="${TERVORY_BIN_DIR:-$HOME/.local/bin}"
-  CLI_DIR="$HOME_DIR/cli"
-
   fail() { printf 'tervory install: %s\n' "$1" >&2; exit 1; }
   say() { printf '%s\n' "$1"; }
+  if [ -z "${HOME:-}" ] && { [ -z "${TERVORY_HOME:-}" ] || [ -z "${TERVORY_BIN_DIR:-}" ]; }; then
+    fail 'Missing setting HOME. Set HOME or both TERVORY_HOME and TERVORY_BIN_DIR. Nothing was installed.'
+  fi
+  HOME_DIR="${TERVORY_HOME:-${HOME:-}/.tervory}"
+  BIN_DIR="${TERVORY_BIN_DIR:-${HOME:-}/.local/bin}"
+  CLI_DIR="$HOME_DIR/cli"
+  if [ -n "$KEY_FILE" ] && [ ! -r "$KEY_FILE" ]; then
+    fail 'TERVORY_CLI_PUBLIC_KEY_FILE is not readable. Nothing was installed.'
+  fi
 
   # https only, for the first request and every redirect; plain http only for a loopback base.
   PROTO='=https'; LOOPBACK=0
@@ -46,11 +53,20 @@ main() {
   # curl: --proto/--proto-redir keep the first request and every redirect on https.
   # wget: --https-only covers recursive mode only (an https->http redirect would still be
   # followed), so wget follows no redirect at all; app.tervory.com serves the files
-  # directly. -T is per read, so `timeout 300` adds a total deadline where it exists.
+  # directly. -T is per read; Node supplies the same total deadline on macOS
+  # and other systems without the timeout utility.
   if command -v curl >/dev/null 2>&1; then
     fetch() { curl -fsSL --proto "$PROTO" --proto-redir "$PROTO" --connect-timeout 15 --max-time 300 --retry 2 -o "$2" "$1"; }
   elif command -v wget >/dev/null 2>&1; then
-    DEADLINE=""
+    deadline() {
+      node - "$@" <<'JS'
+const {spawnSync}=require('node:child_process');
+const [command,...args]=process.argv.slice(2);
+const result=spawnSync(command,args,{stdio:'inherit',timeout:300000,killSignal:'SIGKILL'});
+process.exit(result.status===0?0:1);
+JS
+    }
+    DEADLINE="deadline"
     if command -v timeout >/dev/null 2>&1; then DEADLINE="timeout 300"; fi
     if [ "$LOOPBACK" = 1 ]; then
       fetch() { $DEADLINE wget -q --max-redirect=0 -T 30 -t 2 -O "$2" "$1"; }
@@ -114,10 +130,36 @@ main() {
   fi
   say "SHA-256 verified: $GOT"
 
+  # Signing stamps the trusted public key into the HTTPS installer. A caller
+  # may instead supply a separately obtained public key file. Never trust a key
+  # from the downloaded archive itself, and never execute it before verification.
+  if [ -n "$PUBLIC_KEY_DER$KEY_FILE" ]; then
+    fetch "$BASE/releases/$VERSION/manifest.json.sig" "$TMP/manifest.json.sig" || fail "Release signature missing."
+    fetch "$BASE/releases/$VERSION/$FILE.sig" "$TMP/$FILE.sig" || fail "Release signature missing."
+    node - "$TMP" "$FILE" "$KEY_FILE" "$PUBLIC_KEY_DER" <<'JS' || fail "Release signature refused. Nothing was installed."
+const fs=require('node:fs'),c=require('node:crypto'),p=require('node:path');
+try {
+  const [dir,file,keyFile,der]=process.argv.slice(2);
+  const key=c.createPublicKey(keyFile?fs.readFileSync(keyFile):{key:Buffer.from(der,'base64'),format:'der',type:'spki'});
+  if(key.asymmetricKeyType!=='ed25519')throw Error();
+  for(const name of ['manifest.json',file])if(!c.verify(null,fs.readFileSync(p.join(dir,name)),key,Buffer.from(fs.readFileSync(p.join(dir,name+'.sig'),'utf8').trim(),'base64')))throw Error();
+  fs.writeFileSync(p.join(dir,'TRUSTED-RELEASE.pem'),key.export({type:'spki',format:'pem'}));
+} catch {process.exit(1);}
+JS
+    say "Release signatures verified."
+  fi
+
   mkdir -p "$TMP/x"
   tar -xzf "$TMP/$FILE" -C "$TMP/x" --no-same-owner
   [ -f "$TMP/x/tervory-cli-$VERSION/RELEASE.json" ] || fail "The release archive is not laid out as expected."
   [ "$(json version < "$TMP/x/tervory-cli-$VERSION/RELEASE.json")" = "$VERSION" ] || fail "The release archive is for another version."
+  if [ -f "$TMP/TRUSTED-RELEASE.pem" ]; then cp "$TMP/TRUSTED-RELEASE.pem" "$TMP/x/tervory-cli-$VERSION/TRUSTED-RELEASE.pem"; fi
+  node - "$TMP/x/tervory-cli-$VERSION" "$BASE" <<'JS'
+const fs=require('node:fs'),p=require('node:path'),[root,base]=process.argv.slice(2),file=p.join(root,'RELEASE.json'),record=JSON.parse(fs.readFileSync(file));
+if(['https://opli.tervory.com','https://app.tervory.com/cli'].includes(base))record.release_base=base;
+if(fs.existsSync(p.join(root,'TRUSTED-RELEASE.pem')))record.signed=true;
+fs.writeFileSync(file,JSON.stringify(record,null,2)+'\n');
+JS
 
   mkdir -p "$CLI_DIR" "$BIN_DIR"
   # Stage beside the target, move any old copy aside, move the new one in, then drop the old.

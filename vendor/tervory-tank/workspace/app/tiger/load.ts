@@ -29,7 +29,7 @@ export async function loadTiger(): Promise<TigerLoad> {
     return { data: fromTiger(watches, batches.flat(), alerts, new Date(), unavailableUrls), notice: null };
   } catch (err) {
     const text = err instanceof Error ? err.message : "";
-    if (text.includes("not signed in")) return { data: emptyData(), notice: null };
+    if (text.includes("not signed in") || text.includes("Trigger sign-in required")) return { data: emptyData(), notice: null };
     return { data: emptyData(), notice: "Tiger is not reachable right now. No products are shown." };
   }
 }

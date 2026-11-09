@@ -91,22 +91,29 @@ class AnswerText:
     The final parse_plan remains the authority for text and proposed cards.
     """
 
-    def __init__(self):
+    def __init__(self, field="text", max_bytes=64000):
+        self.field = field
+        self.max_bytes = max_bytes
         self.raw = ""
         self.shown = ""
 
     def feed(self, delta: str) -> str:
         self.raw += delta
-        if len(self.raw.encode()) > 64_000:
+        if len(self.raw.encode()) > self.max_bytes:
             raise ValueError("Answer exceeds plan limit")
         if not self.raw.lstrip():
             return ""
-        if self.raw.lstrip().startswith("{"):
+        candidate = self.raw.lstrip()
+        if self.field == "answer" and candidate.startswith("```"):
+            if "\n" not in candidate:
+                return ""
+            candidate = candidate.split("\n",1)[1].removesuffix("```").strip()
+        if candidate.startswith("{"):
             try:
-                plan = jiter.from_json(self.raw.encode(), partial_mode="trailing-strings", catch_duplicate_keys=True)
+                plan = jiter.from_json(candidate.encode(), partial_mode="trailing-strings", catch_duplicate_keys=True)
             except ValueError:
                 return ""
-            text = plan.get("text") if isinstance(plan, dict) else None
+            text = plan.get(self.field) if isinstance(plan, dict) else None
         else:
             text = self.raw
         if not isinstance(text, str) or not text.startswith(self.shown):

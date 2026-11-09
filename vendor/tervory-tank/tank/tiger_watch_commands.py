@@ -58,6 +58,16 @@ def build_router() -> APIRouter:
         rows = await watches(actor)
         return await result(actor, "tiger.watches", {"total": len(rows), "items": [{**row, "name": row["label"]} for row in rows]})
 
+    @router.get('/receipts')
+    async def receipts(request: Request, actor: Annotated[Actor, Depends(identity)]):
+        from main import _tiger_tenant, pool
+        from tiger_savings import listed
+        require_tool(actor, 'tiger.receipts')
+        query = list(request.query_params.multi_items()) + [('tenant_id', str(actor.tenant_id))]
+        _tiger_tenant(Request({**request.scope, 'query_string': urlencode(query).encode()}))
+        async with pool().acquire() as conn:
+            return {'receipts': await listed(conn, actor.tenant_id)}
+
     async def change(actor, tool, args, enabled=None):
         require_tool(actor, tool)
         confirmation(actor, tool, args.model_dump(mode="json", exclude_none=True))
@@ -105,5 +115,61 @@ def build_router() -> APIRouter:
                 created += 1
             existing.add(url)
         return await result(actor, tool, {"total": created, "count": already})
+
+    async def memory_forward(actor, method, path, value=None):
+        from main import _tiger_call, _tiger_response
+        from product_identity import actor_scope
+        require_tool(actor, "tiger.watches")
+        params = [("tenant_id", str(actor.tenant_id)), ("user_id", actor.user_id)]
+        content = json.dumps(value).encode() if value is not None else None
+        # The existing paid_http adapter signs only this verified actor and the
+        # configured product origin, binding the exact body and encoded target.
+        with actor_scope(actor):
+            response = _tiger_response(await _tiger_call(method, path, params, content), actor.tenant_id)
+        if response.status_code >= 400:
+            raise HTTPException(response.status_code, "Tiger memory request refused")
+        return json.loads(response.body) if response.body else {}
+
+    async def memory_body(request, actor):
+        try:
+            body = await request.json()
+        except ValueError:
+            raise HTTPException(422, "JSON object required") from None
+        if not isinstance(body, dict):
+            raise HTTPException(422, "JSON object required")
+        role = "founder" if actor.founder else "org:admin" if actor.tenant_admin else "member"
+        if (body.get("tenant_id", str(actor.tenant_id)) != str(actor.tenant_id)
+                or body.get("user_id", actor.user_id) != actor.user_id
+                or body.get("role", role) != role):
+            raise HTTPException(403, "Memory owner mismatch")
+        return {k: v for k, v in body.items() if k not in ("tenant_id", "user_id", "role")}
+
+    @router.get("/memory")
+    async def memory_view(actor: Annotated[Actor, Depends(identity)]):
+        return await memory_forward(actor, "GET", "/memory")
+
+    @router.get("/memory/{record_id}")
+    async def memory_get(record_id: UUID, actor: Annotated[Actor, Depends(identity)]):
+        return await memory_forward(actor, "GET", "/memory/" + str(record_id))
+
+    @router.patch("/memory/{record_id}")
+    async def memory_edit(record_id: UUID, request: Request, actor: Annotated[Actor, Depends(identity)]):
+        return await memory_forward(actor, "PATCH", "/memory/" + str(record_id), await memory_body(request, actor))
+
+    @router.delete("/memory/{record_id}")
+    async def memory_forget(record_id: UUID, actor: Annotated[Actor, Depends(identity)]):
+        return await memory_forward(actor, "DELETE", "/memory/" + str(record_id))
+
+    @router.post("/memory/setting")
+    async def memory_setting(request: Request, actor: Annotated[Actor, Depends(identity)]):
+        return await memory_forward(actor, "POST", "/memory/setting", await memory_body(request, actor))
+
+    @router.post("/memory/correction")
+    async def memory_correction(request: Request, actor: Annotated[Actor, Depends(identity)]):
+        return await memory_forward(actor, "POST", "/memory/correction", await memory_body(request, actor))
+
+    @router.post("/brain/tasks")
+    async def brain_task(request: Request, actor: Annotated[Actor, Depends(identity)]):
+        return await memory_forward(actor, "POST", "/brain/tasks", await memory_body(request, actor))
 
     return router

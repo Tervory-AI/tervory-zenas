@@ -1,3 +1,33 @@
+## 0.12.0 — 2026-11-08
+
+- Expose the existing tenant- and user-scoped Tank memory view, edit, forget, off and control commands in standalone OPLI.
+- Requires the Gates 7/8 Tank memory runtime. Memory remains subject to deployment opt-in; unavailable or refused operations do not report success.
+
+## 0.11.1 — 2026-11-07
+
+- Add authenticated memory controls and route code requests through Tank’s optional memory path.
+
+## 0.11.0 — 2026-11-05
+
+- Add day-zero terminal states, local run dry runs and named missing-configuration recovery.
+
+## 0.10.1 — 2026-11-05
+
+- Reject linked MCP configuration on every platform and compare release sources exactly.
+
+## 0.10.0 — 2026-11-05
+
+- Stream code answers with accessible terminal controls, live diffs, tool details, model/mode/cost/Auto savings, and signed install/update support on both release hosts.
+
+## 0.9.0 — 2026-11-05
+
+- Add user MCP clients and tenant blocks, Tank web tools, approved Git actions, and local file/image attachments.
+
+## 0.8.0 — 2026-11-05
+
+- Add Ask, Auto-edit and Plan code modes, permitted model selection, redacted server session resume, headless tasks, and code-session slash commands.
+- Requires the accompanying OPLI agent Tank patch for permitted rosters, durable session history and turn model/cost metadata.
+
 ## 0.7.1 — 2026-11-05
 
 - Wait for bounded search-worker startup before applying the existing one-second per-file regex execution limit, avoiding false refusals on busy Windows hosts.

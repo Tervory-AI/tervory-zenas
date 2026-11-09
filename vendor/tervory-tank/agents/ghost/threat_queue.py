@@ -8,7 +8,9 @@ severity comes only from a matched public advisory.
 from __future__ import annotations
 
 import json
+import hashlib
 import os
+import re
 import shutil
 import time
 import uuid
@@ -16,11 +18,13 @@ from pathlib import Path
 from typing import Any
 
 from .client_settings import ClientAutumbraSettings
+from .durable_shields import _atomic_write_json
 from .enforce_apply import apply_from_payload, approve_pending, undo_from_payload
 from .fixture_edge import DEFAULT_CONTROL, FixtureEdgeControl
 from .never_block import ActionCap, may_block_ip
 from .speed_budgets import stamp_budget, summarize_budgets, utc_now
 from .tenant_queue import push_receipt_to_founder_console
+from .safe_files import checked_path, file_lock, read_json
 from .threat_payload import ThreatAction, ThreatPayload, ThreatSeverity, accept_threat_payload
 
 
@@ -35,21 +39,37 @@ class ThreatPayloadQueue:
     """Directory queue: one JSON file per ThreatPayload (fields only)."""
 
     def __init__(self, root: Path | str):
-        self.root = Path(root)
+        self.root = checked_path(Path(root))
         self.root.mkdir(parents=True, exist_ok=True)
         (self.root / "inbox").mkdir(exist_ok=True)
         (self.root / "receipts").mkdir(exist_ok=True)
         (self.root / "quarantine").mkdir(exist_ok=True)
+        (self.root / "processing").mkdir(exist_ok=True)
+        self._claim = False
+        self._active_item = None
+        for name in ("inbox", "receipts", "quarantine", "processing"):
+            checked_path(self.root / name)
 
-    def put(self, payload: ThreatPayload) -> str:
+    def put(self, payload: ThreatPayload, *, _retry: bool = False) -> str:
         if not isinstance(payload, ThreatPayload):
             raise TypeError("Queue accepts ThreatPayload only.")
-        item_id = uuid.uuid4().hex
+        if not _retry and payload.action in {ThreatAction.undo_shield, ThreatAction.approve_shield}:
+            identity = json.dumps({key: payload.model_dump(mode="json").get(key) for key in
+                ("tenant_id", "site", "action", "rule_id", "prior_receipt_id")}, sort_keys=True)
+            item_id = hashlib.sha256(identity.encode()).hexdigest()
+        else:
+            item_id = uuid.uuid4().hex
         path = self.root / "inbox" / f"{item_id}.json"
         data = payload.model_dump(mode="json")
         if not data.get("queued_at"):
             data["queued_at"] = utc_now()
-        path.write_text(json.dumps(data, sort_keys=True), encoding="utf-8")
+        with file_lock(self.root / ".enqueue.lock"):
+            if path.exists() or (self.root / "processing" / path.name).exists():
+                return item_id
+            if not _retry and payload.action in {ThreatAction.undo_shield, ThreatAction.approve_shield}:
+                if any(r.get("queue_item_id") == item_id for r in self.list_receipts()):
+                    return item_id
+            _atomic_write_json(path, data)
         return item_id
 
     def take(self) -> tuple[str, ThreatPayload] | None:
@@ -63,20 +83,23 @@ class ThreatPayloadQueue:
             item_id = path.stem
             tenant_hint: str | None = None
             try:
-                raw_text = path.read_text(encoding="utf-8")
-                data = json.loads(raw_text)
+                data = read_json(path)
                 if isinstance(data, dict):
                     tid = data.get("tenant_id")
                     if isinstance(tid, str) and tid.strip():
                         tenant_hint = tid.strip()
                 # Same validated door as HTTP apply/undo — action rules + injection pre-flight.
-                payload = accept_threat_payload(data if isinstance(data, dict) else raw_text)
+                payload = accept_threat_payload(data)
             except Exception as exc:
                 self._quarantine(
                     path, item_id, reason=type(exc).__name__, tenant_id=tenant_hint
                 )
                 continue
-            path.unlink(missing_ok=True)
+            if self._claim:
+                os.replace(path, self.root / "processing" / path.name)
+                self._active_item = item_id
+            else:
+                path.unlink(missing_ok=True)
             return item_id, payload
 
     def _quarantine(
@@ -116,12 +139,19 @@ class ThreatPayloadQueue:
             pass
 
     def write_receipt(self, receipt: dict[str, Any]) -> Path:
+        from .savings import code_cost
+        code_cost(receipt)
         summarize_budgets(receipt)
         if "timestamp" not in receipt:
             receipt["timestamp"] = utc_now()
         rid = str(receipt.get("id") or uuid.uuid4())
+        receipt["id"] = rid
+        if not re.fullmatch(r"[A-Za-z0-9_-]{1,200}", rid):
+            raise ValueError("Invalid receipt identifier.")
+        if self._active_item:
+            receipt["queue_item_id"] = self._active_item
         path = self.root / "receipts" / f"{rid}.json"
-        path.write_text(json.dumps(receipt, sort_keys=True, default=str), encoding="utf-8")
+        _atomic_write_json(path, receipt)
         try:
             push_receipt_to_founder_console(self.root, receipt)
         except Exception:
@@ -131,7 +161,7 @@ class ThreatPayloadQueue:
     def list_receipts(self) -> list[dict[str, Any]]:
         out: list[dict[str, Any]] = []
         for path in sorted((self.root / "receipts").glob("*.json")):
-            out.append(json.loads(path.read_text(encoding="utf-8")))
+            out.append(read_json(path))
         return out
 
     def list_quarantine(self) -> list[str]:
@@ -311,8 +341,9 @@ def watch_enqueue_fixture_attack(
 def _undo_used_path(queue: ThreatPayloadQueue, prior_receipt_id: str) -> Path:
     folder = queue.root / "undo_used"
     folder.mkdir(parents=True, exist_ok=True)
-    safe = "".join(ch for ch in (prior_receipt_id or "") if ch.isalnum() or ch in "-_")[:120]
-    return folder / f"{safe or 'unknown'}.json"
+    if not re.fullmatch(r"[A-Za-z0-9_-]{1,200}", prior_receipt_id or ""):
+        raise ValueError("Invalid receipt identifier.")
+    return folder / f"{prior_receipt_id}.json"
 
 
 def read_undo_used(queue: ThreatPayloadQueue, prior_receipt_id: str) -> dict[str, Any] | None:
@@ -323,7 +354,7 @@ def read_undo_used(queue: ThreatPayloadQueue, prior_receipt_id: str) -> dict[str
     path = _undo_used_path(queue, rid)
     if path.exists():
         try:
-            data = json.loads(path.read_text(encoding="utf-8"))
+            data = read_json(path)
             if isinstance(data, dict) and data.get("undone_at"):
                 return data
         except (OSError, json.JSONDecodeError):
@@ -354,7 +385,7 @@ def mark_undo_used(
         "undone_at": undone_at or utc_now(),
     }
     path = _undo_used_path(queue, prior_receipt_id)
-    path.write_text(json.dumps(marker, sort_keys=True), encoding="utf-8")
+    _atomic_write_json(path, marker)
     return marker
 
 
@@ -382,6 +413,12 @@ def watch_enqueue_undo(
     tenant_id: str | None = None,
     time_zone: str | None = None,
 ) -> dict[str, Any]:
+    with file_lock(queue.root / ".undo.lock"):
+        return _watch_enqueue_undo(queue=queue, rule_id=rule_id, prior_receipt_id=prior_receipt_id,
+                                   site=site, tenant_id=tenant_id, time_zone=time_zone)
+
+
+def _watch_enqueue_undo(*, queue, rule_id, prior_receipt_id, site, tenant_id, time_zone):
     """Outside Enforce: undo travels as a validated ThreatPayload through the queue door.
 
     Second tap on a used Undo link: no second undo is queued; returns already_undone.
@@ -472,7 +509,39 @@ def _queue_transit_seconds(payload: ThreatPayload) -> float | None:
         return None
 
 
-def enforce_drain_once(
+def enforce_drain_once(queue: ThreatPayloadQueue, **kwargs) -> dict[str, Any] | None:
+    """Serialize drains and retain interrupted actions for receipt reconciliation, never replay."""
+    with file_lock(queue.root / ".drain.lock"):
+        for pending in sorted((queue.root / "processing").glob("*.json")):
+            receipts = queue.list_receipts()
+            prior = next((r for r in receipts if r.get("queue_item_id") == pending.stem), None)
+            if prior is None:
+                prior = {"id": str(uuid.uuid5(uuid.NAMESPACE_URL, "autumbra-interrupted:" + pending.stem)),
+                         "tenant_id": kwargs["settings"].tenant_id, "product": "Autumbra", "role": "Enforce",
+                         "outcome": "edge_unconfirmed", "applied": False, "queue_item_id": pending.stem,
+                         "raw_log_seen": False,
+                         "note": "Edge outcome could not be confirmed. Inspect the owned rule before retrying."}
+                queue.write_receipt(prior)
+            pending.unlink()
+            return prior
+        queue._claim = True
+        try:
+            result = _enforce_drain_once(queue, **kwargs)
+        except Exception:
+            # Known provider failures already have a receipt; unexpected failures
+            # retain the claim for the next drain's bounded reconciliation receipt.
+            if queue._active_item and any(r.get("queue_item_id") == queue._active_item for r in queue.list_receipts()):
+                (queue.root / "processing" / (queue._active_item + ".json")).unlink(missing_ok=True)
+            raise
+        else:
+            if queue._active_item:
+                (queue.root / "processing" / (queue._active_item + ".json")).unlink(missing_ok=True)
+            return result
+        finally:
+            queue._claim, queue._active_item = False, None
+
+
+def _enforce_drain_once(
     queue: ThreatPayloadQueue,
     *,
     settings: ClientAutumbraSettings,
@@ -496,12 +565,25 @@ def enforce_drain_once(
     from .cloudflare_edge import CloudflareEdgeError
 
     def retry_edge_failure(error: CloudflareEdgeError) -> None:
+        from .durable_state import locked_state
+        # Match the existing chassis worker's three-attempt policy. A stable
+        # action identity survives restarts; mutations with unknown ownership
+        # are never retried by the proposal path below.
+        identity = hashlib.sha256(json.dumps({key: payload.model_dump(mode="json").get(key)
+            for key in ("tenant_id", "action", "site", "rule_id", "prior_receipt_id")}, sort_keys=True).encode()).hexdigest()
+        with locked_state(queue.root / "edge-retries.json") as attempts:
+            attempt = int(attempts.get(identity, 0)) + 1
+            attempts[identity] = attempt
+        error.retry_attempts = attempt
+        error.retry_exhausted = attempt >= 3
+        if error.retry_exhausted:
+            return
         owned_undo = getattr(error, "retry_undo", None)
         if owned_undo:
             queue.put(ThreatPayload.model_validate({**payload.model_dump(), **owned_undo,
-                                                   "action": ThreatAction.undo_shield}))
+                                                   "action": ThreatAction.undo_shield}), _retry=True)
         else:
-            queue.put(payload)
+            queue.put(payload, _retry=True)
 
     def record_edge_failure(error: CloudflareEdgeError) -> None:
         failure = {"id": str(uuid.uuid4()), "tenant_id": settings.tenant_id,
@@ -509,7 +591,9 @@ def enforce_drain_once(
                    "action": payload.action.value, "control": "cloudflare", "applied": False,
                    "outcome": "edge_unconfirmed", "edge_state": "unconfirmed",
                    "note": "Edge outcome could not be confirmed. Inspect the owned rule before retrying.",
-                   "undo_retry_queued": bool(getattr(error, "retry_undo", None)),
+                   "undo_retry_queued": bool(getattr(error, "retry_undo", None)) and not getattr(error, "retry_exhausted", False),
+                   "retry_attempts": getattr(error, "retry_attempts", 0),
+                   "retry_exhausted": getattr(error, "retry_exhausted", False),
                    "edge_requests": list(getattr(edge, "measurements", [])),
                    **settings.receipt_stamp()}
         stamp_budget(failure, stage="edge_attempt", seconds=time.perf_counter() - t_drain)

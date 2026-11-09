@@ -96,6 +96,7 @@ export function buildRelease({ out, platforms = Object.keys(PLATFORMS), version 
     const newest = versions.sort(compareVersions).at(-1);
     writeFileSync(join(out, 'latest.json'), JSON.stringify({ version: newest, manifest: `releases/${newest}/manifest.json` }, null, 2) + '\n');
     cpSync(join(CLI, 'install.sh'), join(out, 'install.sh'));
+    writeFileSync(join(out,'opli-install.sh'),readFileSync(join(CLI,'install.sh'),'utf8').replace('${TERVORY_CLI_BASE:-https://app.tervory.com/cli}','${TERVORY_CLI_BASE:-https://opli.tervory.com}'));
     return manifest;
   } finally {
     rmSync(work, { recursive: true, force: true });

@@ -156,6 +156,10 @@ async def test_receipt_view_is_empty_at_day_zero_and_shows_measured_costs(client
         await page.evaluate('window.renderScreen("receipts",{receipts:[{id:"one",action:"/answers",cost:0.001,"would have cost":0.02,baseline_model:"paid-default"}]})')
         await expect(page.get_by_text('$0.00100000',exact=True)).to_be_visible()
         await expect(page.get_by_text('$0.02000000 · paid-default',exact=True)).to_be_visible()
+        await page.evaluate('window.renderScreen("receipts",{receipts:[{id:"other-product",action:"/moot/hearings/one/ai",cost:77,"would have cost":88,baseline_model:"paid-default"}]})')
+        await expect(page.get_by_text('Ask Zenas',exact=True)).to_be_visible()
+        assert '$' not in await page.locator('body').inner_text()
+        assert 'Moot Court' not in await page.locator('body').inner_text()
         assert await page.evaluate('document.documentElement.scrollWidth<=innerWidth')
         await page.evaluate('window.renderScreen("receipts",{receipts:Array.from({length:100},(_,i)=>({id:String(i),action:"/answers",cost:i+.001,"would have cost":i+.02,baseline_model:"paid-default"}))})')
         panel=page.get_by_role('region',name='Receipts',exact=True)
@@ -203,8 +207,9 @@ async def test_command_and_mcp_export_main_actions_with_strict_scope(monkeypatch
     actor=command.Actor(UUID(TENANT),'placeholder-user',False,frozenset({'zenas'}))
     listed={t['name']:t for t in mcp_server.tools(actor)['tools']}
     required={'zenas.ask','zenas.draft','zenas.review','zenas.receipts','zenas.retrieve','zenas.apply',
-              'zenas.compose','zenas.plain','zenas.moot.list','zenas.moot.open','zenas.moot.read','zenas.moot.command'}
+              'zenas.compose','zenas.plain'}
     assert required<=set(listed)
+    assert not any(name.startswith(('zenas.moot.', 'moot.')) for name in listed)
     outsider=command.Actor(UUID(OTHER),'placeholder-other',False)
     assert not required & {t['name'] for t in mcp_server.tools(outsider)['tools']}
     for name in required:
@@ -219,14 +224,21 @@ async def test_command_and_mcp_export_main_actions_with_strict_scope(monkeypatch
     assert command.explicit_ledger_ids({'savings_receipt':{'ledger_ids':[str(uuid4())]}})==[]
     with pytest.raises((HTTPException,ValueError)):
         await zenas.code_plan(actor,[{'role':'user','content':'zenas.receipts {"tenant_id":"'+OTHER+'"}'}],None)
-    action=command.PlannedAction(tool='zenas.moot.command',arguments={'hearing_id':str(uuid4()),'action':'turn',
-        'request_id':str(uuid4()),'revision':0,'payload':{'text':'argument'}})
+    # Keep the caller/region binding proof on Zenas's actual legal action.
+    # A Zenas tool grant must never become a Moot grant.
+    action=command.PlannedAction(tool='zenas.apply',arguments={'card_id':str(uuid4()),
+        'features':{'form':'written'},'question':'placeholder legal question'})
     monkeypatch.setenv('TANK_REGION','za')
     import sys
     monkeypatch.setitem(sys.modules,'main',SimpleNamespace(box_region=lambda:'za'))
     method,path,query,body=command.adapter_request(action,actor)
-    assert method=='POST' and path.endswith('/turn') and query=={'home_region':'za'}
-    assert not {'tenant_id','founder','actor_id'} & set(body)
+    assert method=='POST' and path=='/v1/zenas/ladder/apply'
+    assert query=={'tenant_id':TENANT,'home_region':'za'}
+    assert body['tenant_id']==TENANT and body['home_region']=='za'
+    assert not {'founder','actor_id','user_id'} & set(body)
+    with pytest.raises((HTTPException,ValueError)):
+        command.validate_action(command.PlannedAction(tool='zenas.moot.command',arguments={}),actor)
+    assert await zenas.code_plan(actor,[{'role':'user','content':'zenas.moot.list {}'}],None) is None
 
 
 def test_model_paths_have_no_direct_provider_clients():

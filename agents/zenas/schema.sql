@@ -21,6 +21,8 @@ CREATE TABLE IF NOT EXISTS agent_zenas.command_receipts (
     created_at timestamptz NOT NULL DEFAULT now(),
     PRIMARY KEY (tenant_id, request_id)
 );
+ALTER TABLE agent_zenas.command_receipts ADD COLUMN IF NOT EXISTS user_id text;
+
 
 -- One row per tenant. home_region is the source of truth for where that tenant's
 -- rows live. A home_region on a request is only a cross-check against this column.
@@ -649,6 +651,10 @@ CREATE TABLE IF NOT EXISTS agent_zenas.street_law_sessions (
 -- Keep the DO block on one line for the existing schema_statements loader.
 DO $$ BEGIN IF EXISTS (SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='agent_zenas' AND c.relrowsecurity AND c.relname <> 'street_law_sessions') THEN ALTER TABLE agent_zenas.street_law_sessions ENABLE ROW LEVEL SECURITY; ALTER TABLE agent_zenas.street_law_sessions FORCE ROW LEVEL SECURITY; IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='agent_zenas' AND tablename='street_law_sessions' AND policyname='street_law_tenant') THEN CREATE POLICY street_law_tenant ON agent_zenas.street_law_sessions USING (tenant_id=NULLIF(current_setting('app.tenant_id',true),'')::uuid) WITH CHECK (tenant_id=NULLIF(current_setting('app.tenant_id',true),'')::uuid); END IF; END IF; END $$;
 
+DO $$ BEGIN IF EXISTS (SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='agent_zenas' AND c.relrowsecurity AND c.relname <> 'command_receipts') THEN ALTER TABLE agent_zenas.command_receipts ENABLE ROW LEVEL SECURITY; ALTER TABLE agent_zenas.command_receipts FORCE ROW LEVEL SECURITY; IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='agent_zenas' AND tablename='command_receipts' AND policyname='command_tenant') THEN CREATE POLICY command_tenant ON agent_zenas.command_receipts USING (tenant_id=NULLIF(current_setting('app.tenant_id',true),'')::uuid) WITH CHECK (tenant_id=NULLIF(current_setting('app.tenant_id',true),'')::uuid); END IF; END IF; END $$;
+
+DO $$ BEGIN IF EXISTS (SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='agent_zenas' AND c.relrowsecurity AND c.relname <> 'savings_receipts') THEN ALTER TABLE agent_zenas.savings_receipts ENABLE ROW LEVEL SECURITY; ALTER TABLE agent_zenas.savings_receipts FORCE ROW LEVEL SECURITY; IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='agent_zenas' AND tablename='savings_receipts' AND policyname='savings_tenant') THEN CREATE POLICY savings_tenant ON agent_zenas.savings_receipts USING (tenant_id=NULLIF(current_setting('app.tenant_id',true),'')::uuid) WITH CHECK (tenant_id=NULLIF(current_setting('app.tenant_id',true),'')::uuid); END IF; END IF; END $$;
+
 -- BEGIN GENERATED AGENT MEMORY (hermes/record_schema.py)
 CREATE TABLE IF NOT EXISTS agent_zenas.memory_records (
     id uuid PRIMARY KEY,
@@ -698,7 +704,3 @@ CREATE TABLE IF NOT EXISTS agent_zenas.memory_publish_log (
     published_row uuid
 );
 -- END GENERATED AGENT MEMORY
-
-DO $$ BEGIN IF EXISTS (SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='agent_zenas' AND c.relrowsecurity AND c.relname <> 'command_receipts') THEN ALTER TABLE agent_zenas.command_receipts ENABLE ROW LEVEL SECURITY; ALTER TABLE agent_zenas.command_receipts FORCE ROW LEVEL SECURITY; IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='agent_zenas' AND tablename='command_receipts' AND policyname='command_tenant') THEN CREATE POLICY command_tenant ON agent_zenas.command_receipts USING (tenant_id=NULLIF(current_setting('app.tenant_id',true),'')::uuid) WITH CHECK (tenant_id=NULLIF(current_setting('app.tenant_id',true),'')::uuid); END IF; END IF; END $$;
-
-DO $$ BEGIN IF EXISTS (SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='agent_zenas' AND c.relrowsecurity AND c.relname <> 'savings_receipts') THEN ALTER TABLE agent_zenas.savings_receipts ENABLE ROW LEVEL SECURITY; ALTER TABLE agent_zenas.savings_receipts FORCE ROW LEVEL SECURITY; IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='agent_zenas' AND tablename='savings_receipts' AND policyname='savings_tenant') THEN CREATE POLICY savings_tenant ON agent_zenas.savings_receipts USING (tenant_id=NULLIF(current_setting('app.tenant_id',true),'')::uuid) WITH CHECK (tenant_id=NULLIF(current_setting('app.tenant_id',true),'')::uuid); END IF; END IF; END $$;

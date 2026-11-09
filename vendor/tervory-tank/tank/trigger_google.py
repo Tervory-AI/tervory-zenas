@@ -36,7 +36,7 @@ def settings():
     values = {name: os.environ.get('TRIGGER_GOOGLE_OAUTH_' + name.upper(), '')
               for name in ('client_id', 'client_secret')}
     if not all(values.values()):
-        raise HTTPException(503)  # Existing HTTP handling, no invented UI copy.
+        raise HTTPException(503, {"missing_settings": ["TRIGGER_GOOGLE_OAUTH_" + key.upper() for key, value in values.items() if not value]})
     return values
 
 

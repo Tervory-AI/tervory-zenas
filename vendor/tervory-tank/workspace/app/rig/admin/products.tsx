@@ -26,7 +26,7 @@ export function Products({ rows, busy, remove }: {
     </div>
     <div className="retailer-product-scroll"><table>
       <thead><tr><th /><th scope="col">Product code</th><th scope="col">Product name</th><th scope="col">Price</th><th /></tr></thead>
-      <tbody>{rows.map(row => <tr key={row.sku}>
+      <tbody>{!rows.length && <tr><td colSpan={5}><b>0</b><p>Import your catalogue file or connect an official feed.</p></td></tr>}{rows.map(row => <tr key={row.sku}>
         <td><input type="checkbox" aria-label={row.sku} disabled={busy} checked={selected.has(row.sku)} onChange={event => setSelected(previous => {
           const next = new Set(previous); if (event.target.checked) next.add(row.sku); else next.delete(row.sku); return next;
         })} /></td>

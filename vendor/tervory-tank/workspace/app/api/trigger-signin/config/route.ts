@@ -1,3 +1,4 @@
+import { fetchWithDeadline as fetch } from "../../../../lib/request";
 import { timingSafeEqual } from "node:crypto";
 import { Buffer } from "node:buffer";
 import { NextRequest, NextResponse } from "next/server";

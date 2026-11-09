@@ -456,7 +456,13 @@ def build_router(rt: Any, store: BaseStore | None = None, *, background: bool = 
         if body.paid_step_approval_id:
             with paid_steps.run_scope(paid_steps.Run(body.tenant_id, decision["run_id"], decision["request_hash"])):
                 await paid_steps.attach_receipt(body.id, decision)
-        return {"ledger_id": str(body.id), "recorded": True}
+        async with rt.pool().acquire() as conn:
+            recorded = await conn.fetchrow(
+                "SELECT cost_usd,cost_status FROM tank.ledger WHERE tenant_id=$1 AND id=$2",
+                body.tenant_id, body.id)
+        return {"ledger_id": str(body.id), "recorded": True,
+                "cost_usd": str(recorded["cost_usd"]) if recorded["cost_status"] == "set" else None,
+                "cost_status": recorded["cost_status"]}
 
     async def run_background() -> None:
         while True:

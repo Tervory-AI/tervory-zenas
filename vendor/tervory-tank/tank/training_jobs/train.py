@@ -1,8 +1,8 @@
 # /// script
 # requires-python = ">=3.11"
-# dependencies = ["trl==0.29.1", "peft==0.18.1", "transformers==5.3.0", "datasets==4.5.0", "torch==2.10.0", "huggingface-hub==1.7.2", "sentencepiece==0.2.1"]
+# dependencies = ["trl==0.29.1", "peft==0.18.1", "transformers==5.10.1", "datasets==5.1.0", "torch==2.10.0", "huggingface-hub==1.31.0", "sentencepiece==0.2.1", "fsspec==2026.7.0"]
 # ///
-"""One multi-task Qwen3-4B LoRA. Evaluation loss is not a gold holdout score."""
+"""Explicitly configured LoRA. Evaluation loss is not a gold holdout score."""
 import hashlib
 import json
 import os
@@ -91,9 +91,9 @@ def shared_rows(groups: list[list[dict]]) -> list[dict]:
 
 
 def context_length(agent: str) -> int:
-    if agent not in ('', 'zenas'):
+    if agent not in ('', 'zenas', 'tiger', 'opli'):
         raise ValueError('Unsupported training agent')
-    return 4096 if agent == 'zenas' else 1024
+    return 4096 if agent in ('zenas', 'tiger', 'opli') else 1024
 
 
 def load_snapshots(api, org: str, day: str) -> list[dict]:
@@ -110,13 +110,17 @@ def load_snapshots(api, org: str, day: str) -> list[dict]:
             continue
         if info.private is not True:
             raise ValueError('Dataset repository is not private')
-        for region in ('us-east', 'za'):
+        for region in (('za',) if selected == 'zenas' else ('us-east', 'za')):
             try:
                 path = hf_hub_download(dataset, f'snapshots/{region}/{day}.jsonl', repo_type='dataset', revision=info.sha)
             except EntryNotFoundError:
                 continue
             batch = [json.loads(line) for line in Path(path).read_text().splitlines() if line]
             validate_rows(batch)  # Reject the entire run before constructing the trainer.
+            if selected == 'zenas' and any(
+                    row.get('task_type') != 'zenas.reasoning' or _outcome(row.get('output')) is None
+                    for row in batch):
+                raise ValueError('Zenas training requires code-labelled court outcomes')
             if any(row['region'] != region for row in batch):
                 raise ValueError('Snapshot region does not match its rows')
             rows.extend(batch)
@@ -130,7 +134,7 @@ def load_holdouts(api, org: str, day: str) -> list[dict]:
     info = api.dataset_info(dataset)
     if info.private is not True:
         raise ValueError('Dataset repository is not private')
-    for region in ('us-east', 'za'):
+    for region in ('za',):
         try:
             path = hf_hub_download(dataset, f'holdouts/{region}/{day}.jsonl', repo_type='dataset', revision=info.sha)
         except Exception as exc:
@@ -139,8 +143,14 @@ def load_holdouts(api, org: str, day: str) -> list[dict]:
             raise
         rows.extend(json.loads(line) for line in Path(path).read_text().splitlines() if line)
     if any(row.get('holdout') is not True or row.get('public') is not True
-           or row.get('client_matter') is not False for row in rows):
+           or row.get('client_matter') is not False or row.get('scope') != 'platform'
+           or row.get('active') is not True or 'tenant_id' in row or row.get('region') != 'za'
+           or row.get('task_type') != 'zenas.reasoning' or _outcome(row.get('output')) is None
+           for row in rows):
         raise ValueError('Unsafe holdout dataset')
+    if len({hashlib.sha256(json.dumps(row['input'], sort_keys=True).encode()).hexdigest()
+            for row in rows}) < 200:
+        raise ValueError('At least 200 distinct court holdouts are required')
     return rows
 
 
@@ -161,43 +171,400 @@ def merge_quantize(model, tokenizer, destination: str = '/tmp/zenas-q4_k_m.gguf'
     return destination
 
 
-def main() -> None:
+
+def price_fields(value):
+    from decimal import Decimal, InvalidOperation
+    if isinstance(value, str):
+        value = json.loads(value)
+    if not isinstance(value, dict):
+        raise ValueError('Price answer must be an object')
+    items = value.get('items', [value] if 'price' in value else None)
+    if not isinstance(items, list):
+        raise ValueError('Price answer needs items')
+    result = []
+    for item in items:
+        if not isinstance(item, dict):
+            raise ValueError('Invalid price item')
+        fields = {}
+        for key in ('price', 'currency', 'availability'):
+            if key not in item:
+                continue
+            raw = item[key]
+            if key == 'price':
+                try:
+                    amount = Decimal(str(raw))
+                    if not amount.is_finite() or amount < 0:
+                        raise ValueError('Invalid price')
+                except InvalidOperation:
+                    raise ValueError('Invalid price') from None
+                fields[key] = format(amount.normalize(), 'f')
+            elif key == 'currency':
+                if not isinstance(raw, str) or not re.fullmatch('[A-Za-z]{3}', raw):
+                    raise ValueError('Invalid currency')
+                fields[key] = raw.upper()
+            else:
+                if not isinstance(raw, str):
+                    raise ValueError('Invalid availability')
+                fields[key] = raw
+        if not fields:
+            raise ValueError('No labelled price fields')
+        result.append(fields)
+    return result
+
+
+def score_prices(rows, answers):
+    if not rows or len(rows) != len(answers):
+        raise ValueError('Every held-out price needs one answer')
+    results = []
+    for row, answer in zip(rows, answers, strict=True):
+        expected = price_fields(row['output'])
+        try:
+            actual = price_fields(answer)
+            # Match each expected item once, projecting only labelled fields.
+            remaining = list(actual)
+            correct = len(expected) == len(remaining)
+            for item in expected:
+                match = next((i for i, candidate in enumerate(remaining)
+                              if all(candidate.get(key) == value for key, value in item.items())), None)
+                if match is None:
+                    correct = False
+                    break
+                remaining.pop(match)
+        except (ValueError, TypeError):
+            correct = False
+        results.append({'passed': correct})
+    passed = sum(row['passed'] for row in results)
+    return {'method': 'exact_price_fields', 'n': len(rows), 'passed': passed,
+            'agreement': passed / len(rows), 'gold_holdout': True,
+            'eligible': passed == len(rows), 'rows': results}
+
+
+def tiger_data(api, org, day, revision=None):
+    from datetime import date
+    from huggingface_hub import hf_hub_download
+    from huggingface_hub.errors import EntryNotFoundError
+    date.fromisoformat(day)
+    dataset = f'{org}/tervory-public-tiger'
+    info = api.dataset_info(dataset)
+    if info.private is not True:
+        raise ValueError('Dataset repository is not private')
+    groups = {'snapshots': [], 'holdouts': []}
+    for kind in groups:
+        for region in ('us-east', 'za'):
+            try:
+                path = hf_hub_download(dataset, f'{kind}/{region}/{day}.jsonl', repo_type='dataset', revision=revision or info.sha)
+            except EntryNotFoundError:
+                continue
+            rows = [json.loads(line) for line in Path(path).read_text().splitlines() if line.strip()]
+            for row in rows:
+                if (row.get('holdout') is not (kind == 'holdouts') or row.get('region') != region
+                        or row.get('task_type') not in ('tiger.price_extract', 'tiger.price_structured', 'tiger.price_read')
+                        or not isinstance(row.get('input'), dict) or 'png_base64' in row['input']):
+                    raise ValueError('Invalid Tiger dataset')
+                validate_rows([{**row, 'holdout': False}])
+                price_fields(row['output'])
+            groups[kind].extend(rows)
+    train, held = groups['snapshots'], groups['holdouts']
+    def digest(row):
+        return hashlib.sha256(json.dumps(row['input'], sort_keys=True).encode()).hexdigest()
+    if not train or not held or {digest(row) for row in train} & {digest(row) for row in held}:
+        raise ValueError('Disjoint training and held-out examples are required')
+    from urllib.parse import urlsplit, urlunsplit
+    def pages(rows):
+        return {urlunsplit(urlsplit(row['input']['url'])._replace(query='', fragment=''))
+                for row in rows if row['input'].get('url')}
+    if pages(train) & pages(held):
+        raise ValueError('A held-out page cannot also be trained')
+    partitions = {int(digest(row), 16) % 10 == 0 for row in train}
+    if partitions != {False, True}:
+        raise ValueError('Training and validation examples are required')
+    return train, held
+
+
+def fit(base, revision, train, validation, *, output_dir='/tmp/lora', max_length=1024,
+        use_cpu=False, max_steps=-1, tokenizer=None):
     from datasets import Dataset
-    from huggingface_hub import HfApi
     from peft import LoraConfig
     from trl import SFTConfig, SFTTrainer
+    trainer = SFTTrainer(model=base,
+        args=SFTConfig(output_dir=output_dir, num_train_epochs=1, max_length=max_length,
+                       model_init_kwargs={'revision': revision, 'trust_remote_code': False},
+                       per_device_train_batch_size=1, gradient_accumulation_steps=8,
+                       gradient_checkpointing=True, bf16=not use_cpu, use_cpu=use_cpu,
+                       max_steps=max_steps, report_to='none', logging_strategy='no',
+                       save_strategy='no', push_to_hub=False),
+        train_dataset=Dataset.from_list(train), eval_dataset=Dataset.from_list(validation),
+        peft_config=LoraConfig(r=16, lora_alpha=32, target_modules='all-linear', task_type='CAUSAL_LM'),
+        **({'processing_class': tokenizer} if tokenizer is not None else {}))
+    trainer.train()
+    metrics = trainer.evaluate()
+    trainer.save_model(output_dir)
+    return trainer, metrics
+
+
+def load_job_configuration():
+    """The founder's explicit nonsecret config travels as a private job artifact."""
+    if not all(os.environ.get(key, '').strip() for key in ('HF_TOKEN', 'OUTPUT_REPO')):
+        return
+    from huggingface_hub import HfApi, hf_hub_download
+    api = HfApi(token=os.environ['HF_TOKEN'])
+    info = api.model_info(os.environ['OUTPUT_REPO'])
+    if info.private is not True:
+        raise ValueError('Training configuration must be private')
+    path = Path(hf_hub_download(os.environ['OUTPUT_REPO'], 'training-config.json', revision=info.sha))
+    if path.stat().st_size > 4096:
+        raise ValueError('Training configuration is too large')
+    config = json.loads(path.read_text())
+    if (not {'base_model', 'base_revision'} <= set(config)
+            or set(config) - {'base_model', 'base_revision', 'bundle_sha256'}
+            or any(not isinstance(value, str) for value in config.values())):
+        raise ValueError('Invalid training configuration')
+    os.environ['HF_TRAIN_BASE_MODEL'] = config['base_model']
+    os.environ['HF_TRAIN_BASE_REVISION'] = config['base_revision']
+    if 'bundle_sha256' in config:
+        bundle = Path(hf_hub_download(os.environ['OUTPUT_REPO'], 'training-bundle.json', revision=info.sha))
+        if bundle.stat().st_size > 256 * 1024 * 1024:
+            raise ValueError('Training bundle is too large')
+        if hashlib.sha256(bundle.read_bytes()).hexdigest() != config['bundle_sha256']:
+            raise ValueError('Training bundle hash mismatch')
+        os.environ['TERVOR_TRAIN_BUNDLE_PATH'] = str(bundle)
+
+
+def load_tervor_bundle(path, product):
+    """Standalone GPU copy of the sealed bundle contract; no shared DB access."""
+    def digest(value):
+        return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(',', ':'), allow_nan=False).encode()).hexdigest()
+    source = Path(path)
+    if source.is_symlink() or source.stat().st_size > 256 * 1024 * 1024:
+        raise ValueError('Invalid training bundle file')
+    data = json.loads(source.read_text())
+    training, gold = data['training'], data['gold']
+    if data['sha256'] != digest([training, gold]):
+        raise ValueError('Training bundle integrity check failed')
+    for part in (training, gold):
+        if part['tenant_id'] != '00000000-0000-0000-0000-000000000001' or part['product'] != product:
+            raise ValueError('Training bundle tenant or product mismatch')
+    rows, cases = training['rows'], gold['cases']
+    if (not 1 <= len(rows) <= 100000 or training['count'] != len(rows) or training['sha256'] != digest(rows)
+            or gold['count'] != len(cases) or gold['sha256'] != digest(cases) or gold['holdout'] is not True
+            or len(cases) < 200 or len({digest(case['input']) for case in cases}) != len(cases)
+            or any(case['holdout'] is not True for case in cases)):
+        raise ValueError('Invalid training or gold snapshot')
+    held = {digest(case['input']) for case in cases}
+    for row in rows:
+        if (row['tenant_id'] != training['tenant_id'] or row['product'] != product
+                or row['holdout'] is not False or not row['task_type'].startswith(product + '.')
+                or row.get('kind') not in ('shadow', 'correction', 'teacher', 'public')
+                or len(json.dumps(row).encode()) > 65536
+                or any(not isinstance(row.get(key), str) or not row[key].strip()
+                       for key in ('source', 'source_ref', 'provider', 'licence'))
+                or digest(row['input']) in held):
+            raise ValueError('Unsafe training row or gold overlap')
+    return rows, cases
+
+
+def coding_partitions(data):
+    """Pure coding data contract, shared by offline preflight and the GPU script.
+
+    Small smoke bundles may be inspected here. load_coding_bundle additionally
+    applies the existing production 200-gold gate before fitting anything.
+    """
+    def digest(value):
+        return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(',', ':'), allow_nan=False).encode()).hexdigest()
+    training, gold, code = data['training'], data['gold'], data['coding']
+    if (data['sha256'] != digest([training, gold]) or code['schema'] != 1
+            or code['region'] != 'us-east' or gold['region'] != code['region'] or gold['holdout'] is not True
+            or code['sha256'] != digest({k: v for k, v in code.items() if k != 'sha256'})):
+        raise ValueError('Coding bundle hash or region mismatch')
+    groups = {'train': training, 'validation': code['validation'], 'gold': gold,
+              'evaluation': code['evaluation_holdouts']}
+    records = code['provenance']
+    if not 1 <= len(records) <= 1000:
+        raise ValueError('Coding provenance exceeds the bounded contract')
+    indexed = {}
+    for record in records:
+        key = (record['split'], record['input_sha256'])
+        if key in indexed:
+            raise ValueError('Duplicate coding provenance')
+        indexed[key] = record
+    fingerprints, inputs, used = {}, set(), set()
+    for split, snapshot in groups.items():
+        field = 'cases' if split == 'gold' else 'rows'
+        rows = snapshot[field]
+        if (snapshot['tenant_id'] != '00000000-0000-0000-0000-000000000001'
+                or snapshot['product'] != 'opli' or snapshot['count'] != len(rows)
+                or snapshot['sha256'] != digest(rows) or (split in ('train', 'validation', 'gold') and not rows)):
+            raise ValueError('Invalid coding snapshot')
+        for row in rows:
+            fingerprint = digest(row['input'])
+            if fingerprint in inputs:
+                raise ValueError('Duplicate or held-out coding input')
+            inputs.add(fingerprint)
+            key = (split, fingerprint)
+            record = indexed.get(key)
+            if record is None or record['output_sha256'] != digest(row['expected'] if split == 'gold' else row['output']):
+                raise ValueError('Coding provenance does not bind the input and answer')
+            used.add(key)
+            source = record['source']
+            if (source['kind'] not in ('public', 'synthetic')
+                    or source['provider'] not in ('public-code', 'synthetic-fixture')
+                    or row.get('tenant_id', snapshot['tenant_id']) != snapshot['tenant_id']
+                    or row.get('product', 'opli') != 'opli'):
+                raise ValueError('Private coding provenance is forbidden')
+            if split != 'gold' and set(row) != {
+                    'tenant_id', 'product', 'kind', 'source', 'provider', 'licence',
+                    'source_ref', 'task_type', 'input', 'output', 'holdout'}:
+                raise ValueError('Unexpected coding row metadata')
+            if (source['sha256'] != digest(source['files'])
+                    or source['provenance_sha256'] != digest({k: source[k] for k in
+                        ('kind', 'reference', 'revision', 'licence', 'provider')})
+                    or any(not isinstance(v, str) for v in source['files'].values())
+                    or len(json.dumps(source).encode()) > 65536):
+                raise ValueError('Coding source hash mismatch')
+            if (len(json.dumps(row).encode()) > 65536 or not isinstance(row['input'], dict)
+                    or not row['task_type'].startswith('opli.') or row['holdout'] is not (split in ('gold', 'evaluation'))
+                    or (split != 'gold' and (row['tenant_id'] != snapshot['tenant_id'] or row['product'] != 'opli'))):
+                raise ValueError('Private or mislabelled coding row')
+            if split in ('train', 'validation'):
+                output = row['output']
+                public_text = '\n'.join(source['files'].values())
+                if (source['kind'] != 'public' or source['provider'] != 'public-code'
+                        or source['licence'] not in ('MIT', 'BSD-3-Clause') or row['kind'] != 'public'
+                        or row['provider'] != source['provider'] or row['licence'] != source['licence']
+                        or row['source'] != source['reference']
+                        or row['source_ref'] != source['revision'] + ':' + source['sha256']
+                        or not re.fullmatch('[a-f0-9]{40}', source['revision'])
+                        or not source['reference'].startswith('https://github.com/')
+                        or hashlib.sha256(source['licence_text'].encode()).hexdigest() != source['licence_sha256']
+                        or not source['licence_text'].strip() or output.get('commands') != []
+                        or not output.get('files') or any(not isinstance(text, str) or not text.strip()
+                            or text not in public_text for text in output['files'].values())):
+                    raise ValueError('Coding fit data must be licensed public source, never synthetic or tenant data')
+            keys = [digest(source['reference']), source['sha256'], source['provenance_sha256'], fingerprint]
+            keys += [digest(text) for text in source['files'].values() if text.strip()]
+            keys += [digest(text) for text in row['input'].get('files', {}).values() if text.strip()]
+            answer = row['expected'] if split == 'gold' else row['output']
+            keys += [digest(text) for text in answer.get('files', {}).values() if text.strip()]
+            for value in keys:
+                if value in fingerprints and fingerprints[value] != split:
+                    raise ValueError('Coding source family or content overlaps splits')
+                fingerprints[value] = split
+    if used != set(indexed):
+        raise ValueError('Unused coding provenance')
+    return training['rows'], code['validation']['rows']
+
+
+def coding_samples(data):
+    def sample(row):
+        return {'prompt': [{'role': 'user', 'content': row['task_type'] + '\n' + json.dumps(row['input'], sort_keys=True)}],
+                'completion': [{'role': 'assistant', 'content': json.dumps(row['output'], sort_keys=True)}]}
+    training, validation = coding_partitions(data)
+    return [sample(row) for row in training], [sample(row) for row in validation]
+
+
+def coding_selection(data, base, revision):
+    fields = ('base_model', 'base_revision', 'licence', 'licence_evidence',
+              'founder_approval', 'hardware', 'hardware_fit_evidence')
+    chosen = data['coding']['selection']
+    if (set(chosen) != set(fields) or any(not isinstance(chosen[field], str)
+            or not chosen[field].strip() or len(chosen[field]) > 2000 for field in fields)):
+        raise ValueError('Explicit coding base, licence, founder approval and hardware-fit evidence are required')
+    if chosen['hardware'] != 'a10g-small':
+        raise ValueError('Coding selection must match the existing training hardware policy')
+    if (chosen['base_model'] != base or chosen['base_revision'] != revision
+            or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.-]*/[A-Za-z0-9][A-Za-z0-9_.-]*', base)
+            or not re.fullmatch('[a-f0-9]{40}', revision)):
+        raise ValueError('Coding checkpoint evidence does not match the configured base')
+    return chosen
+
+
+def load_coding_bundle(path):
+    source = Path(path)
+    if source.is_symlink() or source.stat().st_size > 8 * 1024 * 1024:
+        raise ValueError('Coding bundle exceeds the bounded size')
+    data = json.loads(source.read_text())
+    rows, cases = load_tervor_bundle(path, 'opli')  # Existing 200-gold gate stays mandatory.
+    if rows != data['training']['rows'] or cases != data['gold']['cases']:
+        raise ValueError('Coding bundle changed during validation')
+    coding_partitions(data)
+    return data
+
+
+def main() -> dict | None:
+    missing = [name for name in ('HF_TOKEN', 'HF_ORG', 'OUTPUT_REPO', 'TRAIN_DAY')
+               if not os.environ.get(name, '').strip()]
+    if missing:
+        result = {'status': 'not_configured', 'settings': missing}
+        print(json.dumps(result))
+        return result
+    base, revision = os.environ.get('HF_TRAIN_BASE_MODEL', ''), os.environ.get('HF_TRAIN_BASE_REVISION', '')
+    missing = [name for name in ('HF_TRAIN_BASE_MODEL', 'HF_TRAIN_BASE_REVISION') if not os.environ.get(name, '').strip()]
+    if missing:
+        result = {'status': 'not_configured', 'settings': missing}
+        print(json.dumps(result))
+        return result
+    if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.-]*/[A-Za-z0-9][A-Za-z0-9_.-]*', base) or not re.fullmatch('[a-f0-9]{40}', revision):
+        raise ValueError('Training requires an explicit base model and immutable revision')
+    from huggingface_hub import HfApi
     api = HfApi(token=os.environ['HF_TOKEN'])
     org, repo, day = os.environ['HF_ORG'], os.environ['OUTPUT_REPO'], os.environ['TRAIN_DAY']
     if api.model_info(repo).private is not True:
         raise ValueError('Model repository is not private')
     train_agent = os.environ.get('TRAIN_AGENT', '')
     max_length = context_length(train_agent)
-    rows = load_snapshots(api, org, day)
-    train, validation, seen = [], [], set()
-    for row in rows:
-        digest = hashlib.sha256(json.dumps(row['input'], sort_keys=True).encode()).hexdigest()
-        if digest in seen:
-            continue
-        seen.add(digest)
-        sample = {'prompt': [{'role': 'user', 'content': row['task_type'] + '\n' + json.dumps(row['input'])}],
-                  'completion': [{'role': 'assistant', 'content': json.dumps(row['output'])}]}
-        (validation if int(digest, 16) % 10 == 0 else train).append(sample)
+    bundle_path = os.environ.get('TERVOR_TRAIN_BUNDLE_PATH')
+    if train_agent == 'opli' and not bundle_path:
+        raise ValueError('Opli training requires a sealed coding bundle')
+    if train_agent == 'opli':
+        coding_data = load_coding_bundle(bundle_path)
+        coding_selection(coding_data, base, revision)
+        rows, bundle_gold = coding_data['training']['rows'], coding_data['gold']['cases']
+    elif bundle_path:
+        rows, bundle_gold = load_tervor_bundle(bundle_path, train_agent)
+    elif train_agent == 'tiger':
+        rows, tiger_holdouts = tiger_data(api, org, day, revision=os.environ.get('TIGER_DATASET_REVISION'))
+    else:
+        rows = load_snapshots(api, org, day)
+    holdouts = load_holdouts(api, org, day) if train_agent == 'zenas' and not bundle_path else []
+    held_hashes = {hashlib.sha256(json.dumps(row['input'], sort_keys=True).encode()).hexdigest()
+                   for row in holdouts}
+    if any(hashlib.sha256(json.dumps(row['input'], sort_keys=True).encode()).hexdigest()
+           in held_hashes for row in rows):
+        raise ValueError('Court holdouts overlap the training snapshot')
+    if train_agent == 'opli':
+        train, validation = coding_samples(coding_data)
+    else:
+        train, validation, seen = [], [], set()
+        for row in rows:
+            digest = hashlib.sha256(json.dumps(row['input'], sort_keys=True).encode()).hexdigest()
+            if digest in seen:
+                continue
+            seen.add(digest)
+            sample = {'prompt': [{'role': 'user', 'content': row['task_type'] + '\n' + json.dumps(row['input'])}],
+                      'completion': [{'role': 'assistant', 'content': json.dumps(row['output'])}]}
+            (validation if int(digest, 16) % 10 == 0 else train).append(sample)
     if not train or not validation:
         raise ValueError('Training and validation examples are required')
-    trainer = SFTTrainer(model='Qwen/Qwen3-4B',
-        args=SFTConfig(output_dir='/tmp/lora', num_train_epochs=1, max_length=max_length,
-                       per_device_train_batch_size=1, gradient_accumulation_steps=8,
-                       gradient_checkpointing=True, bf16=True, report_to='none',
-                       logging_strategy='no', save_strategy='no', push_to_hub=False),
-        train_dataset=Dataset.from_list(train), eval_dataset=Dataset.from_list(validation),
-        peft_config=LoraConfig(r=16, lora_alpha=32, target_modules='all-linear', task_type='CAUSAL_LM'))
-    trainer.train()
-    metrics = trainer.evaluate()
-    trainer.save_model('/tmp/lora')
+    trainer, metrics = fit(base, revision, train, validation, max_length=max_length)
     Path('/tmp/lora/evaluation.json').write_text(json.dumps({'validation_loss': metrics['eval_loss'],
                                                           'n': len(validation), 'gold_holdout': False}))
-    if train_agent == 'zenas':
-        holdouts = load_holdouts(api, org, day)
+    if bundle_path:
+        Path('/tmp/lora/holdout.json').write_text(json.dumps({'method': 'tervor_gold_pending',
+            'gold_holdout': True, 'n': len(bundle_gold), 'eligible': False}))
+    if train_agent == 'tiger' and not bundle_path:
+        answers = []
+        model, tokenizer = trainer.model, trainer.processing_class
+        model.eval()
+        for row in tiger_holdouts:
+            prompt = [{'role': 'user', 'content': row['task_type'] + '\n' + json.dumps(row['input'])}]
+            inputs = tokenizer.apply_chat_template(prompt, tokenize=True, add_generation_prompt=True,
+                enable_thinking=False, return_dict=True, return_tensors='pt').to(model.device)
+            import torch
+            with torch.inference_mode():
+                generated = model.generate(**inputs, max_new_tokens=1024, do_sample=False)
+            answers.append(tokenizer.decode(generated[0][inputs['input_ids'].shape[1]:], skip_special_tokens=True))
+        Path('/tmp/lora/holdout.json').write_text(json.dumps(score_prices(tiger_holdouts, answers)))
+    if train_agent == 'zenas' and not bundle_path:
         answers = []
         model, tokenizer = trainer.model, trainer.processing_class
         for row in holdouts:
@@ -210,13 +577,14 @@ def main() -> None:
     if api.model_info(repo).private is not True:
         raise ValueError('Output privacy changed')
     api.upload_folder(repo_id=repo, folder_path='/tmp/lora', commit_message='Multi-task LoRA and validation loss')
-    if train_agent == 'zenas':
+    if train_agent == 'zenas' and not bundle_path:
         api.upload_file(repo_id=repo, path_or_fileobj=gguf, path_in_repo='zenas-q4_k_m.gguf',
                         commit_message='Merged Q4_K_M model')
 
 
 if __name__ == '__main__':
     try:
+        load_job_configuration()
         main()
     except Exception:
         raise SystemExit('Training failed; dataset, model and credential details are withheld.') from None

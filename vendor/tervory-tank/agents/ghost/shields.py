@@ -210,9 +210,12 @@ class Shields:
 
     async def _receipt(self, shield: dict, step: str, outcome: str) -> None:
         rid = str(uuid.uuid5(uuid.UUID(shield["id"]), f"{step}:{len(shield['receipts'])}"))
-        entry = {"step": step, "at": self.clock(), "ledger_id": rid, "status": "pending"}
+        entry = {"step": step, "at": self.clock(), "ledger_id": rid, "status": "pending",
+                 "tenant_id": self.tenant, "cost_usd": 0, "would_have_cost_usd": None}
         try:
-            await self.receipts.record(rid, f"shield_{step}", outcome, task_type="ghost.shield")
+            priced = await self.receipts.record(rid, f"shield_{step}", outcome, task_type="ghost.shield")
+            if isinstance(priced, dict):
+                entry["would_have_cost_usd"] = priced.get("would_have_cost_usd")
             entry["status"] = "recorded"
         except Exception:
             entry["status"] = "pending"

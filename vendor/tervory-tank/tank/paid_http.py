@@ -8,6 +8,13 @@ import vendor_meter
 
 
 class Client(httpx.AsyncClient):
+    def __init__(self, *args, **kwargs):
+        from product_identity import request_hook
+        hooks = {name: list(values) for name, values in (kwargs.get("event_hooks") or {}).items()}
+        hooks.setdefault("request", []).append(request_hook)
+        kwargs["event_hooks"] = hooks
+        super().__init__(*args, **kwargs)
+
     async def send(self, request, **kwargs):
         if request.url.host not in vendor_meter.PAID_HOSTS or paid_steps.current.get() is None:
             return await super().send(request, **kwargs)

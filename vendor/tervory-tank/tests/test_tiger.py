@@ -61,7 +61,25 @@ def _load(name: str, path: Path):
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     sys.modules[name] = module
-    spec.loader.exec_module(module)
+    # A combined room run can already have OPLI's same-named memory module.
+    # Resolve Tiger's imports from its actual packaged directory, then restore
+    # other rooms' module bindings so this helper cannot contaminate them.
+    owned = ('gates_memory', 'gates_api', 'gates_brain') if path == ROOT / 'agents/tiger/app.py' else ()
+    saved = {key: sys.modules.get(key) for key in owned}
+    paths = list(sys.path)
+    try:
+        if owned:
+            sys.path.insert(0, str(path.parent))
+            for key in owned:
+                sys.modules.pop(key, None)
+        spec.loader.exec_module(module)
+    finally:
+        sys.path[:] = paths
+        for key, prior in saved.items():
+            if prior is None:
+                sys.modules.pop(key, None)
+            else:
+                sys.modules[key] = prior
     return module
 
 

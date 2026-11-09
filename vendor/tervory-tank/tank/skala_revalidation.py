@@ -24,13 +24,15 @@ log = logging.getLogger(__name__)
 
 
 def eval_context(tank: Any, pkg: Any, ctx: Any) -> Any:
+    # Manual approval evals must use the configured Tank path too. Saved model
+    # answers are for the offline package suite, never approval evidence.
+    ctx.live_evaluation = True
     job = ACTIVE.get()
     if job is None:
         return ctx
     policy = job["policy"]
     if isinstance(policy, str):
         policy = json.loads(policy)
-    ctx.live_evaluation = True
 
     async def model(**kwargs):
         if kwargs["task_type"] != job["task_type"]:

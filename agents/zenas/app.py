@@ -5,48 +5,39 @@ from __future__ import annotations
 import logging
 import hmac
 import os
-import sys
 from contextlib import AsyncExitStack, asynccontextmanager
-from pathlib import Path
 from typing import Any
 from uuid import UUID
 
 from asyncpg import PostgresError
+from agents.zenas.memory_api import register_routes as register_memory_routes
+from agents.zenas.core.street_law_api import register_routes as register_street_law_routes
+from fastapi.exceptions import RequestValidationError
+from agents.zenas.core.boundary import guard as room_guard
+from agents.zenas.core.moot.hearing_api import register_routes as register_hearing_routes
+from agents.zenas.core.regulation_api import register_routes as register_regulation_routes
 
-_HERE = Path(__file__).resolve().parent
-if (_HERE / "agents" / "zenas" / "pool").is_dir():
-    _ROOT = _HERE
-elif (_HERE.parent.parent / "agents" / "zenas" / "pool").is_dir():
-    _ROOT = _HERE.parent.parent
-else:
-    _ROOT = _HERE
-if str(_ROOT) not in sys.path:
-    sys.path.insert(0, str(_ROOT))
-_CHASSIS = _ROOT / "agents" / "_chassis"
-if _CHASSIS.is_dir() and str(_CHASSIS) not in sys.path:
-    sys.path.insert(0, str(_CHASSIS))
-
-from agents.zenas.pool.api import interrupt_abandoned_loads  # noqa: E402
-from agents.zenas.pool.api import register_routes as register_pool_routes  # noqa: E402
-from agents.zenas.pool.checkout import PerStatement  # noqa: E402
-from agents.zenas.pool.catalogue import CATALOGUE  # noqa: E402
+from agents.zenas.pool.api import interrupt_abandoned_loads
+from agents.zenas.pool.api import register_routes as register_pool_routes
+from agents.zenas.pool.checkout import PerStatement
+from agents.zenas.pool.catalogue import CATALOGUE
 from agents.zenas.pool.region import RegionError, assert_box_region
-from agents.zenas.core.law_pool import bind_law_pool  # noqa: E402
-from agents.zenas.pool.store import PostgresStore  # noqa: E402
-from chassis.app import create_app  # noqa: E402
-from chassis.jobs import JobContext  # noqa: E402
-from fastapi import HTTPException, Header, Query  # noqa: E402
-from pydantic import BaseModel, Field  # noqa: E402
+from agents.zenas.core.law_pool import bind_law_pool
+from agents.zenas.pool.store import PostgresStore
+from chassis.app import create_app
+from chassis.jobs import JobContext
+from fastapi import HTTPException, Header, Query, Request
+from pydantic import BaseModel, Field
 
-from agents.zenas.core.ladder_store import PgLadder  # noqa: E402
-from agents.zenas.core.matters import (  # noqa: E402
+from agents.zenas.core.ladder_store import PgLadder
+from agents.zenas.core.matters import (
     open_matter,
     record_consent,
     record_review,
     upload_document,
 )
-from agents.zenas.core.seal import key_from_env  # noqa: E402
-from agents.zenas.core.service import (  # noqa: E402
+from agents.zenas.core.seal import key_from_env
+from agents.zenas.core.service import (
     add_approved_clause,
     add_playbook,
     answer_question,
@@ -71,10 +62,10 @@ from agents.zenas.core.service import (  # noqa: E402
     review_queue,
     write_memo,
 )
-from agents.zenas.core.convert import begin_convert, conversion_report, convert_cases, convert_running  # noqa: E402
-from agents.zenas.core.selftest import list_scores, run_selftest  # noqa: E402
-from agents.zenas.core.store import PgStore, register_home  # noqa: E402
-from agents.zenas.gold_sources import candidates as gold_candidates  # noqa: E402
+from agents.zenas.core.convert import begin_convert, conversion_report, convert_running
+from agents.zenas.core.selftest import list_scores, run_selftest
+from agents.zenas.core.store import PgStore, register_home
+from agents.zenas.gold_sources import candidates as gold_candidates
 
 AGENT = os.environ.get("AGENT_NAME", "zenas")
 HEARTBEAT_TENANT = "00000000-0000-0000-0000-000000000001"
@@ -93,7 +84,7 @@ async def ping(ctx: JobContext) -> dict:
                 "schedule:*/5",
             )
             result["heartbeats_seen"] = saved.get("seen")
-        except Exception as exc:  # noqa: BLE001 — class name only, never the message
+        except Exception as exc:
             log.warning("heartbeat memory failed (%s)", type(exc).__name__)
             result["memory"] = "unreachable"
     return result
@@ -126,7 +117,10 @@ class _TankModel:
     async def complete(self, messages: list[dict[str, str]], *, task_type: str, provider: str) -> dict[str, Any]:
         del provider
         from agents.zenas.core.boundary import bounded_call
-        data = await bounded_call(self.tank.route(self.tenant_id, task_type, messages))
+        from agents.zenas.zenas_brain import brain_then_route
+        data = await bounded_call(brain_then_route(
+            getattr(app.state, "http", None), self.tank, tenant_id=self.tenant_id,
+            task_type=task_type, messages=messages))
         from agents.zenas.core.answer_failures import route_failure
         failed = route_failure(data)
         if failed is not None:
@@ -293,11 +287,9 @@ async def _pool_job_store():
 # Feeds switchboard: pool status and "Load now" per source (Tank proxies /v1/zenas/pool/*).
 register_pool_routes(app, _pool_store, _box_region, open_job_store=_pool_job_store)
 
-from agents.zenas.core.regulation_api import register_routes as register_regulation_routes  # noqa: E402
 
 register_regulation_routes(app, _pool_store, _store, _box_region)
 
-from agents.zenas.core.moot.hearing_api import register_routes as register_hearing_routes  # noqa: E402
 
 register_hearing_routes(app, lambda: app.state.pool, _store, _box_region, lambda: app.state.tank)
 
@@ -355,10 +347,8 @@ async def _room_lifespan(application):
 
 app.router.lifespan_context = _room_lifespan
 
-from agents.zenas.core.boundary import guard as room_guard  # noqa: E402
 app.middleware("http")(room_guard)
 
-from fastapi.exceptions import RequestValidationError  # noqa: E402
 
 
 @app.exception_handler(RequestValidationError)
@@ -1035,10 +1025,15 @@ class AnswerIn(BaseModel):
     features: dict[str, Any] = Field(default_factory=dict)
     matter_id: UUID | None = None
     provider: str = "luna"
+    user_id: str | None = None
+    firm_id: str | None = None
+    attorney_id: str | None = None
+    client_id: str | None = None
 
 
 @app.post("/answers", status_code=200)
-async def post_answer(body: AnswerIn) -> dict[str, Any]:
+async def post_answer(body: AnswerIn, request: Request) -> dict[str, Any]:
+    """The shared request bracket owns identity, recall, receipts and remember."""
     store = _store()
     await store.apply_schema()
     result = await answer_question(
@@ -1061,6 +1056,7 @@ async def post_answer(body: AnswerIn) -> dict[str, Any]:
     if str(result.get("reason") or "").startswith("could not verify"):
         return result
     _fail(result)
+
     return result
 
 
@@ -1177,5 +1173,5 @@ async def get_moot_published(home_region: str, match_id: UUID | None = None) -> 
     return {"matches": matches}
 
 # Backend only. Street Law pages await the founder's Figma frames.
-from agents.zenas.core.street_law_api import register_routes as register_street_law_routes  # noqa: E402
+register_memory_routes(app)
 register_street_law_routes(app, matters_factory=_store, box_region=_box_region)

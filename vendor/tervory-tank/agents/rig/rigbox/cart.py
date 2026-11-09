@@ -66,6 +66,11 @@ class Cart:
         self.service, self.store, self.platforms, self.clock = service, service.store, platforms, clock
         self.rows = CartStore(self.store)
         self.fulfilment = RigOrders(self.store)
+        from rigbox.savings import measured
+        for name in ('add', 'remove', 'checkout', 'order', 'webhook', 'sweep'):
+            call = getattr(self, name, None)
+            if call is not None:
+                setattr(self, name, measured(service, 'rig.cart.' + name, call))
 
     async def config(self, tenant):
         config = await self.store.commerce_config(tenant)
@@ -392,8 +397,8 @@ class Cart:
             async with self.rows.lock(tenant, candidate['id']) as rows:
                 row = await rows.get(tenant, candidate['id'])
                 if row['state'] in ('pending', 'cancel_unknown') and self.clock() >= stamp(row['expires_at']):
-                    platform = await self.platform(tenant, row['config'])
                     try:
+                        platform = await self.platform(tenant, row['config'])
                         order = await platform.read(row['remote'])
                         if order.get('paid'):
                             # A read is not a signed webhook. Await signed evidence.

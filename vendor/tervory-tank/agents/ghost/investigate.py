@@ -15,9 +15,12 @@ class Investigator:
 
     async def record(self, item: dict, step: str, outcome: str = "delivered") -> None:
         receipt_id = str(uuid5(UUID(item["id"]), step))
-        await self.receipts.record(receipt_id, step, outcome)
+        priced = await self.receipts.record(receipt_id, step, outcome)
+        priced = priced if isinstance(priced, dict) else {}
         if not any(row["step"] == step for row in item["steps"]):
-            item["steps"].append({"step": step, "ledger_id": receipt_id, "cost_usd": 0})
+            item["steps"].append({"step": step, "ledger_id": receipt_id, "cost_usd": 0,
+                                  "would_have_cost_usd": priced.get("would_have_cost_usd"),
+                                  "tenant_id": PLATFORM_TENANT})
         self.store.save(PLATFORM_TENANT, item)
 
     async def alert(self, observation: Observation) -> dict | None:
@@ -29,7 +32,7 @@ class Investigator:
         if origin not in {"look", "alert", "message"}:
             raise ValueError("Unknown issue source.")
         item = self.store.open(PLATFORM_TENANT, request.target.value, request.signal.value, origin)
-        if item["state"] == "blocked" and origin == "look":
+        if item["state"] in {"blocked", "not_reproduced"}:
             item["state"] = "open"
         if item["state"] != "open":
             return item

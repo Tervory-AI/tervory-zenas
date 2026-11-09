@@ -40,7 +40,7 @@ function scrollToSection(id: string) {
   const target = document.getElementById(id);
   if (!root || !target) return;
   const top = target.getBoundingClientRect().top - root.getBoundingClientRect().top + root.scrollTop;
-  root.scrollTo({ top, behavior: "smooth" });
+  root.scrollTo({ top, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
 }
 
 function Status({ row }: { row: BatchRow }) {
@@ -208,7 +208,7 @@ export function BaseView({
         </div>
       </aside>
 
-      <div className="bcp-main" data-scroll-root inert={dialogOpen || undefined}>
+      <div className="bcp-main" data-scroll-root tabIndex={0} role="region" aria-label="Base" inert={dialogOpen || undefined}>
         <div className="bcp-body">
           <section id="overview" className="bcp-intro">
             <div>
@@ -256,6 +256,7 @@ export function BaseView({
             </div>
           )}
 
+          {!model.loadError && model.empty && <p className="bcp-copy"><a href="#base-upload">Upload a business list</a></p>}
           <section id="search" className="bcp-section">
             <h2>Search records</h2>
             <p className="bcp-copy">Find any Base record by shop name, city, phone number, website or licence number.</p>
@@ -277,7 +278,7 @@ export function BaseView({
             {model.loadError ? null : model.empty ? (
               <div className="bcp-state">
                 <h3>No batches yet</h3>
-                <p>When a list is uploaded, its batch shows here with its counts.</p>
+                <p>When a list is uploaded, its batch shows here with its counts.</p><p className="bcp-copy"><a href="#base-upload">Upload a business list</a></p><div className="bcp-table" role="table" aria-label="Batches"><div className="bcp-tr bcp-th bcp-batch-cols" role="row">{["Batch","Records","Finished","With a website","With an email","Skipped steps","Status"].map(label => <span role="columnheader" key={label}>{label}</span>)}</div><div className="bcp-tr bcp-batch-cols" role="row">{["—","0","0","0","0","0","—"].map((value,index) => <span role="cell" key={index}>{value}</span>)}</div></div>
               </div>
             ) : (
               <div className="bcp-table" role="table" aria-label="Batches">

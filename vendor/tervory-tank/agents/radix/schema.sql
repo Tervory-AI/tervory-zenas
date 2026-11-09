@@ -155,6 +155,27 @@ DO $$ BEGIN
  END IF;
 END $$;
 
+-- Durable Radix actor and execution receipt beside the existing jobs.
+CREATE TABLE IF NOT EXISTS agent_radix.task_context (
+    tenant_id uuid NOT NULL, job_id uuid NOT NULL, user_id text NOT NULL,
+    role text NOT NULL, input_hash text NOT NULL CHECK (input_hash ~ '^[a-f0-9]{64}$'),
+    stage text NOT NULL DEFAULT 'queued' CHECK (stage IN ('queued','executing','executed','completed')),
+    execution jsonb, receipt jsonb,
+    PRIMARY KEY (tenant_id, job_id)
+);
+DO $$ BEGIN
+    IF EXISTS (SELECT 1 FROM pg_class WHERE oid=to_regclass('agent_radix.jobs') AND relrowsecurity) THEN
+        ALTER TABLE agent_radix.task_context ENABLE ROW LEVEL SECURITY;
+        ALTER TABLE agent_radix.task_context FORCE ROW LEVEL SECURITY;
+        IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='agent_radix'
+                       AND tablename='task_context' AND policyname='tenant_isolation') THEN
+            CREATE POLICY tenant_isolation ON agent_radix.task_context
+                USING (tenant_id=NULLIF(current_setting('app.tenant_id',true),'')::uuid)
+                WITH CHECK (tenant_id=NULLIF(current_setting('app.tenant_id',true),'')::uuid);
+        END IF;
+    END IF;
+END $$;
+
 -- BEGIN GENERATED AGENT MEMORY (hermes/record_schema.py)
 CREATE TABLE IF NOT EXISTS agent_radix.memory_records (
     id uuid PRIMARY KEY,

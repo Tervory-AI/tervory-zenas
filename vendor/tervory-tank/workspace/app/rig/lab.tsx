@@ -1,4 +1,5 @@
 "use client";
+import { useDialog } from "./dialog";
 
 import { useEffect, useState } from "react";
 import {
@@ -48,20 +49,17 @@ function CompactSearch({ onSearch }: { onSearch: (query: string) => void }) {
 }
 
 export function CatalogueNumbers({ products, fits }: { products: number | null; fits: number | null }) {
-  if (products === null || products === 0 || fits === null) {
-    return null;
-  }
   return (
     <section className="counts" aria-label="Counts">
       <article className="count">
-        <b>{products}</b>
+        <b>{products ?? "—"}</b>
         <strong>Products</strong>
-        <p className="fine">In this account&apos;s catalogue.</p>
+        <p className="fine">In this account&apos;s catalogue.</p><p className="first-action"><a href="/rig/admin">Import your catalogue file or connect an official feed.</a></p>
       </article>
       <article className="count">
-        <b>{fits}</b>
+        <b>{fits ?? "—"}</b>
         <strong>Approved fits</strong>
-        <p className="fine">Parts confirmed to fit a product.</p>
+        <p className="fine">Parts confirmed to fit a product.</p><p className="first-action"><a href="/rig/admin">Find fit suggestions</a></p>
       </article>
     </section>
   );
@@ -85,6 +83,7 @@ export function Lab({
   const [waiting, setWaiting] = useState<WaitingFit[]>([]);
   const [decided, setDecided] = useState<Decided[]>([]);
   const [approve, setApprove] = useState<WaitingFit | null>(null);
+  const approveDialog = useDialog(Boolean(approve), () => setApprove(null));
   const [keySaved, setKeySaved] = useState(false);
 
   useEffect(() => {
@@ -188,6 +187,7 @@ export function Lab({
             <section className="block">
               <h2>What's built</h2>
               <div className="sheet">
+                {!BUILT.length && <p>— <a href="https://tervory.com">Support</a></p>}
                 {BUILT.map((row) => (
                   <div className="wide-row" key={row.title}>
                     <div>
@@ -260,17 +260,17 @@ export function Lab({
             </article>
             <section className="counts">
               <article className="count">
-                <b>{waiting.length ? waiting.length : null}</b>
+                <b>{fits === null ? "—" : waiting.length}</b>
                 <strong>Waiting</strong>
                 <p className="fine">Suggested fits not yet decided.</p>
               </article>
               <article className="count">
-                <b>{products && fits !== null ? fits : null}</b>
+                <b>{fits ?? "—"}</b>
                 <strong>Approved</strong>
                 <p className="fine">{products && fits !== null ? "Showing to shoppers now." : null}</p>
               </article>
               <article className="count">
-                <b>{decided.length ? decided.filter((row) => !row.on).length : null}</b>
+                <b>{decided.length ? decided.filter((row) => !row.on).length : "—"}</b>
                 <strong>Rejected</strong>
                 <p className="fine">Never shown to shoppers.</p>
               </article>
@@ -288,6 +288,7 @@ export function Lab({
                     </tr>
                   </thead>
                   <tbody>
+                    {!waiting.length && <tr><td colSpan={3}><b>{fits === null ? "—" : 0}</b><p><a href="/rig/admin">Find fit suggestions</a></p></td></tr>}
                     {waiting.map((row) => (
                       <tr key={row.id}>
                         <td>
@@ -321,6 +322,7 @@ export function Lab({
                     </tr>
                   </thead>
                   <tbody>
+                    {!decided.length && <tr><td colSpan={3}><b>—</b><p>Check each one against the maker's fit list before approving.</p></td></tr>}
                     {decided.map((row) => (
                       <tr key={row.id}>
                         <td>
@@ -358,19 +360,19 @@ export function Lab({
             </header>
             <section className="counts">
               <article className="count">
-                <b />
+                <b>—</b>
                 <strong>Live skin</strong>
                 <p className="fine">Tervory, on rig.tervory.com.</p>
               </article>
               <article className="count">
-                <b />
+                <b>—</b>
                 <strong>Dealer skins</strong>
-                <p className="fine">No dealer skin is on this page.</p>
+                <p className="fine">No dealer skin is on this page.</p><a href="/rig/admin">Create embed key</a>
               </article>
               <article className="count">
-                <b />
+                <b>—</b>
                 <strong>Dealer pages live</strong>
-                <p className="fine">Built after the main product.</p>
+                <p className="fine">Built after the main product.</p><a href="/rig/admin">Create embed key</a>
               </article>
             </section>
             <section className="block">
@@ -417,6 +419,7 @@ export function Lab({
             <section className="block">
               <h2>Build plan</h2>
               <div className="sheet">
+                {!PLAN.length && <p>— <a href="https://tervory.com">Support</a></p>}
                 {PLAN.map((row) => (
                   <div className="plan-row" key={row.title}>
                     <b>{row.code}</b>
@@ -433,6 +436,7 @@ export function Lab({
               <h2>Recent changes</h2>
               <p className="intro">What went live most recently.</p>
               <div className="sheet">
+                {!CHANGES.length && <p>— <a href="https://tervory.com">Support</a></p>}
                 {CHANGES.map((row) => (
                   <div className="change-row" key={row.id}>
                     <span>Change #{row.id}</span>
@@ -453,7 +457,7 @@ export function Lab({
 
       {approve ? (
         <div className="scrim" role="presentation">
-          <div className="popup approve" role="dialog" aria-modal="true" aria-labelledby="approve-title">
+          <div ref={approveDialog} className="popup approve" role="dialog" aria-modal="true" aria-labelledby="approve-title">
             <div className="popup-head">
               <h2 id="approve-title">Approve this fit?</h2>
               <button type="button" className="text close" onClick={() => setApprove(null)}>

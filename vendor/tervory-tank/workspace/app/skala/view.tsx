@@ -1,5 +1,7 @@
 "use client";
+import { skalaFetch } from "./request";
 
+import { fetchWithDeadline as fetch } from "../../lib/request";
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { SquadLinks } from "../squad-links";
 import { caseRecord, type EvalResult } from "./record";
@@ -47,10 +49,10 @@ function SearchIcon() {
 }
 
 async function readSkills(): Promise<LibrarySkill[] | null> {
-  const response = await fetch("/api/skala");
-  if (!response.ok) return null;
+  const response = await skalaFetch("/api/skala");
+  if (!response.ok) throw new Error("The library could not be reached. Try again in a moment.");
   const data: unknown = await response.json().catch(() => null);
-  if (!Array.isArray(data)) return null;
+  if (!Array.isArray(data)) throw new Error("The library could not be reached. Try again in a moment.");
   return data as LibrarySkill[];
 }
 
@@ -81,6 +83,10 @@ export function SkalaApp({
   const agentFilterId = useId();
   const stateFilterId = useId();
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const running = useRef(false);
+  const operationKeys = useRef(new Map<string, string>());
+  const sourceRequest = useRef<AbortController | null>(null);
+  const menuRef = useRef<HTMLButtonElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
   const account = accountName?.trim() || "Your account";
 
@@ -94,7 +100,7 @@ export function SkalaApp({
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
-      if (event.key === "Escape") setMenu(false);
+      if (event.key === "Escape") { setMenu(false); menuRef.current?.focus(); }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -105,18 +111,21 @@ export function SkalaApp({
   }, [menu, narrow]);
 
   async function openApprove(skill: LibrarySkill, action: "approve" | "rollback" = "approve") {
+    sourceRequest.current?.abort();
+    const controller = new AbortController();
+    sourceRequest.current = controller;
     setPendingAction(action);
     setSourceReview(null);
     setSourceError(null);
     setPending(skill);
     if (action === "approve" && skill.id.split(".")[1] === "learned") {
       try {
-        const res = await fetch("/api/skala", { method: "POST", headers: {"content-type": "application/json"},
+        const res = await skalaFetch("/api/skala", { signal: controller.signal, method: "POST", headers: {"content-type": "application/json"},
           body: JSON.stringify({id: skill.id, version: skill.version, action: "source-review"}) });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "Source could not be loaded.");
-        setSourceReview(data);
-      } catch { setSourceError("Source could not be loaded. Close this dialog and try again."); }
+        if (!controller.signal.aborted) setSourceReview(data);
+      } catch { if (!controller.signal.aborted) setSourceError("Source could not be loaded. Close this dialog and try again."); }
     }
   }
 
@@ -127,6 +136,7 @@ export function SkalaApp({
   }, [pending]);
 
   function closeApprove() {
+    sourceRequest.current?.abort();
     dialogRef.current?.close();
     setPending(null);
   }
@@ -138,13 +148,17 @@ export function SkalaApp({
   }
 
   async function run(skill: LibrarySkill, action: "evals" | "approve" | "retire" | "rollback") {
+    if (running.current) return;
+    running.current = true;
     const key = `${skill.id}@${skill.version}:${action}`;
+    const requestId = operationKeys.current.get(key) ?? crypto.randomUUID();
+    operationKeys.current.set(key, requestId);
     setBusyKey(key);
     setNotice(null);
     try {
-      const response = await fetch("/api/skala", {
+      const response = await skalaFetch("/api/skala", {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: { "content-type": "application/json", "idempotency-key": requestId },
         body: JSON.stringify({ id: skill.id, version: skill.version, action, confirmed: action === "rollback" || Boolean(sourceReview), review_token: sourceReview?.review_token }),
       });
       const payload = (await response.json().catch(() => null)) as Record<string, unknown> | null;
@@ -167,13 +181,17 @@ export function SkalaApp({
         return;
       }
       if (action === "approve" || action === "rollback") {
+        if (payload.ok !== true) throw new Error("Approval could not be confirmed. Reload the list.");
+        operationKeys.current.delete(key);
         setRowRefusal(null);
+        closeApprove();
         await refreshAfter(applyApproval(skills, skill.id, skill.version));
         setNotice({ tone: "ok", text: `${skill.id} ${skill.version} is approved. The previous approved version is retired.` });
-        closeApprove();
         return;
       }
       if (action === "retire") {
+        if (payload.ok !== true) throw new Error("The library could not be reached. Try again in a moment.");
+        operationKeys.current.delete(key);
         await refreshAfter(skills.map((row) => (
           row.id === skill.id && row.version === skill.version ? { ...row, state: "retired" } : row
         )));
@@ -185,10 +203,11 @@ export function SkalaApp({
         setNotice({ tone: "err", text: "Evals could not be run. Reload the page and try again." });
         return;
       }
+      operationKeys.current.delete(key);
       const evalResult = result as EvalResult;
       const at = new Date().toISOString();
-      await refreshAfter(applyEval(skills, skill.id, skill.version, evalResult.score, evalResult.state, at));
       setRecord({ key: `${skill.id}@${skill.version}`, result: evalResult });
+      await refreshAfter(applyEval(skills, skill.id, skill.version, evalResult.score, evalResult.state, at));
       const passed = evalResult.gate === "passed";
       setNotice({
         tone: passed ? "ok" : "err",
@@ -199,6 +218,7 @@ export function SkalaApp({
     } catch {
       setNotice({ tone: "err", text: "The library could not be reached. Try again in a moment." });
     } finally {
+      running.current = false;
       setBusyKey(null);
     }
   }
@@ -213,6 +233,7 @@ export function SkalaApp({
         <img src={SKALA_MARK.src} alt="Skala" width={SKALA_MARK.width} height={SKALA_MARK.height} />
         <button
           type="button"
+          ref={menuRef}
           className="sk-menu"
           aria-expanded={menu}
           aria-controls="sk-panel"
@@ -248,12 +269,12 @@ export function SkalaApp({
         </div>
       </aside>
 
-      <div className="sk-main" data-scroll-root>
+      <div className="sk-main" data-scroll-root inert={menu && narrow ? true : undefined}>
         <div className="sk-body">
           <header className="sk-header">
             <div>
               <h1>Skala</h1>
-            <ApproveAllReady onApproved={async () => { const rows = await readSkills(); if (rows) setSkills(rows); }} />
+            <ApproveAllReady disabled={skills.length === 0 || Boolean(loadError)} onApproved={async () => { const rows = await readSkills(); if (rows) setSkills(rows); }} />
               <p>Every skill, with its versions and scores.</p>
             </div>
             <a className="sk-examples" href="/skala/gold">Check examples</a>
@@ -292,10 +313,13 @@ export function SkalaApp({
             </label>
           </div>
 
-          {notice ? <p className={notice.tone === "err" ? "sk-err" : "sk-note"} role={notice.tone === "err" ? "alert" : "status"}>{notice.text}</p> : null}
+          <p className={notice?.tone === "err" ? "sk-err" : "sk-note"} role={notice?.tone === "err" ? "alert" : "status"}>{notice?.text ?? ""}</p>
 
           {loadError ? null : groups.length === 0 ? (
-            <p className="sk-empty">{query.trim() ? "Nothing matches that search." : filtered ? "Nothing matches those filters." : "No skills yet."}</p>
+            <div className="sk-empty">
+              <p>{query.trim() ? "Nothing matches that search." : filtered ? "Nothing matches those filters." : "No skills yet."}</p>
+              <p>{filtered ? "Clear the search and filters to see your skills." : "Add a skill package to fill this library."}</p>
+            </div>
           ) : (
             <div className="sk-library">
               {groups.map((group) => (
@@ -324,9 +348,10 @@ export function SkalaApp({
                               <li key={key} className="sk-version">
                                 <span className="sk-meta">{version.version}</span>
                                 <span className={version.state === "approved" ? "sk-state approved" : "sk-state"}>{version.state}</span>
-                                <span className="sk-meta">{scoreLabel(version.last_eval_score)}</span>
+                                <span className="sk-meta">{version.last_eval_score == null ? "—" : scoreLabel(version.last_eval_score)}</span>
                                 {scoreDate(version.last_eval_at) ? <span className="sk-meta">{scoreDate(version.last_eval_at)}</span> : null}
                                 <span className="sk-meta">{costLabel(version)}</span>
+                                {version.last_eval_at == null && version.present && ["candidate", "staging", "approved"].includes(version.state) && <p className="sk-meta">Run evals to record the first score and case results.</p>}
                                 {version.model && version.runs !== undefined ? <span className="sk-meta">{version.runs}/3 runs</span> : null}
                                 {!version.present && version.state !== "approved" ? <span className="sk-gone">This version is no longer in the folder.</span> : null}
                                 {(version.state === "candidate" || version.state === "staging" || version.state === "approved") && version.present ? (

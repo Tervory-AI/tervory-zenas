@@ -1,5 +1,6 @@
 "use client";
 
+import { fetchWithDeadline as fetch } from "../../../lib/request";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { FeedRow } from "@/app/api/zenas/rules";

@@ -1,5 +1,5 @@
 import { currentTenant } from "@/lib/tenant";
-import { presentMatters, type MatterRow } from "@/app/api/zenas/rules";
+import { configurationNote, presentMatters, type MatterRow } from "@/app/api/zenas/rules";
 import { homeRegion, zenas } from "@/app/api/zenas/tank";
 import { MatterBoard } from "./board";
 
@@ -13,7 +13,7 @@ export default async function MattersPage() {
     const res = await zenas(`matters?tenant_id=${tenantId}&home_region=${homeRegion()}`, { method: "GET" });
     if (res.ok) matters = presentMatters(await res.json());
     else if (res.status === 404) note = "The matters list is not on this server yet. You can still open one.";
-    else note = "Matters could not be loaded.";
+    else note = configurationNote(await res.json().catch(() => null)) || "Matters could not be loaded.";
   } catch {
     note = "Matters could not be loaded.";
   }

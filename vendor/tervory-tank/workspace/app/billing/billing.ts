@@ -1,3 +1,4 @@
+import { fetchWithDeadline as fetch } from "../../lib/request";
 // Stripe billing for the Workspace. Server-side only.
 // Do not import this file from a client component. The secret stays in the server process.
 

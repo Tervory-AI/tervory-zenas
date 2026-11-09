@@ -53,6 +53,11 @@ class Complete(Scope):
     provider_job_id: str = Field(pattern=r"^[a-zA-Z0-9_-]{1,128}$")
 
 
+class Launch(Scope):
+    namespace: str = Field(pattern=r'^[a-zA-Z0-9][a-zA-Z0-9_-]{0,95}$')
+    transfers: dict
+
+
 class Step(Scope):
     stage: Literal["intake", "preflight", "blender", "dedup", "simplify", "meshopt", "resize",
                    "gltfpack", "ktx2", "meshopt_final", "model_check", "validate", "upload",
@@ -103,13 +108,13 @@ async def forge_addresses():
 
 async def forward(method, base, path, *, key=None, **kwargs):
     try:
-        async with httpx.AsyncClient(trust_env=False, timeout=40) as client:
+        async with asyncio.timeout(40), httpx.AsyncClient(trust_env=False, timeout=40) as client:
             response = await client.request(method, base + path,
                 headers={"X-Tank-Key": key} if key else {}, **kwargs)
         if response.status_code not in {200, 202, 400, 401, 403, 404, 409, 422, 429, 503}:
             raise ValueError("upstream unavailable")
         return JSONResponse(response.json(), status_code=response.status_code)
-    except (httpx.HTTPError, ValueError):
+    except (httpx.HTTPError, ValueError, TimeoutError):
         raise HTTPException(503, "Forge or Tank is unavailable; no success is claimed.") from None
 
 
@@ -132,7 +137,7 @@ async def poll(job_id: uuid.UUID, tenant_id: uuid.UUID, home_region: str,
 
 
 @router.post("/relay/{action}")
-async def relay(action: Literal["reserve", "claim", "complete", "steps", "approval"], body: dict, request: Request):
+async def relay(action: Literal["reserve", "claim", "complete", "steps", "approval", "launch", "inspect", "cancel"], body: dict, request: Request):
     try:
         allowed = await forge_addresses()
     except OSError:
@@ -141,15 +146,22 @@ async def relay(action: Literal["reserve", "claim", "complete", "steps", "approv
         raise HTTPException(401, "Only Rig's forge may relay receipts.")
     key = os.environ.get("TANK_KEY", "")
     authorize(key, body.get("home_region", ""))
-    payload = parsed({"reserve": Reserve, "claim": Scope, "complete": Complete, "steps": Step, "approval": PaidApprovalStatus}[action], body)
+    payload = parsed({"reserve": Reserve, "claim": Scope, "complete": Complete, "steps": Step,
+                      "approval": PaidApprovalStatus, "launch": Launch, "inspect": Scope, "cancel": Scope}[action], body)
     job = approval(payload)
     if job.home_region != payload.home_region:
         raise HTTPException(403, "Job region does not match its approval.")
     if action != "steps" or payload.stage.startswith("gpu_"):
         if job.method not in {"trellis2", "photogrammetry"}:
             raise HTTPException(403, "GPU work was not approved for this job.")
-    if action in {"reserve", "claim"} and job.method == "trellis2":
+    if action in {"reserve", "claim", "launch"} and job.method == "trellis2":
         trellis_enabled()
+    if action == 'launch':
+        if len(json.dumps(payload.transfers).encode()) > 120_000:
+            raise HTTPException(413, 'Too many photo links for one GPU job.')
+        manifest = parsed(Approval, payload.transfers.get('manifest'))
+        if manifest != job:
+            raise HTTPException(403, 'GPU inputs do not match the approved job.')
     if action == "reserve" and (payload.method != job.method or payload.timeout_seconds != job.timeout_seconds
                                  or payload.cost_cap_usd != job.cost_cap_usd):
         raise HTTPException(403, "GPU request does not match the brain's approved method, timeout and cap.")

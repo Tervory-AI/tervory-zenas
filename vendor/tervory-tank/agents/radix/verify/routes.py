@@ -1,6 +1,7 @@
 """Private room API. Tank is the only peer; no outside lookup happens here."""
 from __future__ import annotations
 
+import asyncio
 import hmac
 import json
 import os
@@ -84,9 +85,14 @@ def attach(app: FastAPI) -> None:
         # Approved skills only. No preview flag, model route, Base-room access,
         # Workspace credential, or automatic skill approval.
         try:
-            result = await app.state.tank.run_skill(str(tenant), f"radix.{skill}", body)
+            # One attempt within the existing chassis request budget. A stalled
+            # approval or response cannot hold this interactive route forever.
+            async with asyncio.timeout(60):
+                result = await app.state.tank.run_skill(str(tenant), f"radix.{skill}", body)
         except Exception:
             raise HTTPException(502, "Tank could not run the approved business skill.") from None
+        if not isinstance(result, dict):
+            raise HTTPException(502, "Tank returned an inconsistent business result.")
         if not result.get("ok"):
             raise reject()
         if result.get("tenant_id") != str(tenant) or result.get("region") != region:

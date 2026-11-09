@@ -11,8 +11,11 @@ import os
 import re
 from pathlib import Path
 from typing import Any
+from uuid import UUID
 
 from .client_settings import ClientAutumbraSettings
+from .durable_shields import _atomic_write_json
+from .safe_files import checked_path, read_json
 
 _TENANT_RE = re.compile(
     r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
@@ -38,11 +41,12 @@ def queue_path_for_tenant(tenant_id: str) -> Path:
     tid = (tenant_id or "").strip()
     if not tid or not _TENANT_RE.fullmatch(tid):
         raise ValueError("tenant_id must be a UUID")
+    tid = str(UUID(tid))
     # Per-Enforce process: THREAT_PAYLOAD_QUEUE points at THIS client's queue.
     single = (os.environ.get("THREAT_PAYLOAD_QUEUE") or "").strip()
     enforce_tenant = (os.environ.get("TENANT_ID") or "").strip()
     if single and enforce_tenant and enforce_tenant == tid:
-        return Path(single)
+        return checked_path(Path(single))
     base = queue_root_base()
     if base is None:
         if single:
@@ -51,17 +55,14 @@ def queue_path_for_tenant(tenant_id: str) -> Path:
         raise RuntimeError(
             "THREAT_PAYLOAD_QUEUE_ROOT or THREAT_PAYLOAD_QUEUE is not configured."
         )
-    return base / tid
+    return checked_path(base / tid)
 
 
 def mirror_settings(settings: ClientAutumbraSettings, queue_root: Path | str) -> Path:
     root = Path(queue_root)
     root.mkdir(parents=True, exist_ok=True)
     path = root / SETTINGS_MIRROR
-    path.write_text(
-        json.dumps(settings.model_dump(mode="json"), sort_keys=True),
-        encoding="utf-8",
-    )
+    _atomic_write_json(path, settings.model_dump(mode="json"))
     return path
 
 
@@ -74,11 +75,13 @@ def load_mirrored_settings(
     if not path.exists():
         return None
     try:
-        raw = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
+        raw = read_json(path)
+    except (OSError, ValueError):
         return None
     if not isinstance(raw, dict):
         return None
+    if raw.get("tenant_id", fallback_tenant_id) != fallback_tenant_id:
+        raise ValueError("Settings belong to another client.")
     if raw.get("fix_mode") == "Apply automatically when checks pass":
         raw = {**raw, "fix_mode": "I approve each one"}
     try:
@@ -99,8 +102,10 @@ def push_receipt_to_founder_console(queue_root: Path | str, receipt: dict[str, A
     """Product path: receipts reach the founder console (queue box), not only disk inbox."""
     console = founder_console_dir(queue_root)
     rid = str(receipt.get("id") or "unknown")
+    if not re.fullmatch(r"[A-Za-z0-9_-]{1,200}", rid):
+        raise ValueError("Invalid receipt identifier.")
     path = console / f"{rid}.json"
-    path.write_text(json.dumps(receipt, sort_keys=True, default=str), encoding="utf-8")
+    _atomic_write_json(path, receipt)
     return path
 
 
@@ -111,7 +116,7 @@ def list_founder_console_receipts(queue_root: Path | str) -> list[dict[str, Any]
     out: list[dict[str, Any]] = []
     for path in sorted(console.glob("*.json")):
         try:
-            out.append(json.loads(path.read_text(encoding="utf-8")))
-        except (OSError, json.JSONDecodeError):
-            continue
+            out.append(read_json(path))
+        except (OSError, ValueError):
+            raise RuntimeError("Receipt storage is unavailable.") from None
     return out

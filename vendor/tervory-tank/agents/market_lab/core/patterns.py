@@ -47,7 +47,7 @@ async def remember(memory: object, tenant: str, config: dict, stats: dict, docum
             # separate IDs and are never read or deleted by this write path.
             await memory.forget(identity, tenant)
         saved = await memory.remember(tenant, text, "warning_pattern", document_id,
-                                      evidence=[document_id], record_id=identity)
+                                      evidence=[document_id], record_id=identity, tenant_wide=True)
         return isinstance(saved, dict) and str(saved.get("id")) == identity
     except Exception as exc:
         # Keep the durable pending flag, including when forget succeeded but

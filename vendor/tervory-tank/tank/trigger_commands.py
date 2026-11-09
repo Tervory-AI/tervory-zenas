@@ -116,13 +116,13 @@ async def prepare(action, actor, state):
             source = match[2] if match and match[1].lower() == 'set' else user_text
             if args['text'].strip() != source.strip():
                 raise HTTPException(422, 'Voice text must match the user source')
-        preview = await room('voice/preview', {'tenant_id': str(actor.tenant_id), 'text': args.get('text', ''), 'target': args.get('target')})
+        preview = await room('voice/preview', {'tenant_id': str(actor.tenant_id), 'text': args.get('text', ''), 'target': args.get('target')}, actor=actor)
         args.update(expected_revision=preview['expected_revision'], preview_hash=preview['preview_hash'],
                     brief_markdown=json.dumps(preview['voice'], ensure_ascii=False, indent=2))
     elif action.tool == 'trigger.voice.learn':
         from trigger_learning import learn_notes
         rules = await learn_notes(actor, args['write_ids'])
-        preview = await room('voice/preview', {'tenant_id': str(actor.tenant_id), 'rules': rules})
+        preview = await room('voice/preview', {'tenant_id': str(actor.tenant_id), 'rules': rules}, actor=actor)
         args.update(rules=rules, expected_revision=preview['expected_revision'], preview_hash=preview['preview_hash'],
                     brief_markdown=json.dumps(preview['voice'], ensure_ascii=False, indent=2))
     elif action.tool == 'trigger.write.batch':

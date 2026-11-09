@@ -50,6 +50,7 @@ import logging
 import os
 import time
 import uuid
+import engine_memory
 from datetime import datetime, timezone
 from decimal import Decimal
 from pathlib import Path
@@ -77,10 +78,10 @@ import skill_costs
 
 log = logging.getLogger("tank")
 
-DATABASE_URL = os.environ["DATABASE_URL"]
+DATABASE_URL = os.environ.get("DATABASE_URL", "")
 LITELLM_URL = os.environ.get("LITELLM_URL", "http://litellm:4000")
-LITELLM_MASTER_KEY = os.environ["LITELLM_MASTER_KEY"]
-TANK_API_KEY = os.environ["TANK_API_KEY"]
+LITELLM_MASTER_KEY = os.environ.get("LITELLM_MASTER_KEY", "")
+TANK_API_KEY = os.environ.get("TANK_API_KEY", "")
 DEFAULT_REGION = os.environ.get("TANK_REGION", "us-east")
 US_REGION = "us-east"
 ZA_REGION = "za"
@@ -435,6 +436,9 @@ def model_call_refusal(
     skip the rule. model=None asks the early question: is there any
     permitted SA model at all? Pure-code skills do not call this.
     """
+    refusal = __import__("command_tools.autumbra", fromlist=["brain_refusal"]).brain_refusal(task_type)
+    if refusal:
+        return refusal
     here = normalize_box(box)
     build = build_model_refusal(model, tenant_id) if model is not None else None
     if build:
@@ -668,14 +672,16 @@ async def require_key(request: Request, x_tank_key: str = Header(default="")) ->
     path = request.url.path
     skill_run = path.startswith("/v1/skala/") and path.endswith("/run") and path.count("/") == 4
     ghost_route = matched == "ghost" and __import__("ghost_routes").room_method(request.method, path)
+    zenas_evidence = matched == "zenas" and request.method == "POST" and path in {"/v1/zenas/savings/quote", "/v1/zenas/law/embeddings", "/v1/zenas/law/vectors"}
     vendor_write = request.method == "POST" and path == "/v1/ledger/vendor"
     batch_route = path == "/v1/route/batch" or (request.method == "GET" and path.startswith("/v1/route/batch/"))
     # Its own queued background calls only; route_job checks the caller.
     job_route = request.method == "GET" and path.startswith("/v1/route/jobs/") and path.count("/") == 4
     event_route = request.method == "POST" and path in {"/v1/events/publish", "/v1/events/receive", "/v1/events/settle", "/v1/mobile/notify"}
+    tiger_savings = matched == "tiger" and request.method == "POST" and path == "/v1/tiger/savings"
     paid_status = request.method == "GET" and re.fullmatch(r"/v1/paid-steps/approvals/[0-9a-fA-F-]{36}", path)
     paid_admit = matched == "base" and request.method == "POST" and path == "/v1/paid-steps/admit"
-    if path not in {"/health", "/v1/route"} and not paid_status and not paid_admit and not batch_route and not job_route and not skill_run and not vendor_write and not ghost_route and not event_route:
+    if path not in {"/health", "/v1/route"} and not tiger_savings and not paid_status and not paid_admit and not batch_route and not job_route and not skill_run and not vendor_write and not ghost_route and not event_route and not zenas_evidence:
         raise HTTPException(status_code=403, detail="This agent key cannot call that.")
     return matched
 
@@ -705,6 +711,7 @@ class RouteRequest(BaseModel):
 
 
 class RouteResponse(BaseModel):
+    engine: dict[str, Any] | None = None
     # Actual foreground dispatch evidence; absent for cache/code/batch results.
     execution: dict[str, Any] | None = None
     settings_hash: str | None = None  # No effective-settings attestation exists yet.
@@ -726,6 +733,9 @@ class RouteResponse(BaseModel):
     # Provider prompt-cache tokens included in tokens_in (0 when none were reported).
     cache_read_tokens: int = 0
     cache_write_tokens: int = 0
+    cache_hit_rate: float = 0.
+    cache_layer: str | None = None
+    cache_backend: str | None = None
 
 
 class PolicyRow(BaseModel):
@@ -737,6 +747,7 @@ class PolicyRow(BaseModel):
     priority: str = "standard"
     batch_eligible: bool = False
     cache_scope: str = "none"
+    cache_ttl_s: int = Field(default=0, ge=0, le=2592000)
     max_tokens_out: int = 1024
     system_prompt: str | None = None
     eval_threshold: float = graduate.DEFAULT_THRESHOLD
@@ -856,6 +867,9 @@ async def _startup() -> None:
 @app.on_event("shutdown")
 async def _shutdown() -> None:
     _graduated_sa_models.discard(_OWN_ZA_MODEL)
+    intake_stop = getattr(app.state, "skala_intake_stop", None)
+    if intake_stop is not None:
+        await intake_stop()
     await __import__("routes_registry").shutdown_products(__import__("sys").modules[__name__])
     if _batch_task:
         _batch_task.cancel()
@@ -975,17 +989,17 @@ async def put_policy(task_type: str, body: PolicyRow) -> dict[str, Any]:
             """
             INSERT INTO tank.policy
               (task_type, tenant_id, rung, model, priority, batch_eligible, cache_scope,
-               max_tokens_out, system_prompt, eval_threshold, escalation_model,confidence_floor,acceptance_window_s,semantic_cache,matter_matching,max_cost_usd,fallbacks,updated_at)
-            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17, now())
+               max_tokens_out, system_prompt, eval_threshold, escalation_model,confidence_floor,acceptance_window_s,semantic_cache,matter_matching,max_cost_usd,fallbacks,cache_ttl_s,updated_at)
+            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18, now())
             ON CONFLICT (task_type, COALESCE(tenant_id, '00000000-0000-0000-0000-000000000000'::uuid))
             DO UPDATE SET rung=$3, model=$4, priority=$5, batch_eligible=$6, cache_scope=$7,
                           max_tokens_out=$8, system_prompt=$9, eval_threshold=$10, escalation_model=$11,confidence_floor=$12,
-                          acceptance_window_s=$13,semantic_cache=$14,matter_matching=$15,max_cost_usd=$16,fallbacks=$17,updated_at=now()
+                          acceptance_window_s=$13,semantic_cache=$14,matter_matching=$15,max_cost_usd=$16,fallbacks=$17,cache_ttl_s=$18,updated_at=now()
             """,
             body.task_type, body.tenant_id, body.rung, body.model, body.priority,
             body.batch_eligible, body.cache_scope, body.max_tokens_out, body.system_prompt,
             body.eval_threshold, body.escalation_model, body.confidence_floor, body.acceptance_window_s,
-            body.semantic_cache, body.matter_matching, body.max_cost_usd, body.fallbacks,
+            body.semantic_cache, body.matter_matching, body.max_cost_usd, body.fallbacks, body.cache_ttl_s,
             )
             held = await conn.fetchval(
                 "SELECT held_swap_id IS NOT NULL FROM tank.policy WHERE task_type=$1 AND tenant_id IS NOT DISTINCT FROM $2",
@@ -1074,7 +1088,6 @@ def _choice_answer(data: dict[str, Any]) -> tuple[str, str]:
 # The shared override gate for Command and MoA. Never persist policy changes
 # to pin one call; MoA uses the parent task's policy limits.
 MODEL_OVERRIDE_TASK_TYPES = frozenset({"command.turn", "command.code"})
-MOA_SEAT_TASK = re.compile(r"[a-zA-Z0-9_.-]+#moa\.[a-z][a-z0-9_]{0,79}")
 _MOA_BASE = re.compile(r"[a-zA-Z0-9_.-]+")
 _MOA_SEAT = re.compile(r"[a-z][a-z0-9_]{0,79}")
 
@@ -1086,7 +1099,7 @@ def is_moa_seat(task_type: str) -> bool:
 
 
 def override_allowed(task_type: str) -> bool:
-    return task_type in MODEL_OVERRIDE_TASK_TYPES or MOA_SEAT_TASK.fullmatch(task_type) is not None
+    return task_type in MODEL_OVERRIDE_TASK_TYPES or is_moa_seat(task_type)
 
 
 def _plain_value(value: Any) -> Any:
@@ -1164,6 +1177,7 @@ async def _preflight_mask(req: RouteRequest, policy: dict[str, Any], messages: l
 
 
 async def _check_route_task(req: RouteRequest, task_id: uuid.UUID | None) -> None:
+    __import__("command_tools.autumbra", fromlist=["require_brain_enabled"]).require_brain_enabled(req.task_type)
     if task_id is None:
         return
     async with pool().acquire() as conn:
@@ -1184,7 +1198,7 @@ async def _record_local(req: RouteRequest, policy: dict[str, Any], *, model: str
                         content: str, task_id: uuid.UUID | None = None, outcome: str = "delivered",
                         escalation: list[dict[str, Any]] | None = None, latency_ms: int = 0,
                         error: str | None = None, route_seat: str | None = None,
-                        masked_messages: Any = None) -> RouteResponse:
+                        masked_messages: Any = None, cache_layer: str | None = None) -> RouteResponse:
     ledger_id = uuid.uuid4()
     # Retain an example even for code/cache runs, but never raw identifiers/HTML.
     clean = masked_messages if masked_messages is not None else _storage_mask(_plain_messages([m.model_dump() for m in req.messages]))
@@ -1205,15 +1219,20 @@ async def _record_local(req: RouteRequest, policy: dict[str, Any], *, model: str
                 ledger_id, req.tenant_id, req.task_type, json.dumps(clean), output[:20000],
             )
     return RouteResponse(ledger_id=ledger_id, model=model, rung=rung, content=content, tokens_in=0,
-                         tokens_out=0, cost_usd=0, latency_ms=latency_ms, escalation=escalation or [])
+                         tokens_out=0, cost_usd=0, latency_ms=latency_ms, escalation=escalation or [],
+                         cache_layer=cache_layer, cache_backend='tank-sql' if cache_layer else None)
 
 
 def _cache_identity(req: RouteRequest, policy: dict[str, Any], messages: list[dict[str, str]],
                     max_tokens: int, route_seat: str | None) -> tuple[str, str, str]:
     # Whole policy revision, pinned skill, system messages, matter and generation
     # limits participate. Even legacy platform/region scopes stay tenant-local.
-    context = [policy, req.skill, req.case_ref, route_seat, max_tokens, box_region(),
-               [m for m in messages if m["role"] != "user"]]
+    c1 = __import__('exact_cache')
+    identity_policy = policy if c1.enabled() else {k: v for k, v in policy.items() if k != 'cache_ttl_s'}
+    context = [identity_policy, req.skill, req.case_ref, route_seat, max_tokens, box_region()]
+    if c1.enabled():
+        context.append(c1.user_scope(req))
+    context.append([m for m in messages if m["role"] != "user"])
     context_hash = hashlib.sha256(json.dumps(context, sort_keys=True, default=str).encode()).hexdigest()
     exact = hashlib.sha256(json.dumps(messages, sort_keys=True).encode()).hexdigest()
     return context_hash, exact, graduate.semantic_form(messages)
@@ -1222,6 +1241,7 @@ def _cache_identity(req: RouteRequest, policy: dict[str, Any], messages: list[di
 @tenant_path("req")
 async def _cache_read(req: RouteRequest, policy: dict[str, Any], identity: tuple[str, str, str]) -> str | None:
     if (policy.get("cache_scope") not in {"tenant", "platform", "region"}
+            or __import__('exact_cache').sql_ttl(policy, CACHE_TTL_S) <= 0
             or (policy.get("matter_matching") and not req.case_ref)):
         return None
     context, exact, form = identity
@@ -1241,15 +1261,20 @@ async def _cache_read(req: RouteRequest, policy: dict[str, Any], identity: tuple
         return None
     row = dict(rows[0])
     if row["input_hash"] == exact:
-        return row["content"]
+        return (__import__('exact_cache').CachedAnswer(row["content"], 'C1')
+                if __import__('exact_cache').enabled() else row["content"])
     row["vector"] = json.loads(row["vector"]) if isinstance(row["vector"], str) else row["vector"]
     hit = graduate.semantic_lookup(graduate.semantic_vector(form), [row], tenant_id=str(req.tenant_id), scope="tenant")
-    return hit["content"] if hit else None
+    if hit is None:
+        return None
+    return (__import__('exact_cache').CachedAnswer(hit["content"], 'C2')
+            if __import__('exact_cache').enabled() else hit["content"])
 
 
 @tenant_path("req")
 async def _cache_write(req: RouteRequest, policy: dict[str, Any], identity: tuple[str, str, str], ledger_id: uuid.UUID) -> None:
     if (policy.get("cache_scope") not in {"tenant", "platform", "region"}
+            or __import__('exact_cache').sql_ttl(policy, CACHE_TTL_S) <= 0
             or (policy.get("matter_matching") and not req.case_ref)):
         return
     context, exact, form = identity
@@ -1260,11 +1285,12 @@ async def _cache_write(req: RouteRequest, policy: dict[str, Any], identity: tupl
             ON CONFLICT(tenant_id,region,task_type,context_hash,input_hash) DO UPDATE
             SET ledger_id=EXCLUDED.ledger_id,vector=EXCLUDED.vector,semantic_form=EXCLUDED.semantic_form,expires_at=EXCLUDED.expires_at""",
             req.tenant_id, box_region(), req.task_type, context, exact, form,
-            json.dumps(graduate.semantic_vector(form)), ledger_id, CACHE_TTL_S,
+            json.dumps(graduate.semantic_vector(form)), ledger_id, __import__('exact_cache').sql_ttl(policy, CACHE_TTL_S),
         )
 
 
 @tenant_path("req")
+@__import__('embedding_cache').measured_route
 async def run_route(req: RouteRequest, task_id=None, caller=None, **kwargs):
     import paid_steps
     await _check_route_task(req, task_id)
@@ -1300,6 +1326,13 @@ async def _paid_route(req: RouteRequest,task_id=None,caller=None,**kwargs):
     inherited=paid_steps.current.get()
     req = req.model_copy(update={"paid_run_id": inherited.run_id})
     original = kwargs.get("_paid_policy") or await load_policy(req.task_type.partition("#moa.")[0], req.tenant_id)
+    engine_rt = __import__("sys").modules[__name__]
+    if (kwargs.get('model_override') is None and not kwargs.get('_offpeak_dispatch')
+            and kwargs.get('_paid_policy') is None and not is_build_only_model(original['model'])):
+        req, recalled = await engine_memory.recall(engine_rt, req)
+        original = await __import__('engine_ladder').select(engine_rt, req, original, caller)
+        if original.get('_engine'):
+            original['_engine']['memory'] = recalled
     policy = original
     attempted = set()
     while True:
@@ -1314,7 +1347,10 @@ async def _paid_route(req: RouteRequest,task_id=None,caller=None,**kwargs):
         value = await paid_steps.checkpoint(paid_steps.fingerprint(["route", req.model_dump(exclude={"paid_run_id"}),
                                              policy["model"], kwargs.get("model_override"), bool(kwargs.get("_offpeak_dispatch")), bool(kwargs.get("_defer_paid"))]), invoke)
         if "error" not in value:
-            return (priority_queue.QueuedResponse if value["queued"] else RouteResponse).model_validate(value["answer"])
+            answer = (priority_queue.QueuedResponse if value["queued"] else RouteResponse).model_validate(value["answer"])
+            answer = await __import__('engine_ladder').receipt(engine_rt, req, policy, answer)
+            answer = await __import__('exact_cache').record(engine_rt, req, policy, answer)
+            return await prompt_cache.receipt(engine_rt, req, answer)
         attempted.add(policy["model"])
         if policy["model"].startswith("skill:") and policy.get("escalation_model"):
             attempted.add(policy["escalation_model"])
@@ -1373,7 +1409,7 @@ async def _run_route(
     if early:
         raise HTTPException(status_code=403, detail=early)
 
-    seat = MOA_SEAT_TASK.fullmatch(req.task_type)
+    seat = is_moa_seat(req.task_type)
     if seat and model_override is None:
         raise HTTPException(status_code=400, detail="A MoA seat requires a model override")
     if model_override is not None:
@@ -1401,6 +1437,9 @@ async def _run_route(
     if graduate.router_cannot_serve(model):
         raise HTTPException(status_code=400, detail=graduate.ROUTER_BLOCK)
     priority = req.priority or policy["priority"]
+    if policy.get('_engine', {}).get('free') and priority == 'offpeak':
+        # There is no provider discount to wait for on the zero-token-cost rung.
+        priority = 'standard'
 
     messages = [m.model_dump() for m in req.messages]
     if policy["system_prompt"]:
@@ -1413,6 +1452,14 @@ async def _run_route(
             "Each pointer is {\"paragraphs\":[1,2]} or {\"first\":\"first eight words\",\"last\":\"last eight words\"}. "
             "Select at least 200 characters of facts. Return question, holding, elements and citations as JSON."
         )})
+    messages = prompt_cache.ordered(messages)
+    if policy.get('_engine', {}).get('free') or model in {'local', 'local-large'}:
+        # GGUF templates consume one system message; preserve prefix order inside it.
+        count = 0
+        while count < len(messages) and messages[count]['role'] == 'system':
+            count += 1
+        if count > 1:
+            messages = [{'role': 'system', 'content': '\n\n'.join(m['content'] for m in messages[:count])}, *messages[count:]]
     max_tokens = min(req.max_tokens or policy["max_tokens_out"], policy["max_tokens_out"])
     generation = case_facts_generation(model) if req.task_type == "zenas.case_facts" else {}
     if model_override is not None:
@@ -1458,7 +1505,8 @@ async def _run_route(
         hit = await _cache_read(req, exact_policy, identity)
         if hit is not None:
             await _check_route_task(req, task_id)
-            return await _record_local(req, policy, model=model, rung=4, content=hit, task_id=task_id, route_seat=route_seat)
+            return await _record_local(req, policy, model=model, rung=4, content=hit, task_id=task_id, route_seat=route_seat,
+                                       cache_layer=getattr(hit, 'layer', None))
     if priority != "urgent" and not _offpeak_dispatch and not holds_identifier and code_problem is None:
         cache_probe = await semantic_cache.lookup(__import__("sys").modules[__name__], req, cache_policy, identity, messages)
         if await semantic_cache.may_serve(__import__("sys").modules[__name__], req, cache_policy, cache_probe):
@@ -1506,6 +1554,8 @@ async def _run_route(
         generation = case_facts_generation(model) if req.task_type == "zenas.case_facts" else {}
 
     # Code may parse labelled HTML. Prompt text is never parsed or rewritten.
+    if model in {'local', 'local-large'}:
+        generation = {**generation, 'temperature': 0}
     messages = _plain_messages(messages)
     if _contains_html(messages):
         await _refuse_input(req, policy, "HTML must be supplied in html/raw_html fields with separately extracted text", task_id)
@@ -1527,6 +1577,11 @@ async def _run_route(
             exc._paid_unspent = True
             raise
         generation = {**generation, "disable_fallbacks": True}
+    if not _offpeak_dispatch and not _defer_paid and _paid_limit is None and _on_token is None:
+        scheduled = await priority_queue.automatic_request(
+            __import__('sys').modules[__name__], req, policy, messages, generation)
+        if scheduled is not req:
+            req, priority = scheduled, 'offpeak'
     paid_authorization = await __import__("paid_steps").model_admission(req.tenant_id, req.task_type, model, agent=req.agent)
     if priority == "offpeak" and not _offpeak_dispatch:
         item = _DeferredRoute(req, policy, messages, max_tokens, generation, escalation,
@@ -1535,7 +1590,7 @@ async def _run_route(
                                              caller=caller, task_id=task_id, model_override=model_override)
         await __import__("paid_steps").attach_receipt(queued.id, paid_authorization)
         return queued
-    if _defer_paid and priority != "urgent" and not holds_identifier:
+    if _defer_paid and priority != "urgent" and not holds_identifier and not policy.get('_engine', {}).get('free') and model not in {'local', 'local-large'}:
         raise _DeferredRoute(req, policy, messages, max_tokens, generation, escalation,
                              semantic_cache.batch_snapshot(cache_policy, identity, cache_probe))
     price_info = await priority_queue.model_info(__import__("sys").modules[__name__], model) if priority == "offpeak" else None
@@ -1555,16 +1610,21 @@ async def _run_route(
         refusal_args={"box": box, "tenant_id": str(req.tenant_id), "task_type": req.task_type,
                       "caller": caller, "skill": req.skill, "pool_read": pool_read},
     )
+    dispatched_settings.update(await __import__('engine_tracing').metadata(
+        __import__('sys').modules[__name__], req.tenant_id, req.task_type, model, policy))
+    cache_options = await __import__('exact_cache').gateway_options(
+        __import__('sys').modules[__name__], req, policy, identity, model, safe=not holds_identifier,
+        streaming=_on_token is not None)
     try:
-        if _on_token is not None and req.task_type == "command.turn":
+        if _on_token is not None and req.task_type in {"command.turn", "command.code"}:
             r = await stream_completion(LITELLM_URL, LITELLM_MASTER_KEY,
-                                        {"model": model, "messages": messages, **dispatched_settings, **routing}, _on_token)
+                                        {"model": model, "messages": messages, **dispatched_settings, **cache_options, **routing}, _on_token)
         else:
             async with httpx.AsyncClient(timeout=120) as client:
                 r = await client.post(
                     f"{LITELLM_URL}/v1/chat/completions",
                     headers={"Authorization": f"Bearer {LITELLM_MASTER_KEY}"},
-                    json={"model": model, "messages": messages, **dispatched_settings, **routing},
+                    json={"model": model, "messages": messages, **dispatched_settings, **cache_options, **routing},
                 )
         answered_group = r.headers.get("x-litellm-model-group")
         if answered_group in routing.aliases:
@@ -1620,7 +1680,7 @@ async def _run_route(
         error = f"{r.status_code}: {' '.join(str(msg).split())[:300]}"
         if holds_identifier:
             error = "provider error omitted; the prompt contained a personal identifier"
-    usage = data.get("usage") or {}
+    usage = prompt_cache.normalized_usage(data.get('usage') or data.get('usageMetadata') or {})
     tokens_in = int(usage.get("prompt_tokens") or 0)
     tokens_out = int(usage.get("completion_tokens") or 0)
     # Provider prompt-cache tokens, part of tokens_in. LiteLLM prices them with the
@@ -1628,6 +1688,8 @@ async def _run_route(
     cache_read, cache_write = prompt_cache.cache_tokens(usage)
     # LiteLLM reports the cost it computed from config.yaml prices in this header.
     cost_usd = float(r.headers.get("x-litellm-response-cost") or 0.0)
+    c1_hit = (cache_options.get('cache', {}).get('use-cache') is True
+              and r.headers.get('x-tervory-cache-layer') == 'C1' and outcome == 'delivered')
     cost_status = "set"
     if priority == "offpeak":
         cost = (priority_queue.usage_cost(price_info, usage, sent_at) if price_info.get("offpeak") else
@@ -1639,6 +1701,9 @@ async def _run_route(
     if priority == "offpeak" and answered != model:
         # A gateway violating disable_fallbacks is not evidence for our booked rate.
         cost_usd, cost_status = 0.0, "not_set"
+    if c1_hit:
+        cost_usd, cost_status = 0., 'set'
+        cache_read, cache_write = 0, 0  # The stored provider usage is not a new C5 hit.
     content = ""
     finish_reason = ""
     if outcome == "delivered":
@@ -1652,10 +1717,10 @@ async def _run_route(
               (id, tenant_id, region, agent, skill, task_type, rung, model, priority,
                tokens_in, tokens_out, cost_usd, latency_ms, cache_hit, outcome, task_id, error, route_seat,escalation,accept_after,sent_at,offpeak_job_id,cost_status,
                cache_read_tokens,cache_write_tokens)
-            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,false,$14,$15,$16,$17,$18::jsonb,now()+make_interval(secs=>$19),$20,$21,$22,$23,$24)
+            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$25,$14,$15,$16,$17,$18::jsonb,now()+make_interval(secs=>$19),$20,$21,$22,$23,$24)
             ON CONFLICT(id) DO UPDATE SET model=EXCLUDED.model,rung=EXCLUDED.rung,
               tokens_in=EXCLUDED.tokens_in,tokens_out=EXCLUDED.tokens_out,cost_usd=EXCLUDED.cost_usd,
-              cache_read_tokens=EXCLUDED.cache_read_tokens,cache_write_tokens=EXCLUDED.cache_write_tokens,
+              cache_read_tokens=EXCLUDED.cache_read_tokens,cache_write_tokens=EXCLUDED.cache_write_tokens,cache_hit=EXCLUDED.cache_hit,
               latency_ms=EXCLUDED.latency_ms,outcome=EXCLUDED.outcome,error=EXCLUDED.error,
               route_seat=EXCLUDED.route_seat,escalation=EXCLUDED.escalation,accept_after=EXCLUDED.accept_after,
               sent_at=EXCLUDED.sent_at,cost_status=EXCLUDED.cost_status,
@@ -1667,9 +1732,9 @@ async def _run_route(
             WHERE tank.ledger.tenant_id=EXCLUDED.tenant_id AND tank.ledger.offpeak_job_id=EXCLUDED.id
             """,
             ledger_id, req.tenant_id, req.region or DEFAULT_REGION, req.agent, req.skill,
-            req.task_type, policy["rung"], answered, priority, tokens_in, tokens_out, cost_usd,
+            req.task_type, 4 if c1_hit else policy["rung"], answered, priority, tokens_in, tokens_out, cost_usd,
             latency_ms, outcome, task_id, error, route_seat, json.dumps(escalation), int(policy.get("acceptance_window_s", 86400)),
-            sent_at, _receipt_id, cost_status, cache_read, cache_write,
+            sent_at, _receipt_id, cost_status, cache_read, cache_write, c1_hit,
         )
 
     # BEGIN ROUTELLM SERVING RECEIPT
@@ -1686,12 +1751,12 @@ async def _run_route(
 
     # Graduation: shadow the candidate on a share of calls; it never affects this answer.
     # An identifier prompt is not copied to a second provider or into the transcript.
-    if priority != "urgent" and cost_status == "set" and not holds_identifier and policy.get("candidate_model") and float(policy.get("shadow_rate") or 0) > random.random():
+    if not c1_hit and priority != "urgent" and cost_status == "set" and not holds_identifier and policy.get("candidate_model") and float(policy.get("shadow_rate") or 0) > random.random():
         t = asyncio.create_task(_shadow(req, policy, messages, max_tokens, ledger_id, content, cost_usd))
         _background.add(t)
         t.add_done_callback(_background.discard)
 
-    if priority != "urgent" and cost_status == "set" and not holds_identifier and model_override is None and routellm_shadow.configuration(policy):
+    if not c1_hit and priority != "urgent" and cost_status == "set" and not holds_identifier and model_override is None and routellm_shadow.configuration(policy):
         t = asyncio.create_task(routellm_shadow.observe(
             __import__("sys").modules[__name__], req, policy, messages, max_tokens,
             ledger_id, content, cost_usd, answered, "x-litellm-response-cost" in r.headers))
@@ -1709,7 +1774,7 @@ async def _run_route(
             )
     if content and not holds_identifier and masked_content == content:
         await _cache_write(req, policy, identity, ledger_id)
-        if priority != "urgent" and cost_status == "set":
+        if not c1_hit and priority != "urgent" and cost_status == "set":
             if _deferred_snapshot is not None:
                 semantic_cache.schedule_batch(__import__("sys").modules[__name__], req, _deferred_snapshot,
                                                ledger_id, content, cost_usd)
@@ -1717,10 +1782,12 @@ async def _run_route(
                 semantic_cache.schedule(__import__("sys").modules[__name__], req, cache_policy, identity,
                                         messages, cache_probe, ledger_id, content, cost_usd)
     return RouteResponse(
-        ledger_id=ledger_id, model=answered, rung=policy["rung"], content=content,
+        ledger_id=ledger_id, model=answered, rung=4 if c1_hit else policy["rung"], content=content,
         tokens_in=tokens_in, tokens_out=tokens_out, cost_usd=cost_usd if cost_status == "set" else None, latency_ms=latency_ms,
         finish_reason=finish_reason, escalation=escalation, cache_read_tokens=cache_read, cache_write_tokens=cache_write,
-        execution=execution_receipt.capture(ledger_id=str(ledger_id), tenant_id=str(req.tenant_id), task_type=req.task_type,
+        cache_hit_rate=cache_read / tokens_in if tokens_in else 0.,
+        cache_layer='C1' if c1_hit else None, cache_backend='litellm' if c1_hit else None,
+        execution=None if c1_hit else execution_receipt.capture(ledger_id=str(ledger_id), tenant_id=str(req.tenant_id), task_type=req.task_type,
             requested_model=model, answered_model=answered, dispatched=dispatched_settings,
             headers=r.headers, response=data, delivered=outcome == "delivered"),
     )
@@ -1788,12 +1855,16 @@ async def _llm_work(model: str, messages: list[dict[str, str]], max_tokens: int,
     if _contains_html(messages):
         raise ValueError("HTML is not model input; supply extracted text")
     _screen_mask(messages)
+    trace = await __import__('engine_tracing').metadata(__import__('sys').modules[__name__],
+        (receipt or {}).get('_trace_tenant_id', PLATFORM_TENANT),
+        (receipt or {}).get('_trace_task_type', (receipt or {}).get('_paid_task_type', 'tank.shadow')), model,
+        {'model': (receipt or {}).get('_trace_baseline_model', model)})
     async with httpx.AsyncClient(timeout=120) as client:
         r = await client.post(
             f"{LITELLM_URL}/v1/chat/completions",
             headers={"Authorization": f"Bearer {LITELLM_MASTER_KEY}"},
             json={"model": model, "messages": messages, "max_tokens": max_tokens,
-                  "disable_fallbacks": True},
+                  "disable_fallbacks": True, **trace},
         )
     if r.status_code != 200:
         raise RuntimeError(f"{model}: {r.status_code} {r.text[:200]}")
@@ -1882,7 +1953,7 @@ async def _roster_models() -> list[dict[str, Any]]:
     global _roster_cache
     now = time.time()
     if _roster_cache is not None and now - _roster_cache[0] < _ROSTER_TTL_S:
-        return _roster_cache[1]
+        return [r for r in _roster_cache[1] if __import__('engine_runtime').available(r['model_name'])]
     rows: list[dict[str, Any]] = []
     if _http is not None and hasattr(_http, "get"):
         try:
@@ -1906,7 +1977,7 @@ async def _roster_models() -> list[dict[str, Any]]:
             rows = []
     if rows:
         _roster_cache = (now, rows)  # only LiteLLM's live answer is cached
-        return rows
+        return [r for r in rows if __import__('engine_runtime').available(r['model_name'])]
     path = _roster_path()
     if not path.is_file():
         return []
@@ -1918,7 +1989,7 @@ async def _roster_models() -> list[dict[str, Any]]:
         row = _roster_row(item)
         if row and not _build_row(row):
             first.setdefault(row["model_name"], row)
-    return list(first.values())
+    return [r for r in first.values() if __import__('engine_runtime').available(r['model_name'])]
 
 
 async def _live_price_quotes() -> list[graduate.Quote]:
@@ -2039,14 +2110,16 @@ async def _shadow_work(req: RouteRequest, policy: dict[str, Any], messages: list
         log.warning("shadow %s skipped %s: daily budget spent", req.task_type, cand)
         return
     cand_content, cand_cost, agreement, method, fields = None, 0.0, None, "failed", {}
-    receipt: dict = {}
+    receipt: dict = {'_trace_tenant_id': str(req.tenant_id), '_trace_task_type': req.task_type + '#shadow',
+                     '_trace_baseline_model': policy['model']}
+    quality = {'passed': False, 'reason': 'candidate unavailable'}
     try:
         if cache:
             cand_content = cache_content
         elif code:
             cand_content, cand_cost = await _run_code_candidate(req, cand, messages)
         else:
-            cand_content, cand_cost = await _llm(cand, messages, max_tokens, **({"receipt": receipt} if routellm else {}))
+            cand_content, cand_cost = await _llm(cand, messages, max_tokens, receipt=receipt)
         compared = graduate.compare(primary, cand_content, tolerance=float(policy.get("number_tolerance") or 0.01))
         if compared.method == "fields":
             agreement, method, fields = compared.agreement, "fields", compared.fields
@@ -2055,32 +2128,31 @@ async def _shadow_work(req: RouteRequest, policy: dict[str, Any], messages: list
             method = "answer_too_long"
         elif not budget_open:
             method = "budget_exhausted"
-        else:
-            jp = await load_policy("tank.judge", PLATFORM_TENANT)
-            jmsgs = [{"role": "system", "content": jp["system_prompt"]},
-                     {"role": "user", "content": f"REQUEST:\n{messages[-1]['content'][:3000]}\n\nFIRST ANSWER:\n{primary[:4000]}\n\nSECOND ANSWER:\n{cand_content[:4000]}"}]
-            with __import__("paid_steps").background_scope("tank.judge.shadow"):
-                verdict, jcost = await _llm(jp["model"], jmsgs, jp["max_tokens_out"])
-            cand_cost += jcost
-            found = re.search(r"\d{1,3}", verdict)
-            agreement, method = (min(100, int(found.group())) / 100 if found else None), "judge"
+        if budget_open and method != 'answer_too_long':
+            quality = await __import__('engine_quality').assess(__import__('sys').modules[__name__],
+                req, policy, cand, messages, primary, cand_content)
+        if compared.method != 'fields' and method not in {'answer_too_long', 'budget_exhausted'}:
+            agreement, method = quality.get('scores', {}).get('correctness'), 'deepeval'
+        if not quality.get('passed') and agreement is not None:
+            agreement = 0.0
+        fields.update({'_deepeval_' + key: value for key, value in quality.get('scores', {}).items()})
     except Exception as exc:  # noqa: BLE001
         log.warning("shadow %s→%s failed: %s", policy["model"], cand, type(exc).__name__ if routellm else exc)
     if routellm:
         config, primary_known = routellm
         await routellm_shadow.save(__import__("sys").modules[__name__], req, config, ledger_id,
             primary, primary_cost, primary_known, cand_content, max(cand_cost, receipt.get("cost") or 0),
-            receipt, agreement, method, fields)
+            receipt, agreement, method, fields, quality=quality)
         return
     async with __import__("paid_steps").connection(req.tenant_id) as conn:
         await conn.execute(
             """
             INSERT INTO tank.shadow (ledger_id, tenant_id, task_type, primary_model, candidate_model, primary_content,
-                                     candidate_content, candidate_cost_usd, primary_cost_usd, agreement, method, fields)
-            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb)
+                                     candidate_content, candidate_cost_usd, primary_cost_usd, agreement, method, fields,quality)
+            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb,$13::jsonb)
             """,
             ledger_id, req.tenant_id, req.task_type, policy["model"], cand, primary[:20000],
-            (cand_content or "")[:20000], cand_cost, primary_cost, agreement, method, json.dumps(fields),
+            (cand_content or "")[:20000], cand_cost, primary_cost, agreement, method, json.dumps(fields), json.dumps(quality),
         )
     # Per-model calls already have durable platform receipts, including an
     # incomplete comparison waiting on its judge. Keep zero-cost code evidence.
@@ -2158,12 +2230,18 @@ async def _load_evidence(conn: Any, policy: dict[str, Any]) -> graduate.Evidence
     if candidate:
         rows = await conn.fetch(
             """
-            SELECT agreement, fields FROM tank.shadow
+            SELECT agreement, fields,quality FROM tank.shadow
             WHERE task_type=$1 AND candidate_model=$2 AND agreement IS NOT NULL
             """,
             task_type, candidate,
         )
-        agreements = [float(row["agreement"]) for row in rows if row["agreement"] is not None]
+        import engine_quality
+        def approved_quality(row):
+            quality = row['quality']
+            if isinstance(quality, str):
+                quality = json.loads(quality)
+            return quality.get('passed') and quality.get('revision') == engine_quality.revision(task_type)
+        agreements = [float(row['agreement']) if approved_quality(row) else 0.0 for row in rows]
         feedback = await conn.fetchrow(
             """
             SELECT count(*) FILTER (WHERE feedback='rejected') AS rejected,
@@ -2865,6 +2943,7 @@ async def search_task(task_type: str, body: SearchBody | None = None) -> dict[st
 @app.post("/v1/route", response_model=RouteResponse | priority_queue.QueuedResponse, response_model_exclude_none=True)
 @tenant_path("body")
 async def route(body: RouteRequest, caller: str | None = Depends(require_key)):
+    __import__("command_tools.autumbra", fromlist=["require_brain_enabled"]).require_brain_enabled(body.task_type)
     if caller:
         body = body.model_copy(update={"agent": caller})
     foreign = home_region_refusal(await __import__("tenant_regions").resolve_home(__import__("sys").modules[__name__], body.tenant_id, body.home_region), box_region())
@@ -3074,14 +3153,19 @@ async def batch_status(batch_id: uuid.UUID, tenant_id: uuid.UUID) -> dict[str, A
             """SELECT i.item_id,i.position,i.status,i.error,l.id AS ledger_id,l.model,l.rung,
             CASE WHEN l.cost_status='not_set' THEN NULL ELSE l.cost_usd END AS cost_usd,
             coalesce(l.batch_baseline_cost_usd,l.baseline_cost_usd) AS baseline_cost_usd,
-            l.tokens_in,l.tokens_out,l.latency_ms,l.batch,l.escalation,t.content
+            l.tokens_in,l.tokens_out,l.latency_ms,l.batch,l.escalation,t.content,
+            l.cache_read_tokens,l.cache_write_tokens,
+            CASE WHEN l.tokens_in>0 THEN l.cache_read_tokens::float/l.tokens_in ELSE 0 END AS cache_hit_rate,
+            r.detail AS engine
             FROM tank.batch_items i LEFT JOIN tank.ledger l ON l.id=i.ledger_id AND l.tenant_id=i.tenant_id
             LEFT JOIN tank.transcripts t ON t.ledger_id=l.id AND t.tenant_id=i.tenant_id
+            LEFT JOIN tank.engine_receipts r ON r.ledger_id=l.id AND r.tenant_id=i.tenant_id AND r.region=l.region
             WHERE i.batch_id=$1 AND i.tenant_id=$2 ORDER BY i.position""", batch_id, tenant_id,
         )
     results = []
     for item in items:
         value = dict(item)
+        value['engine'] = _batch_obj(value.get('engine'))
         baseline, actual = value.get("baseline_cost_usd"), value.get("cost_usd")
         value["discount_usd"] = float(baseline - actual) if baseline is not None and actual is not None else None
         results.append(value)
@@ -3136,18 +3220,21 @@ async def _batch_result(conn: Any, batch: Any, item: Any, result: dict[str, Any]
     response = result.get("response") or {}
     data = response.get("body") or {}
     if response.get("status_code") != 200 or not isinstance(data, dict):
+        await __import__('engine_tracing').batch_trace(__import__('sys').modules[__name__], batch, item, {}, failed=True)
         await _batch_fallback(conn, batch, item)
         return
     content, finish = _choice_answer(data)
     if not content:
+        await __import__('engine_tracing').batch_trace(__import__('sys').modules[__name__], batch, item, data, failed=True)
         await _batch_fallback(conn, batch, item)
         return
-    usage = data.get("usage") or {}
+    usage = prompt_cache.normalized_usage(data.get('usage') or data.get('usageMetadata') or {})
     tokens_in, tokens_out = int(usage.get("prompt_tokens") or 0), int(usage.get("completion_tokens") or 0)
     cache_read, cache_write = prompt_cache.cache_tokens(usage)
     prices, snapshot = _batch_obj(item["prices"]), _batch_obj(item["policy"])
     baseline = prompt_cache.token_cost(prices, tokens_in, tokens_out, cache_read, cache_write)
     actual = baseline*Decimal(str(prices["discount"]))
+    await __import__('engine_tracing').batch_trace(__import__('sys').modules[__name__], batch, item, data, float(actual))
     req = RouteRequest.model_validate(_batch_obj(item["request"]))
     ledger_id = uuid.UUID(snapshot["offpeak_job_id"]) if snapshot.get("offpeak_job_id") else uuid.uuid4()
     async with conn.transaction():
@@ -3191,6 +3278,12 @@ async def _batch_result(conn: Any, batch: Any, item: Any, result: dict[str, Any]
         with paid_steps.run_scope(paid_steps.Run(req.tenant_id,uuid.UUID(authorization["run_id"]),authorization["request_hash"])):
             await paid_steps.attach_receipt(ledger_id,authorization)
     semantic_cache.schedule_batch(__import__("sys").modules[__name__], req, snapshot, ledger_id, content, float(actual))
+    cached = RouteResponse(ledger_id=ledger_id, model=batch['model'], rung=snapshot['routing']['rung'],
+        content=content, tokens_in=tokens_in, tokens_out=tokens_out, cost_usd=float(actual), latency_ms=0,
+        batch=True, cache_read_tokens=cache_read, cache_write_tokens=cache_write,
+        cache_hit_rate=cache_read / tokens_in if tokens_in else 0.)
+    await __import__('cache_metrics').record(__import__('sys').modules[__name__], req, cached, 'C5',
+        prompt_cache.statistics(prices, tokens_in, cache_read, cache_write, multiplier=prices['discount']), conn=conn)
 
 
 async def _process_batch(conn: Any, batch: Any) -> None:
@@ -3217,6 +3310,7 @@ async def _process_batch(conn: Any, batch: Any) -> None:
                     ("id","run_id","request_hash","step_id","authorization_mode")}
                 await conn.execute("""UPDATE tank.batch_items SET policy=$4::jsonb
                     WHERE batch_id=$1 AND tenant_id=$2 AND item_id=$3""", batch["id"],req.tenant_id,item["item_id"],json.dumps(snapshot,default=str))
+            await __import__('engine_tracing').batch_trace(__import__('sys').modules[__name__], batch, item)
             lines.append(json.dumps({"custom_id": str(item["item_id"]), "method": "POST", "url": "/v1/chat/completions",
                 "body": {"model": prices["native"], "messages": snapshot["messages"], "max_tokens": snapshot["max_tokens"], **snapshot["generation"]}}))
         await conn.execute("UPDATE tank.batches SET status='submitting',submitted_at=now() WHERE id=$1 AND tenant_id=$2", batch["id"], batch["tenant_id"])
@@ -3250,6 +3344,7 @@ async def _process_batch(conn: Any, batch: Any) -> None:
             if result:
                 await _batch_result(conn, batch, item, result)
             else:
+                await __import__('engine_tracing').batch_trace(__import__('sys').modules[__name__], batch, item, {}, failed=True)
                 await _batch_fallback(conn, batch, item)
     await conn.execute(
         """UPDATE tank.batches b SET finished_at=now(),
@@ -3292,6 +3387,7 @@ async def process_batches_once() -> None:
 
 
 async def _batch_loop() -> None:
+    await __import__('engine_tracing').resume_batches()
     while True:
         try:
             await priority_queue.process_once(__import__("sys").modules[__name__])
@@ -3391,9 +3487,9 @@ async def list_tasks(tenant_id: uuid.UUID, limit: int = 50) -> list[dict[str, An
     async with pool().acquire() as conn:
         rows = await conn.fetch(
             f"""
-            SELECT t.*, l.model, l.rung, l.cost_usd, l.latency_ms, l.feedback
+            SELECT t.*, l.model, l.rung, l.cost_usd, l.baseline_cost_usd, l.baseline_status, l.latency_ms, l.feedback
             FROM (SELECT {TASK_COLUMNS} FROM tank.tasks WHERE tenant_id=$1 ORDER BY created_at DESC LIMIT $2) t
-            LEFT JOIN tank.ledger l ON l.id = t.ledger_id
+            LEFT JOIN tank.ledger l ON l.id = t.ledger_id AND l.tenant_id = t.tenant_id
             ORDER BY t.created_at DESC
             """,
             tenant_id, limit,
@@ -3406,9 +3502,9 @@ async def get_task(task_id: uuid.UUID, tenant_id: uuid.UUID) -> dict[str, Any]:
     async with pool().acquire() as conn:
         row = await conn.fetchrow(
             f"""
-            SELECT t.*, l.model, l.rung, l.cost_usd, l.latency_ms, l.feedback
+            SELECT t.*, l.model, l.rung, l.cost_usd, l.baseline_cost_usd, l.baseline_status, l.latency_ms, l.feedback
             FROM (SELECT {TASK_COLUMNS} FROM tank.tasks WHERE id=$1 AND tenant_id=$2) t
-            LEFT JOIN tank.ledger l ON l.id = t.ledger_id
+            LEFT JOIN tank.ledger l ON l.id = t.ledger_id AND l.tenant_id = t.tenant_id
             """,
             task_id, tenant_id,
         )
@@ -3480,6 +3576,25 @@ async def _model_for_skill(**kw: Any) -> dict[str, Any]:
     return res.model_dump()
 
 
+class TigerOcrHTTP:
+    """The existing OCR skill gets only an authenticated browser boundary."""
+    def __init__(self, client):
+        self.client = client
+
+    async def post(self, url, **kwargs):
+        base = os.environ.get("TIGER_URL", "").rstrip("/")
+        key = os.environ.get("TANK_KEY_TIGER", "")
+        if not base or not key:
+            raise HTTPException(503, "TIGER_URL or TANK_KEY_TIGER is not set")
+        if url != base + "/ocr":
+            raise HTTPException(400, "url not allowed")
+        kwargs["headers"] = {**kwargs.get("headers", {}), "X-Tank-Key": key}
+        kwargs["timeout"] = 30
+        kwargs["follow_redirects"] = False
+        async with asyncio.timeout(30):
+            return await self.client.post(url, **kwargs)
+
+
 def make_ctx(pkg: skala.SkillPackage, tenant_id: uuid.UUID, task_id: uuid.UUID | None = None, preview: bool = False, home_region: str | None = None) -> skala.SkillContext:
     assert _http is not None
     ref = pkg.ref + ("#preview" if preview else "")
@@ -3491,10 +3606,12 @@ def make_ctx(pkg: skala.SkillPackage, tenant_id: uuid.UUID, task_id: uuid.UUID |
 
     async def _model(**kw: Any) -> dict[str, Any]:
         kw["home_region"] = chosen
-        return await _model_for_skill(**kw)
+        from skala_memory_wire import model_through_memory
+        return await model_through_memory(__import__("sys").modules[__name__], ctx, _model_for_skill, **kw)
 
-    return skala.SkillContext(tenant_id=tenant_id, skill_ref=ref, agent=pkg.agent, task_id=task_id,
-                              _model=_model, http=_http, env=dict(SKILL_ENV))
+    ctx = skala.SkillContext(tenant_id=tenant_id, skill_ref=ref, agent=pkg.agent, task_id=task_id,
+                              _model=_model, http=TigerOcrHTTP(_http) if pkg.id == "tiger.price_ocr" else _http, env=dict(SKILL_ENV))
+    return ctx
 
 
 # Evals and previews run under the platform tenant so their model spend never lands on a client.
@@ -3583,6 +3700,8 @@ class EvalRun(BaseModel):
 async def run_room_eval(pkg: skala.SkillPackage, payload: dict[str, Any], ctx: skala.SkillContext) -> dict[str, Any]:
     room = "radix" if pkg.id == "scan.iac" else "tisan"
     key = os.environ.get(f"TANK_KEY_{room.upper()}", "")
+    if pkg.id in {"tisan.figma", "tisan.scaffold", "tisan.build", "scan.iac"} and not key.strip():
+        raise RuntimeError(f"Missing setting: TANK_KEY_{room.upper()}")
     if pkg.id not in {"tisan.figma", "tisan.scaffold", "tisan.build", "scan.iac"} or not key or _http is None:
         raise RuntimeError("eval room is unavailable")
     response = await _http.post(
@@ -3601,6 +3720,7 @@ async def run_room_eval(pkg: skala.SkillPackage, payload: dict[str, Any], ctx: s
 
 
 @app.post("/v1/skala/{skill_id}/{version}/evals", dependencies=[Depends(require_key)])
+@__import__("skala_jobs").single_evaluation
 async def run_skill_evals(skill_id: str, version: str, body: EvalRun | None = None) -> dict[str, Any]:
     pkg = get_package(skill_id, version)
     if not pkg.cases:
@@ -3735,7 +3855,8 @@ async def run_one_skill(
         raise HTTPException(status_code=403, detail=foreign)
     token = _skill_home.set(home)
     try:
-        return await _run_one_skill(skill_id, body, caller)
+        from skala_memory_wire import run_skill_with_identity
+        return await run_skill_with_identity(skill_id, body, caller, _run_one_skill)
     finally:
         _skill_home.reset(token)
 
@@ -3769,6 +3890,24 @@ async def _run_one_skill(
     if state != "approved" and not body.preview:
         raise HTTPException(status_code=409, detail=f"{pkg.ref} is {state!r}; only approved versions run for clients")
     ctx = make_ctx(pkg, body.tenant_id, preview=body.preview)
+    zenas_ledgers=[]
+    if caller == 'zenas':
+        original_model=ctx._model
+        async def with_zenas_receipt(**kw):
+            result=await original_model(**kw)
+            if result.get('ledger_id'): zenas_ledgers.append(str(result['ledger_id']))
+            return result
+        ctx._model=with_zenas_receipt
+    if caller == 'tiger':
+        ctx._tiger_run_id = uuid.uuid4()
+        ctx._tiger_ledger_ids = []
+        routed_model = ctx._model
+        async def metered_model(**kwargs):
+            result = await routed_model(**kwargs)
+            if result.get('ledger_id'):
+                ctx._tiger_ledger_ids.append(result['ledger_id'])
+            return result
+        ctx._model = metered_model
     if caller:
         ctx.agent = caller
     if caller == "base":
@@ -3784,18 +3923,26 @@ async def _run_one_skill(
         receipt_policy = {"priority": "standard", "acceptance_window_s": 86400}
     await _preflight_mask(request, receipt_policy, [m.model_dump() for m in request.messages], ctx.task_id)
     try:
-        out = await skala.run_skill(pkg, body.input, ctx)
+        if caller == "tiger":
+            out = await __import__('tiger_savings').cached_extract(__import__('sys').modules[__name__], pkg, body, ctx)
+        else:
+            out = await skala.run_skill(pkg, body.input, ctx)
     except Exception:
         if pkg.task_type is None and not ctx.calls and not ctx.cost_usd:
             await _record_local(request, receipt_policy, model="skill:"+pkg.ref, rung=3,
                                 content="", outcome="failed", error="skill_error", task_id=ctx.task_id)
         raise
     if not ctx.calls and not ctx.cost_usd:
-        receipt = await _record_local(request, receipt_policy, model="skill:"+pkg.ref, rung=3,
+        receipt = await _record_local(request, receipt_policy, model="skill:"+pkg.ref, rung=4 if getattr(ctx, "_tiger_cache_hit", False) else 3,
                                       content=json.dumps(out), outcome="unverified" if body.preview else "delivered", task_id=ctx.task_id)
         out["_ledger_id"] = str(receipt.ledger_id)
         out["_receipt"] = receipt.model_dump(mode="json")
     out["_cost_usd"] = round(ctx.cost_usd, 6)
+    if caller == "zenas": out["_ledger_ids"] = zenas_ledgers
+    if caller == "tiger" and not body.preview:
+        out['_savings'] = await __import__('tiger_savings').skill_receipt(__import__('sys').modules[__name__], pkg, body, ctx, out)
+    if getattr(ctx, "memory_receipts", None):
+        out["_memory_receipts"] = ctx.memory_receipts
     return out
 
 
@@ -3830,7 +3977,10 @@ async def base_proxy(path: str, request: Request) -> Response:
     if _http is None:
         raise HTTPException(status_code=503, detail="Base room is unreachable")
     body = await request.body()
-    headers = {}
+    key = os.environ.get("TANK_KEY_BASE", "")
+    if not key:
+        raise HTTPException(503, "Missing setting: TANK_KEY_BASE")
+    headers = {"X-Tank-Key": key}
     content_type = request.headers.get("content-type")
     if content_type:
         headers["content-type"] = content_type
@@ -3853,6 +4003,8 @@ async def base_proxy(path: str, request: Request) -> Response:
 _LOCAL_ZENAS_HOSTS = frozenset({"agent-zenas", "localhost", "127.0.0.1"})
 _ZENAS_PATH = re.compile(
     r"^(consents|matters|pool|pool/status|health|review|selftest|review-switch|cases/convert|rule-cards|worked|matches|training-pairs|drafts|playbooks|tenants|answers|contract-reviews|moot/published)$"
+    r"|^(receipts|memory/records|memory/edit|memory/forget|memory/switch|ladder/retrieve|ladder/apply|ladder/compose|ladder/plain)$"
+    r"|^memory/records/[0-9a-fA-F-]{36}$"
     r"|^(matters|documents|rule-cards|worked)/[0-9a-fA-F-]{36}$"
     r"|^matters/[0-9a-fA-F-]{36}/documents$"
     r"|^matters/[0-9a-fA-F-]{36}/release$"
@@ -4022,6 +4174,27 @@ def zenas_timeout(path: str, method: str = "GET") -> float:
     return ZENAS_TIMEOUT
 
 
+
+async def _moot_media_hearing_gate(tenant_id: str, user_id: str, hearing_id: str, *, headers: dict[str, str], home_region: str) -> bool:
+    """Confirm the attested actor can read the hearing via the Zenas room."""
+    if _http is None:
+        return False
+    try:
+        target = zenas_upstream(f"moot/hearings/{hearing_id}")
+    except HTTPException:
+        return False
+    try:
+        resp = await _http.get(
+            target,
+            params={"home_region": home_region},
+            headers=headers,
+            timeout=ZENAS_TIMEOUT,
+        )
+    except httpx.HTTPError:
+        return False
+    return resp.status_code == 200
+
+
 @app.api_route("/v1/zenas/{path:path}", methods=["GET", "POST"], dependencies=[Depends(require_key)])
 async def zenas_proxy(path: str, request: Request) -> Response:
     """Forward /v1/zenas/* to the Zenas room on this server only.
@@ -4034,10 +4207,92 @@ async def zenas_proxy(path: str, request: Request) -> Response:
     foreign = home_region_refusal(_request_home(raw, request.query_params.get("home_region")), box)
     if foreign:
         raise HTTPException(status_code=403, detail=foreign)
+    # Tank-native Mux door for confidential Moot media (credentials never leave Tank).
+    # Actor/tenant come only from verified Trigger sign-in (OIDC/mobile/PAT), never
+    # from untrusted X-Moot / body / caller identity headers alone.
+    import moot_media as _moot_media
+    media_match = _moot_media.match_media_path(path)
+    if media_match is not None:
+        import hmac
+        import json as _json
+        supplied_key = request.headers.get("x-tank-key", "")
+        workspace_key = os.environ.get("TANK_API_KEY", "")
+        if not workspace_key or not hmac.compare_digest(supplied_key.encode(), workspace_key.encode()):
+            raise HTTPException(404, "not_found")
+        verified = getattr(request.state, "trigger_signin", None) or {}
+        actor = verified.get("user_id") if isinstance(verified, dict) else None
+        tenant_raw = verified.get("tenant_id") if isinstance(verified, dict) else None
+        if not actor or tenant_raw is None:
+            raise HTTPException(401, "not_signed_in")
+        tenant = str(tenant_raw)
+        try:
+            uuid.UUID(tenant)
+        except ValueError:
+            raise HTTPException(404, "not_found") from None
+        # Optional X-Moot assertions must match the verified principal (forged/mismatched -> refuse).
+        claimed_actor = request.headers.get("x-moot-actor", "")
+        claimed_tenant = request.headers.get("x-moot-tenant", "")
+        if claimed_actor and claimed_actor != actor:
+            raise HTTPException(403, "trigger_signin_context_refused")
+        if claimed_tenant:
+            try:
+                if uuid.UUID(claimed_tenant) != uuid.UUID(tenant):
+                    raise HTTPException(403, "trigger_signin_context_refused")
+            except ValueError:
+                raise HTTPException(403, "trigger_signin_context_refused") from None
+        # Body cannot choose another user/tenant/hearing owner.
+        body = None
+        if raw:
+            try:
+                parsed = _json.loads(raw)
+            except _json.JSONDecodeError:
+                raise HTTPException(422, "invalid_request") from None
+            if not isinstance(parsed, dict):
+                raise HTTPException(422, "invalid_request")
+            if any(k in parsed for k in ("user_id", "tenant_id", "actor", "hearing_id", "playback_id", "asset_id", "upload_id")):
+                raise HTTPException(422, "invalid_request")
+            body = parsed
+        founder = __import__("admin").founder_allowed(supplied_key, actor)
+        room_headers = {
+            "X-Tank-Key": os.environ.get("TANK_KEY_ZENAS", ""),
+            "X-Moot-Actor": actor,
+            "X-Moot-Tenant": tenant,
+            "X-Moot-Founder": "1" if founder else "0",
+        }
+        home = request.query_params.get("home_region") or box
+
+        async def _gate(tenant_id: str, user_id: str, hearing_id: str) -> bool:
+            return await _moot_media_hearing_gate(
+                tenant_id, user_id, hearing_id, headers=room_headers, home_region=home
+            )
+
+        idem = request.headers.get("idempotency-key")
+        if idem is not None and not idem.strip():
+            idem = None
+        from moot_media_store import PostgresOwnershipStore
+        status, payload = await _moot_media.handle_media_request(
+            method=request.method,
+            path=path,
+            actor=_moot_media.MootActor(tenant_id=tenant, user_id=actor, founder=founder),
+            body=body,
+            store=PostgresOwnershipStore(pool),
+            hearing_allowed=_gate,
+            environ=os.environ,
+            allow_test_uploads=False,
+            idempotency_key=idem,
+        )
+        return Response(content=_json.dumps(payload), status_code=status, media_type="application/json")
     target = zenas_upstream(path)
     if _http is None:
         raise HTTPException(status_code=503, detail="Zenas room is unreachable")
-    headers: dict[str, str] = {}
+    headers: dict[str, str] = {"X-Tank-Key": os.environ.get("TANK_KEY_ZENAS", "")}
+    for name in ("idempotency-key", "x-zenas-tenant"):
+        supplied = request.headers.get(name)
+        if supplied:
+            try:
+                headers[name] = str(uuid.UUID(supplied))
+            except ValueError:
+                raise HTTPException(422, "invalid_request") from None
     if path.startswith("regulations/"):
         headers["X-Tank-Key"] = os.environ.get("TANK_KEY_ZENAS", "")
     if path.strip().strip("/").startswith("street-law/"):
@@ -4249,6 +4504,33 @@ async def ledger_summary(tenant_id: uuid.UUID, days: int = 30) -> dict[str, Any]
 # agent and stamp the caller's tenant_id on the way. Rows for any other tenant
 # are dropped before the response leaves Tank.
 
+async def tiger_savings_record(request: Request, caller: str | None = Depends(require_key)):
+    if caller != 'tiger':
+        raise HTTPException(403, 'Tiger room credential required')
+    from tiger_savings import Run, record
+    from pydantic import ValidationError
+    try:
+        body = Run.model_validate(await request.json())
+    except (ValidationError, ValueError):
+        raise HTTPException(422, 'Invalid Tiger receipt') from None
+    if request.headers.get('x-tenant-id') not in (None, str(body.tenant_id)):
+        raise HTTPException(403, 'tenant mismatch')
+    with tenant_scope(body.tenant_id):
+        async with pool().acquire() as conn:
+            async with conn.transaction():
+                return await record(conn, body)
+
+
+async def tiger_savings_list(request: Request):
+    from tiger_savings import listed
+    tenant = _tiger_tenant(request)
+    if request.headers.get('x-tenant-id') not in (None, str(tenant)):
+        raise HTTPException(403, 'tenant mismatch')
+    with tenant_scope(tenant):
+        async with pool().acquire() as conn:
+            return {'receipts': await listed(conn, tenant)}
+
+
 TIGER_AGENT_URL = "http://agent-tiger:8000"
 _TIGER_LIST_KEYS = ("watches", "observations", "alerts")
 
@@ -4336,7 +4618,10 @@ async def _tiger_body(request: Request) -> dict[str, Any]:
 async def _tiger_call(method: str, path: str, params: list[tuple[str, str]], content: bytes | None) -> Any:
     if _http is None:
         raise HTTPException(status_code=503, detail="Tiger is unreachable")
-    headers = {"content-type": "application/json"} if content else {}
+    key = os.environ.get("TANK_KEY_TIGER", "")
+    if not key:
+        raise HTTPException(status_code=503, detail="TANK_KEY_TIGER is not set")
+    headers = {"content-type": "application/json", "x-tank-key": key}
     try:
         return await _http.request(
             method,
@@ -4643,7 +4928,7 @@ async def tisan_publish_git(request: Request) -> dict:
         tenant = str(uuid.UUID(payload['tenant_id']))
         if tenant != request.headers.get('x-tervory-tenant'):
             raise ValueError('tenant differs')
-        async with httpx.AsyncClient(trust_env=False, follow_redirects=False) as http:
+        async with httpx.AsyncClient(trust_env=False, follow_redirects=False, event_hooks={"request": [__import__("product_identity").request_hook]}) as http:
             return await _tisan_publish_git_commit(http, payload)
     except (ValueError, TypeError, KeyError, AttributeError, httpx.HTTPError):
         raise HTTPException(503, 'Site commit could not be confirmed; inspect the publish operation before retrying.') from None
@@ -4835,6 +5120,7 @@ async def _rig_call(method: str, path: str, params: list[tuple[str, str]], conte
             params=params,
             content=content,
             headers=headers,
+            extensions=__import__("product_identity").product_extensions("rig", base),
             timeout=timeout,
             follow_redirects=False,
         )
@@ -5041,3 +5327,8 @@ app.include_router(__import__('window_complete').router)
 
 # Bind only accepted endpoint arguments after existing authentication dependencies.
 bind_tenant_endpoints(app)
+
+__import__('skala_runtime').install(app, lambda: {
+    'DATABASE_URL': DATABASE_URL, 'TANK_API_KEY': TANK_API_KEY,
+    'LITELLM_MASTER_KEY': LITELLM_MASTER_KEY,
+})

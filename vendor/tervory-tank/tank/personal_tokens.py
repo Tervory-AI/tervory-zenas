@@ -74,9 +74,10 @@ async def sign_in_actor(request: Request) -> command.Actor:
 # which the route itself answers 404 for everyone else. Review of #506, self-review (b)/(c).
 _UUID = r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
 CLI_ROUTES = {
-    "GET": re.compile(rf"/v1/command/(models|tools|threads|threads/{_UUID}(/events)?|tasks/{_UUID}/receipts)\Z"),
-    "POST": re.compile(rf"/v1/command/(complete|threads|threads/{_UUID}/(turn|actions|code-turn)|cards/{_UUID}|build)\Z"),
+    "GET": re.compile(rf"/v1/command/(models|tools|code-mcp-policy|code-models|code-sessions|code-sessions/{_UUID}|threads|threads/{_UUID}(/events)?|tasks/{_UUID}/receipts)\Z"),
+    "POST": re.compile(rf"/v1/command/(code-attachments|complete|threads|threads/{_UUID}/(turn|actions|code-turn|code-stream)|cards/{_UUID}|build)\Z"),
     "PATCH": re.compile(rf"/v1/command/threads/{_UUID}\Z"),
+    "PUT": re.compile(r"/v1/command/code-mcp-policy\Z"),
 }
 
 

@@ -12,6 +12,7 @@ from passive_infra_proxy import dns_query,top_ports
 from passive_r6 import command,measured
 from passive_store import target_url
 from passive_tools import PROXY
+from egress import lookup
 
 
 def nmap_command(domain,directory,config):
@@ -29,7 +30,8 @@ async def collect(target,directory,*,run=command,transport=None,proxy_ip=None):
     _,domain=target_url(target)
     directory=Path(directory)
     config=directory/'proxychains.conf'
-    peer=proxy_ip or socket.gethostbyname('radix-passive-proxy')  # Fixed internal service, never caller-selected.
+    peer=proxy_ip or (await asyncio.to_thread(lookup, 'radix-passive-proxy', 8082,
+        family=socket.AF_INET, type=socket.SOCK_STREAM))[0][4][0]  # Fixed peer, bounded DNS.
     config.write_text('strict_chain\nproxy_dns\nremote_dns_subnet 224\ntcp_read_time_out 30000\ntcp_connect_time_out 30000\n[ProxyList]\nhttp '+peer+' 8082\n')
     names=[prefix+'.'+domain for prefix in ('www','api','mail')]
     (directory/'domains.txt').write_text('\n'.join(names)+'\n')

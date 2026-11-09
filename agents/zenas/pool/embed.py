@@ -111,20 +111,6 @@ class HermesLawClient:
         key = os.environ.get("TANK_KEY", "")
         if not key:
             raise RuntimeError("Hermes is not configured")
-        if path == '/law/embeddings':
-            from agents.zenas.core.savings import Batch, current, observed
-            run=current.get()
-            tenant=run.tenant if run is not None and not isinstance(run,Batch) else '00000000-0000-0000-0000-000000000001'
-            if os.environ.get('TANK_URL','http://tank:8000').rstrip('/')!='http://tank:8000':
-                raise RegionError('Tank must be on this box')
-            async with httpx.AsyncClient(base_url='http://tank:8000',transport=self._transport,
-                    trust_env=False,follow_redirects=False,timeout=120) as client:
-                response=await client.post('/v1/zenas/law/embeddings',headers={'X-Tank-Key':key},json={
-                    'tenant_id':tenant,'jurisdiction':self.jurisdiction,'model':self.name,**payload})
-                if response.status_code!=200:raise RuntimeError('meaning search unavailable')
-                data=response.json()
-                observed(tenant,data)
-                return data
         async with httpx.AsyncClient(base_url=base, transport=self._transport, trust_env=False,
                                      follow_redirects=False, timeout=120) as client:
             response = await client.post(path, headers={"X-Tank-Key": key}, json={
@@ -137,7 +123,22 @@ class HermesLawClient:
     async def embed(self, texts):
         if not texts:
             return []
-        reply = await self._post("/law/embeddings", {"texts": texts})
+        # The same client owns the vector index corridor. Reject a remote index
+        # setting before any text leaves this box, including its Tank task.
+        if os.environ.get('HERMES_URL', 'http://hermes:8000').rstrip('/') != 'http://hermes:8000':
+            raise RegionError('Hermes must be on this box')
+        from agents.zenas.core.outbound import TankClient
+        from agents.zenas.core.savings import Batch, current, observed
+        run = current.get()
+        tenant = run.tenant if run is not None and not isinstance(run, Batch) else '00000000-0000-0000-0000-000000000001'
+        base = os.environ.get('TANK_URL', 'http://tank:8000').rstrip('/')
+        if base != 'http://tank:8000':
+            raise RegionError('Tank must be on this box')
+        async with httpx.AsyncClient(transport=self._transport, trust_env=False,
+                                     follow_redirects=False, timeout=120) as http:
+            tank = TankClient(base, os.environ.get('TANK_KEY', ''), 'zenas', http)
+            reply = await tank.law_embeddings(tenant, self.region, self.jurisdiction, self.name, texts)
+        observed(tenant, reply)
         if reply.get("model") != self.name or len(reply.get("vectors", [])) != len(texts):
             raise RuntimeError("embedding model mismatch")
         return reply["vectors"]

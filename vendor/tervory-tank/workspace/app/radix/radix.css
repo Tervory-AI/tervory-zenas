@@ -12,9 +12,9 @@ body:has(.rx) main { width:100%; max-width:none; height:100dvh; margin:0; paddin
 .rx a { color:inherit; text-decoration:none; }
 .rx button,.rx input,.rx select { font:inherit; }
 .rx button { border:0; border-radius:8px; background:transparent; color:inherit; padding:0; cursor:pointer; }
-.rx a:focus-visible,.rx button:focus-visible,.rx summary:focus-visible,.rx input:focus-visible,.rx select:focus-visible,[role="tabpanel"]:focus-visible { outline:2px solid currentColor; outline-offset:4px; }
+.rx a:focus-visible,.rx button:focus-visible,.rx summary:focus-visible,.rx input:focus-visible,.rx select:focus-visible,.rx textarea:focus-visible,[role="tabpanel"]:focus-visible { outline:2px solid currentColor; outline-offset:4px; }
 .rx button:hover,.rx a:hover { text-decoration:underline; }
-.rx .rx-primary { display:inline-flex; width:fit-content; align-items:center; justify-content:center; padding:12px 20px; min-height:44px; background:var(--rx-red); color:#fff; border:0; border-radius:8px; font-weight:500; white-space:normal; text-align:center; }
+.rx .rx-primary { display:inline-flex; width:fit-content; align-items:center; justify-content:center; padding:12px 20px; min-height:44px; background:#C90007; color:#fff; border:0; border-radius:8px; font-weight:500; white-space:normal; text-align:center; }
 .rx .rx-primary:hover { background:#C90007; text-decoration:none; }
 .rx-panel { position:fixed; inset:0 auto 0 0; width:240px; height:100dvh; padding:24px; background:var(--rx-navy); color:#fff; display:flex; flex-direction:column; gap:16px; z-index:10; }
 .rx-logo { width:186px; height:34px; display:block; object-fit:contain; }
@@ -174,3 +174,6 @@ body:has(.rx) main { width:100%; max-width:none; height:100dvh; margin:0; paddin
 .rx .rx-accordion[aria-expanded="true"] { text-decoration:underline; text-underline-offset:6px; }
 .rx-plugins-dialog > .rx-secondary { margin-top:28px; }
 .rx button:disabled { cursor:default; opacity:.55; }
+
+/* Preserve room for keyboard focus and long titles on narrow phones. */
+@media(max-width:800px) { .rx nav a,.rx nav button { min-height:44px; } }

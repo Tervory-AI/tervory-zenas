@@ -1,3 +1,4 @@
+import { fetchWithDeadline as fetch } from "../../../../lib/request";
 /** Public Meta transport. Tank verifies the untouched payload before parsing it. */
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

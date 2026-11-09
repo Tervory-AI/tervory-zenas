@@ -10,13 +10,13 @@ export async function POST(req: Request) {
   const { userId } = await auth();
   if (!isFounder(userId)) notFound();
   const body = (await req.json().catch(() => null)) as { source?: string } | null;
-  const source = body?.source?.trim() ?? "";
+  const source = typeof body?.source === "string" ? body.source.trim() : "";
   if (!source || !/^[a-z0-9._-]{1,80}$/i.test(source)) {
     return NextResponse.json({ error: "Name the source to load." }, { status: 400 });
   }
   try {
     const res = await zenas(`pool/sources/${source}/load`, {
-      method: "POST",
+      method: "POST", headers: { "idempotency-key": req.headers.get("idempotency-key") || crypto.randomUUID() },
       body: JSON.stringify({ home_region: homeRegion() }),
     });
     if (res.status === 404) {
@@ -27,7 +27,7 @@ export async function POST(req: Request) {
     const status = payload?.status === "already running" ? "already running" : "running";
     return NextResponse.json({ ok: true, status, source });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "The load did not start.";
+    const message = "The load did not start.";
     return NextResponse.json({ error: message }, { status: 502 });
   }
 }

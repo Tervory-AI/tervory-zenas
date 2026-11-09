@@ -83,11 +83,12 @@ class MemoryStore(Protocol):
         tenant_id: str,
         kind: str | None,
         limit: int,
+        wide_kinds: list[str] | None = None,
     ) -> list[Hit]: ...
 
-    def delete(self, collection: str, memory_id: str, tenant_id: str | None = None) -> bool: ...
+    def delete(self, collection: str, memory_id: str, tenant_id: str | None = None, *, wide_kinds: list[str] | None = None) -> bool: ...
 
-    def delete_tenant(self, collection: str, tenant_id: str) -> int: ...
+    def delete_tenant(self, collection: str, tenant_id: str, *, wide_kinds: list[str] | None = None) -> int: ...
 
     def close(self) -> None: ...
 
@@ -128,11 +129,14 @@ class InMemoryStore:
         tenant_id: str,
         kind: str | None,
         limit: int,
+        wide_kinds: list[str] | None = None,
     ) -> list[Hit]:
         _agent_from(collection)
         rows = self._rows.get(collection, {})
         hits: list[Hit] = []
         for memory, stored in rows.values():
+            if wide_kinds is not None and (memory.kind not in wide_kinds or memory.meta.get("user_id")):
+                continue
             if memory.tenant_id != tenant_id:
                 continue
             if kind is not None and memory.kind != kind:
@@ -141,22 +145,24 @@ class InMemoryStore:
         hits.sort(key=lambda hit: hit.score, reverse=True)
         return hits[:limit]
 
-    def delete(self, collection: str, memory_id: str, tenant_id: str | None = None) -> bool:
+    def delete(self, collection: str, memory_id: str, tenant_id: str | None = None, *, wide_kinds: list[str] | None = None) -> bool:
         _agent_from(collection)
         rows = self._rows.get(collection)
         if not rows or memory_id not in rows:
             return False
         if tenant_id is not None and rows[memory_id][0].tenant_id != tenant_id:
             return False
+        if wide_kinds is not None and (rows[memory_id][0].kind not in wide_kinds or rows[memory_id][0].meta.get("user_id")):
+            return False
         del rows[memory_id]
         return True
 
-    def delete_tenant(self, collection: str, tenant_id: str) -> int:
+    def delete_tenant(self, collection: str, tenant_id: str, *, wide_kinds: list[str] | None = None) -> int:
         _agent_from(collection)
         rows = self._rows.get(collection)
         if not rows:
             return 0
-        ids = [memory_id for memory_id, (memory, _vector) in rows.items() if memory.tenant_id == tenant_id]
+        ids = [memory_id for memory_id, (memory, _vector) in rows.items() if memory.tenant_id == tenant_id and (wide_kinds is None or (memory.kind in wide_kinds and not memory.meta.get("user_id")))]
         for memory_id in ids:
             del rows[memory_id]
         return len(ids)

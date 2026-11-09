@@ -41,6 +41,30 @@ async def failure(request, exc):
     return _cors(response, _origin(request), bool(getattr(request.state, 'rig_origin_ok', False)))
 
 
+async def action(service, tenant, operation, data):
+    await service.config(tenant)
+    allowed = {'session': set(), 'view': {'session', 'product_id', 'recheck'}, 'add': {'session', 'product_id', 'quantity', 'back_order', 'line_id'},
+               'remove': {'session', 'line_id'}, 'checkout': {'session'}, 'order': {'session', 'checkout_id'}}
+    if operation not in allowed or set(data) - allowed[operation]:
+        raise CommerceError('invalid')
+    token = data.get('session')
+    if operation == 'session':
+        result = {'session': secrets.token_urlsafe(32), 'mode': 'cart',
+                  'store_name': (await service.store.retailer(tenant) or {}).get('name', '')}
+    elif operation == 'view':
+        result = await service.view(tenant, token, product_id=data.get('product_id'), recheck=data.get('recheck') is True)
+    elif operation == 'add':
+        result = await service.add(tenant, token, data.get('product_id'), data.get('quantity'),
+                                    back_order=data.get('back_order') is True, line_id=data.get('line_id'))
+    elif operation == 'remove':
+        result = await service.remove(tenant, token, data.get('line_id'))
+    elif operation == 'checkout':
+        result = await service.checkout(tenant, token)
+    else:
+        result = await service.order(tenant, token, data.get('checkout_id'))
+    return result
+
+
 @router.post('/cart/{operation}')
 async def shopper_cart(operation: str, request: Request):
     await _auth(request)
@@ -49,27 +73,8 @@ async def shopper_cart(operation: str, request: Request):
             raise CommerceError('origin')
         service = cart(request)
         tenant = _tenant(request)
-        await service.config(tenant)
         data = await body(request)
-        allowed = {'session': set(), 'view': {'session', 'product_id', 'recheck'}, 'add': {'session', 'product_id', 'quantity', 'back_order', 'line_id'},
-                   'remove': {'session', 'line_id'}, 'checkout': {'session'}, 'order': {'session', 'checkout_id'}}
-        if operation not in allowed or set(data) - allowed[operation]:
-            raise CommerceError('invalid')
-        token = data.get('session')
-        if operation == 'session':
-            result = {'session': secrets.token_urlsafe(32), 'mode': 'cart',
-                      'store_name': (await service.store.retailer(tenant) or {}).get('name', '')}
-        elif operation == 'view':
-            result = await service.view(tenant, token, product_id=data.get('product_id'), recheck=data.get('recheck') is True)
-        elif operation == 'add':
-            result = await service.add(tenant, token, data.get('product_id'), data.get('quantity'),
-                                        back_order=data.get('back_order') is True, line_id=data.get('line_id'))
-        elif operation == 'remove':
-            result = await service.remove(tenant, token, data.get('line_id'))
-        elif operation == 'checkout':
-            result = await service.checkout(tenant, token)
-        else:
-            result = await service.order(tenant, token, data.get('checkout_id'))
+        result = await action(service, tenant, operation, data)
         response = _ok(request, result)
         response.headers['Cache-Control'] = 'no-store'
         return response

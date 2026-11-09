@@ -62,8 +62,17 @@ def list_sql(schema: str) -> str:
 
 
 async def ensure_findings(conn, schema: str) -> None:
-    await conn.execute(ensure_sql(schema))
-    await conn.execute(index_sql(schema))
+    # PostgreSQL IF NOT EXISTS still races on the first concurrent CREATE.
+    # Serialize both DDL statements inside the same transaction. The lock name
+    # is data, while table identifiers still pass the strict schema validator.
+    name = validate_schema(schema)
+    async with conn.transaction():
+        await conn.execute(
+            "SELECT pg_advisory_xact_lock(hashtextextended($1,0))",
+            "radix-findings-schema:" + name,
+        )
+        await conn.execute(ensure_sql(name))
+        await conn.execute(index_sql(name))
 
 
 async def insert_findings(conn, schema: str, tenant_id: str, scan_id: str, findings: list[dict]) -> None:

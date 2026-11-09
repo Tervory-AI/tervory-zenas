@@ -1,4 +1,5 @@
 "use client";
+import { fetchWithDeadline as fetch } from "../../../../lib/request";
 import { useCallback, useEffect, useRef, useState } from "react";
 export function LiveView({ id, account }: { id: string; account: string }) {
   const [png, setPng] = useState(""); const [error, setError] = useState(""); const [ready, setReady] = useState(false);

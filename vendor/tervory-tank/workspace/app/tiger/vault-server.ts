@@ -8,9 +8,9 @@ const VAULT = "tiger.vault";
 const SQUAD = "tiger";
 
 export async function loadTigerPlugins(): Promise<PluginPanel> {
-  const tenant = await activeTenant();
-  if (!tenant) return offPanel("Sign in to use Plugins.");
   try {
+    const tenant = await activeTenant();
+    if (!tenant) return offPanel("Sign in to use Plugins.");
     const raw = await vaultPlugins(VAULT, SQUAD, tenant.tenantId, tenant.userId);
     return mapVaultPayload(raw);
   } catch (error) {

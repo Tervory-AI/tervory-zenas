@@ -7,6 +7,7 @@ boundary: two tenants never share a file, even when the session string matches.
 from __future__ import annotations
 
 import ipaddress
+import os
 import re
 import socket
 from pathlib import Path
@@ -31,8 +32,11 @@ def is_public_url(url: str) -> bool:
     """
     if not isinstance(url, str):
         return False
-    parsed = urlparse(url.strip())
-    if parsed.scheme not in {"http", "https"}:
+    try:
+        parsed = urlparse(url.strip())
+    except ValueError:
+        return False
+    if parsed.scheme not in {"http", "https"} or parsed.username or parsed.password:
         return False
     host = (parsed.hostname or "").lower().rstrip(".")
     if not host or host == "localhost":
@@ -112,14 +116,23 @@ def session_file(root: str | Path, agent: str, tenant: str, session: str) -> Pat
     base = Path(root)
     parts = (_part(agent), _part(tenant), _part(session))
     path = base / "sessions" / parts[0] / parts[1] / f"{parts[2]}.json"
-    root_dir = base.resolve()
-    resolved = path.resolve()
-    if resolved != root_dir and root_dir not in resolved.parents:
+    root_dir = os.path.realpath(base)
+    resolved = os.path.realpath(path)
+    if not resolved.startswith(os.path.join(root_dir, "")):
         raise SessionKeyError("bad session key")
-    return path
+    # Validate each lexical path before inspecting symlinks. Resolving first
+    # alone would hide a link that redirects to another tenant inside root.
+    prefix = os.path.join(os.path.abspath(base), "")
+    for candidate in (path, *list(path.parents)[:3]):
+        name = os.path.abspath(candidate)
+        if not name.startswith(prefix) or Path(name).is_symlink():
+            raise SessionKeyError("bad session key")
+    if base.is_symlink():
+        raise SessionKeyError("bad session key")
+    return Path(resolved)
 
 
 def _part(value: str) -> str:
     if not isinstance(value, str) or _PART.fullmatch(value) is None:
         raise SessionKeyError("bad session key")
-    return value
+    return os.path.basename(value)

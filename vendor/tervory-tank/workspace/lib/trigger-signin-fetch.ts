@@ -1,3 +1,4 @@
+import { fetchWithDeadline } from "./request";
 import "server-only";
 import { cookies } from "next/headers";
 import { auth, signinToken } from "./trigger-signin";
@@ -29,5 +30,5 @@ export async function signinFetch(input: URL | string | Request, init: RequestIn
       headers.delete("x-trigger-signin-org");
     }
   }
-  return globalThis.fetch(input, { ...init, headers });
+  return fetchWithDeadline(input, { ...init, headers });
 }

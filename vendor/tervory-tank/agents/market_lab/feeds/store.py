@@ -510,4 +510,3 @@ class Store:
                 }
             )
         return rows
-

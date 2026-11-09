@@ -35,16 +35,19 @@ function withHome(path: string, init: RequestInit, home: Region = homeRegion(), 
 }
 
 export async function zenas(path: string, init: RequestInit = {}): Promise<Response> {
-  const {tenantDestination, requestTenant, isRedirect, RedirectError} = await import("@/lib/tank");
+  const missing = [!TANK_API_KEY ? "TANK_API_KEY" : "", !process.env.TANK_REGION ? "TANK_REGION" : ""].filter(Boolean);
+  if (missing.length) return Response.json({ needs_settings: missing }, { status: 503 });
+  const {tenantDestination, requestTenant, isRedirect, RedirectError, boundedFetch} = await import("@/lib/tank");
   const tenant = requestTenant("/v1/zenas/" + path, init);
   const target = tenant ? await tenantDestination(tenant) : {url: TANK_URL, key: TANK_API_KEY, home: null};
   const call = withHome(path, init, target.home ?? homeRegion());
   const headers = new Headers(call.init.headers);
   if (!headers.has("content-type")) headers.set("content-type", "application/json");
   headers.set("x-tank-key", target.key);
-  const response = await fetch(new URL("/v1/zenas/" + call.path, target.url), {
+  if (tenant) headers.set("x-zenas-tenant", tenant);
+  const response = await boundedFetch(new URL("/v1/zenas/" + call.path, target.url), {
     ...call.init, headers, cache: "no-store", redirect: "manual",
-  });
+  }, 120_000, async response => new Response(await response.arrayBuffer(), { status: response.status, headers: response.headers }));
   if (isRedirect(response)) {
     await response.body?.cancel().catch(() => undefined);
     throw new RedirectError(response.status);
@@ -83,14 +86,16 @@ export function regionTank(region: Region): { url: string; key: string } | null 
 export async function zenasIn(region: Region, path: string, init: RequestInit = {}): Promise<Response | null> {
   const tank = regionTank(region);
   if (!tank) return null;
+  if (!tank.key) return Response.json({ needs_settings: ["TANK_API_KEY"] }, { status: 503 });
   const call = withHome(path, init, region, true);
-  return fetch(`${tank.url}/v1/zenas/${call.path}`, {
+  const { boundedFetch } = await import("@/lib/tank");
+  return boundedFetch(`${tank.url}/v1/zenas/${call.path}`, {
     ...call.init,
     headers: {
       "content-type": "application/json",
       "x-tank-key": tank.key,
       ...(call.init.headers ?? {}),
     },
-    cache: "no-store",
-  });
+    cache: "no-store", redirect: "manual",
+  }, 120_000, async response => new Response(await response.arrayBuffer(), { status: response.status, headers: response.headers }));
 }

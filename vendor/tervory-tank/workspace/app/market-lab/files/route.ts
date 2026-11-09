@@ -6,7 +6,7 @@ const MAX_UPLOAD = 32 * 1024 * 1024 + 256000;
 export async function POST(request: Request) {
   const origin = request.headers.get("origin");
   let sameOrigin = false;
-  try { sameOrigin = Boolean(origin && new URL(origin).host === request.headers.get("host")); } catch { /* Refuse malformed origins. */ }
+  try { const parsed = origin ? new URL(origin) : null; const scheme = request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim() || new URL(request.url).protocol.slice(0,-1); sameOrigin = Boolean(parsed && parsed.host === request.headers.get("host") && parsed.protocol === scheme + ":" && !parsed.username && !parsed.password); } catch { /* Refuse malformed origins. */ }
   if (!sameOrigin) {
     return NextResponse.json({ ok: false, message: "Upload files from your Market Lab page." }, { status: 403 });
   }

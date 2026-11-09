@@ -145,9 +145,10 @@ class TankRig:
         self.http = http
 
     async def request(self, method: str, path: str = '', **kwargs):
-        response = await self.http.request(method,
-            os.environ.get('TANK_URL', 'http://tank:8000').rstrip('/') + '/v1/access/rig/tiger' + path,
-            headers={'X-Tank-Key': os.environ.get('TANK_KEY', '')}, timeout=30, **kwargs)
+        async with asyncio.timeout(30):
+            response = await self.http.request(method,
+                os.environ.get('TANK_URL', 'http://tank:8000').rstrip('/') + '/v1/access/rig/tiger' + path,
+                headers={'X-Tank-Key': os.environ.get('TANK_KEY', '')}, timeout=30, **kwargs)
         response.raise_for_status()
         data = response.json()
         if not isinstance(data, dict):
@@ -189,9 +190,12 @@ class RigWatches:
     def __init__(self, watches: PgStore):
         self.watches = watches
         self.pool, self.schema = watches.pool, watches.schema
+        self.receipt = {'sent': 0, 'pending': 0, 'failed': 0}
 
-    async def discover(self, client: TankRig) -> int:
+    async def discover(self, client: TankRig, *, dry_run: bool = False) -> int:
         tenants = await client.tenants()
+        if dry_run:
+            return len(tenants)
         async with self.pool.acquire() as conn:
             await ensure_tables(conn, self.schema)
             await conn.executemany(SQL_ENSURE_DISPATCH.format(schema=self.schema), [(UUID(t),) for t in tenants])
@@ -259,20 +263,24 @@ class RigWatches:
         await self.sync(tenant, client)
         async with self.pool.acquire() as conn:
             rows = await conn.fetch(f'''SELECT sku,url,pending,attempts FROM {self.schema}.rig_targets
-                WHERE tenant_id=$1 AND pending IS NOT NULL AND next_attempt_at<=now()
+                WHERE tenant_id=$1 AND pending IS NOT NULL AND attempts<3 AND next_attempt_at<=now()
                 ORDER BY next_attempt_at,sku LIMIT 20''', UUID(tenant))
         sent = 0
         for row in rows:
             payload = json.loads(row['pending']) if isinstance(row['pending'], str) else row['pending']
+            # Commit the claim before the network boundary. The backoff exceeds
+            # the whole-call timeout, so concurrent dispatches cannot send it.
+            async with self.pool.acquire() as conn:
+                claimed = await conn.fetchval(f'''UPDATE {self.schema}.rig_targets SET attempts=attempts+1,
+                    next_attempt_at=now()+make_interval(secs=>60 * power(2, attempts)::integer)
+                    WHERE tenant_id=$1 AND sku=$2 AND pending=$3::jsonb AND attempts<3 AND next_attempt_at<=now()
+                    RETURNING sku''', UUID(tenant), row['sku'], json.dumps(payload))
+            if claimed is None:
+                continue
             try:
-                accepted = await client.send(tenant, row['sku'], payload)
-            except (httpx.HTTPError, ValueError):
-                delay = min(3600, 60 * 2 ** min(row['attempts'], 6))
-                async with self.pool.acquire() as conn:
-                    await conn.execute(f'''UPDATE {self.schema}.rig_targets SET attempts=attempts+1,
-                        next_attempt_at=now()+make_interval(secs=>$4)
-                        WHERE tenant_id=$1 AND sku=$2 AND pending=$3::jsonb''',
-                        UUID(tenant), row['sku'], json.dumps(payload), delay)
+                async with asyncio.timeout(30):
+                    accepted = await client.send(tenant, row['sku'], payload)
+            except (httpx.HTTPError, ValueError, TimeoutError):
                 continue
             async with self.pool.acquire() as conn:
                 # Do not acknowledge a newer reading that arrived during this request.
@@ -280,6 +288,13 @@ class RigWatches:
                     last_value=CASE WHEN $4 THEN last_value ELSE NULL END
                     WHERE tenant_id=$1 AND sku=$2 AND pending=$3::jsonb''', UUID(tenant), row['sku'], json.dumps(payload), accepted)
             sent += int(accepted)
+        async with self.pool.acquire() as conn:
+            pending = await conn.fetchrow(f'''SELECT count(*) FILTER (WHERE attempts<3) AS pending,
+                count(*) FILTER (WHERE attempts>=3) AS failed FROM {self.schema}.rig_targets
+                WHERE tenant_id=$1 AND pending IS NOT NULL''', UUID(tenant))
+        self.receipt = {'sent': sent, 'pending': pending['pending'], 'failed': pending['failed']}
+        if self.receipt['pending'] or self.receipt['failed']:
+            self.receipt['error'] = 'Tiger is not reachable right now.'
         return sent
 
 # Competitor discovery deliberately shares the room's existing fetch/render path.

@@ -39,6 +39,9 @@ class Probes:
 
     async def reproduce(self, request: Look) -> Observation:
         target, signal = request.target.value, request.signal
+        if signal == Signal.deploy:
+            from .deployments import deployment_observation
+            return await deployment_observation(self.http, target)
         if target not in SITES or signal in {Signal.errors, Signal.deploy, Signal.ci, Signal.radix}:
             result = await self.tank.call("POST", "/v1/ghost/check", request.model_dump(mode="json"))
             return Observation.model_validate(result)

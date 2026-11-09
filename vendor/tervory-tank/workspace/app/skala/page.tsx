@@ -43,8 +43,9 @@ export default async function SkalaPage() {
   }
 
   let skills: LibrarySkill[] = [];
-  let loadError: string | null = null;
+  let loadError: string | null = process.env.TANK_API_KEY?.trim() ? null : "Missing setting: TANK_API_KEY.";
   try {
+    if (loadError) return <SkalaApp accountName={accountName} skills={skills} loadError={loadError} />;
     const [rows, status] = await Promise.all([listSkills(), skillApprovalStatus()]);
     skills = rows.map(row => ({...asSkill(row), ...status.find(s => s.id === row.id && s.version === row.version)}));
   } catch {

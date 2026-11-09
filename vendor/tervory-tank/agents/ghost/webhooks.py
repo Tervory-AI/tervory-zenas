@@ -74,6 +74,11 @@ def sign_body(*, secret: str, body: bytes, timestamp: str, nonce: str) -> str:
     return digest
 
 
+def signature_matches(*, secret: str, body: bytes, timestamp: str, nonce: str, signature: str) -> bool:
+    expected = sign_body(secret=secret, body=body, timestamp=timestamp, nonce=nonce)
+    return hmac.compare_digest(expected, signature.removeprefix("sha256=").strip())
+
+
 def _verify(
     body: bytes,
     *,
@@ -112,12 +117,14 @@ def _verify(
             _drops[bucket] += 1
             _drops["replay"] += 1
             raise WebhookRejected("replayed nonce")
-    expected = sign_body(secret=secret, body=body, timestamp=str(ts), nonce=nonce.strip())
-    provided = signature.removeprefix("sha256=").strip()
-    if not hmac.compare_digest(expected, provided):
+    if not signature_matches(secret=secret, body=body, timestamp=str(ts), nonce=nonce.strip(), signature=signature):
         _drops[bucket] += 1
         raise WebhookRejected("bad signature")
     with _nonce_lock:
+        if nonce_key in _seen_nonces:
+            _drops[bucket] += 1
+            _drops["replay"] += 1
+            raise WebhookRejected("replayed nonce")
         _seen_nonces[nonce_key] = float(now) + _NONCE_TTL_SEC
 
 

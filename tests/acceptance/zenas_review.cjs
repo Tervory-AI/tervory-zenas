@@ -36,7 +36,11 @@ global.fetch = async () => {throw new Error('live network forbidden');};
 (async () => {
   const page = require(path.join(root, 'workspace/app/review/page.tsx')).default;
   const html = renderToStaticMarkup(await page());
-  assert(html.includes('Worked example'));
+  assert(!html.includes('Worked example'));
+  assert(!html.includes('2026-01-16'));
+  assert(html.includes('Waiting for review'));
+  assert(html.includes('Open a matter'));
+  assert(html.includes('0'));
   assert(html.includes('/brand/zenas-on-dark.png'));
   assert(html.includes('/brand/tervory-logo-reversed.png'));
   assert(html.includes('Reviewer'));

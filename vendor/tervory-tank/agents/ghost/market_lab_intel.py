@@ -8,6 +8,8 @@ Clients never see a feed UI.
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import hashlib
+import json
 from typing import Any
 from uuid import uuid4
 
@@ -25,7 +27,7 @@ def accept_ioc_bundle(raw: dict[str, Any]) -> dict[str, Any]:
         raise ValueError("IOC bundle must be an object.")
     if raw.get("schema_version") != BUNDLE_SCHEMA:
         raise ValueError(f"schema_version must be {BUNDLE_SCHEMA}")
-    if raw.get("paid") is True:
+    if raw.get("paid") not in (None, False):
         raise ValueError("paid feeds are off at launch; public + Market Lab only")
     sources = raw.get("sources") or []
     if not isinstance(sources, list) or not sources:
@@ -34,6 +36,7 @@ def accept_ioc_bundle(raw: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(indicators, list):
         raise ValueError("indicators must be a list")
     cleaned_sources: list[dict[str, str]] = []
+    source_ids = set()
     for src in sources:
         if not isinstance(src, dict):
             raise ValueError("each source must be an object")
@@ -43,6 +46,9 @@ def accept_ioc_bundle(raw: dict[str, Any]) -> dict[str, Any]:
             raise ValueError("source needs id and name")
         if sid in FORBIDDEN_SOURCES or name.lower() in FORBIDDEN_SOURCES:
             raise ValueError("YouTube and Instagram are forbidden intel sources")
+        if sid in source_ids:
+            raise ValueError("Duplicate Market Lab source.")
+        source_ids.add(sid)
         cleaned_sources.append({
             "id": sid,
             "name": name,
@@ -52,15 +58,19 @@ def accept_ioc_bundle(raw: dict[str, Any]) -> dict[str, Any]:
     out_inds: list[dict[str, Any]] = []
     for ind in indicators:
         if not isinstance(ind, dict):
-            continue
+            raise ValueError("Invalid Market Lab indicator.")
         kind = str(ind.get("kind") or "").strip()
         value = str(ind.get("value") or "").strip()
         if not kind or not value:
-            continue
+            raise ValueError("Invalid Market Lab indicator.")
+        credits = ind.get("source_ids")
+        if (not isinstance(credits, list) or not credits or
+                any(not isinstance(s, str) or s.strip().lower() not in source_ids for s in credits)):
+            raise ValueError("Indicator source is not in the bundle.")
         out_inds.append({
             "kind": kind,
             "value": value,
-            "source_ids": [str(s) for s in (ind.get("source_ids") or [])],
+            "source_ids": sorted({s.strip().lower() for s in credits}),
             # Keep advisory rating / component so register_advisories_from_ioc_bundle
             # can stamp critical receipts from the product's own intake.
             "rating": str(ind.get("rating") or ind.get("severity") or "").strip().lower(),
@@ -69,7 +79,8 @@ def accept_ioc_bundle(raw: dict[str, Any]) -> dict[str, Any]:
         })
     return {
         "schema_version": BUNDLE_SCHEMA,
-        "bundle_id": str(raw.get("bundle_id") or uuid4()),
+        "bundle_id": str(raw.get("bundle_id") or hashlib.sha256(json.dumps(
+            {"sources": cleaned_sources, "indicators": out_inds}, sort_keys=True).encode()).hexdigest()),
         "published_at": str(raw.get("published_at") or now_iso()),
         "producer": "Market Lab",
         "paid": False,

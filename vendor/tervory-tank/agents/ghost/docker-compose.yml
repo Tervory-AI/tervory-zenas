@@ -102,38 +102,34 @@ services:
       timeout: 5s
       retries: 10
     expose: ["8000"]
+  # Product brain remains opt-in at both deployment and request boundaries.
+  # Holds no model key; Tank routes and records.
+  # Keeps the former ghost-brain boundary: gw for Tank, internal sandbox net.
   ghost-brain:
-    profiles:
-    - brain
+    profiles: [brain]
     build:
-      context: ../..
-      dockerfile: agents/rig/Dockerfile.brain
-    command:
-    - uvicorn
-    - brain.standby:app
-    - --host
-    - 0.0.0.0
-    - --port
-    - '8001'
-    - --no-access-log
+      context: ..
+      dockerfile: ghost/Dockerfile
+    command: [uvicorn, ghost.brain_service:app, --host, 0.0.0.0, --port, "8001", --no-access-log]
     restart: unless-stopped
-    mem_limit: 2g
+    mem_limit: 512m
     cpus: 1
     pids_limit: 128
     read_only: true
     tmpfs:
     - /tmp:rw,noexec,nosuid,nodev,size=32m
     environment:
+      DATA_DIR: /data
       BRAIN_ROOM: ghost
-      TANK_REGION: us-east
-      TANK_URL: http://tank:8000
+      GHOST_BRAIN_ENABLED: ${GHOST_BRAIN_ENABLED:-false}
       TANK_KEY: ${TANK_KEY_GHOST:-}
+      TANK_URL: http://tank:8000
       HERMES_URL: http://hermes:8000
       GHOST_URL: http://agent-ghost:8000
+      GHOST_BROWSER_URL: http://ghost-browser:8000
+      TANK_REGION: ${TANK_REGION:-us-east}
       GHOST_SANDBOX_URL: http://ghost-sandbox:8002
       SANDBOX_KEY: ${SANDBOX_KEY_GHOST:-}
-      DATA_DIR: /data
-      GHOST_BROWSER_URL: http://ghost-browser:8000
     volumes:
     - ghost_brain_data:/data
     networks:
@@ -142,22 +138,16 @@ services:
     depends_on:
       ghost-sandbox:
         condition: service_healthy
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
     healthcheck:
-      test:
-      - CMD
-      - python
-      - -c
-      - import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health', timeout=3)
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health', timeout=3)"]
       interval: 15s
       timeout: 5s
       retries: 10
-    security_opt:
-    - no-new-privileges:true
-    cap_drop:
-    - ALL
+    expose: ["8001"]
   ghost-sandbox:
-    profiles:
-    - brain
+    profiles: [brain]
     build:
       context: ../..
       dockerfile: agents/base/Dockerfile.sandbox

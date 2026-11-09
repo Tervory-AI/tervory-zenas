@@ -19,7 +19,9 @@ export default async function Page({
       ))
   )
     notFound();
+  const configured = () => process.env.TANK_API_KEY ? null : <p role="status">Missing setting: TANK_API_KEY</p>;
   if (area === "crm" && Object.hasOwn(CRM, section)) {
+    const missing = configured(); if (missing) return missing;
     const resource = section as Resource;
     return (
       <CRMView
@@ -35,7 +37,8 @@ export default async function Page({
         section,
       )) ||
     (area === "bot" && ["inbox", "settings"].includes(section))
-  )
+  ) {
+    const missing = configured(); if (missing) return missing;
     return (
       <ConsoleView
         area={area}
@@ -44,5 +47,6 @@ export default async function Page({
         data={await readTrigger(area, section, id)}
       />
     );
+  }
   notFound();
 }

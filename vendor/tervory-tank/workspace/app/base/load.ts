@@ -5,24 +5,14 @@ import { buildModel, type BatchIn, type PageModel, type SkillIn } from "./model"
 
 /** Reads batch counts and approved skills from Tank. Read only: nothing is queued, re-run or saved. */
 export async function loadBase(): Promise<PageModel> {
-  let batches: BatchIn[] | null = null;
-  let skills: SkillIn[] | null = null;
-  let contextTrial: ContextReport | null = null;
-  try {
-    const { tenantId } = await currentTenant();
-    batches = await baseBatches(tenantId);
-    try {
-      contextTrial = await loadContextReport(tenantId, baseRecords);
-    } catch {
-      contextTrial = null;
-    }
-  } catch {
-    batches = null;
-  }
-  try {
-    skills = await listSkills();
-  } catch {
-    skills = null;
-  }
-  return { ...buildModel({ batches, skills, now: new Date() }), contextTrial };
+  let tenantId: string | null = null;
+  try { tenantId = (await currentTenant()).tenantId; } catch { /* Signed-out reads contain no tenant data. */ }
+  const [batches, context, skills] = await Promise.allSettled([
+    tenantId ? baseBatches(tenantId) : Promise.reject(new Error("Sign in to your workspace.")),
+    tenantId ? loadContextReport(tenantId, baseRecords) : Promise.reject(new Error("Sign in to your workspace.")),
+    listSkills(true),
+  ]);
+  return { ...buildModel({ batches: batches.status === "fulfilled" ? batches.value : null,
+    skills: skills.status === "fulfilled" ? skills.value : null, now: new Date() }),
+    contextTrial: context.status === "fulfilled" ? context.value : null };
 }

@@ -37,7 +37,7 @@ export async function POST(req: Request) {
   if (!region) return NextResponse.json({ error: "Name US or South Africa." }, { status: 400 });
   try {
     const res = await zenasIn(region, "cases/convert", {
-      method: "POST",
+      method: "POST", headers: { "idempotency-key": req.headers.get("idempotency-key") || crypto.randomUUID() },
       body: JSON.stringify({ home_region: region }),
     });
     if (!res) return NextResponse.json({ error: "That box is not connected." }, { status: 404 });

@@ -102,9 +102,16 @@ async def verify_lifecycle(request: Request, setting: str):
         raise HTTPException(401, "Lifecycle authentication required.")
     from .app import bounded_json
     body = await bounded_json(request, 4_000)
-    message = f"{timestamp}\n{request.method}\n{request.url.path}\n".encode() + body
-    expected = hmac.new(key.encode(), message, hashlib.sha256).hexdigest()
-    if not hmac.compare_digest(expected.encode(), signature.encode()):
+    # Historical Autumbra/Rig form (timestamp\nmethod\npath\n + body) stays valid.
+    # When Tank also sends verified tenant+user headers, accept only the bound form
+    # so a shared lifecycle key alone cannot assert a forged caller.
+    tenant = request.headers.get("X-Tervory-Tenant", "").strip()
+    user = request.headers.get("X-Tervory-User", "").strip()
+    candidates = [f"{timestamp}\n{request.method}\n{request.url.path}\n".encode() + body]
+    if tenant and user:
+        candidates = [f"{timestamp}\n{request.method}\n{request.url.path}\n{tenant}\n{user}\n".encode() + body]
+    if not any(hmac.compare_digest(hmac.new(key.encode(), message, hashlib.sha256).hexdigest().encode(), signature.encode())
+               for message in candidates):
         raise HTTPException(401, "Lifecycle authentication required.")
 
 
@@ -119,6 +126,11 @@ async def require_rig_lifecycle(request: Request):
 def create_app():
     from .app import bounded_json
     app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
+    @app.get("/health")
+    async def health():
+        from .configuration import setting_status
+        status = setting_status("lifecycle")
+        return {"ok": True, "ready": status["configured"], **status}
     register(app, require_lifecycle, bounded_json)
     from .rig_lifecycle import register as register_rig
     register_rig(app, require_rig_lifecycle)

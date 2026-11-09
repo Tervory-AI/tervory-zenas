@@ -9,6 +9,7 @@ from uuid import UUID
 from fastapi import APIRouter, Request
 from fastapi.responses import Response
 from pydantic import Field, model_validator
+from chassis.tenant_db import activate_tenant
 
 from rigbox.api import _admin, _auth, _ok, _tenant
 from rigbox.service import RigError
@@ -126,6 +127,9 @@ async def entitlement(request: Request, body: Entitlement):
     presented = request.headers.get("x-tank-key", "")
     if not expected or not presented or not hmac.compare_digest(expected.encode(), presented.encode()):
         raise RigError("unauthorized", "Room authorization is required.", 401)
+    from rigbox.rooms import require_owner
+    require_owner(body.tenant_id)
+    activate_tenant(body.tenant_id)
     await engine(request).store.set_entitlement(body.tenant_id, body.enabled, body.price_amount, body.currency)
     return {"saved": True}
 
@@ -177,3 +181,5 @@ def mount(app):
     app.include_router(router)
     from .internal import router as workspace_router
     app.include_router(workspace_router)
+    from .terminal import router as terminal_router
+    app.include_router(terminal_router)

@@ -23,6 +23,7 @@ def main(argv: list[str] | None = None) -> int:
     run_parser.add_argument("--source", help="one source id")
     run_parser.add_argument("--backfill", action="store_true", help="read every saved vintage")
     run_parser.add_argument("--fixtures", help="directory of saved responses")
+    run_parser.add_argument("--dry-run", action="store_true", help="replay offline in disposable storage")
     run_parser.add_argument(
         "--live",
         action="store_true",
@@ -38,6 +39,16 @@ def main(argv: list[str] | None = None) -> int:
     run_parser.add_argument("--tenant", help="tenant UUID (required for Postgres)")
     status_parser.add_argument("--tenant", help="tenant UUID (required for Postgres)")
     args = parser.parse_args(argv)
+    if args.command == 'run' and args.dry_run:
+        if args.live or args.fixtures:
+            parser.error('--dry-run cannot be combined with --live or --fixtures')
+        from engines.ffl.engine import plan
+        if args.engine != plan()['engine']:
+            parser.error('no recorded rehearsal for this engine')
+        from core.dry_run import run as rehearsal
+        import json
+        print(json.dumps(asyncio.run(rehearsal()), default=str, sort_keys=True))
+        return 0
     db = resolve_db(getattr(args, "db", None))
     if args.command == "run" and args.live and args.fixtures:
         raise SystemExit("pass either --live or --fixtures, not both")

@@ -1,10 +1,12 @@
 "use client";
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { CHANNELS, Data, DASH, value } from "./copy";
+import { FirstAction } from "./day-zero";
 import { Field, Fields, Records } from "./records";
 import { confirmTrigger, proposeTrigger } from "./actions";
+import { clientError, waitForAction } from "./request";
 
 type Propose = (
   tool: string,
@@ -50,11 +52,14 @@ export default function ConsoleView({
       entries: readonly (readonly [string, unknown])[];
     } | null>(null);
   const [result, setResult] = useState<Data | null>(null);
+  const busy = useRef(false);
   const propose: Propose = async (tool, args, title, entries) => {
+    if (busy.current) return;
+    busy.current = true;
     setError("");
     start(async () => {
       try {
-        const answer = await proposeTrigger(tool, args);
+        const answer = await waitForAction(proposeTrigger(tool, args));
         setPreview({
           thread: answer.thread_id,
           card: answer.card.card_id,
@@ -62,15 +67,17 @@ export default function ConsoleView({
           entries: answer.preview ?? entries,
         });
       } catch (e) {
-        setError(e instanceof Error ? e.message : String(e));
-      }
+        setError(clientError(e));
+      } finally { busy.current = false; }
     });
   };
-  const confirm = () =>
+  const confirm = () => {
+    if (!preview || busy.current) return;
+    busy.current = true;
+    setError("");
     start(async () => {
-      if (!preview) return;
       try {
-        const answer = await confirmTrigger(preview.thread, preview.card);
+        const answer = await waitForAction(confirmTrigger(preview.thread, preview.card));
         setResult(answer);
         if (answer.status === "confirmed") {
           const output = object(answer.result);
@@ -96,11 +103,25 @@ export default function ConsoleView({
           router.refresh();
         }
       } catch (e) {
-        setError(e instanceof Error ? e.message : String(e));
-      }
+        setError(clientError(e));
+      } finally { busy.current = false; }
     });
+  };
+  const cancel = () => {
+    if (!preview || busy.current) return;
+    busy.current = true;
+    setError("");
+    start(async () => {
+      try {
+        await waitForAction(confirmTrigger(preview.thread, preview.card, "cancel"));
+        setPreview(null);
+      } catch (error) { setError(clientError(error)); }
+      finally { busy.current = false; }
+    });
+  };
   return (
     <>
+      {!id && !preview && <FirstAction area={area} section={section} data={data} />}
       {preview ? (
         <div className="trigger-stack trigger-confirm">
           <h1>{preview.title}</h1>
@@ -109,20 +130,7 @@ export default function ConsoleView({
           <div className="trigger-confirm-footer">
             <button
               disabled={pending}
-              onClick={() =>
-                start(async () => {
-                  try {
-                    await confirmTrigger(
-                      preview.thread,
-                      preview.card,
-                      "cancel",
-                    );
-                    setPreview(null);
-                  } catch (e) {
-                    setError(e instanceof Error ? e.message : String(e));
-                  }
-                })
-              }
+              onClick={cancel}
             >
               Cancel
             </button>
@@ -152,7 +160,8 @@ export default function ConsoleView({
           pending={pending}
         />
       )}
-      {error && <p role="alert">{error}</p>}
+      <div className="trigger-error-space">{error && <p role="alert">{error}</p>}</div>
+      {!result && !preview && !id && <p className="trigger-first-receipt">— · Confirm an action to create its receipt.</p>}
       {result && (
         <div className="trigger-section">
           <p>
