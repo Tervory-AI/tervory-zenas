@@ -59,22 +59,13 @@ async def test_moot_keeps_its_existing_tank_route_when_zenas_worker_is_enabled(m
     assert response["content"] == "placeholder existing Moot result"
 
 
-def test_opt_in_configuration_selects_the_packaged_worker(tmp_path):
+def test_opt_in_configuration_selects_the_packaged_worker():
     from pathlib import Path
-    import shutil
-    import subprocess
     import yaml
     root = Path(__file__).resolve().parents[2]
-    # Check the separate proposed configuration without rewriting the source
-    # Compose files exercised by every original standby/hardening proof.
-    proposed = tmp_path / 'agents/zenas'
-    proposed.mkdir(parents=True)
-    for name in ('docker-compose.yml', 'docker-compose.za.yml', 'Dockerfile'):
-        shutil.copy2(root / 'agents/zenas' / name, proposed / name)
-    subprocess.run(['git', 'apply', '--check', str(root / 'tank-patches/gate78-worker-runtime.patch')],
-                   cwd=tmp_path, check=True, capture_output=True)
-    subprocess.run(['git', 'apply', str(root / 'tank-patches/gate78-worker-runtime.patch')],
-                   cwd=tmp_path, check=True, capture_output=True)
+    # #796 is now the actual configuration; test it without replaying its
+    # historical proposal or modifying the source/deployment checkout.
+    proposed = root / 'agents/zenas'
     for name, region in (("docker-compose.yml", "us-east"), ("docker-compose.za.yml", "za")):
         service = yaml.safe_load((proposed / name).read_text())["services"]["zenas-brain"]
         module, attribute = service["command"][1].split(":")

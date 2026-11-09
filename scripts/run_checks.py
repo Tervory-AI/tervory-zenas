@@ -81,6 +81,14 @@ def test_layout(stage):
     proof = ROOT / 'tank-patches/hf-sdk-offline-proof.patch'
     run(['git', 'apply', '--check', proof], cwd=stage)
     run(['git', 'apply', proof], cwd=stage)
+    # Residual legal-only tool declarations were never integrated upstream.
+    # Keep this explicit proposal separate from the accepted routing runtime.
+    tools = ROOT / 'tank-patches/gate6-zenas-tools.patch'
+    run(['git', 'apply', '--check', tools], cwd=stage)
+    run(['git', 'apply', tools], cwd=stage)
+    receipts = ROOT / 'tank-patches/gate6-zenas-receipts.patch'
+    run(['git', 'apply', '--check', receipts], cwd=stage)
+    run(['git', 'apply', receipts], cwd=stage)
     deps = CACHE / 'workspace'
     deps.mkdir(exist_ok=True)
     lock = (stage / 'workspace/package-lock.json').read_bytes()

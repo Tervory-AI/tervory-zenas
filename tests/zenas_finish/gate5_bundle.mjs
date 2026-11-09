@@ -54,4 +54,9 @@ const config={mode:'production',entry:path.join(output,'entry.tsx'),output:{path
 await new Promise((resolve,reject)=>packaged.webpack(config,(error,stats)=>{
  if(error||stats.hasErrors())reject(error??new Error(stats.toString({all:false,errors:true})));else resolve();
 }));
-const fs=require('node:fs');writeFileSync(path.join(output,'client.css'),['globals.css','zenas/zenas.css','zenas/feeds/feeds.css','matters/matters.css','review/review.css'].map(p=>fs.readFileSync(path.join(root,'workspace/app',p),'utf8')).join('\n'));
+// Use Next's shipped production minifier; keep every real screen and the
+// unchanged compressed-size budget in the browser fixture.
+const fs=require('node:fs'),asset=path.join(output,'client.js');
+const optimized=await require('next/dist/build/swc').minify(fs.readFileSync(asset,'utf8'),{compress:true,mangle:true});
+writeFileSync(asset,optimized.code);
+writeFileSync(path.join(output,'client.css'),['globals.css','zenas/zenas.css','zenas/feeds/feeds.css','matters/matters.css','review/review.css'].map(p=>fs.readFileSync(path.join(root,'workspace/app',p),'utf8')).join('\n'));
